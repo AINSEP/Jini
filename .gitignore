@@ -12,8 +12,13 @@ coverage/
 .jini/
 .playwright-mcp/
 
-# Claude Code harness-local session state (worktrees, one-time init flags)
-.claude/
+# Claude Code harness-local session state (worktrees, one-time init flags).
+# Contents are excluded rather than the directory itself: git cannot re-include a path whose
+# parent directory is excluded, and `.claude/agents/` below must stay trackable.
+.claude/*
+# Agent definitions are shared project config, not session state — AGENTS.md names `sidekick`
+# as a startup step, so the definition has to survive a fresh clone.
+!.claude/agents/
 
 # project-runner local execution state (leases/sandboxes are ephemeral; ledger tasks are committed)
 foundry/automation/project-runner/leases/
