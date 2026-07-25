@@ -16,6 +16,7 @@ import type {
 } from '../../types.js';
 import type { ChatAttachment, ChatMessage } from '@jini/chat-core';
 import type { ChatTransport } from '../../../../transport.js';
+import { definedProps } from '../../../../util/defined-props.js';
 import { useComposer, type UseComposerResult } from '../../../../react/hooks/useComposer.js';
 import {
   useConversation,
@@ -82,6 +83,46 @@ function createAttachmentBatchId(): string {
     ?? `chat-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
+/** Module scope so each branch costs 1 cognitive point instead of 2 (nested one level inside
+ * `useChatPane` where it used to live as a ternary chain). */
+function resolveChatPaneActivity(
+  selectedAgent: ChatPaneAgent | undefined,
+  conversation: UseConversationResult,
+): ChatPaneActivity {
+  if (selectedAgent === undefined) return 'unavailable';
+  if (conversation.error) return 'failed';
+  if (conversation.isStreaming) return 'streaming';
+  return 'ready';
+}
+
+/**
+ * Runs one attachment upload and, unless superseded/unmounted/aborted by the time it resolves,
+ * hands the results (or error) to the caller's effects. Concurrent by design — unlike
+ * {@link useLatestOperation}'s latest-wins model, several batches may be in flight at once
+ * (`addAttachments`'s `activeUploadsRef` is a `Set`, not a single slot) — so this takes an explicit
+ * `stillWanted()` check per attempt rather than a shared generation token.
+ */
+async function uploadAttachmentBatch(
+  files: File[],
+  effects: {
+    upload: (files: File[], options: ChatPaneAttachmentUploadOptions) => Promise<ChatAttachment[]>;
+    signal: AbortSignal;
+    batchId: string;
+    stillWanted: () => boolean;
+    onAttachment: (attachment: ChatAttachment) => void;
+    onError: (error: Error) => void;
+  },
+): Promise<void> {
+  try {
+    const uploaded = await effects.upload(files, { signal: effects.signal, batchId: effects.batchId });
+    if (!effects.stillWanted()) return;
+    for (const attachment of uploaded) effects.onAttachment(attachment);
+  } catch (error) {
+    if (!effects.stillWanted()) return;
+    effects.onError(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
 export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [activeUploadCount, setActiveUploadCount] = useState(0);
   const [attachmentError, setAttachmentError] = useState<Error | null>(null);
@@ -92,45 +133,32 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const [internalSelection, setInternalSelection] = useState<ChatPaneAgentSelection>(
     options.initialSelection ?? { agentId: '' },
   );
-  const workingDirectoryState = useChatPaneWorkingDirectory({
-    ...(options.workingDirectory === undefined
-      ? {}
-      : { workingDirectory: options.workingDirectory }),
-    ...(options.initialWorkingDirectory === undefined
-      ? {}
-      : { initialWorkingDirectory: options.initialWorkingDirectory }),
-    ...(options.onChangeWorkingDirectory === undefined
-      ? {}
-      : { onChangeWorkingDirectory: options.onChangeWorkingDirectory }),
-    ...(options.workingDirectoryAccess === undefined
-      ? {}
-      : { workingDirectoryAccess: options.workingDirectoryAccess }),
-  });
+  const workingDirectoryState = useChatPaneWorkingDirectory(definedProps({
+    workingDirectory: options.workingDirectory,
+    initialWorkingDirectory: options.initialWorkingDirectory,
+    onChangeWorkingDirectory: options.onChangeWorkingDirectory,
+    workingDirectoryAccess: options.workingDirectoryAccess,
+  }));
   const requestedSelection = options.selection ?? internalSelection;
   const selection = useMemo(
     () => resolveChatPaneSelection(options.agents, requestedSelection),
     [options.agents, requestedSelection],
   );
   const selectedAgent = options.agents.find((agent) => agent.id === selection.agentId);
-  const composer = useComposer({
-    ...(options.initialDraft === undefined ? {} : { initialDraft: options.initialDraft }),
+  const composer = useComposer(definedProps({
+    initialDraft: options.initialDraft,
     initialAgent: selection,
-  });
-  const conversation = useConversation({
+  }));
+  const conversation = useConversation(definedProps({
     transport: options.transport,
-    ...(options.initialMessages === undefined ? {} : { initialMessages: options.initialMessages }),
-    ...(options.conversationId === undefined ? {} : { conversationId: options.conversationId }),
-    ...(selection.agentId ? { agentId: selection.agentId } : {}),
-  });
+    initialMessages: options.initialMessages,
+    conversationId: options.conversationId,
+    // Keys off an empty string, not `undefined` — `selection.agentId` is always a string (never
+    // absent), so only the falsy "no agent selected" case should omit the key.
+    agentId: selection.agentId || undefined,
+  }));
 
-  const activity: ChatPaneActivity =
-    selectedAgent === undefined
-      ? 'unavailable'
-      : conversation.error
-        ? 'failed'
-        : conversation.isStreaming
-          ? 'streaming'
-          : 'ready';
+  const activity: ChatPaneActivity = resolveChatPaneActivity(selectedAgent, conversation);
 
   useEffect(() => {
     options.onActivityChange?.(activity);
@@ -191,23 +219,16 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     setActiveUploadCount(activeUploadsRef.current.size);
     setAttachmentError(null);
     try {
-      const uploaded = await options.uploadAttachments(files, {
+      await uploadAttachmentBatch(files, {
+        upload: options.uploadAttachments,
         signal: controller.signal,
         batchId: attachmentBatchIdRef.current,
+        stillWanted: () => mountedRef.current
+          && !controller.signal.aborted
+          && generation === attachmentGenerationRef.current,
+        onAttachment: (attachment) => composer.addAttachment(attachment),
+        onError: setAttachmentError,
       });
-      if (
-        !mountedRef.current
-        || controller.signal.aborted
-        || generation !== attachmentGenerationRef.current
-      ) return;
-      for (const attachment of uploaded) composer.addAttachment(attachment);
-    } catch (error) {
-      if (
-        !mountedRef.current
-        || controller.signal.aborted
-        || generation !== attachmentGenerationRef.current
-      ) return;
-      setAttachmentError(error instanceof Error ? error : new Error(String(error)));
     } finally {
       if (activeUploadsRef.current.delete(controller) && mountedRef.current) {
         setActiveUploadCount(activeUploadsRef.current.size);
@@ -233,11 +254,13 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     attachmentGenerationRef.current += 1;
     attachmentBatchIdRef.current = createAttachmentBatchId();
     options.onActivityChange?.('queued');
-    await conversation.sendMessage(trimmed, {
+    await conversation.sendMessage(trimmed, definedProps({
       agentId: selection.agentId,
-      ...(attachments.length === 0 ? {} : { attachments }),
-      ...(context === undefined ? {} : { context }),
-    });
+      // Omitted when the array is EMPTY, not merely absent — an empty `attachments: []` would be a
+      // different (valid, present) value to the transport than "no attachments key at all".
+      attachments: attachments.length === 0 ? undefined : attachments,
+      context,
+    }));
   }, [
     composer,
     conversation,

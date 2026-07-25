@@ -1,16 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { useLatestOperation } from '../../../../react/hooks/useLatestOperation.js';
 import type { ChatPaneWorkingDirectoryAccess } from '../../types.js';
-
-/**
- * Preserves native Error objects while normalizing opaque bridge rejections.
- *
- * @complexity Time/space: O(1).
- * @overallScore 100/100
- */
-function normalizeWorkingDirectoryError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
-}
 
 export interface UseChatPaneWorkingDirectoryOptions {
   workingDirectory?: string | null;
@@ -35,6 +26,11 @@ export interface UseChatPaneWorkingDirectoryResult {
  * Owns controlled/uncontrolled directory state and orchestrates the native
  * filesystem effects used by the packaged working-directory picker.
  *
+ * Every async path runs through one {@link useLatestOperation} instance, so a validation still in
+ * flight cannot clobber the result of the pick that replaced it, and a resolved promise arriving
+ * after unmount writes nothing. `token.ensureCurrent()` is that check — it stands where a
+ * `if (!mounted || stale) return;` guard used to sit after each await.
+ *
  * @param options - Public value, change callback, and optional host I/O access.
  * @returns Current picker state plus actions consumed by {@link ChatPane}.
  * @throws Never. Native capability failures are exposed as
@@ -55,8 +51,7 @@ export function useChatPaneWorkingDirectory(
   const [workingDirectoryInvalid, setWorkingDirectoryInvalid] = useState(false);
   const [workingDirectoryPending, setWorkingDirectoryPending] = useState(false);
   const [workingDirectoryError, setWorkingDirectoryError] = useState<Error | null>(null);
-  const mountedRef = useRef(true);
-  const operationGenerationRef = useRef(0);
+  const operation = useLatestOperation();
   const observedDirectoryRef = useRef<string | null | undefined>(undefined);
   const workingDirectory = controlled
     ? options.workingDirectory ?? null
@@ -68,18 +63,16 @@ export function useChatPaneWorkingDirectory(
     options.onChangeWorkingDirectory?.(directory);
   }, [controlled, options.onChangeWorkingDirectory]);
 
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      operationGenerationRef.current += 1;
-    };
+  /** Shared by every action: a failed native call invalidates and stops pending. */
+  const reportFailure = useCallback((error: Error) => {
+    setWorkingDirectoryError(error);
+    setWorkingDirectoryPending(false);
   }, []);
 
   useEffect(() => {
     if (observedDirectoryRef.current === workingDirectory) return;
     observedDirectoryRef.current = workingDirectory;
-    const generation = ++operationGenerationRef.current;
+    operation.supersede();
     const access = options.workingDirectoryAccess;
     setWorkingDirectoryError(null);
     if (workingDirectory === null || !access) {
@@ -89,15 +82,12 @@ export function useChatPaneWorkingDirectory(
     }
     let validationSettled = false;
     setWorkingDirectoryPending(true);
-    void (async () => {
-      try {
+    void operation.run(
+      async (token) => {
         const normalized = access.normalizeWorkingDirectory
           ? await access.normalizeWorkingDirectory(workingDirectory)
           : workingDirectory;
-        if (
-          !mountedRef.current
-          || generation !== operationGenerationRef.current
-        ) return;
+        token.ensureCurrent();
         if (normalized === null) {
           validationSettled = true;
           setWorkingDirectoryInvalid(true);
@@ -105,29 +95,20 @@ export function useChatPaneWorkingDirectory(
           return;
         }
         const exists = await access.directoryExists(normalized);
-        if (
-          !mountedRef.current
-          || generation !== operationGenerationRef.current
-        ) return;
-        if (normalized !== workingDirectory) {
-          reportWorkingDirectory(normalized);
-        }
+        token.ensureCurrent();
+        if (normalized !== workingDirectory) reportWorkingDirectory(normalized);
         validationSettled = true;
         setWorkingDirectoryInvalid(!exists);
         setWorkingDirectoryPending(false);
-      } catch (error) {
-        if (
-          !mountedRef.current
-          || generation !== operationGenerationRef.current
-        ) return;
+      },
+      (error) => {
         validationSettled = true;
-        setWorkingDirectoryError(normalizeWorkingDirectoryError(error));
         setWorkingDirectoryInvalid(true);
-        setWorkingDirectoryPending(false);
-      }
-    })();
+        reportFailure(error);
+      },
+    );
     return () => {
-      operationGenerationRef.current += 1;
+      operation.supersede();
       // React Strict Mode replays this effect while preserving refs. Release
       // only the marker for the directory owned by this setup so its replay
       // starts fresh. Settled validations keep their marker so an unstable
@@ -140,7 +121,9 @@ export function useChatPaneWorkingDirectory(
       }
     };
   }, [
+    operation,
     options.workingDirectoryAccess,
+    reportFailure,
     reportWorkingDirectory,
     workingDirectory,
   ]);
@@ -148,36 +131,30 @@ export function useChatPaneWorkingDirectory(
   const openWorkingDirectoryPicker = useCallback(async () => {
     const access = options.workingDirectoryAccess;
     if (!access) return;
-    const generation = ++operationGenerationRef.current;
     setWorkingDirectoryError(null);
     setWorkingDirectoryPending(true);
-    try {
+    await operation.run(async (token) => {
       const [recent, exists] = await Promise.all([
         access.recentDirectories(),
         workingDirectory === null
           ? Promise.resolve(true)
           : access.directoryExists(workingDirectory),
       ]);
-      if (!mountedRef.current || generation !== operationGenerationRef.current) return;
+      token.ensureCurrent();
       setRecentDirectories([...recent]);
       setWorkingDirectoryInvalid(!exists);
       setWorkingDirectoryPending(false);
-    } catch (error) {
-      if (!mountedRef.current || generation !== operationGenerationRef.current) return;
-      setWorkingDirectoryError(normalizeWorkingDirectoryError(error));
-      setWorkingDirectoryPending(false);
-    }
-  }, [options.workingDirectoryAccess, workingDirectory]);
+    }, reportFailure);
+  }, [operation, options.workingDirectoryAccess, reportFailure, workingDirectory]);
 
   const pickWorkingDirectory = useCallback(async () => {
     const access = options.workingDirectoryAccess;
     if (!access) return;
-    const generation = ++operationGenerationRef.current;
     setWorkingDirectoryError(null);
     setWorkingDirectoryPending(true);
-    try {
+    await operation.run(async (token) => {
       const selected = await access.pickWorkingDirectory(workingDirectory ?? undefined);
-      if (!mountedRef.current || generation !== operationGenerationRef.current) return;
+      token.ensureCurrent();
       if (selected === null) {
         setWorkingDirectoryPending(false);
         return;
@@ -186,20 +163,22 @@ export function useChatPaneWorkingDirectory(
         access.directoryExists(selected),
         access.recentDirectories(),
       ]);
-      if (!mountedRef.current || generation !== operationGenerationRef.current) return;
+      token.ensureCurrent();
       reportWorkingDirectory(selected);
       setWorkingDirectoryInvalid(!exists);
       setRecentDirectories([...recent]);
       setWorkingDirectoryPending(false);
-    } catch (error) {
-      if (!mountedRef.current || generation !== operationGenerationRef.current) return;
-      setWorkingDirectoryError(normalizeWorkingDirectoryError(error));
-      setWorkingDirectoryPending(false);
-    }
-  }, [options.workingDirectoryAccess, reportWorkingDirectory, workingDirectory]);
+    }, reportFailure);
+  }, [
+    operation,
+    options.workingDirectoryAccess,
+    reportFailure,
+    reportWorkingDirectory,
+    workingDirectory,
+  ]);
 
   const selectRecentDirectory = useCallback(async (directory: string) => {
-    const generation = ++operationGenerationRef.current;
+    operation.supersede();
     setWorkingDirectoryError(null);
     const access = options.workingDirectoryAccess;
     if (!access) {
@@ -207,26 +186,22 @@ export function useChatPaneWorkingDirectory(
       return;
     }
     setWorkingDirectoryPending(true);
-    try {
+    await operation.run(async (token) => {
       const exists = await access.directoryExists(directory);
-      if (!mountedRef.current || generation !== operationGenerationRef.current) return;
+      token.ensureCurrent();
       reportWorkingDirectory(directory);
       setWorkingDirectoryInvalid(!exists);
       setWorkingDirectoryPending(false);
-    } catch (error) {
-      if (!mountedRef.current || generation !== operationGenerationRef.current) return;
-      setWorkingDirectoryError(normalizeWorkingDirectoryError(error));
-      setWorkingDirectoryPending(false);
-    }
-  }, [options.workingDirectoryAccess, reportWorkingDirectory]);
+    }, reportFailure);
+  }, [operation, options.workingDirectoryAccess, reportFailure, reportWorkingDirectory]);
 
   const clearWorkingDirectory = useCallback(() => {
-    operationGenerationRef.current += 1;
+    operation.supersede();
     reportWorkingDirectory(null);
     setWorkingDirectoryInvalid(false);
     setWorkingDirectoryPending(false);
     setWorkingDirectoryError(null);
-  }, [reportWorkingDirectory]);
+  }, [operation, reportWorkingDirectory]);
 
   return {
     workingDirectory,

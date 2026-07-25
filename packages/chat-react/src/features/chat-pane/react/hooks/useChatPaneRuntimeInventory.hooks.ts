@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
+import { useLatestOperation } from '../../../../react/hooks/useLatestOperation.js';
 import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '../../types.js';
 
 const EMPTY_AGENTS: readonly ChatPaneAgent[] = [];
@@ -18,13 +19,12 @@ export interface UseChatPaneRuntimeInventoryResult {
   rescanAgents: () => Promise<void>;
 }
 
-function runtimeAccessError(error: unknown): Error {
-  return error instanceof Error ? error : new Error(String(error));
-}
-
 /**
  * Owns agent inventory, explicit rescans, and daemon-health polling while the
  * host supplies only the environment-specific I/O effects.
+ *
+ * Inventory and health are tracked as two independent operations: a slow `listAgents` must not
+ * suppress a health tick that resolved after it, and vice versa.
  *
  * @complexity Time: O(n) per inventory response; space: O(n) for the snapshot.
  * @overallScore 100/100
@@ -38,48 +38,34 @@ export function useChatPaneRuntimeInventory({
   const [scanningAgents, setScanningAgents] = useState(false);
   const [daemonOnline, setDaemonOnline] = useState(false);
   const [runtimeInventoryError, setRuntimeInventoryError] = useState<Error | null>(null);
-  const mountedRef = useRef(true);
-  const inventoryGenerationRef = useRef(0);
-  const statusGenerationRef = useRef(0);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-      inventoryGenerationRef.current += 1;
-      statusGenerationRef.current += 1;
-    };
-  }, []);
+  const inventory = useLatestOperation();
+  const health = useLatestOperation();
 
   useEffect(() => {
     if (access !== undefined) return;
-    inventoryGenerationRef.current += 1;
+    inventory.supersede();
     setAgents(initialAgents);
     setScanningAgents(false);
     setRuntimeInventoryError(null);
-  }, [access, initialAgents]);
+  }, [access, initialAgents, inventory]);
 
   const loadAgents = useCallback(async (rescan: boolean): Promise<void> => {
     if (!access) return;
-    const generation = ++inventoryGenerationRef.current;
     setScanningAgents(true);
     setRuntimeInventoryError(null);
-    try {
+    await inventory.run(async (token) => {
       const nextAgents = await (rescan ? access.rescanAgents() : access.listAgents());
-      if (mountedRef.current && generation === inventoryGenerationRef.current) {
-        setAgents([...nextAgents]);
-      }
-    } catch (error) {
-      if (mountedRef.current && generation === inventoryGenerationRef.current) {
-        if (!rescan) setAgents([]);
-        setRuntimeInventoryError(runtimeAccessError(error));
-      }
-    } finally {
-      if (mountedRef.current && generation === inventoryGenerationRef.current) {
-        setScanningAgents(false);
-      }
-    }
-  }, [access]);
+      token.ensureCurrent();
+      setAgents([...nextAgents]);
+      setScanningAgents(false);
+    }, (error) => {
+      // A failed rescan keeps the last good inventory on screen; a failed initial load has no
+      // last-good to keep, so it clears to empty rather than showing agents that may be gone.
+      if (!rescan) setAgents([]);
+      setRuntimeInventoryError(error);
+      setScanningAgents(false);
+    });
+  }, [access, inventory]);
 
   const refreshStatus = useCallback(async (): Promise<void> => {
     // No `if (!access) return` guard here (unlike `loadAgents`, which is reachable through
@@ -89,18 +75,12 @@ export function useChatPaneRuntimeInventory({
     // closure as the effect's own `if (!access) return` at its top — `access` is guaranteed
     // defined by the time either one runs.
     const runtimeAccess = access as ChatPaneRuntimeAccess;
-    const generation = ++statusGenerationRef.current;
-    try {
+    await health.run(async (token) => {
       const online = await runtimeAccess.daemonOnline();
-      if (mountedRef.current && generation === statusGenerationRef.current) {
-        setDaemonOnline(online);
-      }
-    } catch {
-      if (mountedRef.current && generation === statusGenerationRef.current) {
-        setDaemonOnline(false);
-      }
-    }
-  }, [access]);
+      token.ensureCurrent();
+      setDaemonOnline(online);
+    }, () => setDaemonOnline(false));
+  }, [access, health]);
 
   useEffect(() => {
     if (!access) return;
@@ -109,10 +89,10 @@ export function useChatPaneRuntimeInventory({
     const timer = window.setInterval(() => void refreshStatus(), pollIntervalMs);
     return () => {
       window.clearInterval(timer);
-      inventoryGenerationRef.current += 1;
-      statusGenerationRef.current += 1;
+      inventory.supersede();
+      health.supersede();
     };
-  }, [access, loadAgents, pollIntervalMs, refreshStatus]);
+  }, [access, health, inventory, loadAgents, pollIntervalMs, refreshStatus]);
 
   const rescanAgents = useCallback(() => loadAgents(true), [loadAgents]);
 

@@ -286,6 +286,18 @@ describe('AgentRuntimePicker', () => {
     await user.keyboard('{Tab}');
     expect(firstControl).toHaveFocus();
 
+    // Tab from a control that is neither the first nor the last must NOT wrap — the wrap-around
+    // handler should decline (return `null`) and let the browser's native Tab behavior take over,
+    // which means no `preventDefault()` call. `userEvent.keyboard` doesn't actually move focus for
+    // a plain (non-wrapping) Tab in jsdom, so dispatching directly and reading `defaultPrevented`
+    // is the only way to observe "declined" versus "handled".
+    const middleControl = screen.getByRole('radio', { name: /Codex CLI/ });
+    middleControl.focus();
+    const nativeTab = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: 'Tab' });
+    expect(middleControl.dispatchEvent(nativeTab)).toBe(true);
+    expect(nativeTab.defaultPrevented).toBe(false);
+    expect(middleControl).toHaveFocus();
+
     const modelSelect = screen.getByLabelText('Model');
     modelSelect.focus();
     const nativeArrow = new KeyboardEvent('keydown', {
