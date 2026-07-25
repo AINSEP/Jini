@@ -7,12 +7,17 @@
     "build": "vite build",
     "daemon": "tsx src/daemon.ts",
     "dev": "vite --host 127.0.0.1 --port 4173",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@jini/agui": "workspace:*",
     "@jini/chat-core": "workspace:*",
     "@jini/chat-react": "workspace:*",
     "@jini/daemon": "workspace:*",
+    "@jini/http": "workspace:*",
+    "@jini/media": "workspace:*",
+    "@jini/memory": "workspace:*",
     "@jini/node-host": "workspace:*",
     "@jini/protocol": "workspace:*",
     "react": "^19.2.0",
@@ -22,6 +27,8 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "vite": "^8.1.5"
+    "tsx": "^4.19.0",
+    "vite": "^8.1.5",
+    "vitest": "^2.1.0"
   }
 }

@@ -1,34 +1,40 @@
 import { mkdirSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { dirname, extname, resolve } from 'node:path';
+import { createAguiEncoder } from '@jini/agui';
 import { createAgentExecutor } from '@jini/daemon';
+import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini/http';
+import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini/media';
+import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini/memory';
 import { createLocalNodeDaemon } from '@jini/node-host';
 import type { RunAgentPayload } from '@jini/protocol';
+import {
+  createPlaygroundRuntimeEnvironment,
+  decodePlaygroundRunRequest,
+  failPlaygroundRunBeforeExecutor,
+  promptWithPlaygroundAttachments,
+  sanitizePlaygroundAttachmentName,
+  writeBoundedAttachmentBody,
+} from './playground-request.js';
+import {
+  createPlaygroundAttachmentRegistry,
+  detectPlaygroundAttachmentKind,
+} from './playground-attachment-registry.js';
+import {
+  createPlaygroundWorkingDirectoryAuthority,
+  isLoopbackAddress,
+} from './working-directory-authority.js';
 
 const PLAYGROUND_PREFIX = 'playground:';
 const PLAYGROUND_PORT = 4317;
 const PROJECTS = new Set(['starter-site', 'bug-hunt']);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const dataDir = resolve(repoRoot, '.jini/playground');
-
-interface PlaygroundRunRequest {
-  prompt: string;
-  project: string;
-}
-
-function decodeRunRequest(contextRef: string): PlaygroundRunRequest {
-  if (!contextRef.startsWith(PLAYGROUND_PREFIX)) {
-    throw new Error('Jini Playground received an unsupported run context');
-  }
-  const parsed = JSON.parse(Buffer.from(contextRef.slice(PLAYGROUND_PREFIX.length), 'base64url').toString('utf8')) as Partial<PlaygroundRunRequest>;
-  if (typeof parsed.prompt !== 'string' || parsed.prompt.trim().length === 0) {
-    throw new Error('Jini Playground requires a non-empty prompt');
-  }
-  if (typeof parsed.project !== 'string' || !PROJECTS.has(parsed.project)) {
-    throw new Error('Jini Playground received an unknown sample project');
-  }
-  return { prompt: parsed.prompt, project: parsed.project };
-}
+const uploadDir = resolve(dataDir, 'uploads');
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const MAX_CONCURRENT_UPLOADS = 4;
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
@@ -90,41 +96,229 @@ async function runDemo(
 
 async function main(): Promise<void> {
   mkdirSync(dataDir, { recursive: true });
+  mkdirSync(uploadDir, { recursive: true });
   process.env.JINI_DISABLE_API_AUTH = '1';
   process.env.JINI_ALLOWED_ORIGINS = 'http://127.0.0.1:4173,http://localhost:4173';
   const env: NodeJS.ProcessEnv = {
     ...process.env,
   };
-
-  const daemon = await createLocalNodeDaemon({
+  const mediaTaskStore = createSqliteMediaTaskStore(resolve(dataDir, 'media-tasks.db'));
+  const memoryRoutesDeps = {
+    notes: createNoteStore({ validTypes: ['note'], defaultType: 'note' }),
+    extractions: createExtractionLog(),
+    verifications: createVerifyLog(),
     dataDir,
-    port: PLAYGROUND_PORT,
-    packs: [],
-    env,
-    resolveWorkspaceRoot: ({ resourceRef }) =>
-      PROJECTS.has(resourceRef) ? resolve(repoRoot, 'examples/sample-projects', resourceRef) : undefined,
-    onRunStarted: ({ request, run, lifecycle }) => {
-      const decoded = decodeRunRequest(request.contextRef);
-      if (request.agentId === undefined || request.agentId === 'playground-demo') {
-        void runDemo(run.id, decoded.prompt, decoded.project, lifecycle).catch((error: unknown) => {
-          console.error('[Jini Playground] demo run failed', error);
-        });
-        return;
-      }
-
-      const executor = createAgentExecutor({ lifecycle });
-      void executor
-        .run({
-          runId: run.id,
-          agentId: request.agentId,
-          prompt: decoded.prompt,
-          cwd: resolve(repoRoot, 'examples/sample-projects', decoded.project),
-        })
-        .catch((error: unknown) => {
-          console.error(`[Jini Playground] ${request.agentId} run failed`, error);
-        });
-    },
+  };
+  const workingDirectoryAuthority = await createPlaygroundWorkingDirectoryAuthority({
+    repoRoot,
+    projects: PROJECTS,
+    grantSecret: process.env.JINI_PLAYGROUND_GRANT_SECRET,
   });
+  const attachmentRegistry = await createPlaygroundAttachmentRegistry({
+    uploadDirectory: uploadDir,
+  });
+  const attachmentPruneTimer = setInterval(() => {
+    void attachmentRegistry.pruneExpired().catch((error: unknown) => {
+      console.error('[Jini Playground] attachment retention cleanup failed', error);
+    });
+  }, 5 * 60 * 1_000);
+  attachmentPruneTimer.unref();
+  let activeUploadCount = 0;
+
+  let daemon: Awaited<ReturnType<typeof createLocalNodeDaemon>>;
+  try {
+    daemon = await createLocalNodeDaemon({
+      dataDir,
+      port: PLAYGROUND_PORT,
+      packs: [],
+      env,
+      resolveWorkspaceRoot: ({ resourceRef }) =>
+        PROJECTS.has(resourceRef) ? resolve(repoRoot, 'examples/sample-projects', resourceRef) : undefined,
+      httpExtensions: [
+        (app) => {
+          app.post('/api/playground/working-directory-grants', async (request, response) => {
+            if (!isLoopbackAddress(request.socket.remoteAddress)) {
+              response.status(403).json({ message: 'Working-directory grant denied' });
+              return;
+            }
+            try {
+              const body = request.body as { directory?: unknown } | undefined;
+              const directory = await workingDirectoryAuthority.grant(
+                body?.directory,
+                request.get('x-jini-grant-secret'),
+              );
+              response.status(201).json({ directory });
+            } catch {
+              response.status(403).json({ message: 'Working-directory grant denied' });
+            }
+          });
+        },
+        (app) => {
+          app.post('/api/playground/attachments', async (request, response) => {
+            if (activeUploadCount >= MAX_CONCURRENT_UPLOADS) {
+              response.status(429).json({ message: 'Too many attachment uploads are in progress' });
+              return;
+            }
+            const name = sanitizePlaygroundAttachmentName(request.query.name);
+            const batchId = typeof request.query.batch === 'string' ? request.query.batch : '';
+            activeUploadCount += 1;
+            try {
+              await attachmentRegistry.pruneExpired();
+              const batchDirectory = await attachmentRegistry.createBatchDirectory(batchId);
+              const suffix = extname(name).slice(0, 12);
+              const path = resolve(batchDirectory, `${randomUUID()}${suffix}`);
+              const upload = await writeBoundedAttachmentBody({
+                request,
+                filePath: path,
+                maxBytes: MAX_ATTACHMENT_BYTES,
+              });
+              if (upload.size === 0) {
+                await rm(path, { force: true });
+                response.status(400).json({ message: 'Attachment is empty' });
+                return;
+              }
+              const attachment = await attachmentRegistry.register({
+                batchId,
+                path,
+                name,
+                kind: detectPlaygroundAttachmentKind(upload.signature),
+                size: upload.size,
+              });
+              response.status(201).json({
+                attachment,
+              });
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error);
+              const status = message.includes('20 MB')
+                || message.includes('limited to')
+                || message.includes('too large')
+                || message.includes('storage is full')
+                ? 413
+                : message.includes('Invalid attachment batch')
+                  ? 400
+                  : 500;
+              response.status(status).json({
+                message: status === 500 ? 'Attachment upload failed' : message,
+              });
+            } finally {
+              activeUploadCount -= 1;
+              await attachmentRegistry.deleteUnclaimed(batchId, []).catch(() => undefined);
+            }
+          });
+          app.delete('/api/playground/attachments', async (request, response) => {
+            try {
+              const body = request.body as {
+                batchId?: unknown;
+                paths?: unknown;
+              } | undefined;
+              if (
+                typeof body?.batchId !== 'string'
+                || !Array.isArray(body.paths)
+                || body.paths.length > 10
+                || !body.paths.every((path) => typeof path === 'string')
+              ) {
+                response.status(400).json({ message: 'Invalid attachment cleanup request' });
+                return;
+              }
+              await attachmentRegistry.deleteUnclaimed(body.batchId, body.paths);
+              response.status(204).end();
+            } catch {
+              response.status(400).json({ message: 'Invalid attachment cleanup request' });
+            }
+          });
+        },
+        (app, { lifecycle }) =>
+          registerRunStreamRoute(app, { lifecycle, encoder: createAguiEncoder() }),
+        (app, { adapter }) => registerMemoryRoutes(app, memoryRoutesDeps, adapter),
+        (app, { adapter }) =>
+          registerMediaRoutes(
+            app,
+            {
+              engine: createMediaDispatchEngine({ credentials: {} }),
+              taskStore: mediaTaskStore,
+            },
+            adapter,
+          ),
+      ],
+      onShutdown: async () => {
+        clearInterval(attachmentPruneTimer);
+        await attachmentRegistry.dispose();
+        await mediaTaskStore.close();
+      },
+      onRunStarted: ({ request, run, lifecycle }) => {
+        void (async () => {
+          try {
+            const decoded = decodePlaygroundRunRequest({
+              contextRef: request.contextRef,
+              allowedProjects: PROJECTS,
+              prefix: PLAYGROUND_PREFIX,
+            });
+            const claimed = await attachmentRegistry.claim(
+              decoded.attachments ?? [],
+              run.id,
+            );
+            const {
+              attachments: _untrustedAttachments,
+              ...decodedWithoutAttachments
+            } = decoded;
+            const trustedRequest = {
+              ...decodedWithoutAttachments,
+              ...(claimed.attachments.length > 0
+                ? { attachments: claimed.attachments }
+                : {}),
+            };
+            if (request.agentId === undefined || request.agentId === 'playground-demo') {
+              await runDemo(
+                run.id,
+                promptWithPlaygroundAttachments(trustedRequest),
+                decoded.project,
+                lifecycle,
+              );
+              return;
+            }
+
+            const cwd = await workingDirectoryAuthority.resolveForRun(
+              decoded.workingDirectory,
+              decoded.project,
+            );
+            const executor = createAgentExecutor({ lifecycle });
+            await executor.run({
+              runId: run.id,
+              agentId: request.agentId,
+              prompt: promptWithPlaygroundAttachments(trustedRequest),
+              cwd,
+              env: createPlaygroundRuntimeEnvironment(process.env),
+              ...(decoded.model !== undefined ? { model: decoded.model } : {}),
+              ...(decoded.reasoning !== undefined ? { reasoning: decoded.reasoning } : {}),
+              ...(claimed.attachments.length > 0 && claimed.batchDirectory
+                ? {
+                    imagePaths: claimed.attachments
+                      .filter((attachment) => attachment.kind === 'image')
+                      .map((attachment) => attachment.path),
+                    extraAllowedDirs: [claimed.batchDirectory],
+                    uploadRoot: claimed.batchDirectory,
+                  }
+                : {}),
+            });
+            await lifecycle.waitForTerminal(run.id);
+          } catch (error: unknown) {
+            console.error(`[Jini Playground] ${request.agentId} run failed`, error);
+            await failPlaygroundRunBeforeExecutor({
+              lifecycle,
+              runId: run.id,
+            });
+          } finally {
+            await attachmentRegistry.cleanupRun(run.id);
+          }
+        })();
+      },
+    });
+  } catch (error) {
+    clearInterval(attachmentPruneTimer);
+    await attachmentRegistry.dispose();
+    await mediaTaskStore.close();
+    throw error;
+  }
 
   console.log(`[Jini Playground] daemon ready at ${daemon.url}`);
   let stopping = false;
