@@ -26,6 +26,7 @@ export * from './close-status.js';
 export * from './run-lifecycle.js';
 export * from './tool-executor.js';
 export * from './delegated-tool-bridge.js';
+export * from './frontend-session-registry.js';
 export * from './agent-executor.js';
 export * from './terminal-session.js';
 export * from './tokens.js';

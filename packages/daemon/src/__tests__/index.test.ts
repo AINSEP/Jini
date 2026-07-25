@@ -24,6 +24,8 @@ describe('package barrel', () => {
       // delegated-tool-bridge.ts
       'serializeDelegatedToolOutput',
       'createDelegatedToolBridge',
+      // frontend-session-registry.ts
+      'createFrontendSessionRegistry',
       // agent-executor.ts
       'isSupportedStreamFormat',
       'translateAgentRuntimeEvent',
