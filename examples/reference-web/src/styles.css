@@ -892,3 +892,95 @@ button {
   border-top: 1px solid var(--border, #e4e4e7);
   padding-top: 16px;
 }
+
+/*
+ * Agent lab shell: content + an inline chat pane, side by side.
+ *
+ * The pane is a flex sibling rather than an overlay, so opening it *reflows* the page instead of
+ * covering it — the same shape a real product uses when it docks a chat panel into an admin
+ * screen. `hidden` on the aside removes it from layout entirely, so closing genuinely returns the
+ * space rather than leaving a gap.
+ */
+.agent-lab-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.agent-lab-shell > .agent-lab {
+  flex: 1 1 auto;
+  min-width: 0; /* lets the content actually shrink instead of overflowing the flex row */
+  transition: max-width 160ms ease;
+}
+
+.agent-lab-chat {
+  flex: 0 0 var(--agent-lab-chat-width, 400px);
+  max-width: 100%;
+  border-left: 1px solid var(--border, #e4e4e7);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--surface, #fff);
+}
+
+.agent-lab-chat > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Narrow viewports have no room to split: the pane takes over instead of squeezing the page
+   into a unusable column. */
+@media (max-width: 860px) {
+  .agent-lab-shell {
+    display: block;
+  }
+
+  .agent-lab-chat {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border-left: 0;
+  }
+
+  .agent-lab-shell-open > .agent-lab {
+    display: none;
+  }
+}
+
+.chat-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 50;
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 22%);
+  cursor: grab;
+  /* The button owns the pointer gesture for dragging; without this the browser's own scroll and
+     text-selection handling fights it on touch and trackpads. */
+  touch-action: none;
+  user-select: none;
+}
+
+.chat-fab:active {
+  cursor: grabbing;
+}
+
+.chat-fab:focus-visible {
+  outline: 3px solid var(--accent, #4f46e5);
+  outline-offset: 3px;
+}
+
+.chat-fab-open {
+  background: var(--muted, #52525b);
+}

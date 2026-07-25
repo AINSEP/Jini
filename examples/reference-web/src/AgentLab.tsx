@@ -1,4 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { executePageCapability } from '@jini/chat-core';
+import type { ChatMessage } from '@jini/chat-core';
+import { ChatPane } from '@jini/chat-react';
+import { uploadChatAttachments } from './attachments.js';
+import { ChatFab } from './ChatFab.js';
+import { createDaemonChatTransport } from './daemon-transport.js';
+import { createDomPageDriver } from './dom-page-driver.js';
+import { PLAYGROUND_RUNTIME_ACCESS } from './runtime-access.js';
 
 /**
  * A plain React page tagged for agent control, served at `/#/agent-lab`.
@@ -24,12 +32,73 @@ const INITIAL_ITEMS: LabItem[] = [
   { id: 'water-window-plants', title: 'Water the window plants', done: false },
 ];
 
+/**
+ * The page ids this surface can navigate between, and how. `page.navigate` is checked against
+ * these keys, so a page absent here is unreachable no matter what a caller asks for.
+ */
+const LAB_PAGES: Record<string, () => void> = {
+  'agent-lab': () => { globalThis.location.hash = '#/agent-lab'; },
+  playground: () => { globalThis.location.hash = '#/'; },
+};
+
+/**
+ * Where a caller reaches the page verbs in this example.
+ *
+ * Example-only, and it must stay that way: a global that drives the page is a capability handed
+ * to every script on it. A real host routes these through the daemon's gated tool path, where
+ * they get a principal, a policy check and an audit record. This exists so the verbs can be
+ * exercised and tested before that wiring lands.
+ */
+declare global {
+  // eslint-disable-next-line no-var
+  var __jiniAgentLab: { run: (capabilityId: string, input?: Record<string, unknown>) => Promise<unknown> } | undefined;
+}
+
+const LAB_CHAT_TRANSPORT = createDaemonChatTransport();
+
+/**
+ * Module-level so its identity is stable across renders.
+ *
+ * Writing `agentControl={{ enabled: true }}` inline would make a new object every render. The
+ * hook is keyed on bridge *presence* rather than identity precisely so that cannot re-register
+ * every tool on each render, but a stable constant is the honest way to express "this never
+ * changes" and keeps the example a good pattern to copy.
+ */
+const AGENT_CONTROL = { enabled: true } as const;
+
+const LAB_INITIAL_MESSAGES: ChatMessage[] = [
+  {
+    id: 'lab-welcome',
+    role: 'assistant',
+    content:
+      'This pane is docked **inline** — opening it resizes the page rather than covering it, which '
+      + 'is how a real product embeds a chat pane. The page around me is tagged for agent control; '
+      + 'the six `page.*` verbs run against it through `window.__jiniAgentLab.run`.',
+    runStatus: 'succeeded',
+    createdAt: Date.now(),
+  },
+];
+
 export function AgentLab() {
   const [items, setItems] = useState<LabItem[]>(INITIAL_ITEMS);
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState('Ready.');
+  const [chatOpen, setChatOpen] = useState(false);
+  const rootRef = useRef<HTMLElement>(null);
 
   const remaining = items.filter((item) => !item.done).length;
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    // Scoped to this page's subtree, never `document` — scanning everything would make any
+    // markup on the page an authorization decision.
+    const driver = createDomPageDriver({ root, pages: LAB_PAGES, currentPage: 'agent-lab' });
+    globalThis.__jiniAgentLab = {
+      run: (capabilityId, input = {}) => executePageCapability(driver, capabilityId, input),
+    };
+    return () => { globalThis.__jiniAgentLab = undefined; };
+  }, []);
 
   const toggle = (id: string) => {
     setItems((current) =>
@@ -51,7 +120,8 @@ export function AgentLab() {
   };
 
   return (
-    <main className="agent-lab" data-agent-page="agent-lab">
+    <div className={`agent-lab-shell${chatOpen ? ' agent-lab-shell-open' : ''}`}>
+      <main className="agent-lab" data-agent-page="agent-lab" ref={rootRef}>
       <header
         data-agent-element="lab-header"
         data-agent-role="region"
@@ -175,6 +245,35 @@ export function AgentLab() {
           {status}
         </span>
       </footer>
-    </main>
+      </main>
+
+      {/*
+        `hidden` rather than unmounting: the pane keeps its conversation across toggles, which is
+        the difference between a panel you can close mid-thread and one that throws your session
+        away. It also drops out of layout and the tab order when closed, so the page genuinely
+        resizes rather than reserving a gap.
+      */}
+      <aside className="agent-lab-chat" hidden={!chatOpen} aria-label="Workspace chat">
+        <ChatPane
+          title="Agent lab"
+          transport={LAB_CHAT_TRANSPORT}
+          runtimeAccess={PLAYGROUND_RUNTIME_ACCESS}
+          initialMessages={LAB_INITIAL_MESSAGES}
+          initialSelection={{ agentId: 'claude' }}
+          placeholder="Ask about this page…"
+          uploadAttachments={uploadChatAttachments}
+          initialWorkingDirectory="examples/reference-web"
+          suggestions={[
+            'What controls are on this page?',
+            'Check off "Water the window plants".',
+          ]}
+          // Opt in to the chat.* capability surface. This is the pane driving itself; the
+          // page.* verbs reach the surrounding page through window.__jiniAgentLab.
+          agentControl={AGENT_CONTROL}
+        />
+      </aside>
+
+      <ChatFab open={chatOpen} onToggle={() => setChatOpen((current) => !current)} label="workspace chat" />
+    </div>
   );
 }
