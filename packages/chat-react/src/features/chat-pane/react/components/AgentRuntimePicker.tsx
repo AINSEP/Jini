@@ -181,9 +181,13 @@ export function AgentRuntimePicker({
   }, [open, position]);
 
   const handlePopoverKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const controls = [...(popoverRef.current?.querySelectorAll<HTMLElement>(
+    // No `?? []` fallback for a null ref: this handler is only ever reachable via the
+    // `onKeyDown` React wires to the exact element `popoverRef` is attached to (below), and
+    // React attaches refs during commit — before that element can dispatch any event — so
+    // `popoverRef.current` is guaranteed non-null by the time this runs.
+    const controls = [...popoverRef.current!.querySelectorAll<HTMLElement>(
       'button:not(:disabled), select:not(:disabled), input:not(:disabled)',
-    ) ?? [])];
+    )];
     if (controls.length === 0) return;
 
     const currentIndex = controls.indexOf(document.activeElement as HTMLElement);

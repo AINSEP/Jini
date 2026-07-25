@@ -209,7 +209,10 @@ export function useChatPaneAgentControl(
           // a failure to ANSWER, not a failed action, and must not be re-reported as one. Every
           // delivery attempt is itself guarded so a dead channel cannot surface as an unhandled
           // rejection with the daemon-side invocation left hanging.
-          const bridge = bridgeAccessRef.current ?? subscribedBridge;
+          // Respond on the bridge that delivered this action, not on whatever is current: the
+          // invocationId belongs to that channel, so answering elsewhere would be answering a
+          // question nobody asked.
+          const bridge = subscribedBridge;
           let output: unknown;
           try {
             output = await runAction(action.capabilityId, action.input);

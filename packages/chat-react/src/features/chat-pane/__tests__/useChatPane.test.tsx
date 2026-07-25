@@ -199,4 +199,49 @@ describe('useChatPane', () => {
       });
     }
   });
+
+  it('rejects an agent-driven send for an empty or whitespace-only prompt', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useChatPane({ transport, agents }));
+
+    await expect(result.current.sendPrompt('   ')).rejects.toThrow('cannot send: the prompt is empty');
+    expect(transport.calls).toHaveLength(0);
+  });
+
+  it('ignores a stale upload failure raised after a reset already started a fresh batch', async () => {
+    const pending: Array<{
+      resolve: (attachments: Array<{ path: string; name: string; kind: 'file' }>) => void;
+      reject: (error: unknown) => void;
+    }> = [];
+    const uploadAttachments = vi.fn(() => new Promise<Array<{ path: string; name: string; kind: 'file' }>>(
+      (resolve, reject) => {
+        pending.push({ resolve, reject });
+      },
+    ));
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useChatPane({ transport, agents, uploadAttachments }));
+
+    act(() => {
+      void result.current.addAttachments([new File(['a'], 'a.txt')]);
+    });
+
+    act(() => result.current.reset());
+
+    let second!: Promise<void>;
+    act(() => {
+      second = result.current.addAttachments([new File(['b'], 'b.txt')]);
+    });
+    await act(async () => {
+      pending[1]?.resolve([{ path: '/tmp/b', name: 'b.txt', kind: 'file' }]);
+      await second;
+    });
+    expect(result.current.composer.attachments).toEqual([{ path: '/tmp/b', name: 'b.txt', kind: 'file' }]);
+    expect(result.current.attachmentError).toBeNull();
+
+    await act(async () => {
+      pending[0]?.reject(new Error('stale upload failed'));
+    });
+    expect(result.current.attachmentError).toBeNull();
+    expect(result.current.composer.attachments).toEqual([{ path: '/tmp/b', name: 'b.txt', kind: 'file' }]);
+  });
 });

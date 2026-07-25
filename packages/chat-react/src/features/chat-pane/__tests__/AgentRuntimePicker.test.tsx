@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -306,5 +306,32 @@ describe('AgentRuntimePicker', () => {
     expect(lastControl).toHaveFocus();
     await user.keyboard('{Home}');
     expect(firstControl).toHaveFocus();
+  });
+
+  it('safely no-ops Tab navigation when the popover has no focusable control at all', async () => {
+    const user = userEvent.setup();
+    render(
+      <AgentRuntimePicker
+        agents={[]}
+        value={{ agentId: '' }}
+        onChange={() => {}}
+        executionMode="api"
+        apiModeAvailable={false}
+        daemonOnline={false}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+    expect(screen.getByText('No available code agents')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Use Local CLI/ })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /Use API · BYOK/ })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Rescan PATH' })).not.toBeInTheDocument();
+
+    // Nothing in the popover is focusable, so the auto-focus effect never moves
+    // focus inside it — dispatch the keydown straight on the dialog (bubbling,
+    // as a real Tab press would) rather than relying on `userEvent.keyboard`,
+    // which only targets `document.activeElement`. The Tab handler must return
+    // without throwing on an empty control list instead of indexing into it.
+    fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab' });
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

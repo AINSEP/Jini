@@ -6,10 +6,15 @@ import { useChatPaneWorkingDirectory } from '../react/hooks/useChatPaneWorkingDi
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((resolvePromise) => {
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
     resolve = resolvePromise;
+    reject = rejectPromise;
   });
-  return { promise, resolve };
+  // Vitest/act still awaits this rejection; swallow the "unhandled" warning from
+  // the promise being observed asynchronously by `act()` rather than inline.
+  promise.catch(() => {});
+  return { promise, resolve, reject };
 }
 
 function createWorkingDirectoryAccess(
@@ -246,5 +251,243 @@ describe('useChatPaneWorkingDirectory', () => {
     rerender({ directory: '/work/third' });
     unmount();
     await act(async () => {});
+  });
+
+  it('ignores a stale automatic validation failure raised after a newer directory change started', async () => {
+    const first = deferred<boolean>();
+    const access = createWorkingDirectoryAccess({
+      directoryExists: vi.fn()
+        .mockImplementationOnce(() => first.promise)
+        .mockImplementationOnce(async () => true),
+    });
+    const { result, rerender } = renderHook(
+      ({ directory }: { directory: string }) => useChatPaneWorkingDirectory({
+        workingDirectory: directory,
+        workingDirectoryAccess: access,
+      }),
+      { initialProps: { directory: '/work/first' } },
+    );
+
+    rerender({ directory: '/work/second' });
+    await act(async () => {});
+    expect(result.current.workingDirectoryInvalid).toBe(false);
+    expect(result.current.workingDirectoryError).toBeNull();
+
+    await act(async () => first.reject(new Error('stale check failed')));
+    expect(result.current.workingDirectoryError).toBeNull();
+  });
+
+  it('ignores a stale picker-refresh success completed after a newer refresh already applied', async () => {
+    const firstRecent = deferred<string[]>();
+    const access = createWorkingDirectoryAccess({
+      directoryExists: vi.fn(async () => true),
+      recentDirectories: vi.fn()
+        .mockImplementationOnce(() => firstRecent.promise)
+        .mockImplementationOnce(async () => ['/work/second-recent']),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: '/work/current',
+      workingDirectoryAccess: access,
+    }));
+    await act(async () => {});
+
+    let firstRefresh!: Promise<void>;
+    act(() => {
+      firstRefresh = result.current.openWorkingDirectoryPicker();
+    });
+    await act(() => result.current.openWorkingDirectoryPicker());
+    expect(result.current.recentDirectories).toEqual(['/work/second-recent']);
+
+    await act(async () => firstRecent.resolve(['/work/stale-recent']));
+    await firstRefresh;
+    expect(result.current.recentDirectories).toEqual(['/work/second-recent']);
+  });
+
+  it('ignores a stale picker-refresh failure raised after a newer refresh already applied', async () => {
+    const firstRecent = deferred<string[]>();
+    const access = createWorkingDirectoryAccess({
+      directoryExists: vi.fn(async () => true),
+      recentDirectories: vi.fn()
+        .mockImplementationOnce(() => firstRecent.promise)
+        .mockImplementationOnce(async () => ['/work/second-recent']),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: '/work/current',
+      workingDirectoryAccess: access,
+    }));
+    await act(async () => {});
+
+    let firstRefresh!: Promise<void>;
+    act(() => {
+      firstRefresh = result.current.openWorkingDirectoryPicker();
+    });
+    await act(() => result.current.openWorkingDirectoryPicker());
+    expect(result.current.workingDirectoryError).toBeNull();
+
+    await act(async () => firstRecent.reject(new Error('stale refresh failed')));
+    await firstRefresh;
+    expect(result.current.workingDirectoryError).toBeNull();
+  });
+
+  it('ignores a stale picker selection applied after a newer pick already completed', async () => {
+    const firstPick = deferred<string | null>();
+    const access = createWorkingDirectoryAccess({
+      pickWorkingDirectory: vi.fn()
+        .mockImplementationOnce(() => firstPick.promise)
+        .mockImplementationOnce(async () => '/work/second-pick'),
+      directoryExists: vi.fn(async () => true),
+      recentDirectories: vi.fn(async () => []),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: null,
+      workingDirectoryAccess: access,
+    }));
+
+    let firstAttempt!: Promise<void>;
+    act(() => {
+      firstAttempt = result.current.pickWorkingDirectory();
+    });
+    await act(() => result.current.pickWorkingDirectory());
+    expect(result.current.workingDirectory).toBe('/work/second-pick');
+
+    await act(async () => firstPick.resolve('/work/stale-pick'));
+    await firstAttempt;
+    expect(result.current.workingDirectory).toBe('/work/second-pick');
+  });
+
+  it('ignores a stale picker-selection failure raised after a newer pick already completed', async () => {
+    const firstPick = deferred<string | null>();
+    const access = createWorkingDirectoryAccess({
+      pickWorkingDirectory: vi.fn()
+        .mockImplementationOnce(() => firstPick.promise)
+        .mockImplementationOnce(async () => '/work/second-pick'),
+      directoryExists: vi.fn()
+        .mockImplementationOnce(async () => true)
+        .mockImplementationOnce(async () => {
+          throw new Error('stale validation failed');
+        }),
+      recentDirectories: vi.fn(async () => []),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: null,
+      workingDirectoryAccess: access,
+    }));
+
+    let firstAttempt!: Promise<void>;
+    act(() => {
+      firstAttempt = result.current.pickWorkingDirectory();
+    });
+    await act(() => result.current.pickWorkingDirectory());
+    expect(result.current.workingDirectory).toBe('/work/second-pick');
+    expect(result.current.workingDirectoryError).toBeNull();
+
+    await act(async () => firstPick.resolve('/work/stale-pick'));
+    await firstAttempt;
+    expect(result.current.workingDirectoryError).toBeNull();
+    expect(result.current.workingDirectory).toBe('/work/second-pick');
+  });
+
+  it('ignores a stale picker validation applied after the directory was cleared mid-flight', async () => {
+    const pendingExists = deferred<boolean>();
+    const access = createWorkingDirectoryAccess({
+      pickWorkingDirectory: vi.fn(async () => '/work/picked'),
+      directoryExists: vi.fn(() => pendingExists.promise),
+      recentDirectories: vi.fn(async () => ['/work/recent']),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: null,
+      workingDirectoryAccess: access,
+    }));
+
+    let attempt!: Promise<void>;
+    act(() => {
+      attempt = result.current.pickWorkingDirectory();
+    });
+    // Lets `access.pickWorkingDirectory()` resolve and the picker enter its
+    // validation stage (`Promise.all([directoryExists, recentDirectories])`),
+    // which is where `pendingExists` now blocks it.
+    await act(async () => {});
+    act(() => result.current.clearWorkingDirectory());
+    expect(result.current.workingDirectory).toBeNull();
+
+    await act(async () => pendingExists.resolve(true));
+    await attempt;
+    expect(result.current.workingDirectory).toBeNull();
+  });
+
+  it('ignores a stale picker validation failure raised after the directory was cleared mid-flight', async () => {
+    const pendingExists = deferred<boolean>();
+    const access = createWorkingDirectoryAccess({
+      pickWorkingDirectory: vi.fn(async () => '/work/picked'),
+      directoryExists: vi.fn(() => pendingExists.promise),
+      recentDirectories: vi.fn(async () => []),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: null,
+      workingDirectoryAccess: access,
+    }));
+
+    let attempt!: Promise<void>;
+    act(() => {
+      attempt = result.current.pickWorkingDirectory();
+    });
+    await act(async () => {});
+    act(() => result.current.clearWorkingDirectory());
+    expect(result.current.workingDirectoryError).toBeNull();
+
+    await act(async () => pendingExists.reject(new Error('stale validation failed')));
+    await attempt;
+    expect(result.current.workingDirectoryError).toBeNull();
+    expect(result.current.workingDirectory).toBeNull();
+  });
+
+  it('ignores a stale recent-directory selection applied after a newer selection completed', async () => {
+    const firstExists = deferred<boolean>();
+    const access = createWorkingDirectoryAccess({
+      directoryExists: vi.fn()
+        .mockImplementationOnce(() => firstExists.promise)
+        .mockImplementationOnce(async () => false),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: null,
+      workingDirectoryAccess: access,
+    }));
+
+    let firstSelect!: Promise<void>;
+    act(() => {
+      firstSelect = result.current.selectRecentDirectory('/work/first-recent');
+    });
+    await act(() => result.current.selectRecentDirectory('/work/second-recent'));
+    expect(result.current.workingDirectory).toBe('/work/second-recent');
+
+    await act(async () => firstExists.resolve(true));
+    await firstSelect;
+    expect(result.current.workingDirectory).toBe('/work/second-recent');
+  });
+
+  it('ignores a stale recent-directory selection failure raised after a newer selection completed', async () => {
+    const firstExists = deferred<boolean>();
+    const access = createWorkingDirectoryAccess({
+      directoryExists: vi.fn()
+        .mockImplementationOnce(() => firstExists.promise)
+        .mockImplementationOnce(async () => true),
+    });
+    const { result } = renderHook(() => useChatPaneWorkingDirectory({
+      initialWorkingDirectory: null,
+      workingDirectoryAccess: access,
+    }));
+
+    let firstSelect!: Promise<void>;
+    act(() => {
+      firstSelect = result.current.selectRecentDirectory('/work/first-recent');
+    });
+    await act(() => result.current.selectRecentDirectory('/work/second-recent'));
+    expect(result.current.workingDirectory).toBe('/work/second-recent');
+    expect(result.current.workingDirectoryError).toBeNull();
+
+    await act(async () => firstExists.reject(new Error('stale selection failed')));
+    await firstSelect;
+    expect(result.current.workingDirectoryError).toBeNull();
+    expect(result.current.workingDirectory).toBe('/work/second-recent');
   });
 });

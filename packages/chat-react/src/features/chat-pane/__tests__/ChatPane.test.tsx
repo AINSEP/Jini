@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatMessage } from '@jini/chat-core';
+import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini/ui';
 import { createFakeChatTransport } from '../../../react/hooks/testing/fake-transport.js';
 import { ChatPane } from '../react/components/ChatPane.js';
 import type { ChatPaneActivity, ChatPaneAgent } from '../types.js';
@@ -328,5 +329,91 @@ describe('ChatPane', () => {
     expect(await screen.findByText('inventory unavailable')).toBeInTheDocument();
     await act(async () => resolveExists(false));
     expect(await screen.findByText('Working directory is unavailable.')).toBeInTheDocument();
+  });
+
+  it('subscribes the daemon-relayed bridge when agentControl is supplied enabled', () => {
+    const transport = createFakeChatTransport();
+    const subscribe = vi.fn(() => () => {});
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        agentControl={{
+          enabled: true,
+          bridgeAccess: {
+            subscribe,
+            respondSuccess: vi.fn(async () => undefined),
+            respondError: vi.fn(async () => undefined),
+          },
+        }}
+      />,
+    );
+    expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('delegates an explicit rescan to runtimeAccess and reflects the refreshed inventory', async () => {
+    const transport = createFakeChatTransport();
+    const rescanAgents = vi.fn(async () => [
+      { id: 'claude', name: 'Claude CLI', available: true },
+    ]);
+    render(
+      <ChatPane
+        transport={transport}
+        runtimeAccess={{
+          listAgents: async () => agents,
+          rescanAgents,
+          daemonOnline: async () => true,
+        }}
+      />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose AI runtime' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Rescan PATH' }));
+    expect(rescanAgents).toHaveBeenCalledTimes(1);
+    expect(await screen.findByRole('radio', { name: /Claude CLI/ })).toBeInTheDocument();
+  });
+
+  it('reports a read error banner when a dropped item cannot be read from disk', async () => {
+    const transport = createFakeChatTransport();
+    const uploadAttachments = vi.fn(async (files: File[]) => files.map((file) => ({
+      path: `/tmp/${file.name}`,
+      name: file.name,
+      kind: 'file' as const,
+    })));
+    render(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+
+    const target = screen.getByTestId('chat-pane-file-drop-target');
+    const unreadableItem = {
+      kind: 'file',
+      webkitGetAsEntry: () => ({
+        isFile: true,
+        isDirectory: false,
+        file: (_resolve: (file: File) => void, reject: (error: Error) => void) => {
+          reject(new Error('permission denied'));
+        },
+      }),
+    };
+    fireEvent.drop(target, {
+      dataTransfer: { types: ['Files'], items: [unreadableItem], files: [] },
+    });
+
+    expect(await screen.findByText(FILE_SYSTEM_READ_ERROR_MESSAGE)).toBeInTheDocument();
+    expect(uploadAttachments).not.toHaveBeenCalled();
+  });
+
+  it('lets a host that owns execution-mode switching drive it from the runtime picker', async () => {
+    const transport = createFakeChatTransport();
+    const onExecutionModeChange = vi.fn();
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        executionMode="local"
+        apiModeAvailable
+        onExecutionModeChange={onExecutionModeChange}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Use API · BYOK' }));
+    expect(onExecutionModeChange).toHaveBeenCalledWith('api');
   });
 });

@@ -82,10 +82,16 @@ export function useChatPaneRuntimeInventory({
   }, [access]);
 
   const refreshStatus = useCallback(async (): Promise<void> => {
-    if (!access) return;
+    // No `if (!access) return` guard here (unlike `loadAgents`, which is reachable through
+    // the publicly-exposed `rescanAgents` and so can be invoked with a stale closure by the
+    // host): `refreshStatus` is never returned from this hook, so its only two call sites
+    // (the effect below, both the immediate call and the interval tick) are inside the SAME
+    // closure as the effect's own `if (!access) return` at its top — `access` is guaranteed
+    // defined by the time either one runs.
+    const runtimeAccess = access as ChatPaneRuntimeAccess;
     const generation = ++statusGenerationRef.current;
     try {
-      const online = await access.daemonOnline();
+      const online = await runtimeAccess.daemonOnline();
       if (mountedRef.current && generation === statusGenerationRef.current) {
         setDaemonOnline(online);
       }

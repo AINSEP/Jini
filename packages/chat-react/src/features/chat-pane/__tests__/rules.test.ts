@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   defaultChatPaneSelection,
+  findChatPaneSendBlocker,
   orderChatPaneAgents,
   resolveChatPaneSelection,
 } from '../rules.js';
+import type { ChatPaneSendability } from '../rules.js';
 import type { ChatPaneAgent } from '../types.js';
 
 const agents: ChatPaneAgent[] = [
@@ -114,5 +116,57 @@ describe('chat-pane selection rules', () => {
       'codex',
       'missing',
     ]);
+  });
+
+  it('allows sending once every readiness input clears', () => {
+    const ready: ChatPaneSendability = {
+      selectedAgent: { available: true },
+      isStreaming: false,
+      activeUploadCount: 0,
+      workingDirectoryPending: false,
+      workingDirectoryInvalid: false,
+      workingDirectoryError: null,
+    };
+    expect(findChatPaneSendBlocker(ready)).toBeNull();
+  });
+
+  it('blocks a send to a selected agent that has gone unavailable, distinct from none selected', () => {
+    const ready: ChatPaneSendability = {
+      selectedAgent: { available: true },
+      isStreaming: false,
+      activeUploadCount: 0,
+      workingDirectoryPending: false,
+      workingDirectoryInvalid: false,
+      workingDirectoryError: null,
+    };
+    expect(findChatPaneSendBlocker({ ...ready, selectedAgent: undefined }))
+      .toBe('no-agent-selected');
+    expect(findChatPaneSendBlocker({ ...ready, selectedAgent: { available: false } }))
+      .toBe('agent-unavailable');
+  });
+
+  it('reports the first applicable blocker in priority order when several inputs are unready', () => {
+    const ready: ChatPaneSendability = {
+      selectedAgent: { available: true },
+      isStreaming: false,
+      activeUploadCount: 0,
+      workingDirectoryPending: false,
+      workingDirectoryInvalid: false,
+      workingDirectoryError: null,
+    };
+    expect(findChatPaneSendBlocker({
+      ...ready,
+      isStreaming: true,
+      activeUploadCount: 1,
+      workingDirectoryInvalid: true,
+    })).toBe('streaming');
+    expect(findChatPaneSendBlocker({ ...ready, activeUploadCount: 2, workingDirectoryInvalid: true }))
+      .toBe('uploads-pending');
+    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryPending: true, workingDirectoryInvalid: true }))
+      .toBe('working-directory-pending');
+    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryInvalid: true }))
+      .toBe('working-directory-invalid');
+    expect(findChatPaneSendBlocker({ ...ready, workingDirectoryError: new Error('disk unavailable') }))
+      .toBe('working-directory-error');
   });
 });
