@@ -79,7 +79,25 @@ one exits, which causes cascading outages. All three want
 
 Health probes: `curl -sf http://127.0.0.1:4317/api/daemon/status` and
 `curl -sf http://127.0.0.1:4173`. Start long-running services with
-`run_in_background: true`; never block on them in the foreground.
+`run_in_background: true`; never block on them in the foreground. Always `cd` explicitly inside
+the command (`cd /abs/path && …`) rather than relying on an inherited working directory — the
+session cwd has silently reset mid-run before, and `pnpm run daemon` from the repo root fails
+with a confusing "missing script".
+
+**Background processes do not outlive your turn.** Anything you start with `run_in_background`
+is torn down when you finish responding — established over four consecutive restarts, each killed
+by an external SIGTERM at the start of the next turn with a clean daemon log every time. So:
+
+- **Start whatever you need at the beginning of your own run**, and treat any service a previous
+  agent claimed to leave running as almost certainly dead. Probe, don't assume.
+- **Never promise to "leave services running"** — you cannot, and saying so misleads whoever
+  reads your report.
+- **Do not restart in a loop** when they die. Report it once and move on; repeating an identical
+  command with no new variable is the exact waste the repo's shared rules forbid.
+- Detaching with `setsid`/`nohup`/`disown` is blocked by the permission layer as a
+  process-tracking bypass. Do not try to route around it.
+
+Only a human running the commands in a real terminal gets services that persist.
 
 ## Playwright conventions
 

@@ -48,6 +48,25 @@ It is **not** a reserved AI Dev Shop pipeline agent — it labels itself `Sideki
 and needs no persona-file bootstrap. Reserved names (`Programmer`, `QA/E2E`, …) still go
 through the delegated-agent bootstrap in `AI-Dev-Shop/AGENTS.md`.
 
+## `honest-testing` — the anti-cheating guard rail
+
+Definition: **`.claude/skills/honest-testing/SKILL.md`**. Load it whenever the task is "add
+tests", "get to 100%", "close the coverage gap", or reviewing someone else's test diff.
+
+It exists because every cheap way to raise a coverage number also destroys that number's meaning,
+and most of those ways look like tidying in a diff: an `ignore` comment, a widened `exclude` list,
+a lowered threshold, a `toBe` softened to `toBeDefined`, a branch deleted rather than covered, a
+capability dropped because it was awkward to reach.
+
+The rule it encodes: **coverage rises because more behavior is verified — never because less code
+is measured, less is asserted, or less is done.** A genuinely unreachable branch gets *refactored
+away* with a comment naming what guarantees it, not fake-tested. An honest 99.7% with an
+explanation beats a 100% someone later discovers was hollow.
+
+It matters most when delegating: a subagent told "make this 100%" will do exactly that, by
+whatever route. The skill lists what to put in the dispatch prompt (the banned moves, the
+before/after **test count** so deletions cannot hide) and what to check in the returned diff.
+
 ### Context budget and sidekick restarts
 
 A sidekick fills its context fast (a11y snapshots, test logs, wide greps), so it tracks a
