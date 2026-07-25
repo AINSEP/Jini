@@ -58,6 +58,8 @@ export interface SketchEditorProps {
   sourceFileExtension?: string;
   /** Swap the bound Excalidraw engine — a host's tests can inject a fake. */
   dependencies?: SketchEditorDependencies;
+  /** Custom hook override for dependency injection / testing. */
+  useSketchTheme?: typeof useSketchTheme;
 }
 
 /**
@@ -89,11 +91,12 @@ export function SketchEditor({
   mermaidInsertLabelPattern,
   sourceFileExtension,
   dependencies = defaultSketchEditorDependencies,
+  useSketchTheme: useSketchThemeHook = useSketchTheme,
 }: SketchEditorProps) {
   const { t, locale } = useI18n();
   const { engine } = dependencies;
   const canvasWrapRef = useRef<HTMLDivElement | null>(null);
-  const theme = useSketchTheme();
+  const theme = useSketchThemeHook();
 
   const {
     initialData,

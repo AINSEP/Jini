@@ -328,8 +328,15 @@ export function useTooltipLayer(): UseTooltipLayerResult {
  * lives in {@link useTooltipLayer}; this component only renders the positioned
  * tooltip via a portal.
  */
-export function TooltipLayer() {
-  const { state, tooltipRef } = useTooltipLayer();
+export interface TooltipLayerProps {
+  /** Custom hook override for dependency injection / testing. */
+  useTooltipLayer?: typeof useTooltipLayer;
+}
+
+export function TooltipLayer({
+  useTooltipLayer: useTooltipLayerHook = useTooltipLayer,
+}: TooltipLayerProps = {}) {
+  const { state, tooltipRef } = useTooltipLayerHook();
 
   if (!state || typeof document === 'undefined') return null;
 

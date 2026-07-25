@@ -1,5 +1,5 @@
-// @vitest-environment jsdom
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AssetGrid } from '../../../react/components/AssetGrid.js';
@@ -274,5 +274,109 @@ describe('AssetGrid', () => {
     await userEvent.click(screen.getAllByRole('button', { name: 'Sélectionner' })[0]!);
     await userEvent.click(screen.getByRole('button', { name: 'Tout sélectionner' }));
     expect(screen.getByRole('button', { name: 'Supprimer 2' })).toBeInTheDocument();
+  });
+});
+
+describe('AssetGrid hook override 4-pattern test suite', () => {
+  it('Pattern 1 — State 1: Default empty state via useWiredAssetGridData hook override', () => {
+    const customDataHook = () => ({
+      assets: [],
+      setAssets: vi.fn(),
+      loading: false,
+      reload: vi.fn(),
+    });
+
+    render(
+      <AssetGrid<TestAsset>
+        selectors={selectors}
+        renderThumbnail={() => <div />}
+        useWiredAssetGridData={customDataHook as any}
+      />,
+    );
+
+    expect(screen.getByText('No assets yet.')).toBeInTheDocument();
+  });
+
+  it('Pattern 2 — State 2: Active loading state via useWiredAssetGridData hook override', () => {
+    const customDataHook = () => ({
+      assets: [],
+      setAssets: vi.fn(),
+      loading: true,
+      reload: vi.fn(),
+    });
+
+    render(
+      <AssetGrid<TestAsset>
+        selectors={selectors}
+        renderThumbnail={() => <div />}
+        useWiredAssetGridData={customDataHook as any}
+      />,
+    );
+
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
+
+  it('Pattern 3 — State 3: Multi-selection bar state via useAssetGridSelection hook override', () => {
+    const mockClearSelection = vi.fn();
+    const assets = makeAssets();
+
+    const customDataHook = () => ({
+      assets,
+      setAssets: vi.fn(),
+      loading: false,
+      reload: vi.fn(),
+    });
+
+    const customSelectionHook = () => ({
+      selectedIds: new Set(['a', 'b']),
+      setSelectedIds: vi.fn(),
+      toggleOne: vi.fn(),
+      rangeTo: vi.fn(),
+      selectAll: vi.fn(),
+      clearSelection: mockClearSelection,
+    });
+
+    render(
+      <AssetGrid<TestAsset>
+        selectors={selectors}
+        renderThumbnail={() => <div />}
+        useWiredAssetGridData={customDataHook as any}
+        useAssetGridSelection={customSelectionHook as any}
+      />,
+    );
+
+    expect(screen.getByText('2 selected')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    expect(mockClearSelection).toHaveBeenCalledTimes(1);
+  });
+
+  it('Pattern 4 — State 4: Dynamic full state transition walkthrough using React useState inside hook override', () => {
+    function useTestDynamicData() {
+      const [assets, setAssets] = useState<TestAsset[]>(makeAssets());
+      const [loading, setLoading] = useState(false);
+
+      const reload = () => {
+        setLoading(true);
+        setTimeout(() => {
+          setAssets([makeAssets()[0]!]);
+          setLoading(false);
+        }, 10);
+      };
+
+      return { assets, setAssets, loading, reload };
+    }
+
+    render(
+      <AssetGrid<TestAsset>
+        selectors={selectors}
+        renderThumbnail={() => <div />}
+        useWiredAssetGridData={useTestDynamicData as any}
+      />,
+    );
+
+    expect(screen.getByText('Sunset photo')).toBeInTheDocument();
+    expect(screen.getByText('Demo clip')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
   });
 });

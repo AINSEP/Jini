@@ -29,6 +29,8 @@ export interface ResourceBoardProps<TItem extends ResourceBoardItem<TBody>, TBod
   onCustomItemAction?: (id: string, kind: string) => void;
   refreshToken?: string | number;
   renderBody?: (item: ResourceBoardItem<TBody>) => ReactNode;
+  /** Custom hook override for dependency injection / testing. */
+  useWiredResourceBoard?: typeof useWiredResourceBoard;
 }
 
 /**
@@ -58,9 +60,10 @@ export function ResourceBoard<TItem extends ResourceBoardItem<TBody>, TBody = un
   onCustomItemAction,
   refreshToken,
   renderBody,
+  useWiredResourceBoard: useWiredResourceBoardHook = useWiredResourceBoard,
 }: ResourceBoardProps<TItem, TBody>) {
   const t = useT();
-  const board = useWiredResourceBoard<TItem>({
+  const board = useWiredResourceBoardHook<TItem>({
     dependencies,
     statusOrder: statusOptions.map((option) => option.value),
     ...(defaultStatus !== undefined ? { defaultStatus } : {}),

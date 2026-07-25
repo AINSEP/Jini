@@ -264,3 +264,65 @@ describe('LanguageMenu', () => {
     );
   });
 });
+
+describe('LanguageMenu with hook override prop', () => {
+  it('uses useLanguageMenu hook prop to render a forced closed state (state 1)', () => {
+    const mockToggle = vi.fn();
+    const customHook = () => ({
+      open: false,
+      containerRef: { current: null },
+      activeLabel: 'Français (Injected)',
+      toggle: mockToggle,
+      close: vi.fn(),
+    });
+
+    render(
+      <LanguageMenu
+        locales={LOCALES}
+        locale="fr"
+        onLocaleChange={vi.fn()}
+        useLanguageMenu={customHook}
+      />,
+    );
+
+    const trigger = screen.getByRole('button');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByText('Français (Injected)')).toBeTruthy();
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    fireEvent.click(trigger);
+    expect(mockToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses useLanguageMenu hook prop to render a forced open state with items (state 2)', () => {
+    const mockClose = vi.fn();
+    const customHook = () => ({
+      open: true,
+      containerRef: { current: null },
+      activeLabel: 'English',
+      toggle: vi.fn(),
+      close: mockClose,
+    });
+
+    const onLocaleChange = vi.fn();
+    render(
+      <LanguageMenu
+        locales={LOCALES}
+        locale="en"
+        onLocaleChange={onLocaleChange}
+        useLanguageMenu={customHook}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: /english/i }).getAttribute('aria-expanded')).toBe('true');
+    const menu = screen.getByRole('menu');
+    expect(menu).toBeTruthy();
+
+    const jaOption = screen.getByText('日本語');
+    expect(jaOption).toBeTruthy();
+
+    fireEvent.click(jaOption);
+    expect(onLocaleChange).toHaveBeenCalledWith('ja');
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+});

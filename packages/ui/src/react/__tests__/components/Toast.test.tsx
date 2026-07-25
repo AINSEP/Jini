@@ -302,3 +302,29 @@ describe('Toast', () => {
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('Toast with hook override prop', () => {
+  it('uses useToastAutoDismiss hook prop to render normal non-leaving state (state 1)', () => {
+    const customHook = () => ({ leaving: false, fireDismiss: vi.fn() });
+
+    const { container } = render(
+      <Toast message="Test Toast" useToastAutoDismiss={customHook} />,
+    );
+
+    const toastDiv = container.querySelector('.jini-toast')!;
+    expect(toastDiv).toBeTruthy();
+    expect(toastDiv.className).not.toContain('leaving');
+  });
+
+  it('uses useToastAutoDismiss hook prop to render leaving animation state (state 2)', () => {
+    const customHook = () => ({ leaving: true, fireDismiss: vi.fn() });
+
+    const { container } = render(
+      <Toast message="Test Toast" useToastAutoDismiss={customHook} />,
+    );
+
+    const toastDiv = container.querySelector('.jini-toast')!;
+    expect(toastDiv).toBeTruthy();
+    expect(toastDiv.className).toContain('leaving');
+  });
+});

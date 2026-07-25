@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { MentionAutocomplete } from '../../../react/components/MentionAutocomplete.js';
@@ -156,5 +156,126 @@ describe('MentionAutocomplete', () => {
     expect(screen.getAllByText('Compétences')).toHaveLength(2); // tab + section label
     await userEvent.click(screen.getByRole('option', { name: /Alpha/ }));
     expect(screen.getByLabelText('Contexte sélectionné')).toBeInTheDocument();
+  });
+});
+
+describe('MentionAutocomplete 4-pattern hook override test suite', () => {
+  it('Pattern 1 — State 1: Closed mention popover state via hook override', () => {
+    const customHook = () => ({
+      containerRef: { current: null },
+      textareaRef: { current: null },
+      isOpen: false,
+      query: '',
+      activeCategory: 'all',
+      setActiveCategory: vi.fn(),
+      groups: [],
+      hasResults: false,
+      selectedKeys: new Set<string>(),
+      selectedItems: [],
+      pickItem: vi.fn(),
+      removeItem: vi.fn(),
+      onTextareaChange: vi.fn(),
+      onTextareaClick: vi.fn(),
+      onTextareaFocus: vi.fn(),
+      onTextareaKeyDown: vi.fn(),
+      onTextareaKeyUp: vi.fn(),
+    });
+
+    render(
+      <MentionAutocomplete
+        value=""
+        onValueChange={vi.fn()}
+        items={ITEMS}
+        categories={CATEGORIES}
+        useMentionAutocomplete={customHook as any}
+      />,
+    );
+
+    expect(screen.queryByRole('listbox')).toBeNull();
+  });
+
+  it('Pattern 2 — State 2: Open mention popover state via hook override', () => {
+    const customHook = () => ({
+      containerRef: { current: null },
+      textareaRef: { current: null },
+      isOpen: true,
+      query: 'Al',
+      activeCategory: 'all',
+      setActiveCategory: vi.fn(),
+      groups: [{ category: { id: 'skills', label: 'Skills' }, items: [ITEMS[0]!] }],
+      hasResults: true,
+      selectedKeys: new Set<string>(),
+      selectedItems: [],
+      pickItem: vi.fn(),
+      removeItem: vi.fn(),
+      onTextareaChange: vi.fn(),
+      onTextareaClick: vi.fn(),
+      onTextareaFocus: vi.fn(),
+      onTextareaKeyDown: vi.fn(),
+      onTextareaKeyUp: vi.fn(),
+    });
+
+    render(
+      <MentionAutocomplete
+        value="@Al"
+        onValueChange={vi.fn()}
+        items={ITEMS}
+        categories={CATEGORIES}
+        useMentionAutocomplete={customHook as any}
+      />,
+    );
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+
+  it('Pattern 3 — State 3: Selected items chips state via hook override', () => {
+    const customHook = () => ({
+      containerRef: { current: null },
+      textareaRef: { current: null },
+      isOpen: false,
+      query: '',
+      activeCategory: 'all',
+      setActiveCategory: vi.fn(),
+      groups: [],
+      hasResults: false,
+      selectedKeys: new Set<string>(['skills:1']),
+      selectedItems: [ITEMS[0]!],
+      pickItem: vi.fn(),
+      removeItem: vi.fn(),
+      onTextareaChange: vi.fn(),
+      onTextareaClick: vi.fn(),
+      onTextareaFocus: vi.fn(),
+      onTextareaKeyDown: vi.fn(),
+      onTextareaKeyUp: vi.fn(),
+    });
+
+    render(
+      <MentionAutocomplete
+        value=""
+        onValueChange={vi.fn()}
+        items={ITEMS}
+        categories={CATEGORIES}
+        useMentionAutocomplete={customHook as any}
+      />,
+    );
+
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.getByTitle('Remove Alpha')).toBeInTheDocument();
+  });
+
+  it('Pattern 4 — State 4: Dynamic input value transition walkthrough using React useState inside test harness', () => {
+    function DynamicMentionHarness() {
+      const [val, setVal] = useState('');
+      return <MentionAutocomplete value={val} onValueChange={setVal} items={ITEMS} categories={CATEGORIES} />;
+    }
+
+    render(<DynamicMentionHarness />);
+
+    const textarea = screen.getByRole('textbox');
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    fireEvent.change(textarea, { target: { value: '@Al' } });
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
   });
 });

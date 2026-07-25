@@ -28,6 +28,8 @@ export interface MentionAutocompleteProps<T extends MentionItem<ReactNode>> {
   emptyResultsPlaceholder?: string | undefined;
   /** Accessible label for the results listbox. */
   resultsAriaLabel?: string | undefined;
+  /** Custom hook override for dependency injection / testing. */
+  useMentionAutocomplete?: typeof useMentionAutocomplete;
 }
 
 /**
@@ -60,9 +62,10 @@ export function MentionAutocomplete<T extends MentionItem<ReactNode>>({
   chipRemoveIcon,
   emptyResultsPlaceholder,
   resultsAriaLabel,
+  useMentionAutocomplete: useMentionAutocompleteHook = useMentionAutocomplete,
 }: MentionAutocompleteProps<T>) {
   const t = useT();
-  const mention = useMentionAutocomplete<T>({
+  const mention = useMentionAutocompleteHook<T>({
     value,
     onValueChange,
     items,

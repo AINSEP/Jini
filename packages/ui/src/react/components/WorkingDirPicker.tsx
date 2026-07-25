@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MutableRefObject,
+} from 'react';
 import { Icon } from './Icon';
 
 export type WorkingDirPlacement = 'down' | 'up';
@@ -237,6 +245,10 @@ export function WorkingDirPicker({
   labels,
   useWorkingDirPicker: useWorkingDirPickerHook = useWorkingDirPicker,
 }: WorkingDirPickerProps) {
+  const panelId = useId();
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const wasOpenRef = useRef(false);
   const {
     open,
     recentOpen,
@@ -251,6 +263,67 @@ export function WorkingDirPicker({
     toggleRecent,
   } = useWorkingDirPickerHook({ onPickDirectory, onSelectRecent, onClear, onOpen, labels });
 
+  useEffect(() => {
+    if (open) {
+      wasOpenRef.current = true;
+      panelRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not(:disabled)')?.focus();
+      return;
+    }
+    if (!wasOpenRef.current) return;
+    wasOpenRef.current = false;
+    const timeout = window.setTimeout(() => triggerRef.current?.focus(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [open]);
+
+  const handlePanelKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const menuItems = [...(panelRef.current?.querySelectorAll<HTMLElement>(
+      '[role="menuitem"]:not(:disabled)',
+    ) ?? [])];
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLElement);
+    if (
+      event.key === 'ArrowDown'
+      || event.key === 'ArrowUp'
+      || event.key === 'Home'
+      || event.key === 'End'
+    ) {
+      if (menuItems.length === 0) return;
+      event.preventDefault();
+      const nextIndex = event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? menuItems.length - 1
+          : event.key === 'ArrowDown'
+            ? (currentIndex + 1 + menuItems.length) % menuItems.length
+            : (currentIndex - 1 + menuItems.length) % menuItems.length;
+      menuItems[nextIndex]?.focus();
+      return;
+    }
+    if (
+      event.key === 'ArrowRight'
+      && event.target === panelRef.current?.querySelector('[data-testid="working-dir-recent"]')
+    ) {
+      event.preventDefault();
+      showRecent();
+      window.setTimeout(() => {
+        panelRef.current
+          ?.querySelector<HTMLElement>('[data-testid="working-dir-recent-list"] [role="menuitem"]')
+          ?.focus();
+      }, 0);
+      return;
+    }
+    if (
+      event.key === 'ArrowLeft'
+      && event.target instanceof HTMLElement
+      && event.target.closest('[data-testid="working-dir-recent-list"]')
+    ) {
+      event.preventDefault();
+      hideRecent();
+      panelRef.current
+        ?.querySelector<HTMLElement>('[data-testid="working-dir-recent"]')
+        ?.focus();
+    }
+  }, [hideRecent, showRecent]);
+
   return (
     <div
       ref={wrapRef}
@@ -259,10 +332,13 @@ export function WorkingDirPicker({
     >
       <div className="jini-working-dir-trigger-row">
         <button
+          ref={triggerRef}
           type="button"
           className={`jini-working-dir-trigger${invalid ? ' invalid' : ''}`}
           data-testid="working-dir-trigger"
+          aria-haspopup="menu"
           aria-expanded={open}
+          aria-controls={panelId}
           title={invalid ? t.missing : (workingDir ?? t.hint)}
           onClick={toggle}
         >
@@ -276,9 +352,12 @@ export function WorkingDirPicker({
 
       {open ? (
         <div
+          ref={panelRef}
+          id={panelId}
           className={`jini-working-dir-panel${placement === 'up' ? ' up' : ''}`}
           role="menu"
           data-testid="working-dir-panel"
+          onKeyDown={handlePanelKeyDown}
         >
           <button
             type="button"

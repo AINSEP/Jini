@@ -45,6 +45,8 @@ export interface ToastProps {
   role?: ToastRole;
   tone?: ToastTone;
   placement?: ToastPlacement;
+  /** Custom hook override for dependency injection / testing. */
+  useToastAutoDismiss?: typeof useToastAutoDismiss;
 }
 
 export const TOAST_DEFAULT_TTL = 4000;
@@ -213,9 +215,10 @@ export function Toast({
   role = 'status',
   tone = 'default',
   placement = 'bottom',
+  useToastAutoDismiss: useToastAutoDismissHook = useToastAutoDismiss,
 }: ToastProps) {
   const effectiveTtl = toastEffectiveTtl(code, ttlMs);
-  const { leaving } = useToastAutoDismiss({ message, details, code, effectiveTtl, onDismiss });
+  const { leaving } = useToastAutoDismissHook({ message, details, code, effectiveTtl, onDismiss });
   const iconName = toastToneIcon(tone);
 
   return (

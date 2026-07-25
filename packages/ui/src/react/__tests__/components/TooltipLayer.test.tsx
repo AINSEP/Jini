@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   clamp,
   isTooltipTarget,
@@ -502,5 +502,46 @@ describe('TooltipLayer positioning, scroll & lifecycle', () => {
     unmount();
     expect(screen.queryByRole('tooltip')).toBeNull();
     trigger.remove();
+  });
+});
+
+describe('TooltipLayer with hook override prop', () => {
+  it('uses useTooltipLayer hook prop to render a forced hidden state (state 1)', () => {
+    const customHook = () => ({
+      state: null,
+      tooltipRef: { current: null },
+      showTooltip: vi.fn(),
+      hideTooltip: vi.fn(),
+    });
+
+    render(<TooltipLayer useTooltipLayer={customHook} />);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('uses useTooltipLayer hook prop to render a forced visible state with custom text and position (state 2)', () => {
+    const dummyTarget = document.createElement('div');
+    const customHook = () => ({
+      state: {
+        target: dummyTarget,
+        text: 'Custom Active Tooltip',
+        placement: 'top' as const,
+        style: {
+          x: 100,
+          y: 200,
+          visibility: 'visible' as const,
+        },
+      },
+      tooltipRef: { current: null },
+      showTooltip: vi.fn(),
+      hideTooltip: vi.fn(),
+    });
+
+    render(<TooltipLayer useTooltipLayer={customHook} />);
+
+    const tooltip = screen.getByRole('tooltip');
+    expect(tooltip).toBeTruthy();
+    expect(tooltip.textContent).toBe('Custom Active Tooltip');
+    expect(tooltip.style.transform).toBe('translate3d(100px, 200px, 0)');
+    expect(tooltip.style.visibility).toBe('visible');
   });
 });

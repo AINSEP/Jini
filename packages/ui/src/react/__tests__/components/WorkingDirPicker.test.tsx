@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -223,6 +223,12 @@ describe('WorkingDirPicker', () => {
     );
     await user.click(screen.getByTestId('working-dir-trigger'));
     expect(screen.getByTestId('working-dir-pick').textContent).toContain('Choose folder');
+    expect(screen.getByTestId('working-dir-trigger')).toHaveAttribute('aria-haspopup', 'menu');
+    expect(screen.getByTestId('working-dir-trigger')).toHaveAttribute(
+      'aria-controls',
+      screen.getByTestId('working-dir-panel').id,
+    );
+    expect(screen.getByTestId('working-dir-pick')).toHaveFocus();
     await user.click(screen.getByTestId('working-dir-pick'));
     expect(onPickDirectory).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId('working-dir-panel')).toBeNull(); // picking closes
@@ -382,10 +388,13 @@ describe('WorkingDirPicker', () => {
     // Outside the wrapper -> contains() false -> closes.
     fireEvent.mouseDown(outside);
     expect(screen.queryByTestId('working-dir-panel')).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByTestId('working-dir-trigger')).toHaveFocus();
+    });
     outside.remove();
   });
 
-  it('closes on Escape', async () => {
+  it('supports menu arrow navigation and returns trigger focus on Escape', async () => {
     const user = userEvent.setup();
     render(
       <WorkingDirPicker
@@ -397,8 +406,20 @@ describe('WorkingDirPicker', () => {
     );
     await user.click(screen.getByTestId('working-dir-trigger'));
     expect(screen.getByTestId('working-dir-panel')).toBeTruthy();
+    expect(screen.getByTestId('working-dir-pick')).toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId('working-dir-pick'), { key: 'ArrowDown' });
+    expect(screen.getByTestId('working-dir-recent')).toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'Home' });
+    expect(screen.getByTestId('working-dir-pick')).toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId('working-dir-pick'), { key: 'End' });
+    expect(screen.getByTestId('working-dir-recent')).toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId('working-dir-recent'), { key: 'ArrowUp' });
+    expect(screen.getByTestId('working-dir-pick')).toHaveFocus();
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByTestId('working-dir-panel')).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByTestId('working-dir-trigger')).toHaveFocus();
+    });
   });
 
   it('accepts label overrides', () => {
@@ -412,5 +433,78 @@ describe('WorkingDirPicker', () => {
       />,
     );
     expect(screen.getByTestId('working-dir-trigger').textContent).toContain('Choisir un dossier');
+  });
+
+  it('uses custom useWorkingDirPicker hook prop to render a forced open state (state 1)', () => {
+    const mockPick = vi.fn();
+    const customHook = () => ({
+      open: true,
+      recentOpen: false,
+      wrapRef: { current: null },
+      labels: { ...DEFAULT_WORKING_DIR_LABELS, pick: 'Choose Custom Folder' },
+      toggle: vi.fn(),
+      close: vi.fn(),
+      pick: mockPick,
+      selectRecent: vi.fn(),
+      clear: vi.fn(),
+      showRecent: vi.fn(),
+      hideRecent: vi.fn(),
+      toggleRecent: vi.fn(),
+    });
+
+    render(
+      <WorkingDirPicker
+        workingDir={null}
+        recentDirs={[]}
+        onPickDirectory={vi.fn()}
+        onSelectRecent={vi.fn()}
+        useWorkingDirPicker={customHook}
+      />,
+    );
+
+    const panel = screen.getByTestId('working-dir-panel');
+    expect(panel).toBeTruthy();
+    expect(screen.getByTestId('working-dir-pick').textContent).toBe('Choose Custom Folder');
+    expect(screen.queryByTestId('working-dir-recent-list')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('working-dir-pick'));
+    expect(mockPick).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses custom useWorkingDirPicker hook prop to render a forced open panel + open recent list (state 2)', () => {
+    const mockSelectRecent = vi.fn();
+    const customHook = () => ({
+      open: true,
+      recentOpen: true,
+      wrapRef: { current: null },
+      labels: DEFAULT_WORKING_DIR_LABELS,
+      toggle: vi.fn(),
+      close: vi.fn(),
+      pick: vi.fn(),
+      selectRecent: mockSelectRecent,
+      clear: vi.fn(),
+      showRecent: vi.fn(),
+      hideRecent: vi.fn(),
+      toggleRecent: vi.fn(),
+    });
+
+    render(
+      <WorkingDirPicker
+        workingDir={null}
+        recentDirs={['/Users/test/project1', '/Users/test/project2']}
+        onPickDirectory={vi.fn()}
+        onSelectRecent={vi.fn()}
+        useWorkingDirPicker={customHook}
+      />,
+    );
+
+    expect(screen.getByTestId('working-dir-panel')).toBeTruthy();
+    const flyout = screen.getByTestId('working-dir-recent-list');
+    expect(flyout).toBeTruthy();
+    expect(screen.getByText('project1')).toBeTruthy();
+    expect(screen.getByText('project2')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('project1'));
+    expect(mockSelectRecent).toHaveBeenCalledWith('/Users/test/project1');
   });
 });

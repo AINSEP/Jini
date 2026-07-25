@@ -314,3 +314,67 @@ describe('HeaderActionsMenu', () => {
     expect(button).not.toHaveAttribute('aria-checked');
   });
 });
+
+describe('HeaderActionsMenu with hook override prop', () => {
+  it('uses useHeaderActionsMenu hook prop to render a forced closed state (state 1)', () => {
+    const mockToggle = vi.fn();
+    const customHook = () => ({
+      open: false,
+      containerRef: { current: null },
+      visibleGroups: [[action({ label: 'Action 1' })]],
+      toggle: mockToggle,
+      close: vi.fn(),
+    });
+
+    render(
+      <HeaderActionsMenu
+        groups={[[action({ label: 'Action 1' })]]}
+        label="Custom Trigger Label"
+        useHeaderActionsMenu={customHook}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Custom Trigger Label' });
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.queryByRole('menu')).toBeNull();
+
+    fireEvent.click(trigger);
+    expect(mockToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses useHeaderActionsMenu hook prop to render a forced open state with items (state 2)', () => {
+    const mockClose = vi.fn();
+    const mockOnClick = vi.fn();
+    const act1 = action({ id: 'act1', label: 'Action 1', active: true, onClick: mockOnClick });
+    const act2 = action({ id: 'act2', label: 'Action 2', loading: true });
+    const customHook = () => ({
+      open: true,
+      containerRef: { current: null },
+      visibleGroups: [[act1, act2]],
+      toggle: vi.fn(),
+      close: mockClose,
+    });
+
+    render(
+      <HeaderActionsMenu
+        groups={[[act1, act2]]}
+        label="More actions"
+        useHeaderActionsMenu={customHook}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'More actions' }).getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('menu')).toBeTruthy();
+
+    const item1 = screen.getByRole('menuitemcheckbox', { name: 'Action 1' });
+    expect(item1).toHaveAttribute('aria-checked', 'true');
+
+    const item2 = screen.getByRole('menuitem', { name: 'Action 2' });
+    expect(item2).toBeDisabled();
+    expect(item2).toHaveAttribute('aria-busy', 'true');
+
+    fireEvent.click(item1);
+    expect(mockOnClick).toHaveBeenCalledTimes(1);
+    expect(mockClose).toHaveBeenCalledTimes(1);
+  });
+});

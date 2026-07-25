@@ -10,6 +10,8 @@ export interface CommandPaletteProps {
   onClose: () => void;
   scopeKey?: string | undefined;
   placeholder?: string | undefined;
+  /** Custom hook override for dependency injection / testing. */
+  useWiredCommandPalette?: typeof useWiredCommandPalette;
 }
 
 /**
@@ -25,9 +27,16 @@ export interface CommandPaletteProps {
  * genericization writeup, including why this is a distinct primitive from
  * `features/mention-autocomplete/`.
  */
-export function CommandPalette({ items, onSelect, onClose, scopeKey, placeholder }: CommandPaletteProps) {
+export function CommandPalette({
+  items,
+  onSelect,
+  onClose,
+  scopeKey,
+  placeholder,
+  useWiredCommandPalette: useWiredCommandPaletteHook = useWiredCommandPalette,
+}: CommandPaletteProps) {
   const t = useT();
-  const palette = useWiredCommandPalette({ items, onSelect, onClose, scopeKey });
+  const palette = useWiredCommandPaletteHook({ items, onSelect, onClose, scopeKey });
   const listRef = useRef<HTMLDivElement | null>(null);
   const setInputRef = useCallback((node: HTMLInputElement | null) => {
     node?.focus();
