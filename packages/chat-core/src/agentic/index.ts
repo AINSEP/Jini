@@ -15,12 +15,23 @@
  */
 export {
   findCapability,
+  findCapabilityInputError,
   availableCapabilities,
   type CapabilityDef,
   type CapabilityInputSchema,
   type CapabilityRisk,
   type CapabilitySurface,
 } from './capability.js';
+
+export type { PageDriver, FindElementsFilter } from './page-driver.js';
+
+export {
+  executePageCapability,
+  DEFAULT_HIGHLIGHT_MS,
+  MAX_HIGHLIGHT_MS,
+  type FindElementsResult,
+  type PageElementResult,
+} from './page-executor.js';
 
 export { CHAT_CAPABILITIES } from './chat-capabilities.js';
 export { PAGE_CAPABILITIES } from './page-capabilities.js';

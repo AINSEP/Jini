@@ -64,6 +64,49 @@ export function findCapability(
 }
 
 /**
+ * Checks caller input against a capability's declared schema.
+ *
+ * Manifests advertise `additionalProperties: false` and a `required` list, but nothing was
+ * enforcing either — handlers read the fields they knew about and ignored the rest, so a
+ * misnamed argument silently became a missing one. This closes that for any surface that calls
+ * it. Intentionally a shallow check, not a JSON Schema engine: these schemas are flat by
+ * construction, and a real validator is a dependency this package will not take.
+ *
+ * @param capability - The capability being invoked.
+ * @param input - Raw caller-supplied arguments.
+ * @returns An error message, or `null` when the input is acceptable.
+ */
+export function findCapabilityInputError(
+  capability: CapabilityDef,
+  input: Record<string, unknown>,
+): string | null {
+  const { properties, required, additionalProperties } = capability.inputSchema;
+
+  for (const name of required ?? []) {
+    if (input[name] === undefined) return `"${name}" is required`;
+  }
+
+  if (additionalProperties === false) {
+    const unknown = Object.keys(input).filter((key) => !(key in properties));
+    if (unknown.length > 0) {
+      return `unknown ${unknown.length === 1 ? 'argument' : 'arguments'}: ${unknown.sort().join(', ')}`;
+    }
+  }
+
+  for (const [name, schema] of Object.entries(properties)) {
+    const value = input[name];
+    if (value === undefined) continue;
+    const actual = Array.isArray(value) ? 'array' : typeof value;
+    if (actual !== schema.type) return `"${name}" must be a ${schema.type}, received ${actual}`;
+    if (schema.enum !== undefined && !schema.enum.includes(value as string)) {
+      return `"${name}" must be one of: ${schema.enum.join(', ')}`;
+    }
+  }
+
+  return null;
+}
+
+/**
  * The capabilities a caller may use given what is currently connected.
  *
  * @param capabilities - The full manifest.
