@@ -13,6 +13,6 @@ export * from './tool-events.js';
 export * from './tools.js';
 export * from './todos.js';
 export * from './question-form.js';
-export * from './artifacts/index.js';
+export * from './util/index.js';
 export * from './transcript.js';
 

@@ -19,8 +19,8 @@ import {
   summarizeArtifactsForTranscript,
   validateHtmlArtifact,
   type ArtifactEvent,
-} from '../artifacts/index.js';
-import { computeSkipRanges, isRealArtifactOpenAt, rangeContains } from '../artifacts/markdown-context.js';
+} from '../util/index.js';
+import { computeSkipRanges, isRealArtifactOpenAt, rangeContains } from '../util/markdown-context.js';
 
 const HTML_DOC = '<!doctype html><html><head></head><body><h1>Hello there, world</h1></body></html>';
 

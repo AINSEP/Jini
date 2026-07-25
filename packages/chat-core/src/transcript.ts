@@ -14,8 +14,8 @@
  * (or dropped) below — see source-map.md for the full accounting.
  */
 import type { ChatMessage } from './messages.js';
-import type { PersistedArtifactFileRef } from './artifacts/strip.js';
-import { summarizeArtifactsForTranscript } from './artifacts/strip.js';
+import type { PersistedArtifactFileRef } from './util/strip.js';
+import { summarizeArtifactsForTranscript } from './util/strip.js';
 
 const DEFAULT_MAX_TRANSCRIPT_MESSAGE_CHARS = 12_000;
 const DEFAULT_LARGE_TOOL_RESULT_CHARS = 8_000;
