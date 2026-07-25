@@ -30,3 +30,14 @@ foundry/automation/project-runner/.sandbox/
 **/.codegraph/
 **/.code-review-graph/
 .codebase-memory/
+# understand-anything's graph is the same class of artifact: ~11M, regenerable from source
+# by `/understand`, and stale the moment the tree moves on.
+.understand-anything/
+
+# Raw peer-agent transcripts from swarm runs. Only the curated CTX-*.md write-ups are retained;
+# the raw jsonl/stderr dumps they were distilled from are scratch.
+ADS-memory/reports/swarm-consensus/context/peer-*
+ADS-memory/tmp/
+
+# One-off scratch harnesses (hardcoded absolute paths, not runnable on another machine)
+examples/*/scratch-*.ts
