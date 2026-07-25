@@ -232,6 +232,70 @@ describe('createLocalNodeDaemon', () => {
     expect(address && typeof address === 'object' ? address.port : null).toBe(port);
   });
 
+  describe('toolRegistrations', () => {
+    const noopHandler = async (): Promise<string> => 'ok';
+    const allowAll = { authorize: (): 'allow' => 'allow' };
+
+    it('boots with host-contributed tool registrations', async () => {
+      const dataDir = makeTempDataDir();
+      const daemon = await createLocalNodeDaemon({
+        dataDir,
+        packs: [makePingPack()],
+        toolRegistrations: [
+          { descriptor: { id: 'page.click' }, handler: noopHandler, policy: allowAll },
+          { descriptor: { id: 'page.fill' }, handler: noopHandler, policy: allowAll },
+        ],
+      });
+      daemonsToStop.push(daemon);
+
+      const res = await fetch(`${daemon.url}/api/ping`);
+      expect(res.status).toBe(200);
+    });
+
+    it('rejects when two host registrations share a descriptor id', async () => {
+      const dataDir = makeTempDataDir();
+      await expect(createLocalNodeDaemon({
+        dataDir,
+        packs: [makePingPack()],
+        toolRegistrations: [
+          { descriptor: { id: 'page.click' }, handler: noopHandler, policy: allowAll },
+          { descriptor: { id: 'page.click' }, handler: noopHandler, policy: allowAll },
+        ],
+      })).rejects.toThrow('tool "page.click" is already registered');
+    });
+
+    // The point of the shared registry: a host tool and the preset's own tools go through ONE
+    // ToolExecutor, so they necessarily share an id space. A collision proves they landed in the
+    // same registry rather than in a parallel one.
+    it('rejects when a host registration collides with one of the preset\'s own tools', async () => {
+      const dataDir = makeTempDataDir();
+      await expect(createLocalNodeDaemon({
+        dataDir,
+        packs: [makePingPack()],
+        toolRegistrations: [
+          { descriptor: { id: 'daemon.db.inspect' }, handler: noopHandler, policy: allowAll },
+        ],
+      })).rejects.toThrow('tool "daemon.db.inspect" is already registered');
+    });
+
+    it('releases the sqlite handles it had already opened when a registration collides', async () => {
+      const dataDir = makeTempDataDir();
+      await expect(createLocalNodeDaemon({
+        dataDir,
+        packs: [makePingPack()],
+        toolRegistrations: [
+          { descriptor: { id: 'terminal.create' }, handler: noopHandler, policy: allowAll },
+        ],
+      })).rejects.toThrow(/already registered/);
+
+      // A leaked handle would keep the file locked; a fresh daemon on the same dataDir proves it
+      // was released.
+      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+      daemonsToStop.push(daemon);
+      expect((await fetch(`${daemon.url}/api/ping`)).status).toBe(200);
+    });
+  });
+
   it('substitutes 127.0.0.1 into the reported URL when bound to 0.0.0.0', async () => {
     const dataDir = makeTempDataDir();
     const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], host: '0.0.0.0' });

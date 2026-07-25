@@ -32,7 +32,7 @@ import type { Server } from 'node:http';
 
 import express, { type Express } from 'express';
 import { detectAgents, type DetectedAgent, type OAuthCallbackListener } from '@jini/agent-runtime';
-import { bindings, createDaemon, createToolRegistry, type Bindings, type Daemon, type Principal } from '@jini/core';
+import { bindings, createDaemon, createToolRegistry, type Bindings, type Daemon, type Principal, type ToolRegistration } from '@jini/core';
 import type { AnyPack, MissingTokenIds } from '@jini/core/internal';
 import {
   AgentExecutorToken,
@@ -279,6 +279,27 @@ export interface CreateLocalNodeDaemonConfig<
    * owned by the composition root via `onShutdown`.
    */
   httpExtensions?: readonly LocalNodeHttpExtension[];
+  /**
+   * Host-contributed `{descriptor, handler, policy}` triples, registered into the same internal
+   * registry this preset's own gated tools (`jini.terminal.create`, `daemon.db.*`) use — and so
+   * executed through the same `ToolExecutor`, inheriting its authorization, confirmation, timeout,
+   * cancellation, output truncation, and audit trail.
+   *
+   * This exists because that registry is otherwise private: a host had no way to contribute to it,
+   * which is precisely the pressure that produces a second, weaker execution path alongside the
+   * gated one. The motivating case is a capability the daemon cannot implement itself because it
+   * has to run somewhere else — an attached browser surface reached through `@jini/daemon`'s
+   * `FrontendSessionRegistry`, where the handler's job is to route the call and await an answer
+   * rather than to do the work.
+   *
+   * Registration order is preserved, and these are registered after the preset's own tools so a
+   * collision names the host's id rather than silently shadowing a built-in.
+   *
+   * @throws At startup if a `descriptor.id` is already registered — by another entry here, or by
+   * one of the preset's own tools. The registry is append-only by design; re-registration must be
+   * explicit, never implicit.
+   */
+  toolRegistrations?: readonly ToolRegistration[];
   /**
    * Where this daemon's local discovery record (URL/host/port/pid) is written once it starts
    * listening, so a separate CLI process on the same machine can find it via
@@ -541,6 +562,22 @@ export async function createLocalNodeDaemon(
   zeroConfigToolRegistry.register(dbOpsRegistrations.verify);
   zeroConfigToolRegistry.register(dbOpsRegistrations.vacuum);
   const daemonDbRoutesDeps = { toolExecutor: zeroConfigToolExecutor, principal: LOCAL_DAEMON_PRINCIPAL };
+
+  // Registered last so a colliding id reports the host's tool rather than silently shadowing one
+  // of the preset's own. See `toolRegistrations`' own doc for why this seam exists at all.
+  //
+  // Guarded because this is the first startup step that can throw on *caller-supplied* input (a
+  // duplicate descriptor id), and by this point the sqlite handles are already open. Same cleanup
+  // shape as the bind-failure path below — a failed boot never leaks an open file handle.
+  try {
+    for (const registration of config.toolRegistrations ?? []) {
+      zeroConfigToolRegistry.register(registration);
+    }
+  } catch (error) {
+    dbOpsConnection.close();
+    await Promise.all([eventLog.close(), journalEventLog.close()]);
+    throw error;
+  }
 
   // Owned here (rather than left to xai.ts's internal default) so stop() can close an in-flight
   // OAuth loopback listener — otherwise the 127.0.0.1:56121 socket outlives the daemon by up to
