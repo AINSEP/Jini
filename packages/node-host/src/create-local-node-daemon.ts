@@ -31,7 +31,7 @@ import { join } from 'node:path';
 import type { Server } from 'node:http';
 
 import express, { type Express } from 'express';
-import { AGENT_DEFS, type OAuthCallbackListener } from '@jini/agent-runtime';
+import { detectAgents, type DetectedAgent, type OAuthCallbackListener } from '@jini/agent-runtime';
 import { bindings, createDaemon, createToolRegistry, type Bindings, type Daemon, type Principal } from '@jini/core';
 import type { AnyPack, MissingTokenIds } from '@jini/core/internal';
 import {
@@ -47,15 +47,14 @@ import {
   resumableFromProcessExit,
   RunLifecycleToken,
   type ResolveRunInput,
+  type RunLifecycle,
   type RunRetrySideEffectState,
 } from '@jini/daemon';
 import {
-  createMediaDispatchEngine,
-  createSqliteMediaTaskStore,
-  type ProviderCredentials,
-} from '@jini/media';
-import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini/memory';
-import { createSqliteEventLog, inspectSqliteDatabase, verifySqliteIntegrity } from '@jini/sqlite';
+  createSqliteEventLog,
+  inspectSqliteDatabase,
+  verifySqliteIntegrity,
+} from '@jini/sqlite';
 import {
   configuredAllowedOrigins,
   createDaemonDbToolRegistrations,
@@ -71,13 +70,13 @@ import {
   registerDaemonStatusRoutes,
   registerHealthRoutes,
   registerHostToolsRoutes,
-  registerMediaRoutes,
-  registerMemoryRoutes,
   registerModelProxyRoutes,
   registerResearchRoutes,
   registerRunRoutes,
   registerTerminalRoutes,
   registerXaiRoutes,
+  type AdapterContext,
+  type AgentSummary,
   type DaemonDbOperations,
   type DaemonDbVacuumResult,
   type RunStartHandler,
@@ -205,6 +204,18 @@ export function resolveReportHost(bindHost: string): string {
 /** The token ids `createLocalNodeDaemon` always binds itself, before any caller customization runs. */
 export type KernelBoundIds = 'jini.eventLog' | 'jini.runLifecycle' | 'jini.agentExecutor';
 
+/**
+ * Product-level HTTP composition seam. Incubating capabilities register their routes here instead
+ * of becoming downward dependencies of this locked host preset.
+ */
+export interface LocalNodeHttpExtensionContext {
+  readonly adapter: AdapterContext;
+  readonly lifecycle: RunLifecycle;
+  readonly dataDir: string;
+}
+
+export type LocalNodeHttpExtension = (app: Express, context: LocalNodeHttpExtensionContext) => void;
+
 export interface CreateLocalNodeDaemonConfig<
   Packs extends readonly AnyPack[],
   BoundIds extends string = KernelBoundIds,
@@ -230,11 +241,11 @@ export interface CreateLocalNodeDaemonConfig<
   /** Defaults to `process.env`. Threaded through for testability — see this module's own doc on the one place (`JINI_BIND_HOST`) this still touches the real process env regardless. */
   env?: NodeJS.ProcessEnv;
   /**
-   * Accepted for forward-compat with `@jini/agent-runtime`'s eventual registry-to-daemon wiring.
-   * Not wired to anything yet — no registry-to-daemon integration exists anywhere in this
-   * codebase today (see extraction-plan.md and this package's `source-map.md`).
+   * Optional detector override for a host with custom PATH/env policy or a
+   * deterministic test fixture. Defaults to `@jini/agent-runtime`'s real
+   * concurrent CLI/version/auth/model probe.
    */
-  agents?: unknown[];
+  agentDetector?: () => Promise<readonly DetectedAgent[]>;
   /**
    * Optional host-owned driver attached immediately after `POST /api/runs` durably starts a run.
    * Takes full precedence over {@link resolveRunInput} when both are supplied — a host that
@@ -263,14 +274,11 @@ export interface CreateLocalNodeDaemonConfig<
    */
   resolveWorkspaceRoot?: WorkspaceRootResolver;
   /**
-   * Per-provider credentials for the zero-config `@jini/media` dispatch engine this preset now
-   * wires (see `POST /api/media/generate` below). Defaults to `{}` — no credentials configured
-   * means every real vendor call fails cleanly with a "missing API key"-shaped error (the engine's
-   * own validation, not a crash), the same safe-by-omission shape `apiToken`'s disable-by-default
-   * env var already uses. A host that wants real generation to work supplies real credentials here
-   * (or builds its own map via `@jini/media`'s `resolveProviderCredentialsFromEnv`).
+   * Optional product/capability route registrars. They run after the host's security middleware
+   * and locked route packs, before caller packs and daemon-status routes. Resource cleanup remains
+   * owned by the composition root via `onShutdown`.
    */
-  mediaCredentials?: Readonly<Record<string, ProviderCredentials>>;
+  httpExtensions?: readonly LocalNodeHttpExtension[];
   /**
    * Where this daemon's local discovery record (URL/host/port/pid) is written once it starts
    * listening, so a separate CLI process on the same machine can find it via
@@ -458,26 +466,47 @@ export async function createLocalNodeDaemon(
       ? undefined
       : createDefaultRunStartHandler({ agentExecutor, resolveRunInput: config.resolveRunInput }));
   const runRoutesDeps = { lifecycle: runLifecycle, ...(onStarted === undefined ? {} : { onStarted }) };
-  // Two more always-on, zero-config-safe generic routes, alongside runs/daemon-status.
-  const agentRoutesDeps = { listAgents: () => AGENT_DEFS.map((def) => ({ id: def.id, name: def.name })) };
-  const hostToolsRoutesDeps = { resolveRoot: config.resolveWorkspaceRoot ?? denyAllWorkspaceRoots };
-
-  // Six more route packs (memory, terminals, model-proxy, active-context, db-ops, media) turned
-  // out to have genuinely safe, zero-config defaults too (audit fix, 2026-07-22 — see this
-  // package's own source-map.md for the per-route-pack reachability analysis).
-
-  // `memory.ts`: `NoteStore`'s methods take `dataDir` per call (not bound to one directory at
-  // construction — see `@jini/memory`'s `note-store.ts`), so this preset's own `config.dataDir`
-  // (already trusted — it's where `events.db`/`journal.db` live) is a genuinely real, harmless
-  // default root, not a fabricated one. `validTypes`/`defaultType` are host-defined taxonomy by
-  // design (`note-store.ts`'s own doc); `['note']`/`'note'` is the minimal generic single-bucket
-  // default. `createExtractionLog`/`createVerifyLog` take no arguments at all — already zero-config.
-  const memoryRoutesDeps = {
-    notes: createNoteStore({ validTypes: ['note'], defaultType: 'note' }),
-    extractions: createExtractionLog(),
-    verifications: createVerifyLog(),
-    dataDir: config.dataDir,
+  // Agent discovery is daemon-owned. The first GET populates a shared
+  // promise-backed cache; POST /api/agents/rescan invalidates it and runs
+  // the real PATH/version/auth/model probes again. Promise caching prevents
+  // concurrent browser/desktop clients from spawning duplicate probe sets.
+  const agentDetector = config.agentDetector ?? detectAgents;
+  let agentScanPromise: Promise<readonly AgentSummary[]> | null = null;
+  const projectDetectedAgent = (agent: DetectedAgent): AgentSummary => ({
+    id: agent.id,
+    name: agent.name,
+    available: agent.available,
+    ...(agent.version !== undefined ? { version: agent.version } : {}),
+    ...(agent.authStatus !== undefined ? { authStatus: agent.authStatus } : {}),
+    models: agent.models.map(({ id, label }) => ({ id, label })),
+    ...(agent.reasoningOptions !== undefined
+      ? { reasoningOptions: agent.reasoningOptions.map(({ id, label }) => ({ id, label })) }
+      : {}),
+    modelsSource: agent.modelsSource,
+    ...(agent.supportsCustomModel !== undefined
+      ? { supportsCustomModel: agent.supportsCustomModel }
+      : {}),
+    ...(agent.diagnostics?.[0]?.message
+      ? { diagnostic: agent.diagnostics[0].message }
+      : {}),
+  });
+  const scanAgents = (force: boolean): Promise<readonly AgentSummary[]> => {
+    if (force) agentScanPromise = null;
+    if (!agentScanPromise) {
+      agentScanPromise = agentDetector()
+        .then((agents) => agents.map(projectDetectedAgent))
+        .catch((error: unknown) => {
+          agentScanPromise = null;
+          throw error;
+        });
+    }
+    return agentScanPromise;
   };
+  const agentRoutesDeps = {
+    listAgents: () => scanAgents(false),
+    rescanAgents: () => scanAgents(true),
+  };
+  const hostToolsRoutesDeps = { resolveRoot: config.resolveWorkspaceRoot ?? denyAllWorkspaceRoots };
 
   // `active-context.ts`: `resolveResource` is mandatory but has an honest, harmless answer this
   // preset can always give — "unknown" (`undefined`) — since it has no `Project`/`Workspace` noun
@@ -513,20 +542,6 @@ export async function createLocalNodeDaemon(
   zeroConfigToolRegistry.register(dbOpsRegistrations.vacuum);
   const daemonDbRoutesDeps = { toolExecutor: zeroConfigToolExecutor, principal: LOCAL_DAEMON_PRINCIPAL };
 
-  // `media.ts`: `createMediaDispatchEngine` needs no credentials to construct — an empty
-  // `credentials` map (this preset's default) just means every real vendor call fails cleanly
-  // with the engine's own "missing API key" validation, never a crash or fabricated result (see
-  // `CreateLocalNodeDaemonConfig.mediaCredentials`'s own doc). `createSqliteMediaTaskStore` gets
-  // its own durable file under `dataDir`, matching `events.db`/`journal.db`'s own convention —
-  // closed alongside them on every cleanup path below (the exact resource-leak shape this
-  // package's 2026-07-22 `journalEventLog` audit fix already exists to prevent — see this file's
-  // own dated source-map.md entry).
-  const mediaTaskStore = createSqliteMediaTaskStore(join(config.dataDir, 'media-tasks.db'));
-  const mediaRoutesDeps = {
-    engine: createMediaDispatchEngine({ credentials: config.mediaCredentials ?? {} }),
-    taskStore: mediaTaskStore,
-  };
-
   // Owned here (rather than left to xai.ts's internal default) so stop() can close an in-flight
   // OAuth loopback listener — otherwise the 127.0.0.1:56121 socket outlives the daemon by up to
   // its 30-minute self-close timeout, keeping the process alive and the fixed port occupied.
@@ -561,16 +576,15 @@ export async function createLocalNodeDaemon(
           }
         }
         // A caller-supplied `onShutdown` failing must never leak any of the sqlite file handles
-        // this call opened — `eventLog`, gap 1's separate `journalEventLog`, the media task
-        // store's own `media-tasks.db`, and the raw `better-sqlite3` connection `daemon.db.*`
-        // operates through (see this file's own doc on why each is a distinct file/connection) —
+        // this call opened — `eventLog`, gap 1's separate `journalEventLog`, and the raw
+        // `better-sqlite3` connection `daemon.db.*` operates through —
         // `finally` guarantees every close still runs, then the original rejection (if any)
         // propagates to whoever is awaiting `stop()`.
         try {
           await config.onShutdown?.();
         } finally {
           dbOpsConnection.close();
-          await Promise.all([eventLog.close(), journalEventLog.close(), mediaTaskStore.close()]);
+          await Promise.all([eventLog.close(), journalEventLog.close()]);
         }
       })();
     }
@@ -636,20 +650,14 @@ export async function createLocalNodeDaemon(
   registerRunRoutes(app, runRoutesDeps, { resolvedPortRef });
   registerAgentRoutes(app, agentRoutesDeps, { resolvedPortRef });
   registerHostToolsRoutes(app, { resolvedPortRef }, hostToolsRoutesDeps);
-  registerMemoryRoutes(app, memoryRoutesDeps, { resolvedPortRef });
   registerModelProxyRoutes(app, {}, { resolvedPortRef });
   registerActiveContextRoutes(app, activeContextRoutesDeps, { resolvedPortRef });
   registerTerminalRoutes(app, terminalRoutesDeps, { resolvedPortRef });
   registerDaemonDbRoutes(app, daemonDbRoutesDeps, { resolvedPortRef });
-  registerMediaRoutes(app, mediaRoutesDeps, { resolvedPortRef });
   // Zero-config defaults, deliberately: `registerConnectorsRoutes`' five capability slots
   // (auth/storage/payments/db/realtime) are all independently optional and left unconfigured here
   // — every connectors route is reachable but answers 503 NOT_CONFIGURED until a caller-supplied
-  // preset binds real providers (see `connectors.ts`'s own module doc). `registerResearchRoutes`
-  // needs no `@jini/media` import in *this* file — its default credential resolver lives inside
-  // `research.ts` itself; this preset already depends on `@jini/media` for `mediaRoutesDeps` above,
-  // so wiring this in adds no new boundary surface either way (verified via
-  // `npx tsx scripts/check-engine-boundaries.ts`).
+  // preset binds real providers (see `connectors.ts`'s own module doc).
   registerConnectorsRoutes(app, {}, { resolvedPortRef });
   registerResearchRoutes(app, {}, { resolvedPortRef });
   // `xai.ts`: zero-config-safe the same way — `dataDir` is the one default worth overriding here
@@ -659,6 +667,13 @@ export async function createLocalNodeDaemon(
   // `/api/xai/oauth/*` dance — `/api/xai/search` answers a clean 503 `NOT_CONFIGURED` until then.
   registerXaiRoutes(app, { dataDir: config.dataDir, listenerRef: xaiListenerRef }, { resolvedPortRef });
 
+  for (const registerExtension of config.httpExtensions ?? []) {
+    registerExtension(app, {
+      adapter: { resolvedPortRef },
+      lifecycle: runLifecycle,
+      dataDir: config.dataDir,
+    });
+  }
   mountPackHttp(app, config.packs, daemon);
   registerDaemonStatusRoutes(app, daemonStatusDeps, { resolvedPortRef });
 
@@ -682,10 +697,9 @@ export async function createLocalNodeDaemon(
   return await new Promise<LocalNodeDaemon>((resolve, reject) => {
     const failToBind = (error: unknown) => {
       // Best-effort: a failed boot must not leave any sqlite file handle this call already opened
-      // (`eventLog`, `journalEventLog`, the media task store, or the raw `daemon.db.*` connection)
-      // dangling open.
+      // (`eventLog`, `journalEventLog`, or the raw `daemon.db.*` connection) dangling open.
       dbOpsConnection.close();
-      void Promise.all([eventLog.close(), journalEventLog.close(), mediaTaskStore.close()]).finally(() => reject(error));
+      void Promise.all([eventLog.close(), journalEventLog.close()]).finally(() => reject(error));
     };
 
     listen()

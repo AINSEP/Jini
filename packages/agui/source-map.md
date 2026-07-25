@@ -245,3 +245,11 @@ runtime's* raw stream-event shape, not `RunAgentPayload`, and produces `RunAgent
 rather than consuming them exhaustively). `packages/protocol`'s own test suite (9 tests, 2 files)
 re-run clean after the change — `events.ts` itself carries no runtime logic (all `type`/`interface`
 declarations), so there was nothing new to unit-test in that package itself.
+
+## 2026-07-23 — encoder injection boundary
+
+The repaired package-admission guard correctly rejected locked `@jini/http` importing this
+incubating package. `@jini/http`'s run-stream now accepts a structural `RunStreamEncoder`;
+`examples/reference-web` supplies `createAguiEncoder()` through `@jini/node-host`'s neutral
+HTTP-extension context. This preserves a real AG-UI consumer while keeping the dependency arrow
+from the product composition root toward both packages.

@@ -45,13 +45,10 @@
  * file). Confirmed live: `providers: ["bing"]` 400s on the real daemon, `providers: ["tavily"]`
  * succeeds identically to omitting the field.
  *
- * **Credential resolution**: `resolveCredentials` defaults to `@jini/media`'s
- * `resolveProviderCredentialsFromEnv('tavily')` — a genuine **runtime** (non-type) import of
- * `@jini/media`, which is fine: unlike `@jini/capability-providers` (see `connectors.ts`'s module
- * doc for that package's boundary-checker nuance), `@jini/media` is already a real, non-type
- * dependency of `packages/http` (`media.ts` already lists it in `package.json`, this file just adds
- * a second import from the same already-real dependency). A host with its own secrets layer
- * supplies its own `resolveCredentials` instead. Note OD's real env-var precedence is
+ * **Credential resolution**: `resolveCredentials` defaults to this transport's narrow
+ * `TAVILY_API_KEY` environment seam. A host with its own secrets layer supplies its own resolver
+ * instead; `@jini/http` deliberately does not depend on the incubating media implementation
+ * package. Note OD's real env-var precedence is
  * `['OD_TAVILY_API_KEY', 'TAVILY_API_KEY']` (checked live via `apps/daemon/tests/research.test.ts`'s
  * `TAVILY_ENV_KEYS`) — this package's own `@jini/media#PROVIDER_CREDENTIAL_ENV_VARS.tavily` only
  * lists `['TAVILY_API_KEY']`, deliberately dropping the `OD_`-prefixed variant: this repo's own
@@ -100,7 +97,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { redactSecrets, validateBaseUrl } from '@jini/agent-runtime';
-import { resolveProviderCredentialsFromEnv, type ProviderCredentials } from '@jini/media';
 import { createApiError } from '@jini/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
@@ -138,9 +134,15 @@ export interface ResearchInternalErrorContext {
   readonly error: unknown;
 }
 
+export interface ResearchProviderCredentials {
+  readonly apiKey?: string;
+  readonly baseUrl?: string;
+  readonly model?: string;
+}
+
 export interface ResearchHttpDeps {
-  /** Resolves per-provider credentials. Defaults to `@jini/media`'s `resolveProviderCredentialsFromEnv('tavily')` — see module doc. */
-  readonly resolveCredentials?: (providerId: string) => Promise<ProviderCredentials>;
+  /** Resolves per-provider credentials. Defaults to `TAVILY_API_KEY` for the built-in Tavily transport. */
+  readonly resolveCredentials?: (providerId: string) => Promise<ResearchProviderCredentials>;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ResearchInternalErrorContext) => void;
 }
@@ -150,8 +152,10 @@ function defaultInternalErrorSink(context: ResearchInternalErrorContext): void {
   console.error(`[@jini/http] internal error (research/search, correlationId=${context.correlationId})`, context.error);
 }
 
-async function defaultResolveCredentials(providerId: string): Promise<ProviderCredentials> {
-  return resolveProviderCredentialsFromEnv(providerId);
+async function defaultResolveCredentials(providerId: string): Promise<ResearchProviderCredentials> {
+  if (providerId !== 'tavily') return {};
+  const apiKey = process.env.TAVILY_API_KEY?.trim();
+  return apiKey ? { apiKey } : {};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -216,7 +220,7 @@ interface TavilySearchOutput {
 }
 
 /** Calls Tavily's real `POST /search` endpoint directly — see module doc for the port's exact scope/provenance. Throws (never a `Result`) on any failure; the route handler below is the one place that converts a thrown error into the package's SEC-005 response shape. */
-async function tavilySearch(credentials: ProviderCredentials, request: ResearchSearchRequest): Promise<TavilySearchOutput> {
+async function tavilySearch(credentials: ResearchProviderCredentials, request: ResearchSearchRequest): Promise<TavilySearchOutput> {
   const apiKey = credentials.apiKey;
   if (!apiKey) {
     // The caller (the route handler below) always checks this before calling in — see its own
@@ -320,7 +324,7 @@ export const researchSearchRoute = defineJsonRoute<ResearchSearchRequest, Resear
     const resolveCredentials = deps.resolveCredentials ?? defaultResolveCredentials;
     const onInternalError = deps.onInternalError ?? defaultInternalErrorSink;
 
-    let credentials: ProviderCredentials;
+    let credentials: ResearchProviderCredentials;
     try {
       credentials = await resolveCredentials('tavily');
     } catch (error) {

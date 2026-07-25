@@ -398,3 +398,11 @@ without `cause`).
 `pnpm --dir packages/memory run test:coverage` — **212/212 tests pass** (7 new), **genuine
 100/100/100/100 across every file in this package**. `vitest.config.ts`'s committed threshold
 raised from 99/99/99/99 to 100/100/100/100 to lock this in.
+
+## 2026-07-23 — composition-root consumer, no locked downward edge
+
+The repaired R7 guard showed that `@jini/node-host` directly instantiated this still-incubating
+package. The host now exposes a neutral HTTP-extension seam instead. `examples/reference-web` owns
+the generic note/extraction/verification stores and registers `@jini/http`'s memory routes at the
+composition root. This named workspace example does not satisfy `UNLOCKED.md`'s external
+packed-consumer promotion requirement.

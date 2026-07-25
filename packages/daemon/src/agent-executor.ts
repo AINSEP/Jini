@@ -420,6 +420,16 @@ export interface AgentExecutorRunInput {
   readonly agentId: string;
   readonly prompt: string;
   readonly cwd: string;
+  /** Optional host-selected model id, forwarded to every runtime transport. */
+  readonly model?: string;
+  /** Optional host-selected reasoning effort, forwarded to runtime argv builders. */
+  readonly reasoning?: string;
+  /** Host-validated image files forwarded through argv, ACP, or pi-rpc. */
+  readonly imagePaths?: readonly string[];
+  /** Additional host-validated directories the runtime may read. */
+  readonly extraAllowedDirs?: readonly string[];
+  /** Trusted root that must contain pi-rpc image paths after realpath resolution. */
+  readonly uploadRoot?: string;
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -1038,6 +1048,8 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly lifecycle: RunLifecycle;
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | undefined;
+  readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
   readonly onPermissionRequest: AcpPermissionHandler | undefined;
   readonly attachAcpSession: typeof attachAcpSession;
@@ -1156,6 +1168,8 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
     child,
     prompt: ctx.prompt,
     cwd: ctx.cwd,
+    ...(ctx.model !== undefined ? { model: ctx.model } : {}),
+    ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
     ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
     ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}),
     send(event, payload) {
@@ -1192,6 +1206,9 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
   readonly lifecycle: RunLifecycle;
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | undefined;
+  readonly imagePaths: readonly string[];
+  readonly uploadRoot: string | undefined;
   readonly attachPiRpcSession: typeof attachPiRpcSession;
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
   /** Same seam as `WireChildLifecycleContext.cleanupPromptFile` — no current pi-rpc def declares `promptViaFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
@@ -1216,7 +1233,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * `child.stdout` itself for its own JSON-RPC parsing — Node multicasts
  * `'data'` events to every listener, so both coexist safely.
  *
- * v1 omits `model`/`imagePaths`/`uploadRoot`/`parentSession` — none of
+ * v1 omits `parentSession` — none of
  * `AgentExecutorRunInput`'s fields carry them yet (matching this module's
  * established "explicitly out of scope" discipline for other follow-ups:
  * multi-turn tool continuation, resumable session ids, etc.).
@@ -1293,6 +1310,9 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
     child: ctx.child,
     prompt: ctx.prompt,
     cwd: ctx.cwd,
+    ...(ctx.model !== undefined ? { model: ctx.model } : {}),
+    ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
+    ...(ctx.uploadRoot !== undefined ? { uploadRoot: ctx.uploadRoot } : {}),
     send(_channel, payload) {
       const translation = translateAgentRuntimeEvent(payload);
       if (translation.kind === 'agent') {
@@ -1482,7 +1502,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
    * returns `failBeforeSpawn(...)` directly (a `Promise<never>`, valid
    * wherever `Promise<void>` is expected) rather than `await`-then-`return`,
    * so each failure path reads as a single, obviously-terminal statement.
-   * @param input - `{runId, agentId, prompt, cwd, env?}` — `runId` must already be `lifecycle.start()`-ed.
+   * @param input - `{runId, agentId, prompt, cwd, model?, reasoning?, imagePaths?, extraAllowedDirs?, uploadRoot?, env?}` — `runId` must already be `lifecycle.start()`-ed.
    * @throws {@link AgentExecutorError} — see module doc's Invariant; never a bare `Error`.
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
@@ -1571,7 +1591,18 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       ? { promptFilePath: preparedPromptFile.path }
       : undefined;
 
-    const args = def.buildArgs(input.prompt, [], undefined, undefined, runtimeContext);
+    const args = def.buildArgs(
+      input.prompt,
+      [...(input.imagePaths ?? [])],
+      input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
+      input.model !== undefined || input.reasoning !== undefined
+        ? {
+            ...(input.model !== undefined ? { model: input.model } : {}),
+            ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
+          }
+        : undefined,
+      runtimeContext,
+    );
 
     // Gap 3, part 2 — write .mcp.json into the managed cwd before spawn, so a 'claude-mcp-json'
     // def's own spawn-time config load discovers the jini-mcp bridge server. A no-op for every
@@ -1657,6 +1688,8 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           lifecycle,
           prompt: input.prompt,
           cwd: input.cwd,
+          model: input.model,
+          imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
           onPermissionRequest: options.acpPermissionHandler,
           attachAcpSession: attachAcpSessionFn,
@@ -1702,6 +1735,9 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           lifecycle,
           prompt: input.prompt,
           cwd: input.cwd,
+          model: input.model,
+          imagePaths: input.imagePaths ?? [],
+          uploadRoot: input.uploadRoot,
           attachPiRpcSession: attachPiRpcSessionFn,
           listProcessSnapshots: listProcessSnapshotsFn,
           collectProcessTreePids: collectProcessTreePidsFn,

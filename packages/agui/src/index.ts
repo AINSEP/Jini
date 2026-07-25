@@ -3,8 +3,9 @@
  *
  * AG-UI (Agent-User Interaction Protocol) encoder for `@jini/protocol`'s run-event stream — see
  * `source-map.md` for provenance, the old→new field-mapping table, and the generalization
- * writeup. Consumed by `@jini/http`'s SSE route, which pipes `RunLifecycle.stream(...)`'s events
- * through `createAguiEncoder()` and writes each non-null result to the response.
+ * writeup. A composition root supplies `createAguiEncoder()` to `@jini/http`'s encoder-driven SSE
+ * route; `examples/reference-web` demonstrates that wiring through the node host's HTTP-extension
+ * seam.
  */
 export type {
   AGUIAgentMessageEvent,

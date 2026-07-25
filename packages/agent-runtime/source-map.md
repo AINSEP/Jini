@@ -325,7 +325,7 @@ commit. Two note-worthy layout differences from what the brief anticipated:
 | `src/mcp.ts` | `runtimes/core/mcp.ts` | De-branded, and narrowed to the genuinely generic half. Origin `buildLiveArtifactsMcpServersForAgent` hardcoded a product-branded server name, a product-branded default `command`, and an args tail baked in — i.e. it injected exactly one product's own MCP feature. Renamed to `buildAcpMcpServersForAgent`; `name`/`command`/`args` are now fully caller-supplied with no product-branded default. Kept: the actual generic mechanism — gate on `mcpDiscovery === 'mature-acp'`, and shape the `env` field as an array (`[{name,value}]`) or a map (`{KEY:value}`) per `def.acpMcpEnvFormat`, since different ACP implementations expect different shapes there. |
 | `src/executables.ts` | `runtimes/core/executables.ts` | De-branded + sandbox dependency dropped. `wellKnownUserToolchainBins` import swapped to `@jini/platform`. Origin read two product-prefixed env vars directly and called `resolveSandboxRuntimeConfigFromEnv` from OD's daemon-level `sandbox-mode.ts` (out of this package's charter). Replaced with `configureExecutableResolutionEnv({ agentHomeEnvVar, resourceRootEnvVar })` — an injectable pair of env-var names defaulting to `AGENT_RUNTIME_HOME` / `AGENT_RUNTIME_RESOURCE_ROOT` — and the sandbox-mode integration is simply not present (no equivalent kept; a host needing sandboxed detection-home scoping can still set the agent-home override env var, which achieves the same practical effect for detection purposes). |
 | `src/role-marker-guard.ts` | top-level `apps/daemon/src/role-marker-guard.ts` (not under `runtimes/`, but consumed by `claude-stream.ts`) | Verbatim. Self-contained fabricated-role-marker (`## user`/`## assistant`) detector; no product coupling found. |
-| `src/claude-stream.ts` | `runtimes/stream/claude-stream.ts` | Verbatim except the `role-marker-guard` import path (now same-package instead of two directories up), plus four coverage-driven dead-branch removals made 2026-07-18 — see "Coverage-driven refactors" below. |
+| `src/claude-stream.ts` | `runtimes/stream/claude-stream.ts` | Ported with the `role-marker-guard` import path moved into this package, four coverage-driven dead-branch removals made 2026-07-18, and a 2026-07-23 live-wire correction that accepts terminal stop reasons from the assistant wrapper, partial `message_delta`, or final result frame. See "Coverage-driven refactors" and "Live Claude stream correction" below. |
 | `src/json-event-stream.ts` | `runtimes/stream/json-event-stream.ts` | Verbatim. Zero imports in the origin. |
 | `src/qoder-stream.ts` | `runtimes/stream/qoder-stream.ts` | Verbatim. Only import is `node:buffer`. |
 | `src/copilot-stream.ts` | top-level `apps/daemon/src/copilot-stream.ts` (not under `runtimes/`; r1 recon notes Jini's own daemon relocated this file under `runtimes/`, mirrored here) | Verbatim. Zero imports in the origin. |
@@ -434,6 +434,25 @@ contract composer (OD's "research" feature) — every one of them product-specif
 them a generic prompt-composition mechanism. Per the task's explicit instruction ("do NOT
 lift the OD logic itself"), none of it is ported; `PromptAugmenter` is the injection seam in
 full.
+
+### Live Claude stream correction (2026-07-23)
+
+A live daemon smoke test against Claude Code 2.1.201 exposed two terminal wire
+shapes that the synthetic parser corpus did not cover. The top-level
+`assistant` wrapper can carry `stop_reason: null`; the actual reason may arrive
+on a partial `stream_event`/`message_delta`, or, for a Haiku run observed during
+the same verification, only on the final top-level `result` frame. In the latter
+case Jini received the complete answer and usage while the subprocess stayed
+alive because `AgentExecutor` never saw `turn_end` and therefore never closed
+stream-json stdin.
+
+`claude-stream.ts` now emits a deduplicated `turn_end` from all three accepted
+locations: assistant wrapper, partial message delta, and final result. Parser
+tests cover both live-discovered fallbacks and duplicate combinations; the
+daemon executor suite replays the result-only shape and asserts stdin closes.
+The broader false-confidence boundary and required captured-trace/live-canary
+coverage are retained in
+`ADS-memory/reports/live-validation-test-gap-ledger-2026-07-23.md`.
 
 ### Coverage-driven refactors (2026-07-18)
 

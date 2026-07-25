@@ -31,9 +31,11 @@ only the generic Express-assembly-and-listen skeleton is ported here.
 - **`ToolExecutorToken` binding.** No sensible zero-config default exists — an empty
   `ToolRegistry` would silently fail every tool call. `ExecutionDelegate` injection into
   `mountPackHttp` is independently deferred per `packages/http/source-map.md`.
-- **`@jini/agent-runtime` wiring.** `CreateLocalNodeDaemonConfig.agents` is accepted in the type
-  for forward-compat but not wired to anything — no registry-to-daemon integration exists anywhere
-  in this codebase yet.
+- **Agent discovery (fixed 2026-07-23).** The old forward-compatible, unused `agents` placeholder
+  has been replaced by real lazy daemon-owned discovery. The zero-config host calls
+  `@jini/agent-runtime`'s `detectAgents`, caches the in-flight/result promise for browser/desktop
+  clients, projects only client-safe availability/model metadata, and invalidates the cache through
+  `POST /api/agents/rescan`. `agentDetector` is an optional host/test override for PATH/env policy.
 - **Additional streaming projections.** The generic lifecycle SSE run transport is mounted here;
   AGUI, terminal sessions, and product-specific stream families remain out of scope.
 
@@ -233,11 +235,11 @@ asked to check for.
 `registerRunRoutes`/`registerDaemonStatusRoutes`. Both are the only two of the dozen that are
 genuinely safe with a zero-config, harmless default:
 
-- **`GET /api/agents`** — `listAgents` is satisfied by projecting `@jini/agent-runtime`'s own
-  `AGENT_DEFS` registry (`AGENT_DEFS.map(def => ({id: def.id, name: def.name}))`) — read-only, no
-  security-sensitive content (agent *availability*, not capability), no host-specific resource
-  needed. This adds `@jini/agent-runtime` as a new dependency of this package (both are §3-locked
-  packages — no `UNLOCKED.md` entry needed, matching `check-engine-boundaries.ts`'s R7 rule).
+- **`GET /api/agents` + `POST /api/agents/rescan`** — the initial read lazily executes
+  `@jini/agent-runtime`'s real concurrent PATH/version/auth/model detection and caches the result;
+  rescan explicitly invalidates it. The HTTP projection includes availability and model choices
+  but strips spawn-only paths, argv builders, executable names, and env. This adds no dependency
+  beyond this package's existing §3-locked `@jini/agent-runtime` edge.
 - **`POST /api/resources/:resourceRef/open-in`** (+ `GET /api/editors`) — `HostToolsOpenInDeps`'s
   `resolveRoot` already defaults to `denyAllWorkspaceRoots` inside `host-tools.ts` itself; mounting
   it with no resolver configured means the route exists and is reachable but denies every call with
@@ -507,3 +509,19 @@ demonstrate the two-transport switch). `fastify` was removed from `package.json`
 **Verified, personally, this session**: `pnpm --dir packages/node-host run build`/`exec tsc
 --noEmit`: clean. `pnpm --dir packages/node-host run test:coverage`: **78/78 tests pass**, genuine
 **100/100/100/100** across every file. Root `pnpm guard`: clean.
+
+## 2026-07-23 — optional capabilities moved to the composition root
+
+Fixing R7 exposed that this locked host preset directly instantiated incubating `@jini/memory` and
+`@jini/media`. Those imports and package dependencies are removed. `httpExtensions` is now the
+neutral composition seam: an extension receives the guarded Express app plus adapter,
+`RunLifecycle`, and `dataDir` context after the locked security/base routes are mounted. Its
+composition root owns any capability resources and closes them through `onShutdown`.
+
+`examples/reference-web` now demonstrates the intended direction by registering memory, media, and
+AG-UI stream routes and owning the media-task-store lifetime. The node-host test suite replaces
+capability-specific zero-config assertions with an extension-mount test and an assertion that
+incubating routes are absent unless explicitly composed.
+
+Verified: `pnpm --filter @jini/node-host build`; `pnpm --filter @jini/node-host typecheck`;
+`pnpm --filter @jini/node-host exec vitest run --testTimeout=15000` (**78/78**).

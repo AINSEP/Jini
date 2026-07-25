@@ -1,35 +1,51 @@
 /**
  * @module agents
  *
- * `GET /api/agents` — lists the agent defs a host has registered, as
- * `{id, name}` pairs. Added while building `@jini/mcp`'s `list_agents` tool
- * (see `packages/mcp/source-map.md`'s 2026-07-21 addition): no HTTP
- * projection of a host's registered-agent set existed anywhere in this
- * package before this route.
+ * `GET /api/agents` — lists the agents a host can expose to a client,
+ * including host-probed availability/model metadata when supplied.
+ * `POST /api/agents/rescan` asks the host to invalidate its discovery cache
+ * and probe again.
  *
  * `listAgents` is injected (matching `daemon-status.ts`/`active-context.ts`'s
  * DI convention) rather than this module importing `@jini/agent-runtime`
  * directly — a host typically already has that package's `AGENT_DEFS` array
  * in scope and just needs to project it, and this keeps `@jini/http` from
- * taking on a new package dependency for a two-field shape. Deliberately
- * static: this reflects what a host has *registered*, not which agent
- * binaries are actually installed/reachable on the machine (that would need
- * live detection/probing per agent — a real design decision with timeout and
- * caching tradeoffs, out of scope for this route).
+ * taking on a dependency on subprocess discovery. The host owns probing,
+ * timeouts, caching, PATH/env policy, and the projection of spawn-only
+ * metadata; this transport only serializes the safe summary.
  */
 import type { Express } from 'express';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { ok } from './types.js';
 
-/** The two fields a caller needs to pick an agent id for a run — deliberately not `@jini/agent-runtime`'s full `RuntimeAgentDef` (which carries CLI-spawn internals no HTTP caller should see). */
+export interface AgentModelSummary {
+  readonly id: string;
+  readonly label: string;
+}
+
+/**
+ * Client-safe agent discovery data. Optional probe fields preserve the
+ * original static-registry contract for hosts that only expose `{id, name}`.
+ * Spawn internals (`bin`, resolved path, argv builders, env) never cross HTTP.
+ */
 export interface AgentSummary {
   readonly id: string;
   readonly name: string;
+  readonly available?: boolean;
+  readonly version?: string | null;
+  readonly authStatus?: 'ok' | 'missing' | 'unknown';
+  readonly models?: readonly AgentModelSummary[];
+  readonly reasoningOptions?: readonly AgentModelSummary[];
+  readonly modelsSource?: 'live' | 'fallback';
+  readonly supportsCustomModel?: boolean;
+  readonly diagnostic?: string;
 }
 
 export interface AgentsHttpDeps {
-  /** Returns every agent def a host has registered. Synchronous: this is a projection of an in-memory list, not a live probe. */
-  readonly listAgents: () => readonly AgentSummary[];
+  /** Returns the host's cached or freshly resolved client-safe agent inventory. */
+  readonly listAgents: () => Promise<readonly AgentSummary[]> | readonly AgentSummary[];
+  /** Forces host-owned discovery to run again. Falls back to `listAgents` when omitted. */
+  readonly rescanAgents?: () => Promise<readonly AgentSummary[]> | readonly AgentSummary[];
 }
 
 export interface AgentListResponse {
@@ -41,10 +57,20 @@ export const agentListRoute = defineJsonRoute<void, AgentListResponse, AgentsHtt
   method: 'get',
   path: '/api/agents',
   parse: () => ok(undefined),
-  handle: (_input, deps) => ok({ agents: deps.listAgents() }),
+  handle: async (_input, deps) => ok({ agents: await deps.listAgents() }),
 });
 
-/** Mounts `GET /api/agents` on `app`. A pack's `http(app, services)` calls this directly. */
+/** `POST /api/agents/rescan` — explicit state refresh, protected by the local same-origin gate. */
+export const agentRescanRoute = defineJsonRoute<void, AgentListResponse, AgentsHttpDeps>({
+  method: 'post',
+  path: '/api/agents/rescan',
+  requireSameOrigin: true,
+  parse: () => ok(undefined),
+  handle: async (_input, deps) => ok({ agents: await (deps.rescanAgents ?? deps.listAgents)() }),
+});
+
+/** Mounts the read and explicit-rescan agent discovery routes. */
 export function registerAgentRoutes(app: Express, deps: AgentsHttpDeps, adapter: AdapterContext): void {
   mountJsonRoute(app, agentListRoute, deps, adapter);
+  mountJsonRoute(app, agentRescanRoute, deps, adapter);
 }

@@ -330,6 +330,33 @@ describe('AgentExecutor — successful run end-to-end', () => {
     const endEvent = events[events.length - 1];
     expect(endEvent).toMatchObject({ kind: 'end', payload: { status: 'succeeded', code: 0, signal: null } });
   });
+
+  it('forwards the host-selected model, reasoning, images, and allowed directories to argv-based runtime buildArgs', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-model' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      model: 'model-picked-in-composer',
+      reasoning: 'high',
+      imagePaths: ['/uploads/reference.png'],
+      extraAllowedDirs: ['/uploads'],
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith(
+      'do the thing',
+      ['/uploads/reference.png'],
+      ['/uploads'],
+      { model: 'model-picked-in-composer', reasoning: 'high' },
+      undefined,
+    );
+  });
 });
 
 describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
@@ -492,6 +519,44 @@ describe('AgentExecutor — turn_end closes stdin exactly once', () => {
     // A buggy/duplicate second turn_end must not double-close.
     child.stdout.emit('data', assistantTurnEnd.replace('"id":"m1"', '"id":"m2"'));
     await flushAsync();
+    expect(child.stdin!.end).toHaveBeenCalledTimes(1);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('closes stdin when current Claude emits the terminal reason only on its result frame', async () => {
+    const def = createFakeDef({ streamFormat: 'claude-stream-json', promptInputFormat: 'stream-json' });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    expect(child.stdin!.end).not.toHaveBeenCalled();
+
+    child.stdout.emit(
+      'data',
+      [
+        JSON.stringify({
+          type: 'stream_event',
+          event: { type: 'message_start', message: { id: 'msg_result_only' } },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            id: 'msg_result_only',
+            content: [{ type: 'text', text: 'JINI_WIRING_OK' }],
+            stop_reason: null,
+          },
+        }),
+        JSON.stringify({
+          type: 'result',
+          stop_reason: 'end_turn',
+          terminal_reason: 'completed',
+        }),
+      ].join('\n') + '\n',
+    );
+    await flushAsync();
+
     expect(child.stdin!.end).toHaveBeenCalledTimes(1);
 
     child.emit('close', 0, null);
@@ -1108,6 +1173,8 @@ describe('translateAgentRuntimeEvent', () => {
 interface FakeAcpAttachCall {
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | null | undefined;
+  readonly imagePaths: readonly string[] | undefined;
   readonly envFormat: 'array' | 'map' | undefined;
   readonly onPermissionRequest: unknown;
   readonly send: (event: string, payload: unknown) => void;
@@ -1155,6 +1222,8 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
   const fakeAttachAcpSession = ((attachOptions: {
     prompt: string;
     cwd: string;
+    model?: string | null;
+    imagePaths?: readonly string[];
     envFormat?: 'array' | 'map';
     onPermissionRequest?: unknown;
     send: (event: string, payload: unknown) => void;
@@ -1162,6 +1231,8 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     attachCalls.push({
       prompt: attachOptions.prompt,
       cwd: attachOptions.cwd,
+      model: attachOptions.model,
+      imagePaths: attachOptions.imagePaths,
       envFormat: attachOptions.envFormat,
       onPermissionRequest: attachOptions.onPermissionRequest,
       send: attachOptions.send,
@@ -1242,6 +1313,25 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
     expect((stdoutEvent?.payload as { chunk: string }).chunk).toBe('raw acp stdout\n');
     const stderrEvent = events.find((e) => e.kind === 'stderr');
     expect((stderrEvent?.payload as { chunk: string }).chunk).toBe('raw acp stderr\n');
+  });
+
+  it('forwards the host-selected model and images into the ACP session', async () => {
+    const { lifecycle, executor, attachCalls } = createAcpHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-acp-model' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      model: 'claude-sonnet-4-5',
+      imagePaths: ['/uploads/reference.png'],
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(attachCalls[0]?.model).toBe('claude-sonnet-4-5');
+    expect(attachCalls[0]?.imagePaths).toEqual(['/uploads/reference.png']);
   });
 
   it('finishes failed (not cancelled) when the child closes and completedSuccessfully() reports false', async () => {
@@ -1498,6 +1588,9 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
 interface FakePiRpcAttachCall {
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | null | undefined;
+  readonly imagePaths: readonly string[] | undefined;
+  readonly uploadRoot: string | undefined;
   readonly send: (channel: string, payload: unknown) => void;
 }
 
@@ -1543,9 +1636,19 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
     child: unknown;
     prompt: string;
     cwd: string;
+    model?: string | null;
+    imagePaths?: readonly string[];
+    uploadRoot?: string;
     send: (channel: string, payload: unknown) => void;
   }) => {
-    attachCalls.push({ prompt: attachOptions.prompt, cwd: attachOptions.cwd, send: attachOptions.send });
+    attachCalls.push({
+      prompt: attachOptions.prompt,
+      cwd: attachOptions.cwd,
+      model: attachOptions.model,
+      imagePaths: attachOptions.imagePaths,
+      uploadRoot: attachOptions.uploadRoot,
+      send: attachOptions.send,
+    });
     if (options.attachThrows) {
       throw options.attachThrows;
     }
@@ -1620,6 +1723,27 @@ describe('AgentExecutor — pi-rpc dispatch (fake attachPiRpcSession)', () => {
     expect((stdoutEvent?.payload as { chunk: string }).chunk).toBe('raw pi stdout\n');
     const stderrEvent = events.find((e) => e.kind === 'stderr');
     expect((stderrEvent?.payload as { chunk: string }).chunk).toBe('raw pi stderr\n');
+  });
+
+  it('forwards the host-selected model, images, and upload root into the pi-rpc session', async () => {
+    const { lifecycle, executor, attachCalls } = createPiRpcHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-pi-model' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      model: 'anthropic/claude-sonnet-4-5',
+      imagePaths: ['/uploads/reference.png'],
+      uploadRoot: '/uploads',
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(attachCalls[0]?.model).toBe('anthropic/claude-sonnet-4-5');
+    expect(attachCalls[0]?.imagePaths).toEqual(['/uploads/reference.png']);
+    expect(attachCalls[0]?.uploadRoot).toBe('/uploads');
   });
 
   it('finishes failed (not cancelled) when the child closes and hasFatalError() reports true', async () => {

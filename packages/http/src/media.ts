@@ -2,10 +2,9 @@
  * @module media
  *
  * `POST /api/media/generate`, `GET /api/media/tasks`, `GET /api/media/tasks/:id`, `DELETE
- * /api/media/tasks/:id` — the HTTP route pack that finally gives `@jini/media`'s
- * `createMediaDispatchEngine`/`createSqliteMediaTaskStore` a real caller (an audit finding: both
- * were built and 100%-tested but had zero callers anywhere outside their own package — see
- * `packages/media/source-map.md`'s own dated entry for this addition).
+ * /api/media/tasks/:id` — an HTTP route pack over narrow, transport-owned engine/task-store ports.
+ * A product composition root may satisfy those ports with `@jini/media`; locked `@jini/http`
+ * deliberately does not point down into that incubating implementation package.
  *
  * Follows the "request-now, poll-later" async-task shape `@jini/media`'s own `MediaTaskStore` doc
  * describes: `POST /api/media/generate` creates a task, kicks off `MediaDispatchEngine.generate()`
@@ -42,21 +41,106 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import type {
-  AudioKind,
-  MediaDispatchEngine,
-  MediaGenerationRequest,
-  MediaImageReference,
-  MediaSpeechFormat,
-  MediaSurface,
-  MediaTask,
-  MediaTaskListOptions,
-  MediaTaskStore,
-} from '@jini/media';
 import { createApiError } from '@jini/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
+
+type MediaSurface = 'image' | 'video' | 'audio';
+type AudioKind = 'music' | 'speech' | 'sfx';
+type MediaSpeechFormat = 'mp3' | 'wav' | 'flac' | 'aac' | 'opus';
+
+interface MediaImageReference {
+  readonly dataUrl: string;
+}
+
+interface MediaGenerationRequest {
+  readonly surface: MediaSurface;
+  readonly model: string;
+  readonly prompt?: string;
+  readonly aspect?: string;
+  readonly length?: number;
+  readonly duration?: number;
+  readonly voice?: string;
+  readonly audioKind?: AudioKind;
+  readonly language?: string;
+  readonly loop?: boolean;
+  readonly promptInfluence?: number;
+  readonly imageRef?: MediaImageReference;
+  readonly imageRefs?: readonly MediaImageReference[];
+  readonly wireModel?: string;
+  readonly speechFormat?: MediaSpeechFormat;
+}
+
+interface MediaGenerationResult {
+  readonly bytes: Buffer;
+  readonly providerNote: string;
+  readonly suggestedExt?: string;
+  readonly providerId: string;
+  readonly usedStubFallback: boolean;
+  readonly warnings: readonly string[];
+}
+
+interface MediaDispatchEngine {
+  generate(request: MediaGenerationRequest): Promise<MediaGenerationResult>;
+}
+
+type MediaTaskStatus = 'queued' | 'running' | 'done' | 'failed' | 'interrupted';
+
+interface MediaTaskError {
+  readonly message: string;
+  readonly status?: number;
+  readonly code?: string;
+}
+
+interface MediaTask {
+  readonly id: string;
+  readonly ownerRef: string;
+  readonly status: MediaTaskStatus;
+  readonly surface?: string;
+  readonly model?: string;
+  readonly progress: readonly string[];
+  readonly file: unknown | null;
+  readonly error: MediaTaskError | null;
+  readonly startedAt: number;
+  readonly endedAt: number | null;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
+interface MediaTaskCreateInput {
+  readonly id: string;
+  readonly ownerRef: string;
+  readonly status?: MediaTaskStatus;
+  readonly surface?: string;
+  readonly model?: string;
+  readonly progress?: readonly string[];
+  readonly file?: unknown | null;
+  readonly error?: MediaTaskError | null;
+  readonly startedAt?: number;
+}
+
+interface MediaTaskPatch {
+  readonly status?: MediaTaskStatus;
+  readonly surface?: string | null;
+  readonly model?: string | null;
+  readonly progress?: readonly string[];
+  readonly file?: unknown | null;
+  readonly error?: MediaTaskError | null;
+  readonly endedAt?: number | null;
+}
+
+interface MediaTaskListOptions {
+  readonly includeTerminal?: boolean;
+}
+
+interface MediaTaskStore {
+  create(input: MediaTaskCreateInput): Promise<MediaTask>;
+  get(id: string): Promise<MediaTask | null>;
+  update(id: string, patch: MediaTaskPatch): Promise<MediaTask | null>;
+  listByOwner(ownerRef: string, options?: MediaTaskListOptions): Promise<MediaTask[]>;
+  delete(id: string): Promise<void>;
+}
 
 const SURFACES: ReadonlySet<MediaSurface> = new Set(['image', 'video', 'audio']);
 const AUDIO_KINDS: ReadonlySet<AudioKind> = new Set(['music', 'speech', 'sfx']);
@@ -67,7 +151,7 @@ const SPEECH_FORMATS: ReadonlySet<MediaSpeechFormat> = new Set(['mp3', 'wav', 'f
  * (SEC-005), matching `delegated-tools.ts`'s `DelegatedToolsInternalErrorContext` precedent.
  */
 export interface MediaInternalErrorContext {
-  readonly source: 'media-generate-validate' | 'media-generate-dispatch';
+  readonly source: 'media-generate-dispatch' | 'media-task-store';
   readonly taskId: string | null;
   readonly ownerRef: string | null;
   readonly correlationId: string;
@@ -336,7 +420,7 @@ export const mediaGenerateRoute = defineJsonRoute<MediaGenerateRequest, MediaGen
         model: request.model,
       });
     } catch (error) {
-      return err(reportInternalError(deps, 'media-generate-validate', error, null, ownerRef));
+      return err(reportInternalError(deps, 'media-task-store', error, null, ownerRef));
     }
     void runMediaGenerationInBackground(deps, task.id, ownerRef, request);
     return ok({ task });
@@ -357,8 +441,12 @@ export const mediaTaskGetRoute = defineJsonRoute<string, MediaTaskResponse, Medi
   path: '/api/media/tasks/:id',
   parse: parseTaskId,
   handle: async (id, deps) => {
-    const task = await deps.taskStore.get(id);
-    return task === null ? err(createApiError('NOT_FOUND', 'media task not found')) : ok({ task });
+    try {
+      const task = await deps.taskStore.get(id);
+      return task === null ? err(createApiError('NOT_FOUND', 'media task not found')) : ok({ task });
+    } catch (error) {
+      return err(reportInternalError(deps, 'media-task-store', error, id, null));
+    }
   },
 });
 
@@ -372,10 +460,16 @@ export const mediaTaskDeleteRoute = defineJsonRoute<string, MediaTaskDeleteRespo
   requireSameOrigin: true,
   parse: parseTaskId,
   handle: async (id, deps) => {
-    const existing = await deps.taskStore.get(id);
-    if (existing === null) return err(createApiError('NOT_FOUND', 'media task not found'));
-    await deps.taskStore.delete(id);
-    return ok({ ok: true });
+    let ownerRef: string | null = null;
+    try {
+      const existing = await deps.taskStore.get(id);
+      if (existing === null) return err(createApiError('NOT_FOUND', 'media task not found'));
+      ownerRef = existing.ownerRef;
+      await deps.taskStore.delete(id);
+      return ok({ ok: true });
+    } catch (error) {
+      return err(reportInternalError(deps, 'media-task-store', error, id, ownerRef));
+    }
   },
 });
 
@@ -392,8 +486,12 @@ export const mediaTaskListRoute = defineJsonRoute<MediaTaskListQuery, MediaTaskL
   path: '/api/media/tasks',
   parse: parseMediaTaskListQuery,
   handle: async ({ ownerRef, options }, deps) => {
-    const tasks = await deps.taskStore.listByOwner(ownerRef, options);
-    return ok({ tasks });
+    try {
+      const tasks = await deps.taskStore.listByOwner(ownerRef, options);
+      return ok({ tasks });
+    } catch (error) {
+      return err(reportInternalError(deps, 'media-task-store', error, null, ownerRef));
+    }
   },
 });
 

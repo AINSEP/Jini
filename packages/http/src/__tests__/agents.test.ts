@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { isLocalSameOrigin } from '../origin-validation.js';
-import { agentListRoute, registerAgentRoutes, type AgentsHttpDeps, type AgentSummary } from '../agents.js';
+import {
+  agentListRoute,
+  agentRescanRoute,
+  registerAgentRoutes,
+  type AgentsHttpDeps,
+  type AgentSummary,
+} from '../agents.js';
 
 vi.mock('../origin-validation.js', () => ({
   isLocalSameOrigin: vi.fn(() => true),
@@ -26,8 +32,17 @@ function makeRes() {
 
 const adapter = { resolvedPortRef: { current: 7456 } };
 const AGENTS: readonly AgentSummary[] = [
-  { id: 'claude', name: 'Claude' },
-  { id: 'codex', name: 'Codex' },
+  {
+    id: 'claude',
+    name: 'Claude',
+    available: true,
+    version: '2.1.201',
+    authStatus: 'ok',
+    models: [{ id: 'sonnet', label: 'Sonnet' }],
+    reasoningOptions: [{ id: 'default', label: 'Default' }],
+    modelsSource: 'live',
+  },
+  { id: 'codex', name: 'Codex', available: false, models: [], modelsSource: 'fallback' },
 ];
 
 function makeDeps(overrides: Partial<AgentsHttpDeps> = {}): AgentsHttpDeps {
@@ -58,13 +73,36 @@ describe('agentListRoute.handle', () => {
     await agentListRoute.handle(undefined, deps);
     expect(listAgents).toHaveBeenCalledTimes(2);
   });
+
+  it('awaits an asynchronous host-owned discovery result', async () => {
+    const result = await agentListRoute.handle(undefined, makeDeps({
+      listAgents: async () => AGENTS,
+    }));
+    expect(result).toEqual({ ok: true, value: { agents: AGENTS } });
+  });
+});
+
+describe('agentRescanRoute', () => {
+  it('uses the explicit rescan dependency when supplied', async () => {
+    const rescanAgents = vi.fn(async () => AGENTS);
+    const listAgents = vi.fn(() => []);
+    const result = await agentRescanRoute.handle(undefined, { listAgents, rescanAgents });
+    expect(result).toEqual({ ok: true, value: { agents: AGENTS } });
+    expect(rescanAgents).toHaveBeenCalledOnce();
+    expect(listAgents).not.toHaveBeenCalled();
+  });
+
+  it('falls back to listAgents for static hosts', async () => {
+    const result = await agentRescanRoute.handle(undefined, makeDeps());
+    expect(result).toEqual({ ok: true, value: { agents: AGENTS } });
+  });
 });
 
 describe('registerAgentRoutes', () => {
-  it('mounts exactly GET /api/agents', () => {
+  it('mounts the agent inventory and rescan routes', () => {
     const app = makeApp();
     registerAgentRoutes(app as any, makeDeps(), adapter);
-    expect(Object.keys(app.handlers)).toEqual(['GET /api/agents']);
+    expect(Object.keys(app.handlers)).toEqual(['GET /api/agents', 'POST /api/agents/rescan']);
   });
 
   it('serves the injected agent list end-to-end through the mounted handler', async () => {
@@ -84,6 +122,19 @@ describe('registerAgentRoutes', () => {
       const res = makeRes();
       await app.handlers['GET /api/agents']!({ body: {}, query: {}, params: {} }, res);
       expect(res.status).toHaveBeenCalledWith(200);
+    } finally {
+      vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+    }
+  });
+
+  it('requires same-origin for a rescan', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    try {
+      const app = makeApp();
+      registerAgentRoutes(app as any, makeDeps(), adapter);
+      const res = makeRes();
+      await app.handlers['POST /api/agents/rescan']!({ body: {}, query: {}, params: {} }, res);
+      expect(res.status).toHaveBeenCalledWith(403);
     } finally {
       vi.mocked(isLocalSameOrigin).mockReturnValue(true);
     }

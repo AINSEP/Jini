@@ -77,6 +77,12 @@ export function createClaudeStreamHandler(
   const thinkingStreamed = new Set<string>();
   let currentMessageStreamedText = false;
   let currentMessageStreamedThinking = false;
+  // Newer Claude Code builds put the terminal stop reason in the partial
+  // stream's `message_delta`, while the accompanying top-level `assistant`
+  // wrapper carries `stop_reason: null`. Older builds put it on the wrapper.
+  // Remember the message id that already emitted `turn_end` so accepting
+  // both wire shapes cannot double-trigger stdin continuation/closure.
+  let turnEndSignature: string | null = null;
   // Per-message role-marker guards for cross-chunk detection (#3247).
   const roleGuards = new Map<string, RoleMarkerGuard>();
   const runtimeTasks = new Map<string, RuntimeTask>();
@@ -89,6 +95,17 @@ export function createClaudeStreamHandler(
   let duplicateArtifactCandidate = '';
   const recentWriteContents: string[] = [];
   let wroteHtmlFileThisTurn = false;
+
+  function emitTurnEnd(stopReason: string): void {
+    const signature = currentMessageId === null ? null : `${currentMessageId}\u0000${stopReason}`;
+    if (signature !== null && turnEndSignature === signature) return;
+    onEvent({ type: 'turn_end', stopReason });
+    turnEndSignature = signature;
+    if (stopReason !== 'tool_use') {
+      recentWriteContents.length = 0;
+      wroteHtmlFileThisTurn = false;
+    }
+  }
 
   function normalizeTaskStatus(value: unknown): RuntimeTask['status'] {
     if (value === 'completed' || value === 'in_progress' || value === 'stopped') {
@@ -487,11 +504,7 @@ export function createClaudeStreamHandler(
       // handler sees the final `stop_reason` before deciding whether to
       // close stream-json input stdin.
       if (stopReason) {
-        onEvent({ type: 'turn_end', stopReason });
-        if (stopReason !== 'tool_use') {
-          recentWriteContents.length = 0;
-          wroteHtmlFileThisTurn = false;
-        }
+        emitTurnEnd(stopReason);
       }
       if (typeof obj.error === 'string' && obj.error.trim()) {
         onEvent({
@@ -523,15 +536,23 @@ export function createClaudeStreamHandler(
     }
 
     if (obj.type === 'result') {
+      const stopReason =
+        (typeof obj.stop_reason === 'string' && obj.stop_reason) ||
+        (typeof obj.terminal_reason === 'string' && obj.terminal_reason) ||
+        null;
+      // Claude Code 2.1.201 does not always emit a terminal
+      // stream_event/message_delta. In that wire shape, the top-level result
+      // is the only frame carrying `end_turn`. Surface it as a turn boundary
+      // so AgentExecutor can close stream-json stdin and reap the process.
+      if (stopReason) {
+        emitTurnEnd(stopReason);
+      }
       onEvent({
         type: 'usage',
         usage: obj.usage ?? null,
         costUsd: obj.total_cost_usd ?? null,
         durationMs: obj.duration_ms ?? null,
-        stopReason:
-          (typeof obj.stop_reason === 'string' && obj.stop_reason) ||
-          (typeof obj.terminal_reason === 'string' && obj.terminal_reason) ||
-          null,
+        stopReason,
       });
       return;
     }
@@ -630,6 +651,14 @@ export function createClaudeStreamHandler(
         streamedToolUseIds.add(state.id);
       }
       blocks.delete(key);
+      return;
+    }
+
+    if (ev.type === 'message_delta' && isRecord(ev.delta)) {
+      const stopReason = typeof ev.delta.stop_reason === 'string'
+        ? ev.delta.stop_reason
+        : null;
+      if (stopReason) emitTurnEnd(stopReason);
       return;
     }
   }

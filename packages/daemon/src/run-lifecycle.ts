@@ -140,6 +140,10 @@ interface RunRecord {
   terminalWaiters: Array<(status: RunStatus) => void>;
   terminalEndEntry: EventLogEntry | undefined;
   watchdog: InactivityWatchdog | undefined;
+  /** Pending durable start append; idempotent duplicates wait for it instead of observing a ghost record. */
+  startPromise: Promise<void> | undefined;
+  /** Serializes concurrent terminal transitions while state remains non-terminal until the end append commits. */
+  finishPromise: Promise<RunStatus> | undefined;
 }
 
 /** Vocabulary-firewall bridge: `RunState` uses `'cancelled'` (extraction-plan §12 C5's own cited canary), `RunEndPayload.status` uses `'canceled'`. Both live in `@jini/protocol`, which is out of scope for this task — bridged here rather than fixed upstream. */
@@ -195,6 +199,14 @@ function terminalStateFromEndEntry(entry: EventLogEntry): { state: TerminalRunOu
 
 export interface CreateRunLifecycleInput {
   readonly eventLog: EventLog;
+  /** Host-owned sink for asynchronous lifecycle failures that cannot be returned to a caller. Defaults to `console.error`. */
+  readonly onInternalError?: (context: RunLifecycleInternalErrorContext) => void;
+}
+
+export interface RunLifecycleInternalErrorContext {
+  readonly source: 'inactivity-timeout';
+  readonly runId: string;
+  readonly error: unknown;
 }
 
 /**
@@ -265,7 +277,24 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     if (!record || isTerminalRunState(record.status.state)) {
       return;
     }
-    await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
+    try {
+      await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
+    } catch (error) {
+      const context: RunLifecycleInternalErrorContext = { source: 'inactivity-timeout', runId, error };
+      try {
+        if (input.onInternalError) {
+          input.onInternalError(context);
+        } else {
+          // eslint-disable-next-line no-console
+          console.error(`[@jini/daemon] internal error (inactivity-timeout, runId=${runId})`, error);
+        }
+      } catch (sinkError) {
+        // A diagnostic sink must not turn a contained timer failure into another unhandled
+        // rejection.
+        // eslint-disable-next-line no-console
+        console.error(`[@jini/daemon] internal error sink failed (inactivity-timeout, runId=${runId})`, sinkError);
+      }
+    }
   }
 
   const lifecycle: RunLifecycle = {
@@ -304,6 +333,8 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
             terminalWaiters: [],
             terminalEndEntry: endEntry,
             watchdog: undefined,
+            startPromise: undefined,
+            finishPromise: undefined,
           };
           runs.set(runId, record);
           if (idempotencyKey !== undefined) idempotencyIndex.set(idempotencyKey, runId);
@@ -324,6 +355,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         const existingRunId = idempotencyIndex.get(startInput.idempotencyKey);
         if (existingRunId) {
           const existing = requireRun(existingRunId);
+          await existing.startPromise;
           return { run: toPublicStatus(existing), started: false };
         }
       }
@@ -345,6 +377,8 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         terminalWaiters: [],
         terminalEndEntry: undefined,
         watchdog: undefined,
+        startPromise: undefined,
+        finishPromise: undefined,
       };
       runs.set(runId, record);
       if (startInput.idempotencyKey !== undefined) {
@@ -357,7 +391,21 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         ...(startInput.agentId !== undefined ? { agentId: startInput.agentId } : {}),
         ...(startInput.idempotencyKey !== undefined ? { idempotencyKey: startInput.idempotencyKey } : {}),
       };
-      await appendEvent(runId, record, 'start', startPayload);
+      const startPromise = appendEvent(runId, record, 'start', startPayload).then(() => undefined);
+      record.startPromise = startPromise;
+      try {
+        await startPromise;
+        record.startPromise = undefined;
+      } catch (error) {
+        runs.delete(runId);
+        if (
+          startInput.idempotencyKey !== undefined &&
+          idempotencyIndex.get(startInput.idempotencyKey) === runId
+        ) {
+          idempotencyIndex.delete(startInput.idempotencyKey);
+        }
+        throw error;
+      }
 
       if (startInput.inactivityTimeoutMs !== undefined) {
         record.watchdog = createInactivityWatchdog({
@@ -384,6 +432,10 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
     async cancel(request: RunCancelRequest): Promise<RunStatus> {
       const record = requireRun(request.runId);
+      await record.startPromise;
+      if (record.finishPromise) {
+        return record.finishPromise;
+      }
       if (isTerminalRunState(record.status.state)) {
         return toPublicStatus(record);
       }
@@ -415,7 +467,8 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
     async emit(runId: string, driverInput: DriverEmittableInput): Promise<RunProtocolEvent> {
       const record = requireRun(runId);
-      if (isTerminalRunState(record.status.state)) {
+      await record.startPromise;
+      if (record.finishPromise || isTerminalRunState(record.status.state)) {
         throw new Error(
           `RunLifecycle: cannot emit "${driverInput.event}" on terminal run "${runId}" — drivers must stop emitting once finish() has been called`,
         );
@@ -426,30 +479,45 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
     async finish(finishInput: FinishRunInput): Promise<RunStatus> {
       const record = requireRun(finishInput.runId);
+      await record.startPromise;
+      if (record.finishPromise) {
+        return record.finishPromise;
+      }
       if (isTerminalRunState(record.status.state)) {
         return toPublicStatus(record);
       }
-      record.watchdog?.cancel();
-      const now = Date.now();
-      record.status.state = finishInput.status;
-      record.status.updatedAt = now;
-      record.status.endedAt = now;
-      record.resumable = finishInput.resumable;
+      const finishing = (async (): Promise<RunStatus> => {
+        const endPayload: RunEndPayload = {
+          code: finishInput.code,
+          signal: finishInput.signal,
+          status: TERMINAL_OUTCOME_TO_END_STATUS[finishInput.status],
+          resumable: finishInput.resumable,
+          ...(finishInput.sessionRef !== undefined ? { sessionRef: finishInput.sessionRef } : {}),
+        };
+        const endEntry = await eventLog.append({ runId: finishInput.runId, event: 'end', data: endPayload });
 
-      const endPayload: RunEndPayload = {
-        code: finishInput.code,
-        signal: finishInput.signal,
-        status: TERMINAL_OUTCOME_TO_END_STATUS[finishInput.status],
-        resumable: finishInput.resumable,
-        ...(finishInput.sessionRef !== undefined ? { sessionRef: finishInput.sessionRef } : {}),
-      };
-      const endEntry = await eventLog.append({ runId: finishInput.runId, event: 'end', data: endPayload });
-      record.terminalEndEntry = endEntry;
-      const endEvent = toRunEvent(finishInput.runId, endEntry);
-      notifySubscribers(record, endEvent);
+        // Commit the in-memory terminal transition only after its durable end entry exists. Until
+        // then `finishPromise` reserves the transition and blocks emits/concurrent finishes.
+        record.watchdog?.cancel();
+        record.status.state = finishInput.status;
+        record.status.updatedAt = endEntry.recordedAt;
+        record.status.endedAt = endEntry.recordedAt;
+        record.resumable = finishInput.resumable;
+        record.terminalEndEntry = endEntry;
+        const endEvent = toRunEvent(finishInput.runId, endEntry);
+        notifySubscribers(record, endEvent);
 
-      resolveTerminalWaiters(record);
-      return toPublicStatus(record);
+        resolveTerminalWaiters(record);
+        return toPublicStatus(record);
+      })();
+      record.finishPromise = finishing;
+      try {
+        return await finishing;
+      } finally {
+        if (record.finishPromise === finishing) {
+          record.finishPromise = undefined;
+        }
+      }
     },
 
     async resume(runId: string): Promise<ResumeRunResult> {
@@ -492,6 +560,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       if (!record) {
         return { kind: 'unknown-run' };
       }
+      await record.startPromise;
       // Subscribe before awaiting the durable replay. Any event appended while the replay query is
       // in flight is buffered, then delivered after the replay entries, so a reconnect cannot lose
       // the narrow replay→subscribe interval or observe the live event ahead of older history.
@@ -502,37 +571,48 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         else onEvent(event);
       };
       record.subscribers.add(subscriber);
-      const replay = await eventLog.replay(runId, options.afterCursor ?? null);
-      if (replay.kind !== 'ok') {
-        record.subscribers.delete(subscriber);
-        return replay;
-      }
-      const deliveredEventIds = new Set<string>();
-      for (const entry of replay.entries) {
-        const event = toRunEvent(runId, entry);
-        deliveredEventIds.add(event.eventId);
-        onEvent(event);
-      }
-
-      const terminal = isTerminalRunState(record.status.state);
-      if (terminal && record.terminalEndEntry) {
-        const lastDelivered = replay.entries[replay.entries.length - 1];
-        if (!lastDelivered || lastDelivered.id !== record.terminalEndEntry.id) {
-          onEvent(toRunEvent(runId, record.terminalEndEntry));
+      try {
+        const replay = await eventLog.replay(runId, options.afterCursor ?? null);
+        if (replay.kind !== 'ok') {
+          record.subscribers.delete(subscriber);
+          return replay;
         }
-      }
+        const deliveredEventIds = new Set<string>();
+        for (const entry of replay.entries) {
+          const event = toRunEvent(runId, entry);
+          deliveredEventIds.add(event.eventId);
+          onEvent(event);
+        }
 
-      for (const event of bufferedLiveEvents) {
-        if (!deliveredEventIds.has(event.eventId)) onEvent(event);
-      }
-      replaying = false;
+        for (const event of bufferedLiveEvents) {
+          if (!deliveredEventIds.has(event.eventId)) {
+            deliveredEventIds.add(event.eventId);
+            onEvent(event);
+          }
+        }
+        replaying = false;
 
-      if (terminal) {
+        const terminal = isTerminalRunState(record.status.state);
+        if (terminal && record.terminalEndEntry) {
+          const terminalEvent = toRunEvent(runId, record.terminalEndEntry);
+          if (!deliveredEventIds.has(terminalEvent.eventId)) {
+            deliveredEventIds.add(terminalEvent.eventId);
+            onEvent(terminalEvent);
+          }
+        }
+
+        if (terminal) {
+          record.subscribers.delete(subscriber);
+          return { kind: 'ok', unsubscribe: () => {} };
+        }
+
+        return { kind: 'ok', unsubscribe: () => record.subscribers.delete(subscriber) };
+      } catch (error) {
+        // Subscription is installed before durable replay to close the replay→live race. Any
+        // replay I/O or consumer callback failure must therefore remove it before propagating.
         record.subscribers.delete(subscriber);
-        return { kind: 'ok', unsubscribe: () => {} };
+        throw error;
       }
-
-      return { kind: 'ok', unsubscribe: () => record.subscribers.delete(subscriber) };
     },
   };
 

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createInMemoryMediaTaskStore, type MediaDispatchEngine, type MediaGenerationResult } from '@jini/media';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   mediaGenerateRoute,
@@ -9,6 +8,79 @@ import {
   registerMediaRoutes,
   type MediaHttpDeps,
 } from '../media.js';
+
+type MediaDispatchEngine = MediaHttpDeps['engine'];
+type MediaGenerationResult = Awaited<ReturnType<MediaDispatchEngine['generate']>>;
+type MediaTaskStore = MediaHttpDeps['taskStore'];
+type MediaTask = NonNullable<Awaited<ReturnType<MediaTaskStore['get']>>>;
+
+function createInMemoryMediaTaskStore(): MediaTaskStore {
+  const tasks = new Map<string, MediaTask>();
+  const clone = (task: MediaTask): MediaTask => ({
+    ...task,
+    progress: [...task.progress],
+    file: task.file == null ? null : structuredClone(task.file),
+    error: task.error == null ? null : { ...task.error },
+  });
+
+  return {
+    async create(input) {
+      const now = Date.now();
+      const task: MediaTask = {
+        id: input.id,
+        ownerRef: input.ownerRef,
+        status: input.status ?? 'queued',
+        ...(input.surface !== undefined ? { surface: input.surface } : {}),
+        ...(input.model !== undefined ? { model: input.model } : {}),
+        progress: [...(input.progress ?? [])],
+        file: input.file ?? null,
+        error: input.error ?? null,
+        startedAt: input.startedAt ?? now,
+        endedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      tasks.set(task.id, task);
+      return clone(task);
+    },
+    async get(id) {
+      const task = tasks.get(id);
+      return task ? clone(task) : null;
+    },
+    async update(id, patch) {
+      const task = tasks.get(id);
+      if (!task) return null;
+      const {
+        surface: currentSurface,
+        model: currentModel,
+        ...taskWithoutOptionalIdentity
+      } = task;
+      const { surface: patchSurface, model: patchModel, ...patchWithoutOptionalIdentity } = patch;
+      const nextSurface = patchSurface === null ? undefined : (patchSurface ?? currentSurface);
+      const nextModel = patchModel === null ? undefined : (patchModel ?? currentModel);
+      const updated: MediaTask = {
+        ...taskWithoutOptionalIdentity,
+        ...patchWithoutOptionalIdentity,
+        ...(nextSurface !== undefined ? { surface: nextSurface } : {}),
+        ...(nextModel !== undefined ? { model: nextModel } : {}),
+        progress: patch.progress === undefined ? task.progress : [...patch.progress],
+        updatedAt: Date.now(),
+      };
+      tasks.set(id, updated);
+      return clone(updated);
+    },
+    async listByOwner(ownerRef, options) {
+      const terminal = new Set(['done', 'failed', 'interrupted']);
+      return [...tasks.values()]
+        .filter((task) => task.ownerRef === ownerRef)
+        .filter((task) => options?.includeTerminal === true || !terminal.has(task.status))
+        .map(clone);
+    },
+    async delete(id) {
+      tasks.delete(id);
+    },
+  };
+}
 
 vi.mock('../origin-validation.js', () => ({
   isLocalSameOrigin: vi.fn(() => true),
@@ -360,7 +432,7 @@ describe('mediaGenerateRoute.handle', () => {
       expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
     }
     const context = onInternalError.mock.calls[0]![0];
-    expect(context.source).toBe('media-generate-validate');
+    expect(context.source).toBe('media-task-store');
     expect(context.taskId).toBeNull();
     expect(context.ownerRef).toBe('owner-1');
   });
@@ -456,6 +528,30 @@ describe('mediaTaskGetRoute.handle', () => {
     const result = await mediaTaskGetRoute.handle('t1', deps);
     expect(result).toEqual({ ok: true, value: { task } });
   });
+
+  it('SEC-005: redacts task-store read failures and reports the real error only to the host sink', async () => {
+    const onInternalError = vi.fn();
+    const realStore = createInMemoryMediaTaskStore();
+    const deps = makeDeps({
+      onInternalError,
+      taskStore: {
+        ...realStore,
+        get: async () => {
+          throw new Error('/private/jini.sqlite: disk I/O error');
+        },
+      },
+    });
+
+    const result = await mediaTaskGetRoute.handle('t1', deps);
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+    });
+    expect(JSON.stringify(result)).not.toContain('/private/jini.sqlite');
+    expect(onInternalError).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'media-task-store', taskId: 't1', ownerRef: null }),
+    );
+  });
 });
 
 describe('mediaTaskDeleteRoute.handle', () => {
@@ -471,6 +567,31 @@ describe('mediaTaskDeleteRoute.handle', () => {
     const result = await mediaTaskDeleteRoute.handle('t1', deps);
     expect(result).toEqual({ ok: true, value: { ok: true } });
     expect(await deps.taskStore.get('t1')).toBeNull();
+  });
+
+  it('SEC-005: redacts task-store delete failures with the known task owner', async () => {
+    const onInternalError = vi.fn();
+    const realStore = createInMemoryMediaTaskStore();
+    await realStore.create({ id: 't1', ownerRef: 'owner-1' });
+    const deps = makeDeps({
+      onInternalError,
+      taskStore: {
+        ...realStore,
+        delete: async () => {
+          throw new Error('sqlite file /private/tasks.db is locked');
+        },
+      },
+    });
+
+    const result = await mediaTaskDeleteRoute.handle('t1', deps);
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+    });
+    expect(JSON.stringify(result)).not.toContain('/private/tasks.db');
+    expect(onInternalError).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'media-task-store', taskId: 't1', ownerRef: 'owner-1' }),
+    );
   });
 });
 
@@ -533,6 +654,30 @@ describe('mediaTaskListRoute.handle', () => {
     expect(withoutTerminal.ok && withoutTerminal.value.tasks.map((t) => t.id)).toEqual(['t2']);
     const withTerminal = await mediaTaskListRoute.handle({ ownerRef: 'owner-1', options: { includeTerminal: true } }, deps);
     expect(withTerminal.ok && withTerminal.value.tasks.map((t) => t.id).sort()).toEqual(['t1', 't2']);
+  });
+
+  it('SEC-005: redacts task-store list failures with the requested owner scope', async () => {
+    const onInternalError = vi.fn();
+    const realStore = createInMemoryMediaTaskStore();
+    const deps = makeDeps({
+      onInternalError,
+      taskStore: {
+        ...realStore,
+        listByOwner: async () => {
+          throw new Error('driver detail: /private/tasks.db');
+        },
+      },
+    });
+
+    const result = await mediaTaskListRoute.handle({ ownerRef: 'owner-1', options: {} }, deps);
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+    });
+    expect(JSON.stringify(result)).not.toContain('/private/tasks.db');
+    expect(onInternalError).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'media-task-store', taskId: null, ownerRef: 'owner-1' }),
+    );
   });
 });
 

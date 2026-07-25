@@ -565,34 +565,26 @@ RuntimeAgentDef[]` (`packages/agent-runtime/src/registry.ts`'s `BASE_AGENT_DEFS`
 adapter defs) — real, static, in-memory registration data with no HTTP projection anywhere in this
 package.
 
-`agentListRoute` (`GET /api/agents`) projects that list down to `{id, name}` pairs — deliberately
-not `@jini/agent-runtime`'s full `RuntimeAgentDef` (which carries CLI-spawn internals like `bin`,
-`buildArgs`, `env`, `listModels` that no HTTP caller should see). `AgentsHttpDeps.listAgents: () =>
-readonly AgentSummary[]` is injected rather than this module importing `@jini/agent-runtime`
-directly and reading `AGENT_DEFS` itself — matching `daemon-status.ts`/`active-context.ts`'s DI
-convention (a real collaborator supplied by the caller, not read from a global), and keeping
-`@jini/http` from taking on a new package dependency for a two-field projection. A future pack's
-`http(app, services)` composition supplies `listAgents: () => AGENT_DEFS.map(d => ({id: d.id, name:
-d.name}))` (or a filtered/curated subset) at wiring time.
+The original 2026-07-21 route projected the registry down to static `{id, name}` pairs and
+deliberately deferred live probing. **Superseded 2026-07-23:** `AgentSummary` now also carries
+client-safe optional discovery fields (`available`, `version`, `authStatus`, `models`,
+`modelsSource`, `supportsCustomModel`, one redacted `diagnostic`) and `listAgents` may be
+asynchronous. Spawn internals such as `bin`, resolved executable path, argv builders, and env
+remain excluded. `@jini/http` still owns no subprocess logic: `AgentsHttpDeps` keeps discovery
+host-injected, so probing policy and caching belong to the daemon host.
 
-**Deliberately static, not a live probe.** OD's own `/api/agents` route (referenced from
-`apps/daemon/src/mcp.ts`'s `listAgents`, `packages/mcp/source-map.md`'s "The `list_agents`
-decision") returns an `available: boolean` field per agent, computed by actually probing whether
-each agent's binary is installed/reachable at request time, plus `installUrl` for
-not-installed agents and a `modelsCount`/truncated-`models` projection. None of that was built
-here: live detection needs a real design decision (per-agent timeout, caching, concurrency), which
-is exactly the kind of judgment call the `@jini/mcp` task brief said not to force for a
-small-and-clean addition. This route answers a narrower, unambiguous question — "what agents has
-this host registered" — not "what's actually usable right now."
+`POST /api/agents/rescan` was added as the explicit cache-refresh control. It uses the same
+response contract as `GET /api/agents`, delegates to `rescanAgents` when supplied (or
+`listAgents` for static hosts), and requires same-origin because it causes process probes. This
+closes the OD-parity gap identified by the runnable Jini playground: the Composer's picker must
+read daemon-owned availability/model state rather than running `detectAgents()` in Vite.
 
 No same-origin requirement (`requireSameOrigin` unset), matching `runListRoute`/`runStatusRoute`'s
 posture: a read-only, side-effect-free GET with no per-request state.
 
-Tests: `src/__tests__/agents.test.ts` — 100% coverage on all 4 metrics (7 tests: `parse` requires
-no input; `handle` wraps the injected list as `{agents}`, reflects an empty registry without
-erroring, and calls `listAgents` fresh on every `handle` rather than caching; `registerAgentRoutes`
-mount inventory, an end-to-end request through the mounted handler, and cross-origin GET allowed).
-No new dependency.
+Tests: `src/__tests__/agents.test.ts` covers synchronous and asynchronous inventories, explicit
+rescan and static-host fallback, mount inventory, end-to-end serialization, cross-origin GET, and
+same-origin enforcement on rescan. No subprocess dependency was added to this route module.
 
 ## 2026-07-21 addition — `sse.ts` (generic SSE channel prerequisite, `feat/http-routes-and-cli-commands`)
 
@@ -1841,3 +1833,25 @@ mocks, so the suite proves this route pack's own parsing/wiring/SEC-005 behavior
 socket mechanics `oauth-callback-server.test.ts` already covers independently. Not executed under
 this session's standing test-runner restriction (verified via `tsc --noEmit` instead, matching this
 file's own established precedent for every route pack added this session).
+
+## 2026-07-23 — package-admission dependency inversion
+
+`pnpm guard`'s R7 manifest lookup was repaired and exposed three previously-hidden locked→
+incubating edges from this package (`@jini/agui`, `@jini/media`, and
+`@jini/capability-providers`). The HTTP layer now owns the narrow structural ports its connector
+and media routes consume; concrete provider/media implementations satisfy those ports at a product
+composition root. Research credential resolution owns a narrow `TAVILY_API_KEY` default instead
+of importing the media package. The SSE run-stream accepts a `RunStreamEncoder`, so AG-UI is one
+composition choice rather than a downward HTTP dependency.
+
+Fable's independent stabilization review then found four transport/guard defects. Media task-store
+read/delete/list failures are now all redacted through a dedicated `media-task-store` diagnostic
+source instead of falling through Express with raw SQLite/driver messages. Run-stream encoding and
+replay failures are contained, reported through an optional host sink, and close the SSE response;
+a client disconnect during durable replay now unsubscribes as soon as the delayed handle arrives.
+Auth session verification moved from `GET ?token=` to same-origin `POST` JSON so credentials do not
+land in URLs. The shared guard walker now scans `.tsx` as well as `.ts`, with a TSX-only known-bad
+self-test fixture.
+
+Verified: `pnpm guard`; `pnpm --filter @jini/http build`; `pnpm --filter @jini/http typecheck`;
+`pnpm --filter @jini/http test` (**907/907**).

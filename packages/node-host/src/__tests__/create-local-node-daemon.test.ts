@@ -3,6 +3,7 @@ import net from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { DetectedAgent } from '@jini/agent-runtime';
 import { definePack } from '@jini/core';
 import { AgentExecutorToken } from '@jini/daemon';
 import type { DaemonStatusResponse, RunStartContext } from '@jini/http';
@@ -262,13 +263,76 @@ describe('createLocalNodeDaemon', () => {
 
     const res = await fetch(`${daemon.url}/api/agents`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { agents: Array<{ id: string; name: string }> };
+    const body = (await res.json()) as {
+      agents: Array<{
+        id: string;
+        name: string;
+        available: boolean;
+        models: Array<{ id: string; label: string }>;
+        reasoningOptions?: Array<{ id: string; label: string }>;
+        modelsSource: 'live' | 'fallback';
+      }>;
+    };
     expect(body.agents.length).toBeGreaterThan(0);
-    expect(body.agents.find((a) => a.id === 'claude')).toMatchObject({ id: 'claude', name: expect.any(String) });
-    // Every entry is a plain {id, name} projection, never a full RuntimeAgentDef (no bin/buildArgs/etc leaking through).
+    expect(body.agents.find((a) => a.id === 'claude')).toMatchObject({
+      id: 'claude',
+      name: expect.any(String),
+      available: expect.any(Boolean),
+      models: expect.any(Array),
+      modelsSource: expect.stringMatching(/^(live|fallback)$/),
+    });
+    // Discovery data crosses HTTP; spawn-only RuntimeAgentDef details still do not.
     for (const agent of body.agents) {
-      expect(Object.keys(agent).sort()).toEqual(['id', 'name']);
+      expect(agent).not.toHaveProperty('bin');
+      expect(agent).not.toHaveProperty('path');
+      expect(agent).not.toHaveProperty('buildArgs');
+      expect(agent).not.toHaveProperty('env');
     }
+  });
+
+  it('caches daemon-owned agent detection and reruns it only through POST /api/agents/rescan', async () => {
+    const dataDir = makeTempDataDir();
+    const detected = {
+      id: 'test-agent',
+      name: 'Test Agent',
+      available: true,
+      models: [{ id: 'test-model', label: 'Test Model' }],
+      reasoningOptions: [{ id: 'high', label: 'High' }],
+      modelsSource: 'live',
+      streamFormat: 'jsonl',
+      bin: 'not-exposed',
+      versionArgs: ['--version'],
+    } as DetectedAgent;
+    const agentDetector = vi.fn(async () => [detected]);
+    const daemon = await createLocalNodeDaemon({
+      dataDir,
+      packs: [makePingPack()],
+      agentDetector,
+    });
+    daemonsToStop.push(daemon);
+
+    const first = await fetch(`${daemon.url}/api/agents`);
+    const second = await fetch(`${daemon.url}/api/agents`);
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(agentDetector).toHaveBeenCalledTimes(1);
+
+    const rescanned = await fetch(`${daemon.url}/api/agents/rescan`, {
+      method: 'POST',
+      headers: { Origin: daemon.url, Host: new URL(daemon.url).host },
+    });
+    expect(rescanned.status).toBe(200);
+    expect(agentDetector).toHaveBeenCalledTimes(2);
+    await expect(rescanned.json()).resolves.toEqual({
+      agents: [{
+        id: 'test-agent',
+        name: 'Test Agent',
+        available: true,
+        models: [{ id: 'test-model', label: 'Test Model' }],
+        reasoningOptions: [{ id: 'high', label: 'High' }],
+        modelsSource: 'live',
+      }],
+    });
   });
 
   it('serves POST /api/resources/:resourceRef/open-in, denying every call by default (denyAllWorkspaceRoots) with no resolveWorkspaceRoot configured', async () => {
@@ -314,23 +378,24 @@ describe('createLocalNodeDaemon', () => {
     expect([200, 409, 400]).toContain(allowed.status);
   });
 
-  it('serves GET /api/memory zero-config, with a generic single-bucket note-store rooted at dataDir', async () => {
+  it('mounts product-owned HTTP extensions without making the host depend on their packages', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({
+      dataDir,
+      packs: [makePingPack()],
+      httpExtensions: [
+        (app) => {
+          app.get('/api/extension-probe', (_req, res) => {
+            res.status(200).json({ ok: true });
+          });
+        },
+      ],
+    });
     daemonsToStop.push(daemon);
 
-    const res = await fetch(`${daemon.url}/api/memory`);
+    const res = await fetch(`${daemon.url}/api/extension-probe`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { enabled: boolean; entries: unknown[] };
-    expect(body.enabled).toBe(true);
-    expect(body.entries).toEqual([]);
-
-    const created = await fetch(`${daemon.url}/api/memory`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'a note', description: 'desc', body: 'hello', type: 'note' }),
-    });
-    expect(created.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
   });
 
   it('serves POST /api/proxy/anthropic/stream zero-config (BYOK — no server-side credentials needed to reach the route)', async () => {
@@ -410,42 +475,13 @@ describe('createLocalNodeDaemon', () => {
     expect(body.error.code).toBe('TOOL_OPERATION_DENIED');
   });
 
-  it('serves the media generate -> poll vertical slice zero-config (no credentials configured, so the background generation cleanly fails)', async () => {
+  it('leaves incubating memory/media routes to the product composition root', async () => {
     const dataDir = makeTempDataDir();
     const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
-    const generateRes = await fetch(`${daemon.url}/api/media/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ownerRef: 'owner-1', surface: 'image', model: 'dall-e-3' }),
-    });
-    expect(generateRes.status).toBe(202);
-    const { task } = (await generateRes.json()) as { task: { id: string; status: string } };
-    expect(task.status).toBe('queued');
-
-    await vi.waitFor(async () => {
-      const pollRes = await fetch(`${daemon.url}/api/media/tasks/${task.id}`);
-      const polled = (await pollRes.json()) as { task: { status: string } };
-      expect(polled.task.status).toBe('failed');
-    });
-  });
-
-  it('media task store persists across a restart, same as events.db/journal.db (durable, not in-memory)', async () => {
-    const dataDir = makeTempDataDir();
-    const first = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
-    const generateRes = await fetch(`${first.url}/api/media/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ownerRef: 'owner-1', surface: 'image', model: 'dall-e-3' }),
-    });
-    const { task } = (await generateRes.json()) as { task: { id: string } };
-    await first.stop();
-
-    const second = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
-    daemonsToStop.push(second);
-    const pollRes = await fetch(`${second.url}/api/media/tasks/${task.id}`);
-    expect(pollRes.status).toBe(200);
+    expect((await fetch(`${daemon.url}/api/memory`)).status).toBe(404);
+    expect((await fetch(`${daemon.url}/api/media/tasks/unknown`)).status).toBe(404);
   });
 
   it('serves the complete HTTP run vertical slice: create, SSE replay/reconnect, cancel, and durable replay after restart', async () => {

@@ -6,7 +6,13 @@
  * daemon process, plus the generic host-lifecycle primitives it's built on. See `source-map.md`
  * for full provenance and scope-decision notes.
  */
-export type { CreateLocalNodeDaemonConfig, KernelBoundIds, LocalNodeDaemon } from './create-local-node-daemon.js';
+export type {
+  CreateLocalNodeDaemonConfig,
+  KernelBoundIds,
+  LocalNodeDaemon,
+  LocalNodeHttpExtension,
+  LocalNodeHttpExtensionContext,
+} from './create-local-node-daemon.js';
 export { buildDaemonDbOperations, createLocalNodeDaemon, resolveBoundPort, resolveReportHost } from './create-local-node-daemon.js';
 
 export type { CloseHttpServerOptions } from './host-bootstrap.js';

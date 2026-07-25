@@ -1646,3 +1646,24 @@ call site's redundant re-check of an already-proven invariant is unreachable.
 
 No code change; this entry exists because the standing rule requires the *proof*, not just the
 prior claim, to be on record in this file, matching the inline code comment already at that line.
+
+## 2026-07-23 addition — replay subscription failure cleanup
+
+`RunLifecycle.stream()` deliberately installs its subscriber before awaiting durable replay so it
+cannot lose events in the replay-to-live handoff. That provisional subscriber is now removed when
+either replay I/O or the replay consumer callback throws; previously both exceptions could leave a
+dead callback retained for the process lifetime. Dedicated tests prove a failed replay/callback is
+not invoked by a later live event.
+
+Fable's follow-up review found the deeper terminal-during-replay race: a stale replay snapshot could
+deliver `end`, buffered agent output, and a duplicate `end`; an SSE consumer closes on the first
+`end` and would silently lose the buffered output. Buffered live events now flush and contribute
+their ids before the terminal fallback, preserving order and exactly one `end`. Terminal state is
+also committed in memory only after the durable end append succeeds; a `finishPromise` reservation
+blocks emits and serializes concurrent finishes without advertising an undurable terminal state.
+Failed start appends unwind both the run and idempotency reservation, and idempotent duplicates wait
+for the pending durable start. Inactivity-timeout append failures are contained and reported through
+an optional host sink instead of becoming unhandled rejections.
+
+Verified: `pnpm --filter @jini/daemon typecheck`; full daemon suite **517/517**, including gated
+terminal-during-replay, start/end append failure, concurrent finish, and watchdog containment tests.

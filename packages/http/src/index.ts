@@ -109,7 +109,7 @@ export {
 export type { ApiBearerAuthMiddlewareDeps, ApiOriginGuardMiddlewareDeps } from './api-security-middleware.js';
 export { registerApiBearerAuthMiddleware, registerApiOriginGuardMiddleware } from './api-security-middleware.js';
 
-export type { RunStreamDeps } from './run-stream.js';
+export type { RunStreamDeps, RunStreamEncoder, RunStreamInternalErrorContext } from './run-stream.js';
 export { handleRunStreamRequest, registerRunStreamRoute, RUN_STREAM_ROUTE_PATH } from './run-stream.js';
 
 export {
@@ -148,8 +148,8 @@ export {
   runStatusRoute,
 } from './runs.js';
 
-export type { AgentListResponse, AgentsHttpDeps, AgentSummary } from './agents.js';
-export { agentListRoute, registerAgentRoutes } from './agents.js';
+export type { AgentListResponse, AgentModelSummary, AgentsHttpDeps, AgentSummary } from './agents.js';
+export { agentListRoute, agentRescanRoute, registerAgentRoutes } from './agents.js';
 
 export type {
   MemoryChangeEmitter,
@@ -280,6 +280,13 @@ export {
 } from './health.js';
 
 export type {
+  AuthCredentials,
+  AuthProvider,
+  AuthSession,
+  AuthUser,
+  Charge,
+  ChargeInput,
+  ChargeStatus,
   ConnectorsAuthSessionResponse,
   ConnectorsAuthUserResponse,
   ConnectorsAuthVerifyResponse,
@@ -292,6 +299,14 @@ export type {
   ConnectorsStorageGetResponse,
   ConnectorsStorageListResponse,
   ConnectorsStorageMetaResponse,
+  DbProvider,
+  DbQuery,
+  DbRecord,
+  PaymentsProvider,
+  RealtimeProvider,
+  StorageObjectMeta,
+  StorageProvider,
+  StoragePutOptions,
 } from './connectors.js';
 export {
   connectorsAuthSessionRoute,
@@ -314,7 +329,13 @@ export {
   registerConnectorsRoutes,
 } from './connectors.js';
 
-export type { ResearchHttpDeps, ResearchInternalErrorContext, ResearchSearchResponse, ResearchSource } from './research.js';
+export type {
+  ResearchHttpDeps,
+  ResearchInternalErrorContext,
+  ResearchProviderCredentials,
+  ResearchSearchResponse,
+  ResearchSource,
+} from './research.js';
 export { registerResearchRoutes, researchSearchRoute } from './research.js';
 
 export type {

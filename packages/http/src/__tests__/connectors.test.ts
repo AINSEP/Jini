@@ -1,20 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  AuthCredentials,
-  AuthProvider,
-  AuthSession,
-  AuthUser,
-  Charge,
-  ChargeInput,
-  DbProvider,
-  DbRecord,
-  PaymentsProvider,
-  RealtimeProvider,
-  StorageObjectMeta,
-  StorageProvider,
-} from '@jini/capability-providers';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
+  type AuthCredentials,
+  type AuthProvider,
+  type AuthSession,
+  type AuthUser,
+  type Charge,
+  type ChargeInput,
   connectorsAuthSessionRoute,
   connectorsAuthSignInRoute,
   connectorsAuthSignOutRoute,
@@ -32,7 +24,13 @@ import {
   connectorsStorageGetRoute,
   connectorsStorageListRoute,
   connectorsStoragePutRoute,
+  type DbProvider,
+  type DbRecord,
+  type PaymentsProvider,
   registerConnectorsRoutes,
+  type RealtimeProvider,
+  type StorageObjectMeta,
+  type StorageProvider,
   type ConnectorsHttpDeps,
 } from '../connectors.js';
 
@@ -167,9 +165,9 @@ describe('auth routes', () => {
     expect(connectorsAuthSignOutRoute.parse({ body: {}, query: {}, params: {} }).ok).toBe(false);
   });
 
-  it('session: reads the token from the ?token= query param and returns the resolved user', async () => {
+  it('session: reads the token from the POST body and returns the resolved user', async () => {
     const auth = makeAuthProvider();
-    const parsed = connectorsAuthSessionRoute.parse({ body: {}, query: { token: 'tok1' }, params: {} });
+    const parsed = connectorsAuthSessionRoute.parse({ body: { token: 'tok1' }, query: {}, params: {} });
     expect(parsed).toEqual({ ok: true, value: 'tok1' });
     const result = await connectorsAuthSessionRoute.handle('tok1', makeDeps({ auth }));
     expect(result).toEqual({ ok: true, value: { user: fakeUser } });
@@ -181,8 +179,9 @@ describe('auth routes', () => {
     expect(result).toEqual({ ok: true, value: { user: null } });
   });
 
-  it('session: parse rejects a missing token query parameter', () => {
+  it('session: parse rejects a missing token body field', () => {
     expect(connectorsAuthSessionRoute.parse({ body: {}, query: {}, params: {} }).ok).toBe(false);
+    expect(connectorsAuthSessionRoute.parse({ body: {}, query: { token: 'must-not-be-read-from-url' }, params: {} }).ok).toBe(false);
   });
 
   it('auth: SEC-005 — a thrown error from the provider is redacted to a generic INTERNAL_ERROR and reported to onInternalError', async () => {
@@ -431,7 +430,7 @@ describe('registerConnectorsRoutes', () => {
     expect(app.handlers['POST /api/connectors/realtime/:channel/publish']).toBeDefined();
   });
 
-  it('mutating routes enforce same-origin; GET routes do not gate on it', async () => {
+  it('credential-bearing and mutating routes enforce same-origin; GET routes do not gate on it', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const app = makeApp();
     registerConnectorsRoutes(app as any, makeDeps({ auth: makeAuthProvider() }), adapter);
@@ -439,13 +438,17 @@ describe('registerConnectorsRoutes', () => {
     const res = makeRes();
     await app.handlers['POST /api/connectors/auth/signup']!({ body: { email: 'a@example.com', password: 'x' }, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(403);
+
+    const sessionRes = makeRes();
+    await app.handlers['POST /api/connectors/auth/session']!({ body: { token: 't' }, query: {}, params: {} }, sessionRes);
+    expect(sessionRes.status).toHaveBeenCalledWith(403);
   });
 
   it('zero-config default (all five slots unconfigured) still responds 503, not a crash, for a real mounted request', async () => {
     const app = makeApp();
     registerConnectorsRoutes(app as any, makeDeps(), adapter);
     const res = makeRes();
-    await app.handlers['GET /api/connectors/auth/session']!({ body: {}, query: { token: 't' }, params: {} }, res);
+    await app.handlers['POST /api/connectors/auth/session']!({ body: { token: 't' }, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(503);
     expect(res.json).toHaveBeenCalledWith({ error: { code: 'NOT_CONFIGURED', message: 'auth provider not configured' } });
   });

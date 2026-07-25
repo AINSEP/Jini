@@ -644,3 +644,12 @@ redaction, validation shape, mime-type derivation) and verified test/coverage nu
 route pack is auto-wired into `@jini/node-host`'s `createLocalNodeDaemon` zero-config default is
 decided alongside the other six pre-existing caller-supplied-only route packs — see
 `packages/node-host/source-map.md`'s own dated entry for that decision and its reasoning.
+
+## 2026-07-23 — composition-root consumer, no locked downward edge
+
+The repaired R7 guard showed that `@jini/http` and `@jini/node-host` had become downward consumers
+of this still-incubating package. HTTP now declares only the structural engine/task-store behavior
+its media routes require, and node-host exposes a neutral HTTP-extension seam. The real internal
+consumer is `examples/reference-web`, which creates the dispatch engine and durable SQLite task
+store, registers the HTTP routes, and closes the store through the host shutdown hook. This named
+workspace example does not satisfy `UNLOCKED.md`'s external packed-consumer promotion requirement.
