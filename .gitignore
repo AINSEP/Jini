@@ -30,9 +30,12 @@ foundry/automation/project-runner/.sandbox/
 **/.codegraph/
 **/.code-review-graph/
 .codebase-memory/
-# understand-anything's graph is the same class of artifact: ~11M, regenerable from source
-# by `/understand`, and stale the moment the tree moves on.
-.understand-anything/
+# understand-anything: the graph itself IS committed (AGENTS.md names it as one of the three
+# indexes to query before `rg`, so it has to survive a fresh clone). It is cheap despite the raw
+# byte count — both JSON files are pretty-printed, so they gzip ~6x and delta well between
+# re-indexes. Only the run scratch is excluded.
+.understand-anything/tmp/
+.understand-anything/intermediate/
 
 # Raw peer-agent transcripts from swarm runs. Only the curated CTX-*.md write-ups are retained;
 # the raw jsonl/stderr dumps they were distilled from are scratch.
