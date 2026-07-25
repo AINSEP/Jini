@@ -15,4 +15,11 @@ export * from './todos.js';
 export * from './question-form.js';
 export * from './util/index.js';
 export * from './transcript.js';
+/**
+ * Agent-control vocabulary. Also published as the `@jini/chat-core/agentic` subpath for
+ * consumers outside this repo who want only that slice; in-repo packages import it from here,
+ * because `scripts/check-engine-boundaries.ts` R2 allows exactly one entry point per `@jini/*`
+ * package.
+ */
+export * from './agentic/index.js';
 

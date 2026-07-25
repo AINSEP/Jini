@@ -3,8 +3,17 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/chat-core" },
+  "jini": {
+    "domain": "chat",
+    "kind": "state",
+    "runtime": "universal",
+    "admission": "locked"
+  },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./agentic": { "types": "./dist/agentic/index.d.ts", "import": "./dist/agentic/index.js" }
+  },
   "files": ["dist"],
   "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
   "scripts": {
