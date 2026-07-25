@@ -42,28 +42,7 @@
       "json_ok": true,
       "text_ok": false,
       "artifact_path": "/Users/la/Desktop/Programming/Jini/ADS-memory/reports/swarm-consensus/smoke-tests/2026-07-22T203421Z-claude-discovery.md"
-    },
-    {
-      "validated_at": "2026-07-24T02:09:03.160911+00:00",
-      "environment_key": "claude|LAs-MacBook-Pro|Darwin|22.6.0|x86_64|both",
-      "environment": {
-        "cli": "claude",
-        "cli_path": "/Users/la/.npm-global/bin/claude",
-        "cli_version": "2.1.201 (Claude Code)",
-        "hostname": "LAs-MacBook-Pro",
-        "system": "Darwin",
-        "release": "22.6.0",
-        "machine": "x86_64",
-        "transport_requirement": "both"
-      },
-      "requested_model": "claude-opus-4-8",
-      "requested_model_hint": "claude-opus-4-8",
-      "winner_model": "claude-opus-4-8",
-      "winner_source": "smoke_test_discovery",
-      "json_ok": true,
-      "text_ok": true,
-      "artifact_path": "/Users/la/Desktop/Programming/Jini/ADS-memory/reports/swarm-consensus/smoke-tests/2026-07-24T020903Z-claude-discovery.md"
     }
   ],
-  "updated_at": "2026-07-24T02:09:03.161100+00:00"
+  "updated_at": "2026-07-22T20:34:21.014559+00:00"
 }
