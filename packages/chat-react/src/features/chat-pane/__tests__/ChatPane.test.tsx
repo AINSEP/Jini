@@ -416,4 +416,106 @@ describe('ChatPane', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Use API · BYOK' }));
     expect(onExecutionModeChange).toHaveBeenCalledWith('api');
   });
+
+  // These assert what the pane actually PUTS ON SCREEN, which line coverage cannot speak to: every
+  // element below already executed during the tests above (they render a pane for other reasons),
+  // so v8 reported them covered while nothing checked their output. Verified by mutation — before
+  // these existed, deleting the eyebrow outright and making `title` be ignored entirely both left
+  // the whole file green.
+  describe('default header and chrome', () => {
+    it('renders the eyebrow and puts the supplied title in the heading', () => {
+      render(<ChatPane title="Starter Site" transport={createFakeChatTransport()} agents={agents} />);
+
+      expect(screen.getByText('Workspace chat')).toBeInTheDocument();
+      const heading = screen.getByRole('heading', { name: 'Starter Site' });
+      expect(heading).toBeInTheDocument();
+      // Specifically the title, not a coincidental match elsewhere in the pane.
+      expect(heading.tagName).toBe('H1');
+    });
+
+    it('falls back to "Chat" as the heading when no title is supplied', () => {
+      render(<ChatPane transport={createFakeChatTransport()} agents={agents} />);
+
+      expect(screen.getByRole('heading', { name: 'Chat' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'Starter Site' })).not.toBeInTheDocument();
+    });
+
+    it('replaces the whole default header when a custom one is supplied', () => {
+      render(
+        <ChatPane
+          title="Ignored"
+          transport={createFakeChatTransport()}
+          agents={agents}
+          header={<div>Custom header</div>}
+        />,
+      );
+
+      expect(screen.getByText('Custom header')).toBeInTheDocument();
+      // The default header is replaced, not rendered alongside.
+      expect(screen.queryByText('Workspace chat')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'New thread' })).not.toBeInTheDocument();
+    });
+
+    it('labels the suggestions row and renders one button per suggestion', () => {
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          suggestions={['Inspect this project', 'Add a filter']}
+        />,
+      );
+
+      const group = screen.getByLabelText('Example prompts');
+      expect(group).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Inspect this project' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Add a filter' })).toBeInTheDocument();
+    });
+
+    it('omits the suggestions row entirely when there are none', () => {
+      render(<ChatPane transport={createFakeChatTransport()} agents={agents} />);
+
+      expect(screen.queryByLabelText('Example prompts')).not.toBeInTheDocument();
+    });
+
+    it('labels the working-directory trigger, and swaps to the basename once one is chosen', async () => {
+      const access = {
+        pickWorkingDirectory: vi.fn(async () => '/Users/test/selected'),
+        recentDirectories: vi.fn(async () => []),
+        directoryExists: vi.fn(async () => true),
+      };
+      const { rerender } = render(
+        <ChatPane transport={createFakeChatTransport()} agents={agents} workingDirectoryAccess={access} />,
+      );
+
+      // With nothing chosen the trigger carries the pane-supplied prompt.
+      expect(screen.getByTestId('working-dir-trigger')).toHaveTextContent('Select working directory');
+
+      rerender(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          workingDirectory="/Users/test/current"
+          workingDirectoryAccess={access}
+        />,
+      );
+      await waitFor(() => {
+        expect(screen.getByTestId('working-dir-trigger')).toHaveTextContent('current');
+      });
+      expect(screen.getByTestId('working-dir-trigger')).not.toHaveTextContent('Select working directory');
+    });
+
+    it('shows the plain working directory, without a picker, when no access is supplied', () => {
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          initialWorkingDirectory="/Users/test/current"
+        />,
+      );
+
+      expect(screen.getByText('Working directory')).toBeInTheDocument();
+      expect(screen.getByText('/Users/test/current')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Select working directory')).not.toBeInTheDocument();
+    });
+  });
 });

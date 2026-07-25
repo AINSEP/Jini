@@ -64,6 +64,37 @@ function PickerHarness({
 }
 
 describe('AgentRuntimePicker', () => {
+  // Popover summary/meta text: rendered during every popover test above for other reasons, so
+  // v8 counted it covered while nothing asserted it. See ChatPane.test.tsx's own note.
+  it('summarizes the selection, and says so plainly when nothing is selected', async () => {
+    const { rerender } = render(
+      <AgentRuntimePicker agents={agents} value={{ agentId: 'codex', model: 'gpt-5.6-terra' }} onChange={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+    expect(screen.getByText('Codex CLI · codex-cli 0.145.0 · GPT-5.6-Terra')).toBeInTheDocument();
+
+    // An id matching no available agent is the fail-closed state the summary has to represent.
+    rerender(<AgentRuntimePicker agents={agents} value={{ agentId: 'missing' }} onChange={vi.fn()} />);
+    expect(screen.getByText('No agent selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Choose AI runtime' })).toHaveTextContent('Choose agent');
+  });
+
+  it('marks the API mode as unconfigured and disables it until it is available', async () => {
+    const { rerender } = render(
+      <AgentRuntimePicker agents={agents} value={{ agentId: 'codex' }} onChange={vi.fn()} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+
+    expect(screen.getByText('not configured')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Use API · BYOK/ })).toBeDisabled();
+
+    rerender(
+      <AgentRuntimePicker agents={agents} value={{ agentId: 'codex' }} onChange={vi.fn()} apiModeAvailable />,
+    );
+    expect(screen.queryByText('not configured')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Use API · BYOK/ })).toBeEnabled();
+  });
+
   it('maps known and fallback runtime presentation details', () => {
     expect(runtimeAgentStatus({
       id: 'missing',

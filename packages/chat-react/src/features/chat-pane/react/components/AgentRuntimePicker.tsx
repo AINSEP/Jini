@@ -345,11 +345,6 @@ export function AgentRuntimePicker({
     value.model,
     t('Default model'),
   );
-  const reasoningLabel = runtimeOptionLabel(
-    selectedAgent?.reasoningOptions,
-    value.reasoning,
-    t('Default reasoning'),
-  );
 
   const focusTrigger = useCallback(() => {
     triggerRef.current?.focus();
