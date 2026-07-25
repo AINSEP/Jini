@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/http" },
+  "jini": {
+    "domain": "server",
+    "kind": "transport",
+    "runtime": "node",
+    "admission": "locked"
+  },
   "type": "module",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "files": ["dist"],
@@ -15,11 +21,8 @@
   },
   "dependencies": {
     "@jini/agent-runtime": "workspace:*",
-    "@jini/agui": "workspace:*",
-    "@jini/capability-providers": "workspace:*",
     "@jini/core": "workspace:*",
     "@jini/daemon": "workspace:*",
-    "@jini/media": "workspace:*",
     "@jini/platform": "workspace:*",
     "@jini/protocol": "workspace:*",
     "express": "^4.21.0"

@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/node-host" },
+  "jini": {
+    "domain": "server",
+    "kind": "host",
+    "runtime": "node",
+    "admission": "locked"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -25,8 +31,6 @@
     "@jini/core": "workspace:*",
     "@jini/daemon": "workspace:*",
     "@jini/http": "workspace:*",
-    "@jini/media": "workspace:*",
-    "@jini/memory": "workspace:*",
     "@jini/sidecar": "workspace:*",
     "@jini/sqlite": "workspace:*",
     "better-sqlite3": "^11.10.0",

@@ -12,12 +12,15 @@
  * R7: a locked package (extraction-plan.md §3's fourteen) may not import a package listed in
  *     `UNLOCKED.md` unless that entry's `status` is `"stable"` — contains package-sprawl found
  *     in the same debate (23 packages vs. the locked 14).
+ * R8: every workspace package must declare canonical `jini` classification metadata in its
+ *     package.json, and its admission state must agree with `UNLOCKED.md`. This keeps packages
+ *     physically flat while making the conceptual domain/runtime grouping machine-readable.
  *
  * Deliberately a regex-based MVP over `scripts/lib/walk-imports.ts`, not a full
  * `ts.resolveModuleName` AST pass — per the debate's own convergence that this is sufficient
  * for v0. See foundry/docs/jini-port/extraction-plan.md §7 (guardrails) and §12 C-series.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { extractImports, listSourceFiles, REPO_ROOT, stripComments } from './lib/walk-imports.js';
 
@@ -35,22 +38,32 @@ const PRODUCT_IDENTITY_STRINGS = [
 /** Matched separately (word-boundary) to avoid false positives on identifiers like `MOD_FOO`. */
 const OD_PREFIX_RE = /\bOD_[A-Z0-9_]*/;
 
-const LOCKED_PACKAGES = new Set([
-  'protocol',
-  'core',
-  'daemon',
-  'agent-runtime',
-  'sqlite',
-  'http',
-  'cli',
+const PACKAGE_DOMAINS = new Set([
+  'engine',
+  'agent',
+  'server',
   'platform',
-  'sidecar',
-  'node-host',
-  'chat-core',
-  'chat-react',
-  'renderers-react',
+  'chat',
   'ui',
+  'capability',
+  'integration',
+  'tooling',
 ]);
+const PACKAGE_RUNTIMES = new Set(['universal', 'node', 'browser', 'desktop']);
+const PACKAGE_ADMISSIONS = new Set(['locked', 'incubating', 'admitted']);
+
+interface JiniPackageMetadata {
+  readonly domain: string;
+  readonly kind: string;
+  readonly runtime: string;
+  readonly admission: string;
+}
+
+interface PackageRecord {
+  readonly directory: string;
+  readonly packageName: string;
+  readonly metadata: JiniPackageMetadata | null;
+}
 
 function packageNameOf(repoRelPath: string): string | null {
   const m = /^packages\/([^/]+)\//.exec(repoRelPath);
@@ -66,6 +79,134 @@ function loadUnlockedManifest(root: string): Record<string, { status: string }> 
   } catch {
     return {};
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function loadPackageRecords(
+  root: string,
+  packagesDir: string,
+  unlocked: Record<string, { status: string }>,
+  violations: Violation[],
+): Map<string, PackageRecord> {
+  const records = new Map<string, PackageRecord>();
+
+  for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+
+    const directory = entry.name;
+    const manifestPath = join(packagesDir, directory, 'package.json');
+    const file = relative(root, manifestPath).split('\\').join('/');
+    const packageName = `@jini/${directory}`;
+
+    if (!existsSync(manifestPath)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `package directory "${directory}" is missing package.json`,
+      });
+      records.set(directory, { directory, packageName, metadata: null });
+      continue;
+    }
+
+    let manifest: Record<string, unknown>;
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
+      if (!isRecord(parsed)) throw new Error('root value is not an object');
+      manifest = parsed;
+    } catch (error) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `invalid package.json: ${error instanceof Error ? error.message : String(error)}`,
+      });
+      records.set(directory, { directory, packageName, metadata: null });
+      continue;
+    }
+
+    if (manifest.name !== packageName) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `package name must be "${packageName}" (found ${JSON.stringify(manifest.name)})`,
+      });
+    }
+
+    const rawMetadata = manifest.jini;
+    if (!isRecord(rawMetadata)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: 'missing canonical jini metadata (domain, kind, runtime, admission)',
+      });
+      records.set(directory, { directory, packageName, metadata: null });
+      continue;
+    }
+
+    const metadata: JiniPackageMetadata = {
+      domain: typeof rawMetadata.domain === 'string' ? rawMetadata.domain : '',
+      kind: typeof rawMetadata.kind === 'string' ? rawMetadata.kind : '',
+      runtime: typeof rawMetadata.runtime === 'string' ? rawMetadata.runtime : '',
+      admission: typeof rawMetadata.admission === 'string' ? rawMetadata.admission : '',
+    };
+
+    if (!PACKAGE_DOMAINS.has(metadata.domain)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `invalid jini.domain ${JSON.stringify(rawMetadata.domain)}`,
+      });
+    }
+    if (metadata.kind.trim().length === 0) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: 'jini.kind must be a non-empty string',
+      });
+    }
+    if (!PACKAGE_RUNTIMES.has(metadata.runtime)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `invalid jini.runtime ${JSON.stringify(rawMetadata.runtime)}`,
+      });
+    }
+    if (!PACKAGE_ADMISSIONS.has(metadata.admission)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `invalid jini.admission ${JSON.stringify(rawMetadata.admission)}`,
+      });
+    }
+
+    const unlockedStatus = unlocked[packageName]?.status;
+    const expectedAdmission =
+      unlockedStatus === 'incubating' ? 'incubating' : unlockedStatus === 'stable' ? 'admitted' : 'locked';
+    if (metadata.admission !== expectedAdmission) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `jini.admission "${metadata.admission}" disagrees with UNLOCKED.md (expected "${expectedAdmission}")`,
+      });
+    }
+
+    records.set(directory, { directory, packageName, metadata });
+  }
+
+  for (const packageName of Object.keys(unlocked)) {
+    const directory = packageName.startsWith('@jini/') ? packageName.slice('@jini/'.length) : '';
+    if (!directory || !records.has(directory)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file: 'UNLOCKED.md',
+        reason: `admission entry "${packageName}" does not resolve to a workspace package`,
+      });
+    }
+  }
+
+  return records;
 }
 
 export interface CheckEngineBoundariesOptions {
@@ -89,6 +230,7 @@ export async function checkEngineBoundaries(
   const packagesDir = options.packagesDir ?? join(root, 'packages');
   const files = listSourceFiles(packagesDir);
   const unlocked = loadUnlockedManifest(root);
+  const packageRecords = loadPackageRecords(root, packagesDir, unlocked, violations);
 
   for (const absFile of files) {
     const file = relative(root, absFile).split('\\').join('/');
@@ -142,6 +284,7 @@ export async function checkEngineBoundaries(
         const withoutScope = spec.slice('@jini/'.length);
         const slashIdx = withoutScope.indexOf('/');
         const targetPackage = slashIdx === -1 ? withoutScope : withoutScope.slice(0, slashIdx);
+        const targetPackageName = `@jini/${targetPackage}`;
         const subpath = slashIdx === -1 ? null : withoutScope.slice(slashIdx + 1);
 
         if (subpath !== null) {
@@ -164,16 +307,22 @@ export async function checkEngineBoundaries(
           }
         }
 
-        // R7: locked package importing an unadmitted (UNLOCKED.md) package.
-        if (ownPackage && LOCKED_PACKAGES.has(ownPackage) && targetPackage in unlocked) {
-          const entry = unlocked[targetPackage]!;
-          if (entry.status !== 'stable') {
+        // R7: an admitted/locked package may not point down into an incubating package.
+        // Package admission now comes from package.json rather than a duplicated hard-coded set.
+        const sourceAdmission = ownPackage
+          ? packageRecords.get(ownPackage)?.metadata?.admission
+          : undefined;
+        const targetAdmission = packageRecords.get(targetPackage)?.metadata?.admission;
+        if (
+          sourceAdmission !== undefined &&
+          sourceAdmission !== 'incubating' &&
+          targetAdmission === 'incubating'
+        ) {
             violations.push({
               rule: 'R7-sprawl',
               file,
-              reason: `locked package "${ownPackage}" imports unadmitted package "${targetPackage}" (UNLOCKED.md status: ${entry.status})`,
+              reason: `${sourceAdmission} package "@jini/${ownPackage}" imports incubating package "${targetPackageName}"`,
             });
-          }
         }
       }
     }

@@ -39,6 +39,21 @@ importers:
         specifier: workspace:*
         version: link:../../packages/node-host
 
+  examples/nlweb-demo:
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.1
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0)
+
   examples/reference-desktop:
     dependencies:
       '@jini/desktop-host':
@@ -51,9 +66,15 @@ importers:
       electron:
         specifier: ^43.2.0
         version: 43.2.0
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0)
 
   examples/reference-web:
     dependencies:
+      '@jini/agui':
+        specifier: workspace:*
+        version: link:../../packages/agui
       '@jini/chat-core':
         specifier: workspace:*
         version: link:../../packages/chat-core
@@ -63,6 +84,15 @@ importers:
       '@jini/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
+      '@jini/http':
+        specifier: workspace:*
+        version: link:../../packages/http
+      '@jini/media':
+        specifier: workspace:*
+        version: link:../../packages/media
+      '@jini/memory':
+        specifier: workspace:*
+        version: link:../../packages/memory
       '@jini/node-host':
         specifier: workspace:*
         version: link:../../packages/node-host
@@ -85,9 +115,15 @@ importers:
       '@types/react-dom':
         specifier: ^19.2.0
         version: 19.2.3(@types/react@19.2.17)
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.1
       vite:
         specifier: ^8.1.5
         version: 8.1.5(@types/node@24.13.3)(esbuild@0.28.1)(sass@1.51.0)(tsx@4.23.1)
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0)
 
   foundry/automation/project-runner:
     devDependencies:
@@ -166,12 +202,9 @@ importers:
       '@jini/chat-core':
         specifier: workspace:*
         version: link:../chat-core
-      react:
-        specifier: ^19.2.0
-        version: 19.2.7
-      react-dom:
-        specifier: ^19.2.0
-        version: 19.2.7(react@19.2.7)
+      '@jini/ui':
+        specifier: workspace:*
+        version: link:../ui
     devDependencies:
       '@testing-library/jest-dom':
         specifier: ^6.6.3
@@ -194,6 +227,12 @@ importers:
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
+      react:
+        specifier: ^19.2.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.7(react@19.2.7)
 
   packages/cli:
     dependencies:
@@ -203,6 +242,12 @@ importers:
       '@jini/sidecar':
         specifier: workspace:*
         version: link:../sidecar
+
+  packages/composio:
+    dependencies:
+      '@jini/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/core:
     devDependencies:
@@ -276,21 +321,12 @@ importers:
       '@jini/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
-      '@jini/agui':
-        specifier: workspace:*
-        version: link:../agui
-      '@jini/capability-providers':
-        specifier: workspace:*
-        version: link:../capability-providers
       '@jini/core':
         specifier: workspace:*
         version: link:../core
       '@jini/daemon':
         specifier: workspace:*
         version: link:../daemon
-      '@jini/media':
-        specifier: workspace:*
-        version: link:../media
       '@jini/platform':
         specifier: workspace:*
         version: link:../platform
@@ -369,12 +405,6 @@ importers:
       '@jini/http':
         specifier: workspace:*
         version: link:../http
-      '@jini/media':
-        specifier: workspace:*
-        version: link:../media
-      '@jini/memory':
-        specifier: workspace:*
-        version: link:../memory
       '@jini/sidecar':
         specifier: workspace:*
         version: link:../sidecar

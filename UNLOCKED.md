@@ -7,10 +7,11 @@ after finding 9 packages had been added ad hoc, without the Coordinator/Software
 sign-off `AGENTS.md` says is required, and at least 2 (`capability-providers`, `metatool`)
 admitting zero consumers in their own `source-map.md` files.
 
-**Enforcement:** `scripts/check-engine-boundaries.ts` reads the fenced JSON block below. A locked
-package (one of the §3 fourteen) may not import an unlocked package unless that package's
-`status` is `"stable"`. This is a first-pass classification — sign-off is still `PENDING` for
-every entry; see the "Promotion" section below for what changes that.
+**Enforcement:** every `packages/*/package.json` carries canonical `jini` domain/kind/runtime/
+admission metadata. `scripts/check-engine-boundaries.ts` reconciles `jini.admission` with the
+fenced JSON below and rejects dependencies from locked/admitted packages into incubating ones.
+This admission field is architectural governance, not a claim about API maturity. Sign-off is
+still `PENDING` for every entry; see the "Promotion" section below for what changes that.
 
 ## Manifest
 
@@ -39,14 +40,14 @@ every entry; see the "Promotion" section below for what changes that.
   },
   "@jini/memory": {
     "status": "incubating",
-    "consumers": [],
+    "consumers": ["examples/reference-web (workspace composition root; not promotion-qualified)"],
     "lockedPackagesMayImport": false,
     "signOff": "PENDING",
     "note": "Frontmatter note-store + extraction-attempt log + self-verify scorecard enforcer. Not named anywhere in extraction-plan.md."
   },
   "@jini/media": {
     "status": "incubating",
-    "consumers": [],
+    "consumers": ["examples/reference-web (workspace composition root; not promotion-qualified)"],
     "lockedPackagesMayImport": false,
     "signOff": "PENDING",
     "note": "Multi-provider image/video/audio generation gateway substrate. Not named anywhere in extraction-plan.md."
@@ -88,10 +89,17 @@ every entry; see the "Promotion" section below for what changes that.
   },
   "@jini/agui": {
     "status": "incubating",
-    "consumers": [],
+    "consumers": ["examples/reference-web (workspace composition root; not promotion-qualified)"],
     "lockedPackagesMayImport": false,
     "signOff": "PENDING",
     "note": "Added 2026-07-19, before this manifest existed — fell through the admission process entirely rather than being deliberately deferred like the other 10 entries here. Not named anywhere in extraction-plan.md §3's locked set or its own §10 roadmap appendix. Backfilled 2026-07-22 to close the gap; needs the same named-consumer promotion path as every other incubating package."
+  },
+  "@jini/composio": {
+    "status": "incubating",
+    "consumers": [],
+    "lockedPackagesMayImport": false,
+    "signOff": "PENDING",
+    "note": "Concrete Composio catalog, OAuth, connected-account, and tool-execution adapter ported under the approved ADS-memory/reports/composio-port-plan-2026-07-23.md. No HTTP/UI wiring or external packed-tarball consumer yet."
   }
 }
 ```
@@ -111,5 +119,7 @@ to whole new *packages* — see the debate report's Divergence/Agreement section
 4. Coordinator + Software-Architect sign-off is recorded in this file (`signOff` field updated
    from `PENDING` to a date + reviewer).
 
-Until then, `lockedPackagesMayImport: false` is enforced by `scripts/check-engine-boundaries.ts`:
-none of the 14 locked packages may import any package listed here.
+Until then, each entry's `"status": "incubating"` and the matching package admission metadata are
+enforced by `scripts/check-engine-boundaries.ts`: locked/admitted packages may not import any
+incubating package. `lockedPackagesMayImport: false` records that same policy for human and tooling
+consumers of this manifest; it is not a separate override switch.

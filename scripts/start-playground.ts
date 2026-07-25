@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 
 const WEB_URL = 'http://127.0.0.1:4173';
 const DAEMON_URL = 'http://127.0.0.1:4317/api/daemon/status';
@@ -7,10 +8,10 @@ const webOnly = process.argv.includes('--web-only');
 const children: ChildProcess[] = [];
 let closing = false;
 
-function spawnPnpm(args: string[]): ChildProcess {
+function spawnPnpm(args: string[], envOverrides: NodeJS.ProcessEnv = {}): ChildProcess {
   const child = spawn(packageManager, args, {
     cwd: process.cwd(),
-    env: process.env,
+    env: { ...process.env, ...envOverrides },
     stdio: 'inherit',
   });
   children.push(child);
@@ -68,13 +69,19 @@ function cleanup(exitCode = 0): void {
 }
 
 async function main(): Promise<void> {
+  const grantEnvironment = {
+    JINI_PLAYGROUND_GRANT_SECRET: randomBytes(32).toString('base64url'),
+  };
   console.log('[Jini Playground] preparing workspace packages…');
   const filters = ['--filter', '@jini-app/reference-web...'];
   if (!webOnly) filters.push('--filter', '@jini-app/reference-desktop...');
   await runPnpm([...filters, '-r', '--if-present', 'run', 'build']);
 
   console.log('[Jini Playground] starting daemon…');
-  const daemon = spawnPnpm(['--filter', '@jini-app/reference-web', 'run', 'daemon']);
+  const daemon = spawnPnpm(
+    ['--filter', '@jini-app/reference-web', 'run', 'daemon'],
+    grantEnvironment,
+  );
   await waitFor(DAEMON_URL, 'daemon');
   console.log('[Jini Playground] starting renderer…');
   const web = spawnPnpm(['--filter', '@jini-app/reference-web', 'run', 'dev']);
@@ -84,7 +91,10 @@ async function main(): Promise<void> {
   const watched = [daemon, web];
   if (!webOnly) {
     console.log('[Jini Playground] launching Electron desktop shell…');
-    watched.push(spawnPnpm(['--filter', '@jini-app/reference-desktop', 'run', 'dev']));
+    watched.push(spawnPnpm(
+      ['--filter', '@jini-app/reference-desktop', 'run', 'dev'],
+      grantEnvironment,
+    ));
   }
   console.log(`[Jini Playground] ready in Chrome${webOnly ? '' : ' and Electron'} at ${WEB_URL}`);
 

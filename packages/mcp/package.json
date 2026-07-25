@@ -3,6 +3,12 @@
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/mcp" },
+  "jini": {
+    "domain": "integration",
+    "kind": "protocol-adapter",
+    "runtime": "node",
+    "admission": "incubating"
+  },
   "type": "module",
   "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
   "bin": { "jini-mcp": "./dist/bin/serve.js" },

@@ -21,6 +21,30 @@ function write(root: string, relPath: string, content: string): void {
   writeFileSync(full, content, 'utf8');
 }
 
+function writePackage(
+  root: string,
+  directory: string,
+  admission: 'locked' | 'incubating' = 'locked',
+): void {
+  write(
+    root,
+    `packages/${directory}/package.json`,
+    JSON.stringify(
+      {
+        name: `@jini/${directory}`,
+        jini: {
+          domain: 'engine',
+          kind: 'self-test-fixture',
+          runtime: 'universal',
+          admission,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 export interface SelfTestFailure {
   readonly expectation: string;
   readonly detail: string;
@@ -36,6 +60,13 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
   const failures: SelfTestFailure[] = [];
 
   try {
+    for (const packageName of ['core', 'http', 'node-host', 'daemon', 'protocol']) {
+      writePackage(root, packageName);
+    }
+    writePackage(root, 'metatool', 'incubating');
+    write(root, 'packages/missing-metadata/package.json', '{"name":"@jini/missing-metadata"}\n');
+    write(root, 'packages/missing-metadata/src/index.ts', 'export const missingMetadata = true;\n');
+
     // R1: relative import escaping into a forbidden top-level dir.
     write(root, 'packages/core/src/bad-r1.ts', `import { x } from '../../../examples/reference-web/foo.js';\nexport { x };\n`);
     // R2: deep cross-package relative reach, and a deep bare @jini/<name>/<subpath> import.
@@ -63,8 +94,11 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       `import { getToolRegistration } from '@jini/core/internal';\nexport { getToolRegistration };\n`,
     );
     // R7: locked package importing an unadmitted (incubating) package.
-    write(root, 'UNLOCKED.md', '```json\n{"metatool": {"status": "incubating"}}\n```\n');
-    write(root, 'packages/core/src/bad-r7.ts', `import { x } from '@jini/metatool';\nexport { x };\n`);
+    // Mirror the production manifest's canonical scoped keys. The guard must
+    // not rely on an unscoped fixture shape that real UNLOCKED.md never uses.
+    write(root, 'UNLOCKED.md', '```json\n{"@jini/metatool": {"status": "incubating"}}\n```\n');
+    // Use TSX specifically so the self-test also proves UI-heavy package sources are scanned.
+    write(root, 'packages/core/src/bad-r7.tsx', `import { x } from '@jini/metatool';\nexport { x };\n`);
     // Known-good: ordinary same-package relative import and bare package import — must NOT be flagged.
     write(root, 'packages/core/src/ok-relative.ts', `export const x = 1;\n`);
     write(
@@ -114,7 +148,8 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [has(engineViolations, 'R6-internal-leak', 'bad-r6.ts'), 'R6 should catch a value import of getToolRegistration outside daemon'],
       [!has(engineViolations, 'R6-internal-leak', 'ok-r6-type-only.ts'), 'R6 must NOT flag a type-only import of @jini/core/internal'],
       [!has(engineViolations, 'R6-internal-leak', 'ok-r6-daemon.ts'), 'R6 must NOT flag a value import from inside @jini/daemon itself'],
-      [has(engineViolations, 'R7-sprawl', 'bad-r7.ts'), 'R7 should catch a locked package importing an unadmitted package'],
+      [has(engineViolations, 'R7-sprawl', 'bad-r7.tsx'), 'R7 should catch a locked package importing an unadmitted package from TSX'],
+      [has(engineViolations, 'R8-package-metadata', 'packages/missing-metadata/package.json'), 'R8 should catch missing package classification metadata'],
       [!engineViolations.some((v) => v.file.endsWith('ok-same-package.ts')), 'R1/R2 must NOT flag an ordinary same-package relative import'],
       [!engineViolations.some((v) => v.file.endsWith('ok-bare.ts')), 'R2 must NOT flag an ordinary bare @jini/<name> import'],
       [!engineViolations.some((v) => v.file.endsWith('ok-provenance-comment.ts')), 'R1/R2/R5 must NOT flag a provenance-citing doc comment as a live import or product-identity string'],
