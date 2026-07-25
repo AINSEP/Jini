@@ -1,6 +1,15 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      // The public UI barrel also exports the sketch editor, whose browser-only
+      // Excalidraw dependency cannot be evaluated in Vitest's Node resolver.
+      // Keep production imports on the architecture-required bare package name
+      // while exercising the real UI leaves used by this package.
+      '@jini/ui': new URL('../ui/src/vitest-chat-entry.ts', import.meta.url).pathname,
+    },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./vitest.setup.ts'],

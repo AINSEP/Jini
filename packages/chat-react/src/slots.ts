@@ -4,8 +4,8 @@
  * The slot/adapter interfaces a host injects into `<JiniChatProvider>` (or
  * passes directly to a headless hook) to supply everything this package
  * deliberately does not own: project/workspace file access, model/agent
- * picker UI, composer extension points, attachment rendering, analytics, and
- * i18n. Every OD-domain widget (OdCard, design-toolbox, brand-browser,
+ * optional picker overrides, composer extension points, attachment rendering,
+ * analytics, and i18n. Every OD-domain widget (OdCard, design-toolbox, brand-browser,
  * plugin folders, sketch preview, comments/annotation, AMR billing,
  * model/agent picker, file preview) is a host concern reached through one of
  * these slots — see `foundry/docs/jini-port/recon/r4b-webui-design.md` §2, which
@@ -53,9 +53,9 @@ export interface AgentSelection {
 }
 
 /**
- * The model/agent picker is entirely host-owned UI (`render`, if supplied,
- * replaces the default `<Composer>` leading-accessory chip); this package
- * only threads the current value/onChange through.
+ * Optional custom model/agent picker slot for lower-level Composer consumers.
+ * The self-contained `ChatPane` exports its own default `AgentRuntimePicker`;
+ * this slot remains useful when composing the headless primitives directly.
  */
 export interface ModelAgentPickerSlot {
   value: AgentSelection;
@@ -92,6 +92,8 @@ export interface ComposerSlots {
   mentionSources?: MentionSource[];
   /** e.g. a SessionModeToggle / DesignSystemSwitchPicker-equivalent. */
   leadingAccessories?: ReactNode;
+  /** Host controls rendered before the send action, such as an agent/model picker. */
+  footerAccessories?: ReactNode;
   onAttach?: (a: ChatAttachment) => void;
   annotationAdapter?: AnnotationAdapter;
 }

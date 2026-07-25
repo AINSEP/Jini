@@ -95,7 +95,7 @@ target API surface this package implements.
 |---|---|---|
 | `src/transport.ts` | `apps/web/src/providers/daemon.ts` (`DaemonStreamHandlers` L261, `DaemonStreamOptions`/`DaemonReattachOptions` L273-334, `streamViaDaemon` L594) | Generalized into the `ChatTransport`/`RunHandlers`/`StartRunInput` port shapes per r4b §2, verbatim field names (`onAgentEvent`→`onEvent`, `onToolInputDelta` kept as-is). Every OD-specific `DaemonStreamOptions` field (`projectId`, `sessionMode`, `byokProvider`, `analyticsHints`, `titleGeneration`, ...) is dropped — they ride through the opaque `RunContext` a host attaches via `StartRunInput.context` instead. |
 | `src/artifact-types.ts` | *(new)* | Local `ArtifactFile`/`ArtifactRenderer`/`RendererRegistry` per r4b §2, with a `TODO(renderers-react)` header — see "Deferred" below. |
-| `src/slots.ts` | r4b §2 (design doc, not an OD file) | Verbatim TS interfaces: `ProjectContextValue`, `ModelAgentPickerSlot`, `ComposerPlusItem`, `ComposerSlots`, `AttachmentTraySlot`, `AnnotationAdapter`, `FilePreviewSlot`, `AnalyticsAdapter`, `I18nAdapter`. Added `AgentOption`/`AgentSelection`/`MentionSource`/`MentionResult` (r4b names them in prose — "agents: AgentOption[]" / "@-mention providers" — but doesn't give their shapes; defined here to the obvious minimal shape). |
+| `src/slots.ts` | r4b §2 (design doc, not an OD file) | Verbatim TS interfaces: `ProjectContextValue`, `ModelAgentPickerSlot`, `ComposerPlusItem`, `ComposerSlots`, `AttachmentTraySlot`, `AnnotationAdapter`, `FilePreviewSlot`, `AnalyticsAdapter`, `I18nAdapter`. Added `AgentOption`/`AgentSelection`/`MentionSource`/`MentionResult` (r4b names them in prose — "agents: AgentOption[]" / "@-mention providers" — but doesn't give their shapes; defined here to the obvious minimal shape). `ComposerSlots.footerAccessories` is the neutral host seam corresponding to OD `ChatPane`'s `composerFooterAccessory`, used by hosts for controls such as an agent/model picker. |
 | `src/tool-renderer-registry.ts` | `apps/web/src/runtime/tool-renderers.ts` (124 lines, the React-typed registry half `@jini/chat-core` deliberately did not port) | Verbatim `registerToolRenderer`/`getToolRenderer`/`clearToolRenderers`/`ToolRenderer` — ships "as-is" per r4b §2. |
 | `src/react/hooks/useRunStream.ts` | *(new — headless hook over `ChatTransport`)* | Implements r4b §4's `useRunStream` row from scratch (transport port didn't exist as a hook in OD — OD's `streamViaDaemon` is called directly from `ChatPane`'s god-component state). Generation-counter-guarded against stale reconnect/duplicate-start callbacks (see the hook's own doc-comment). |
 | `src/react/hooks/useConversation.ts` | *(new, composes `useRunStream`)* | r4b §4's `useConversation` row: message array + optimistic append + scroll-intent, reconciling `useRunStream` events onto the active assistant message. |
@@ -114,6 +114,39 @@ target API surface this package implements.
 | `src/react/components/NextStepActions.tsx` | `apps/web/src/components/NextStepActions.tsx` (1,069 lines) | **Heavily pruned** per r4b §1's explicit "prune OD actions" directive — every hardcoded OD prompt catalog (design-system refine/audit, brand-extraction, plan actions, project-continue, ...) and the design-toolbox action registry are dropped. What's left: a generic `<NextStepActions actions={NextStepAction[]} onSelect={...}>` row a host populates with its own catalog. |
 | `src/react/components/MessageRow.tsx`, `MessageList.tsx`, `Composer.tsx`, `AttachmentTray.tsx` | *(new compositions of the above leaves)* | **Not** direct ports — see `MessageRow.tsx`'s own header for why (the two source branches decompose `ChatPane`/`ChatComposer`, not `AssistantMessage.tsx`, which is a separate not-yet-dispatched extraction task). Reasonable v1 compositions; `MessageRow`'s tool-card/text interleaving is a documented TODO simplification (tool cards render as one block after the text, not fully interleaved at their original stream position). |
 | `src/react/components/JiniChatProvider.tsx` | r4b §2's `JiniChatProviderProps` interface | Verbatim shape; the composition root wiring every context. |
+
+## `features/chat-pane/` composition root (2026-07-23)
+
+The package now also ships a self-contained, product-neutral `ChatPane`.
+This closes the prior integration gap where every consumer had to repeat
+`useConversation` + `useComposer` + runtime selection + send/reset/cancel +
+activity-state wiring and build a local agent picker. The reference host now
+renders one package component and supplies only transport/environment props.
+
+**Reference preflight**: verified against the real Open Design clone at
+`/Users/la/Desktop/Programming/OSS-Repos/open-design`, not the frozen
+integration snapshot. The primary visual/interaction references were
+`apps/web/src/components/ChatPane.tsx` and
+`apps/web/src/components/AvatarMenu.tsx`, including the Local CLI / API · BYOK
+mode rows, installed code-agent list, model and reasoning selectors,
+body-portaled placement, outside-click dismissal, Escape focus restoration,
+and PATH rescan affordance. OD-specific billing, account, settings, and
+product routing were deliberately omitted.
+
+| Jini file | Origin | Transform |
+|---|---|---|
+| `features/chat-pane/types.ts` | OD `ChatPane`/`AvatarMenu` public state shapes + daemon agent summaries | Browser-safe neutral `ChatPaneAgent`, selection, activity, run-context, positioning, and component prop contracts. Working-directory integration is exposed as `workingDirectory`/`initialWorkingDirectory` + `onChangeWorkingDirectory`, with a narrow `ChatPaneWorkingDirectoryAccess` I/O capability; it does not leak a host-owned picker state machine. The inventory shape is structurally compatible with the HTTP daemon DTO without adding an `@jini/http` dependency. |
+| `features/chat-pane/rules.ts` | OD agent/model defaulting and installed-agent ordering behavior | Pure deterministic selection/default/order rules. Unavailable agents fail closed and never appear in the picker. |
+| `features/chat-pane/react/hooks/useChatPane.hooks.ts` | OD `ChatPane` conversation/composer orchestration | Shared controller composing `useConversation`, `useComposer`, and the working-directory controller; owns controlled/uncontrolled runtime selection, send payloads, attachments, run context, reset/cancel, and activity derivation. The selected package-owned working directory is injected into the functional run context. This is the reuse seam for future visual ChatPane variants. |
+| `features/chat-pane/react/hooks/useChatPaneWorkingDirectory.hooks.ts` | OD `WorkingDirPicker` orchestration moved out of the product host | Owns controlled/uncontrolled directory state, recent-directory refresh, validity, native-picker cancellation, and capability errors. The host supplies filesystem effects only. |
+| `features/chat-pane/react/components/AgentRuntimePicker.tsx` | OD `AvatarMenu.tsx` | Product-neutral package picker with Local CLI / API · BYOK rows, available agents, model/reasoning controls, live status, rescanning, and bounded up/down body-portal geometry. Host-specific API credential configuration remains prop-driven. |
+| `features/chat-pane/react/components/ChatPane.tsx` | OD `ChatPane.tsx` composition pattern + generic `@jini/ui/working-dir-picker` | First `workspace` visual variant. Owns messages, suggestions, composer, runtime picker, working-directory picker, failure/stream/cancel UI, and scoped package styling. Hosts can provide effects, context, data, and explicit extension slots without reimplementing its controller. |
+| `features/chat-pane/react/styles.ts` | OD chat/picker layout, generalized | Scoped `jini-chat-pane` styling shipped with the component so a host does not need private chat or picker CSS. The reference host supplies the exact OD agent-icon assets and Remix Icon font through public static assets. |
+
+All feature tests live in `features/chat-pane/__tests__/`. They directly cover
+the pure rules, working-directory state/effects, hook controller, runtime
+picker, full composition, and public barrel. The package coverage gate remains
+100% statements, branches, functions, and lines.
 
 ## Deferred / follow-up (do NOT block on these)
 
@@ -192,9 +225,10 @@ to every agent, not just OD's hardcoded `amr` carve-out).
 | `react/components/ModelPicker.tsx` | `MediaModelCards` (trigger + provider-grouped popover) | De-branded, generic over `ModelOption`/`ModelProvider`/`CredentialStatus`; every string wrapped in `useT()`. |
 | `react/components/CredentialStatusBadge.tsx` | `MediaModelCards`'s inline `newproj-provider-badge` span | Extracted as its own small presentational atom (own `configured`/`available`/`unconfigured` labels), reused by `ModelPicker.tsx`. |
 
-**Not ported** (host-owned or out of scope for this pass, not silently
-dropped): OD's AMR/Vela billing login+balance UI, the daemon-mode/BYOK
-execution-mode toggle, the agent-install grid (`AgentIcon`-keyed cards +
+**Not ported by the independent model-picker slice** (host-owned or out of
+scope for that pass, not silently dropped): OD's AMR/Vela billing
+login+balance UI, the daemon-mode/BYOK execution-mode toggle, the
+agent-install grid (`AgentIcon`-keyed cards +
 rescan/install/docs diagnostic buttons — `AgentDiagnosticRow.tsx`'s fix-intent
 ladder), analytics tracking calls, and the `document.body`-portaled popover
 positioning. `AgentDiagnostic`/`AgentFixIntent` are ported into
@@ -224,22 +258,17 @@ classify-then-fix loop, not a test padding it out or a suppression comment.
 `features/model-picker/`, see above). No `@jini/ui`, no `@jini/renderers-react`
 (see Deferred above), no `@open-design/*`.
 
-**DOM/transport note (updated 2026-07-18)**: every I/O outside
-`features/model-picker/` still reaches the host through `ChatTransport`,
+**DOM/transport note (updated 2026-07-23)**: every network/runtime I/O reaches
+the host through `ChatTransport`,
 `ProjectContextValue`, or an injected persistence port, with zero direct
-`fetch`/`EventSource`/`localStorage`/`window` reads outside test-only files.
-`features/model-picker/react/hooks/useModelPicker.hooks.ts` is the one
-exception: it calls `document.addEventListener`/`removeEventListener`
-directly for its outside-click/Escape dismissal (ported from
-`InlineModelSwitcher.tsx`'s equivalent `useEffect`), matching this package's
-existing convention of hooks calling browser APIs directly inside
-`useEffect`-guarded code (there is no `providers/`-adapter layer in this
-package the way `@jini/ui` has one — see that package's vertical-slice guard
-rules, which do not apply here). Verified by grep across
+`fetch`/`EventSource`/`localStorage` calls in production. The model picker and
+chat-pane runtime picker use `document` listeners for outside-click/Escape;
+the runtime picker additionally reads viewport geometry to place its
+body-portaled menu. These are generic, effect-scoped presentation concerns,
+not transport calls. Verified by search across
 `packages/chat-react/src/**` for `window`/`document`/`fetch`/`EventSource`/
 `localStorage`/`sessionStorage`/`XMLHttpRequest`/`WebSocket` (bare and
 `globalThis.`-qualified) and any `@open-design/*` specifier or `Open
-Design`/`OD_`/`--od-stamp`/`/tmp/open-design` product-identity string — clean
-except the one `document.addEventListener` site named above, which is a
-generic browser API call, not a product-identity string or OD-specific
-transport.
+Design`/`OD_`/`--od-stamp`/`/tmp/open-design` product-identity string. Only
+the presentation API sites named above remain; there is no product-identity
+or OD-specific transport coupling.

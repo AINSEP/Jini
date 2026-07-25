@@ -76,4 +76,15 @@ describe('index barrel', () => {
     expect(barrel.DEFAULT_MIN_SEARCHABLE_OPTIONS).toBe(8);
     expect(barrel.CREDENTIAL_STATUS_SORT_PRIORITY).toEqual({ configured: 0, available: 1, unconfigured: 2 });
   });
+
+  it('re-exports the self-contained chat-pane feature', () => {
+    expect(typeof barrel.ChatPane).toBe('function');
+    expect(typeof barrel.AgentRuntimePicker).toBe('function');
+    expect(typeof barrel.useChatPane).toBe('function');
+    expect(typeof barrel.useChatPaneRuntimeInventory).toBe('function');
+    expect(typeof barrel.useChatPaneWorkingDirectory).toBe('function');
+    expect(typeof barrel.defaultChatPaneSelection).toBe('function');
+    expect(typeof barrel.resolveChatPaneSelection).toBe('function');
+    expect(typeof barrel.orderChatPaneAgents).toBe('function');
+  });
 });

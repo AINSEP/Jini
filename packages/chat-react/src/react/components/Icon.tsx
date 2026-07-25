@@ -2,16 +2,22 @@
  * @module Icon
  *
  * A minimal inline-SVG icon set covering only the glyphs this package's own
- * components use. `@jini/chat-react` cannot depend on `@jini/ui` (not an
- * allowed dependency per r4b §1), so this is a small self-contained subset —
- * not a public export — rather than a full icon library. Stroke paths
- * (Feather/Lucide-style `currentColor` strokes) match `@jini/ui`'s
- * `components/Icon.tsx` for visual consistency across packages, without
- * creating a dependency edge between them.
+ * components use. Kept private so low-level chat leaves remain small; the
+ * higher-level ChatPane composition also reuses `@jini/ui`'s generic
+ * AgentIcon and WorkingDirPicker.
  */
 import type { SVGProps } from 'react';
 
-export type IconName = 'spinner' | 'check' | 'close' | 'chevron-down' | 'chevron-right' | 'send' | 'attach' | 'x';
+export type IconName =
+  | 'spinner'
+  | 'check'
+  | 'close'
+  | 'chevron-down'
+  | 'chevron-right'
+  | 'attach'
+  | 'file'
+  | 'image'
+  | 'x';
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName;
@@ -65,17 +71,26 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: IconProps)
           <path d="m9 18 6-6-6-6" />
         </svg>
       );
-    case 'send':
-      return (
-        <svg {...common}>
-          <path d="M12 19V5" />
-          <path d="m5 12 7-7 7 7" />
-        </svg>
-      );
     case 'attach':
       return (
         <svg {...common}>
           <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+        </svg>
+      );
+    case 'file':
+      return (
+        <svg {...common}>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+          <path d="M14 2v6h6" />
+          <path d="M8 13h8M8 17h6" />
+        </svg>
+      );
+    case 'image':
+      return (
+        <svg {...common}>
+          <rect width="18" height="18" x="3" y="3" rx="2" />
+          <circle cx="9" cy="9" r="2" />
+          <path d="m21 15-5-5L5 21" />
         </svg>
       );
   }

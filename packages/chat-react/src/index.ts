@@ -17,6 +17,7 @@ export * from './tool-renderer-registry.js';
 // `@jini/agent-runtime`, not this package's conversation/message state) —
 // re-exported here for a consumer that wants everything from one barrel.
 export * from './features/model-picker/index.js';
+export * from './features/chat-pane/index.js';
 
 export * from './react/hooks/useRunStream.js';
 export * from './react/hooks/useConversation.js';

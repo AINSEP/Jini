@@ -1,4 +1,4 @@
-import { render, renderHook, screen } from '@testing-library/react';
+import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Composer } from '../Composer.js';
@@ -37,7 +37,7 @@ describe('Composer', () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
-  it('renders plusMenuItems and leadingAccessories slots when supplied', async () => {
+  it('renders plusMenuItems, leadingAccessories, and footerAccessories slots when supplied', async () => {
     const onSelect = vi.fn();
     const { result } = renderHook(() => useComposer());
     render(
@@ -46,11 +46,13 @@ describe('Composer', () => {
         onSend={() => {}}
         slots={{
           leadingAccessories: <span data-testid="leading">mode</span>,
+          footerAccessories: <span data-testid="footer">agent</span>,
           plusMenuItems: [{ id: 'p1', label: 'Import file', onSelect }],
         }}
       />,
     );
     expect(screen.getByTestId('leading')).toBeInTheDocument();
+    expect(screen.getByTestId('footer')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Import file'));
     expect(onSelect).toHaveBeenCalled();
   });
@@ -59,5 +61,48 @@ describe('Composer', () => {
     render(<ComposerHarness onSend={() => {}} />);
     // No attachments staged yet -> tray renders nothing.
     expect(screen.queryByRole('button', { name: /remove/i })).not.toBeInTheDocument();
+  });
+
+  it('opens and forwards the hidden attachment input while reflecting upload state', async () => {
+    const onFiles = vi.fn();
+    const { result } = renderHook(() => useComposer());
+    const { rerender } = render(
+      <Composer
+        composer={result.current}
+        onSend={() => {}}
+        attachmentPicker={{ onFiles, accept: 'image/*' }}
+      />,
+    );
+    const input = screen.getByLabelText('Attach files', { selector: 'input' });
+    const inputClick = vi.spyOn(input, 'click');
+    await userEvent.click(screen.getByRole('button', { name: 'Attach files' }));
+    expect(inputClick).toHaveBeenCalledTimes(1);
+
+    fireEvent.change(input, { target: { files: null } });
+    expect(onFiles).not.toHaveBeenCalled();
+    const file = new File(['image'], 'reference.png', { type: 'image/png' });
+    await userEvent.upload(input, file);
+    expect(onFiles).toHaveBeenCalledWith([file]);
+
+    rerender(
+      <Composer
+        composer={result.current}
+        onSend={() => {}}
+        attachmentPicker={{ onFiles, uploading: true }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Attaching files…' })).toBeDisabled();
+  });
+
+  it('can disable only submission while keeping draft editing available', async () => {
+    const onSend = vi.fn();
+    const { result } = renderHook(() => useComposer({ initialDraft: 'editable' }));
+    render(<Composer composer={result.current} onSend={onSend} sendDisabled />);
+
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).not.toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    await userEvent.type(textarea, '{Enter}');
+    expect(onSend).not.toHaveBeenCalled();
   });
 });
