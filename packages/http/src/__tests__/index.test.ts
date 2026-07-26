@@ -94,5 +94,10 @@ describe('@jini/http barrel', () => {
   it('re-exports the delegated-tools route (the MCP-callback bridge)', () => {
     expect(typeof HttpBarrel.registerDelegatedToolRoutes).toBe('function');
     expect(HttpBarrel.delegatedToolExecuteRoute.path).toBe('/api/delegated-tool-calls');
+    expect(typeof HttpBarrel.registerFrontendSessionRoutes).toBe('function');
+    expect(typeof HttpBarrel.handleFrontendSessionStream).toBe('function');
+    expect(typeof HttpBarrel.parseCapabilityQuery).toBe('function');
+    expect(HttpBarrel.FRONTEND_SESSION_STREAM_ROUTE_PATH).toBe('/api/frontend-sessions/stream');
+    expect(HttpBarrel.frontendSessionResponseRoute.path).toBe('/api/frontend-sessions/:sessionId/responses');
   });
 });

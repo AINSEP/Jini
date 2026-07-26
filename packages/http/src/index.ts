@@ -246,6 +246,23 @@ export type {
   DelegatedToolsInternalErrorContext,
 } from './delegated-tools.js';
 export { delegatedToolExecuteRoute, registerDelegatedToolRoutes } from './delegated-tools.js';
+export type {
+  FrontendSessionAttachedEvent,
+  FrontendSessionErrorEvent,
+  FrontendSessionInvocationEvent,
+  FrontendSessionResponseBody,
+  FrontendSessionResponseRequest,
+  FrontendSessionStreamEvent,
+  FrontendSessionsHttpDeps,
+} from './frontend-sessions.js';
+export {
+  FRONTEND_SESSION_RESPONSE_ROUTE_PATH,
+  FRONTEND_SESSION_STREAM_ROUTE_PATH,
+  frontendSessionResponseRoute,
+  handleFrontendSessionStream,
+  parseCapabilityQuery,
+  registerFrontendSessionRoutes,
+} from './frontend-sessions.js';
 
 export type {
   TerminalActionResponse,
