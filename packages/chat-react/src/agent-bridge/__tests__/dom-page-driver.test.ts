@@ -435,6 +435,46 @@ describe('highlight', () => {
   });
 });
 
+describe('duplicate data-agent-element handles', () => {
+  it('refuses to click a handle published on more than one element, rather than silently acting on the first', async () => {
+    // Before this fix, click/fill/etc. resolved via querySelector (first DOM match only) while
+    // findElements used querySelectorAll (every match) — so a caller who saw "Second" listed and
+    // tried to act on it would silently hit "First" instead, forever, with no signal.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<button data-agent-element="dup" data-agent-label="First">First</button>'
+      + '<button data-agent-element="dup" data-agent-label="Second">Second</button>',
+    );
+    await expect(makeDriver().click('dup')).rejects.toThrow(/"dup" is published on 2 elements/);
+  });
+
+  it('still lists every duplicate in findElements, so the collision is discoverable rather than hidden', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<button data-agent-element="dup" data-agent-label="First">First</button>'
+      + '<button data-agent-element="dup" data-agent-label="Second">Second</button>',
+    );
+    const found = await makeDriver().findElements({ query: 'dup' });
+    expect(found.map((element) => element.label)).toEqual(['First', 'Second']);
+  });
+
+  it('refuses describeState on an ambiguous handle too, instead of quietly reading the first', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<button data-agent-element="dup">First</button><button data-agent-element="dup">Second</button>',
+    );
+    await expect(makeDriver().describeState?.('dup')).rejects.toThrow(/"dup" is published on 2 elements/);
+  });
+
+  it('refuses fill on an ambiguous handle too', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<input data-agent-element="dup" name="a" /><input data-agent-element="dup" name="b" />',
+    );
+    await expect(makeDriver().fill('dup', 'x')).rejects.toThrow(/"dup" is published on 2 elements/);
+  });
+});
+
 describe('scrollTo', () => {
   it('scrolls the handle into view', async () => {
     await makeDriver().scrollTo('status-line');

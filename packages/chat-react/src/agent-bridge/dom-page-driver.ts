@@ -214,10 +214,32 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     restore: { outline: string; outlineOffset: string; borderRadius: string };
   }>();
 
+  /**
+   * Every element published under `handle`. A page that (accidentally, or via a templating bug)
+   * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
+   * here so both callers below can refuse rather than silently pick one.
+   */
+  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector(handle)));
+
+  /**
+   * More than one element answers to the same handle — a page-authoring bug (duplicate
+   * `data-agent-element`), not something a caller passing that handle can resolve on its own.
+   *
+   * `findElements` still lists every one of them, so the collision is discoverable; resolving a
+   * single handle to act on refuses instead of silently taking the first DOM match and leaving the
+   * others permanently unreachable with no signal that they were ever unreachable at all.
+   */
+  const ambiguousHandleError = (handle: string, count: number): Error => new Error(
+    `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
+    + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
+    + 'caller can resolve; publish a unique handle per element',
+  );
+
   const find = (handle: string): Element => {
-    const element = root.querySelector(resolveHandleSelector(handle));
-    if (element === null) throw new Error(`no element published as "${handle}" on this page`);
-    return element;
+    const matches = findAll(handle);
+    if (matches.length === 0) throw new Error(`no element published as "${handle}" on this page`);
+    if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
+    return matches[0]!;
   };
 
   /**
@@ -267,9 +289,13 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
 
     async describeState(handle) {
       // Unlike every other method here, a handle that no longer resolves is an answer rather than
-      // an error: an element that a click removed is exactly what the caller is asking about.
-      const element = root.querySelector(resolveHandleSelector(handle));
-      if (element === null) return null;
+      // an error: an element that a click removed is exactly what the caller is asking about. A
+      // handle resolving to *more than one* element is a different situation entirely — not an
+      // absence but an ambiguity — so that case still refuses, same as `find`.
+      const matches = findAll(handle);
+      if (matches.length === 0) return null;
+      if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
+      const element = matches[0]!;
       const control = controlOf(element);
       const field = fieldDescriptorOf(control);
       const checkable = control instanceof HTMLInputElement
