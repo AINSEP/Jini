@@ -351,8 +351,17 @@ export async function executePageCapability(
       const page = input['page'] as string;
       const pages = await driver.listPages();
       if (!pages.includes(page)) {
+        // Every other piece of page-authored (or, here, caller-authored-but-page-shaped) text
+        // this system hands to a model goes through normalizeAgentLabel first — bounded, control-
+        // and bidi-stripped. This refusal was the one path that skipped it: the raw `page`
+        // argument, and the `pages` this host actually publishes (itself read verbatim off
+        // `data-agent-page` attributes with no length bound), were interpolated straight into the
+        // thrown message. A 5000+-char bidi payload survived verbatim as a result. The lookup
+        // above still runs on the raw values — only the text that reaches the message is bounded.
+        const safePage = normalizeAgentLabel(page).text;
+        const safePages = pages.map((candidate) => normalizeAgentLabel(candidate).text);
         throw new Error(
-          `"${page}" is not a published page. Available: ${pages.length > 0 ? pages.join(', ') : '(none)'}`,
+          `"${safePage}" is not a published page. Available: ${safePages.length > 0 ? safePages.join(', ') : '(none)'}`,
         );
       }
       const before = await summarizePage(driver);

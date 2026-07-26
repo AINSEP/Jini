@@ -125,6 +125,27 @@ describe('findCapabilityInputError', () => {
       .toBe('unknown arguments: alpha, zeta');
   });
 
+  it('flags a key inherited from Object.prototype the same as any other unknown key', () => {
+    // Regression: `key in properties` walks the whole prototype chain, so a key that happens to
+    // be inherited from Object.prototype (`constructor`, `toString`, …) used to read as "known"
+    // regardless of whether the schema actually declared it — `'constructor' in {}` is true even
+    // on a bare object literal.
+    expect(findCapabilityInputError(capability, { element: 'a', constructor: 'x' }))
+      .toBe('unknown argument: constructor');
+    expect(findCapabilityInputError(capability, { element: 'a', toString: 'x' }))
+      .toBe('unknown argument: toString');
+  });
+
+  it('flags __proto__ as an own key when it arrived via JSON.parse, not the accessor', () => {
+    // JSON.parse creates a real own data property named "__proto__" — it does NOT trigger the
+    // Object.prototype accessor the way `obj.__proto__ = x` would. `key in properties` still let
+    // it through (inherited from Object.prototype, same as constructor above); hasOwnProperty
+    // does not.
+    const input = JSON.parse('{"element":"a","__proto__":{"polluted":true}}') as Record<string, unknown>;
+    expect(Object.keys(input)).toEqual(['element', '__proto__']);
+    expect(findCapabilityInputError(capability, input)).toBe('unknown argument: __proto__');
+  });
+
   it('allows unknown fields when the schema does not close the shape', () => {
     const open: CapabilityDef = {
       ...capability,

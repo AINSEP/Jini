@@ -87,7 +87,15 @@ export function findCapabilityInputError(
   }
 
   if (additionalProperties === false) {
-    const unknown = Object.keys(input).filter((key) => !(key in properties));
+    // `key in properties` walks the whole prototype chain, so a key that happens to be inherited
+    // from Object.prototype (`__proto__`, `constructor`, `toString`, `valueOf`, …) reads as
+    // "known" regardless of whether the schema actually lists it — `'constructor' in {}` is
+    // true even on an empty object. `JSON.parse('{"__proto__":...}')` creates a real own data
+    // property (not the accessor), so this was a live way for such a key to escape the
+    // "unknown argument" refusal entirely. hasOwnProperty ignores the prototype chain, so only
+    // keys the schema actually declares count as known.
+    const unknown = Object.keys(input)
+      .filter((key) => !Object.prototype.hasOwnProperty.call(properties, key));
     if (unknown.length > 0) {
       return `unknown ${unknown.length === 1 ? 'argument' : 'arguments'}: ${unknown.sort().join(', ')}`;
     }

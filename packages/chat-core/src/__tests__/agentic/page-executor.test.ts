@@ -370,6 +370,42 @@ describe('page.navigate', () => {
       .rejects.toThrow(/Available: \(none\)/);
   });
 
+  it('bounds and strips the caller-supplied page before echoing it back in the refusal', async () => {
+    // Regression: the raw `page` argument used to be interpolated straight into the thrown
+    // message with no bound and no stripping — a bidi override (U+202E) plus a long run of
+    // filler survived verbatim (5000+ chars observed). Every other piece of page-authored text
+    // this system hands to a model goes through normalizeAgentLabel; this was the one path
+    // that did not.
+    const hostile = `‮${'x'.repeat(5000)}​evil-instruction`;
+    let caught: Error | undefined;
+    try {
+      await executePageCapability(driver, 'page.navigate', { page: hostile });
+    } catch (error) {
+      caught = error as Error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught!.message.length).toBeLessThan(400);
+    expect(caught!.message).not.toMatch(/[\x00-\x1f‪-‮​-‏]/);
+  });
+
+  it('bounds and strips the pages it advertises as available, not just the caller\'s argument', async () => {
+    // `pages` comes straight from the host's own `data-agent-page` attributes — page-authored
+    // text with no length bound, the same shape of risk as the caller's `page` argument, in
+    // the exact same thrown message.
+    const hostilePages = createFakeDriver({
+      listPages: vi.fn(async () => [`‮long-page-name-${'y'.repeat(500)}`]),
+    });
+    let caught: Error | undefined;
+    try {
+      await executePageCapability(hostilePages, 'page.navigate', { page: 'nope' });
+    } catch (error) {
+      caught = error as Error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    expect(caught!.message.length).toBeLessThan(400);
+    expect(caught!.message).not.toMatch(/[‪-‮]/);
+  });
+
   it('reports an undefined page when the surface publishes no tagged elements to read one from', async () => {
     const bare = createFakeDriver({ findElements: vi.fn(async () => []) });
     expect(await executePageCapability(bare, 'page.navigate', { page: 'notes' }))
