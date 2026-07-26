@@ -127,6 +127,36 @@ describe('findElements', () => {
     root.querySelector('[data-agent-page]')?.removeAttribute('data-agent-page');
     expect((await makeDriver().findElements({ role: 'button' }))[0]?.page).toBeUndefined();
   });
+
+  it('attributes each element to its own nearest [data-agent-page] ancestor, not the first one in the document', async () => {
+    // A host that keeps more than one page section mounted at once (tabs, wizard steps toggled
+    // with CSS) previously had every element from every section reported under whichever section
+    // happened to be first in the DOM — regressed against by mounting a second section here.
+    root.insertAdjacentHTML(
+      'beforeend',
+      `<section data-agent-page="settings" style="display:none">
+        <button data-agent-element="settings-btn" data-agent-role="button">Settings</button>
+      </section>`,
+    );
+    const found = await makeDriver().findElements({});
+    const byHandle = Object.fromEntries(found.map((element) => [element.handle, element.page]));
+    expect(byHandle['save-button']).toBe('agent-lab');
+    expect(byHandle['settings-btn']).toBe('settings');
+  });
+
+  it('still finds and reports elements under a page section hidden with display:none — scoping attribution, not gating actions, is the fix', async () => {
+    // Deliberate: which page is "active" is the host's own knowledge, not something this driver
+    // should invent an answer for. A host that wants hidden sections excluded filters on `page`
+    // itself using the (now correct) attribution above.
+    root.insertAdjacentHTML(
+      'beforeend',
+      `<section data-agent-page="settings" style="display:none">
+        <button data-agent-element="settings-btn" data-agent-role="button">Settings</button>
+      </section>`,
+    );
+    const found = await makeDriver().findElements({ query: 'settings' });
+    expect(found.map((element) => element.handle)).toEqual(['settings-btn']);
+  });
 });
 
 describe('listPages', () => {

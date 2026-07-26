@@ -187,8 +187,21 @@ export interface DomPageDriverOptions {
  */
 export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
   const { root, pages } = options;
-  /** Static when the host pinned one, otherwise read live so a view swap is reflected. */
-  const resolvePage = (): string | undefined => options.currentPage ?? currentAgentPage(root);
+  /**
+   * The page a specific element belongs to — its own nearest `[data-agent-page]` ancestor, not a
+   * single document-wide guess.
+   *
+   * A host that keeps more than one `[data-agent-page]` section mounted at once (tabs, wizard
+   * steps toggled with CSS rather than unmounted — the kind of SPA this driver's own options doc
+   * anticipates) previously had every element attributed to whichever section happened to be
+   * first in the DOM, regardless of which one it actually lived in. `closest` answers per element
+   * instead of once for the whole call.
+   *
+   * Still overridden by a pinned `currentPage`, unchanged: that value is the host's own claim
+   * about what is showing, taking precedence over whatever the DOM happens to say.
+   */
+  const pageOf = (element: Element): string | undefined =>
+    options.currentPage ?? element.closest(`[${AGENT_PAGE_ATTRIBUTE}]`)?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
   /**
    * Active markers keyed by handle, so re-highlighting the same element restarts rather than
    * stacks — and carrying the styling to put back, which must be captured once, on the first
@@ -232,9 +245,8 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
 
   return {
     async findElements(filter: FindElementsFilter) {
-      const page = resolvePage();
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
-        .map((element) => describe(element, page))
+        .map((element) => describe(element, pageOf(element)))
         .filter((element) => element.handle.length > 0);
       const query = filter.query?.toLowerCase();
       return found.filter((element) => {
