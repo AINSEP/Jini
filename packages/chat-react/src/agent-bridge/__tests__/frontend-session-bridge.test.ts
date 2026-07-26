@@ -335,6 +335,23 @@ describe('malformed and unexpected frames', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('drops an invocation frame missing invocationId instead of colliding under the string "undefined"', async () => {
+    // `String(undefined)` produces the literal string `"undefined"`, indistinguishable from a
+    // second frame that also omits the field -- the replay-dedupe set then wrongly refused the
+    // second as "already executed" when it never ran. Both malformed frames must now be dropped
+    // via onError instead, and neither may reach the driver.
+    const driver = createDriver();
+    const onError = vi.fn();
+    createFrontendSessionBridge({ pageDriver: driver, onError });
+    FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
+    FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { element: 'a' } });
+    await flush();
+    FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { element: 'b' } });
+    await flush();
+    expect(driver.click).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledTimes(2);
+  });
+
   it('reports a stream error to the host', () => {
     const onError = vi.fn();
     createFrontendSessionBridge({ onError });

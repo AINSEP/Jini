@@ -198,8 +198,13 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
     // vocabulary can grow without every deployed surface needing to ship first.
     if (frame['type'] !== 'invocation') return;
 
+    const rawInvocationId = frame['invocationId'];
+    if (typeof rawInvocationId !== 'string' || rawInvocationId.length === 0) {
+      options.onError?.(new Error('invocation frame missing invocationId'));
+      return;
+    }
     const action: ChatPaneAgentToolAction = {
-      invocationId: String(frame['invocationId']),
+      invocationId: rawInvocationId,
       capabilityId: String(frame['capabilityId']),
       input: (frame['input'] ?? {}) as Record<string, unknown>,
     };
