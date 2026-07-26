@@ -15,22 +15,27 @@ function recordingSurface(): {
   return { deliver: (invocation) => void delivered.push(invocation), delivered };
 }
 
-function attachPageSurface(
+/** Attaches a surface and binds `runId` to it — the ordinary "a tab started this run" setup. */
+function attachAndBind(
   registry: FrontendSessionRegistry,
   sessionId: string,
   runId: string,
   capabilities: readonly string[] = ['page.click'],
-): ReturnType<typeof recordingSurface> & { handle: ReturnType<FrontendSessionRegistry['attach']> } {
+): ReturnType<typeof recordingSurface> & {
+  handle: ReturnType<FrontendSessionRegistry['attach']>;
+  unbind: () => void;
+} {
   const surface = recordingSurface();
-  const handle = registry.attach({ sessionId, runId, capabilities }, surface.deliver);
-  return { ...surface, handle };
+  const handle = registry.attach({ sessionId, capabilities }, surface.deliver);
+  const unbind = registry.bindRun(runId, sessionId);
+  return { ...surface, handle, unbind };
 }
 
 describe('createFrontendSessionRegistry', () => {
   describe('round trip', () => {
-    it('delivers an invocation to the surface claiming the capability and resolves with its output', async () => {
+    it('delivers an invocation to the surface bound to the run and resolves with its output', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      const surface = attachPageSurface(registry, 'session-1', 'run-1');
+      const surface = attachAndBind(registry, 'session-1', 'run-1');
 
       const pending = registry.invoke('run-1', 'page.click', { element: 'save-button' });
 
@@ -44,7 +49,7 @@ describe('createFrontendSessionRegistry', () => {
 
     it('rejects with the surface-supplied message when the surface refuses', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      attachPageSurface(registry, 'session-1', 'run-1', ['page.fill']);
+      attachAndBind(registry, 'session-1', 'run-1', ['page.fill']);
 
       const pending = registry.invoke('run-1', 'page.fill', { element: 'password', text: 'hunter2' });
       registry.settle('session-1', 'inv-1', {
@@ -57,84 +62,117 @@ describe('createFrontendSessionRegistry', () => {
 
     it('mints its own invocation id rather than trusting the surface', async () => {
       const registry = createFrontendSessionRegistry();
-      const surface = attachPageSurface(registry, 'session-1', 'run-1');
+      const surface = attachAndBind(registry, 'session-1', 'run-1');
 
       void registry.invoke('run-1', 'page.click', {}).catch(() => undefined);
 
       expect(surface.delivered[0]?.invocationId).toEqual(expect.any(String));
       expect(surface.delivered[0]?.invocationId).not.toBe('');
     });
+
+    it('serves several runs from one long-lived surface', async () => {
+      let next = 0;
+      const registry = createFrontendSessionRegistry({ newInvocationId: () => `inv-${++next}` });
+      const surface = recordingSurface();
+      registry.attach({ sessionId: 'tab-1', capabilities: ['page.click'] }, surface.deliver);
+
+      // One tab, two messages — the pane attached once and each run binds to it as it starts.
+      registry.bindRun('run-1', 'tab-1');
+      registry.bindRun('run-2', 'tab-1');
+
+      const first = registry.invoke('run-1', 'page.click', {});
+      const second = registry.invoke('run-2', 'page.click', {});
+      registry.settle('tab-1', 'inv-1', { ok: true, output: 'a' });
+      registry.settle('tab-1', 'inv-2', { ok: true, output: 'b' });
+
+      await expect(first).resolves.toBe('a');
+      await expect(second).resolves.toBe('b');
+    });
   });
 
   describe('fails closed rather than hanging', () => {
-    it('rejects when no surface is attached for the run at all', async () => {
+    it('rejects when no surface is bound to the run', async () => {
       const registry = createFrontendSessionRegistry();
       await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(
-        'no attached frontend for run "run-1" can execute "page.click"',
+        'no frontend is bound to run "run-1", so "page.click" cannot be executed',
       );
     });
 
-    it('rejects when a surface is attached but does not claim the capability', async () => {
+    it('rejects, listing what is on offer, when the bound surface lacks the capability', async () => {
       const registry = createFrontendSessionRegistry();
-      attachPageSurface(registry, 'session-1', 'run-1', ['page.find_elements']);
+      attachAndBind(registry, 'session-1', 'run-1', ['page.find_elements', 'page.highlight']);
 
       await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(
-        'no attached frontend for run "run-1" can execute "page.click"',
+        'the frontend bound to run "run-1" does not offer "page.click" '
+        + '(it offers: page.find_elements, page.highlight)',
       );
     });
 
-    it('does not route a call to a surface attached to a different run', async () => {
+    it('reports "nothing" rather than an empty list for a surface claiming no capabilities', async () => {
       const registry = createFrontendSessionRegistry();
-      const other = attachPageSurface(registry, 'session-1', 'run-OTHER');
+      attachAndBind(registry, 'session-1', 'run-1', []);
 
-      await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(/no attached frontend/);
+      await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(/it offers: nothing/);
+    });
+
+    it('does not route a call to a surface bound to a different run', async () => {
+      const registry = createFrontendSessionRegistry();
+      const other = attachAndBind(registry, 'session-1', 'run-OTHER');
+
+      await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(/no frontend is bound/);
       expect(other.delivered).toEqual([]);
+    });
+
+    it('refuses to bind a run to a surface that is not attached', () => {
+      const registry = createFrontendSessionRegistry();
+
+      expect(() => registry.bindRun('run-1', 'ghost')).toThrow(
+        'FrontendSessionRegistry: cannot bind run "run-1" to unattached session "ghost"',
+      );
     });
   });
 
-  describe('ambiguity is an error, never last-writer-wins', () => {
-    it('refuses to guess when two attached surfaces both claim the capability', async () => {
-      const registry = createFrontendSessionRegistry();
-      const first = attachPageSurface(registry, 'session-1', 'run-1');
-      const second = attachPageSurface(registry, 'session-2', 'run-1');
+  describe('bindings', () => {
+    it('replaces the association when a run is bound to a different surface', async () => {
+      const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
+      const first = attachAndBind(registry, 'session-1', 'run-1');
+      const second = recordingSurface();
+      registry.attach({ sessionId: 'session-2', capabilities: ['page.click'] }, second.deliver);
 
-      await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(
-        /"page\.click" is claimed by 2 attached frontends for run "run-1" \(session-1, session-2\)/,
-      );
-      // The point of refusing: neither tab was acted on.
+      registry.bindRun('run-1', 'session-2');
+      void registry.invoke('run-1', 'page.click', {}).catch(() => undefined);
+
       expect(first.delivered).toEqual([]);
-      expect(second.delivered).toEqual([]);
+      expect(second.delivered).toHaveLength(1);
+      expect(registry.sessionFor('run-1')?.sessionId).toBe('session-2');
     });
 
-    it('routes again once the ambiguity is resolved by detaching one', async () => {
-      const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      const first = attachPageSurface(registry, 'session-1', 'run-1');
-      const second = attachPageSurface(registry, 'session-2', 'run-1');
+    it('releases the association when the returned unbind is called', async () => {
+      const registry = createFrontendSessionRegistry();
+      const surface = attachAndBind(registry, 'session-1', 'run-1');
 
-      second.handle.detach();
-      const pending = registry.invoke('run-1', 'page.click', {});
-      registry.settle('session-1', 'inv-1', { ok: true, output: 'ok' });
+      surface.unbind();
 
-      await expect(pending).resolves.toBe('ok');
-      expect(first.delivered).toHaveLength(1);
+      expect(registry.sessionFor('run-1')).toBeUndefined();
+      await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(/no frontend is bound/);
     });
 
-    it('allows two surfaces on one run when they claim disjoint capabilities', async () => {
-      const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      const clicker = attachPageSurface(registry, 'session-1', 'run-1', ['page.click']);
-      const filler = attachPageSurface(registry, 'session-2', 'run-1', ['page.fill']);
+    it('does not let a stale unbind tear down a newer binding for the same run', () => {
+      const registry = createFrontendSessionRegistry();
+      const first = attachAndBind(registry, 'session-1', 'run-1');
+      registry.attach({ sessionId: 'session-2', capabilities: ['page.click'] }, recordingSurface().deliver);
 
-      void registry.invoke('run-1', 'page.fill', { element: 'note', text: 'hi' }).catch(() => undefined);
+      registry.bindRun('run-1', 'session-2');
+      first.unbind();
 
-      expect(clicker.delivered).toEqual([]);
-      expect(filler.delivered).toHaveLength(1);
+      expect(registry.sessionFor('run-1')?.sessionId).toBe('session-2');
     });
   });
 
   describe('duplicate answers', () => {
-    it('reports false for a second settle of the same invocation and leaves the first result intact', async () => {
+    it('reports false for a second settle and leaves the first result intact', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      attachPageSurface(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-1', 'run-1');
 
       const pending = registry.invoke('run-1', 'page.click', {});
       expect(registry.settle('session-1', 'inv-1', { ok: true, output: 'first' })).toBe(true);
@@ -146,7 +184,7 @@ describe('createFrontendSessionRegistry', () => {
 
     it('reports false for an unknown session or an unknown invocation', () => {
       const registry = createFrontendSessionRegistry();
-      attachPageSurface(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-1', 'run-1');
 
       expect(registry.settle('session-NOPE', 'inv-1', { ok: true, output: 1 })).toBe(false);
       expect(registry.settle('session-1', 'inv-NOPE', { ok: true, output: 1 })).toBe(false);
@@ -154,8 +192,8 @@ describe('createFrontendSessionRegistry', () => {
 
     it('reports false when another session tries to answer an invocation it does not own', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      attachPageSurface(registry, 'session-1', 'run-1');
-      attachPageSurface(registry, 'session-2', 'run-2');
+      attachAndBind(registry, 'session-1', 'run-1');
+      registry.attach({ sessionId: 'session-2', capabilities: ['page.click'] }, recordingSurface().deliver);
 
       const pending = registry.invoke('run-1', 'page.click', {});
       expect(registry.settle('session-2', 'inv-1', { ok: true, output: 'stolen' })).toBe(false);
@@ -169,7 +207,7 @@ describe('createFrontendSessionRegistry', () => {
     it('rejects everything still awaiting a detached surface instead of leaving it pending', async () => {
       let next = 0;
       const registry = createFrontendSessionRegistry({ newInvocationId: () => `inv-${++next}` });
-      const surface = attachPageSurface(registry, 'session-1', 'run-1', ['page.click', 'page.fill']);
+      const surface = attachAndBind(registry, 'session-1', 'run-1', ['page.click', 'page.fill']);
 
       const first = registry.invoke('run-1', 'page.click', {});
       const second = registry.invoke('run-1', 'page.fill', { element: 'note', text: 'x' });
@@ -181,28 +219,44 @@ describe('createFrontendSessionRegistry', () => {
       await expect(second).rejects.toThrow('frontend session "session-1" detached before answering');
     });
 
-    it('stops routing to a detached surface', async () => {
+    it('drops the runs bound to a detached surface, so a later call fails closed', async () => {
       const registry = createFrontendSessionRegistry();
-      const surface = attachPageSurface(registry, 'session-1', 'run-1');
+      const surface = attachAndBind(registry, 'session-1', 'run-1');
+      registry.bindRun('run-2', 'session-1');
+
       surface.handle.detach();
 
-      await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(/no attached frontend/);
+      expect(registry.sessionFor('run-1')).toBeUndefined();
+      expect(registry.sessionFor('run-2')).toBeUndefined();
+      await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow(/no frontend is bound/);
+    });
+
+    it('leaves another surface\'s bindings alone when one detaches', () => {
+      const registry = createFrontendSessionRegistry();
+      const first = attachAndBind(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-2', 'run-2');
+
+      first.handle.detach();
+
+      expect(registry.sessionFor('run-1')).toBeUndefined();
+      expect(registry.sessionFor('run-2')?.sessionId).toBe('session-2');
     });
 
     it('refuses to attach a session id that is already attached', () => {
       const registry = createFrontendSessionRegistry();
-      attachPageSurface(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-1', 'run-1');
 
-      expect(() => attachPageSurface(registry, 'session-1', 'run-2')).toThrow(
+      expect(() => registry.attach({ sessionId: 'session-1', capabilities: [] }, vi.fn())).toThrow(
         'FrontendSessionRegistry: session "session-1" is already attached',
       );
     });
 
     it('rejects when delivery itself throws, rather than waiting for a timeout', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      registry.attach({ sessionId: 'session-1', runId: 'run-1', capabilities: ['page.click'] }, () => {
+      registry.attach({ sessionId: 'session-1', capabilities: ['page.click'] }, () => {
         throw new Error('stream already closed');
       });
+      registry.bindRun('run-1', 'session-1');
 
       await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow('stream already closed');
       // The failed invocation left nothing behind for a later answer to settle.
@@ -211,9 +265,10 @@ describe('createFrontendSessionRegistry', () => {
 
     it('normalizes a non-Error delivery failure', async () => {
       const registry = createFrontendSessionRegistry();
-      registry.attach({ sessionId: 'session-1', runId: 'run-1', capabilities: ['page.click'] }, () => {
+      registry.attach({ sessionId: 'session-1', capabilities: ['page.click'] }, () => {
         throw 'socket gone';
       });
+      registry.bindRun('run-1', 'session-1');
 
       await expect(registry.invoke('run-1', 'page.click', {})).rejects.toThrow('socket gone');
     });
@@ -222,7 +277,7 @@ describe('createFrontendSessionRegistry', () => {
   describe('cancellation', () => {
     it('rejects immediately when the caller signal is already aborted', async () => {
       const registry = createFrontendSessionRegistry();
-      const surface = attachPageSurface(registry, 'session-1', 'run-1');
+      const surface = attachAndBind(registry, 'session-1', 'run-1');
 
       await expect(
         registry.invoke('run-1', 'page.click', {}, AbortSignal.abort()),
@@ -232,7 +287,7 @@ describe('createFrontendSessionRegistry', () => {
 
     it('rejects when the caller signal aborts while the surface is still thinking', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      attachPageSurface(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-1', 'run-1');
       const controller = new AbortController();
 
       const pending = registry.invoke('run-1', 'page.click', {}, controller.signal);
@@ -245,7 +300,7 @@ describe('createFrontendSessionRegistry', () => {
 
     it('removes its abort listener once the invocation settles normally', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      attachPageSurface(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-1', 'run-1');
       const controller = new AbortController();
       const removeSpy = vi.spyOn(controller.signal, 'removeEventListener');
 
@@ -258,7 +313,7 @@ describe('createFrontendSessionRegistry', () => {
 
     it('works without a signal at all', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
-      attachPageSurface(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-1', 'run-1');
 
       const pending = registry.invoke('run-1', 'page.click', {});
       registry.settle('session-1', 'inv-1', { ok: true, output: 'done' });
@@ -268,41 +323,28 @@ describe('createFrontendSessionRegistry', () => {
   });
 
   describe('availability reporting', () => {
-    it('reports the union of capabilities across attached surfaces, deduplicated', () => {
+    it('reports the bound surface\'s capabilities so a caller advertises only what can be served', () => {
       const registry = createFrontendSessionRegistry();
-      attachPageSurface(registry, 'session-1', 'run-1', ['page.click', 'page.fill']);
-      attachPageSurface(registry, 'session-2', 'run-1', ['page.fill', 'page.navigate']);
+      attachAndBind(registry, 'session-1', 'run-1', ['page.click', 'page.fill']);
 
-      expect([...registry.capabilitiesFor('run-1')].sort()).toEqual([
-        'page.click',
-        'page.fill',
-        'page.navigate',
-      ]);
+      expect(registry.capabilitiesFor('run-1')).toEqual(['page.click', 'page.fill']);
+      expect(registry.sessionFor('run-1')).toEqual({
+        sessionId: 'session-1',
+        capabilities: ['page.click', 'page.fill'],
+      });
     });
 
-    it('reports nothing for a run with no attached surface, so availability fails closed', () => {
+    it('reports nothing for an unbound run, so availability fails closed', () => {
       const registry = createFrontendSessionRegistry();
-      attachPageSurface(registry, 'session-1', 'run-1');
+      attachAndBind(registry, 'session-1', 'run-1');
 
       expect(registry.capabilitiesFor('run-2')).toEqual([]);
-      expect(registry.sessionsFor('run-2')).toEqual([]);
-    });
-
-    it('lists attached descriptors for a run in attach order', () => {
-      const registry = createFrontendSessionRegistry();
-      attachPageSurface(registry, 'session-1', 'run-1', ['page.click']);
-      attachPageSurface(registry, 'session-2', 'run-1', ['page.fill']);
-      attachPageSurface(registry, 'session-3', 'run-OTHER', ['page.click']);
-
-      expect(registry.sessionsFor('run-1')).toEqual([
-        { sessionId: 'session-1', runId: 'run-1', capabilities: ['page.click'] },
-        { sessionId: 'session-2', runId: 'run-1', capabilities: ['page.fill'] },
-      ]);
+      expect(registry.sessionFor('run-2')).toBeUndefined();
     });
 
     it('drops a detached surface from availability', () => {
       const registry = createFrontendSessionRegistry();
-      const surface = attachPageSurface(registry, 'session-1', 'run-1');
+      const surface = attachAndBind(registry, 'session-1', 'run-1');
 
       expect(registry.capabilitiesFor('run-1')).toEqual(['page.click']);
       surface.handle.detach();

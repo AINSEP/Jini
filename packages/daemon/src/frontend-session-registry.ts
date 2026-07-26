@@ -18,10 +18,18 @@
  * confirmation, timeout, cancellation, truncation, and audit trail. A route that called `invoke`
  * directly would be strictly weaker, which is exactly the failure this design exists to avoid.
  *
+ * **Attaching and binding are separate on purpose.** A surface attaches once, when it opens — a
+ * chat pane mounts long before the user sends anything, and runs are created per message, so a
+ * surface cannot know a run id at attach time. A run is *bound* to the surface that originated it
+ * when it starts. Beyond matching reality, this dissolves the worst routing hazard by construction:
+ * a run has exactly one originating surface, so a capability call can never be ambiguous between
+ * two open tabs, and no tie-break heuristic is needed that could act on a window nobody is
+ * watching.
+ *
  * Three failure modes are handled explicitly rather than left to chance:
  *
- * 1. **Two surfaces claiming the same capability for one run.** Ambiguity is an error, never
- *    last-writer-wins — silently picking one means a click lands in a tab the user isn't looking at.
+ * 1. **A capability nothing can serve** — no surface bound to the run, or one that does not claim
+ *    the capability. Both fail closed with a message naming what was missing, never hang.
  * 2. **A duplicate answer** (stream reconnect, retried POST, a surface that answers twice).
  *    {@link FrontendSessionRegistry.settle} is idempotent and reports whether it was the one that
  *    settled the invocation; the pending map *is* the idempotency store.
@@ -31,15 +39,13 @@
  */
 import { randomUUID } from 'node:crypto';
 
-/** A surface that has attached itself to a run and can execute capabilities on its behalf. */
+/** A surface that has attached itself and can execute capabilities on a bound run's behalf. */
 export interface FrontendSessionDescriptor {
   /** Identifies this surface. Minted by the host at attach time; opaque here. */
   readonly sessionId: string;
-  /** The run whose agent may drive this surface. */
-  readonly runId: string;
   /**
-   * Capability ids this surface claims it can execute. A call for anything absent from every
-   * attached surface fails closed rather than hanging.
+   * Capability ids this surface claims it can execute. A call for anything this surface does not
+   * claim fails closed rather than hanging.
    */
   readonly capabilities: readonly string[];
 }
@@ -78,11 +84,22 @@ export interface FrontendSessionRegistry {
     deliver: (invocation: FrontendInvocation) => void,
   ): FrontendSessionHandle;
   /**
-   * Routes one capability call to the single attached surface that claims it, and resolves with
-   * that surface's output.
+   * Associates a started run with the surface that originated it, so capability calls made by that
+   * run's agent reach that surface. Re-binding the same run to the same session is a no-op; binding
+   * it to a different one replaces the association, which is what a host should do when a run is
+   * genuinely taken over.
    *
-   * @throws If no attached surface for `runId` claims `capabilityId`, if more than one does, if
-   * delivery itself fails, if the surface answers with a refusal, or if `signal` aborts first.
+   * @returns A function that removes this association — call it when the run reaches a terminal
+   * state so a long-lived surface does not accumulate bindings for runs that ended.
+   * @throws If `sessionId` is not attached. Binding a run to a surface that is already gone would
+   * produce calls that hang until their tool timeout instead of failing immediately.
+   */
+  bindRun(runId: string, sessionId: string): () => void;
+  /**
+   * Routes one capability call to the surface bound to `runId` and resolves with its output.
+   *
+   * @throws If no surface is bound to `runId`, if the bound surface does not claim `capabilityId`,
+   * if delivery fails, if the surface answers with a refusal, or if `signal` aborts first.
    */
   invoke(
     runId: string,
@@ -97,10 +114,14 @@ export interface FrontendSessionRegistry {
    * to a different session — the duplicate-answer case, which is a no-op by design.
    */
   settle(sessionId: string, invocationId: string, outcome: FrontendOutcome): boolean;
-  /** Capability ids reachable for `runId` right now. Empty when nothing is attached. */
+  /**
+   * Capability ids reachable for `runId` right now — empty when nothing is bound. A caller uses
+   * this to advertise only what can actually be served, so an agent is never offered a capability
+   * that would fail the moment it tried.
+   */
   capabilitiesFor(runId: string): readonly string[];
-  /** Currently attached surfaces for `runId`, in attach order. */
-  sessionsFor(runId: string): readonly FrontendSessionDescriptor[];
+  /** The surface bound to `runId`, or `undefined` when there is none. */
+  sessionFor(runId: string): FrontendSessionDescriptor | undefined;
 }
 
 export interface CreateFrontendSessionRegistryOptions {
@@ -128,40 +149,30 @@ interface AttachedSession {
  * so it cannot outlive the process that holds it, and a restart correctly presents as "nothing
  * attached" rather than as a stale route to a tab that is long gone.
  *
- * @complexity `attach`/`settle`/`detach` are O(1); `invoke`/`capabilitiesFor`/`sessionsFor` are
- * O(n) in attached surfaces, which is bounded by open tabs.
+ * @complexity Every operation is O(1) except `detach`, which is O(p + b) in that surface\'s pending
+ * invocations and bound runs.
  */
 export function createFrontendSessionRegistry(
   options: CreateFrontendSessionRegistryOptions = {},
 ): FrontendSessionRegistry {
   const newInvocationId = options.newInvocationId ?? randomUUID;
   const sessions = new Map<string, AttachedSession>();
+  const runBindings = new Map<string, string>();
 
-  function sessionsForRun(runId: string): AttachedSession[] {
-    return [...sessions.values()].filter((session) => session.descriptor.runId === runId);
-  }
-
-  /** Resolves the one surface that may serve this call, or explains why there isn't exactly one. */
+  /** Resolves the surface that may serve this call, or explains precisely what is missing. */
   function resolveTarget(runId: string, capabilityId: string): AttachedSession {
-    const candidates = sessionsForRun(runId).filter(
-      (session) => session.descriptor.capabilities.includes(capabilityId),
-    );
-    const [only] = candidates;
-    if (only === undefined) {
+    const sessionId = runBindings.get(runId);
+    const session = sessionId === undefined ? undefined : sessions.get(sessionId);
+    if (session === undefined) {
+      throw new Error(`no frontend is bound to run "${runId}", so "${capabilityId}" cannot be executed`);
+    }
+    if (!session.descriptor.capabilities.includes(capabilityId)) {
       throw new Error(
-        `no attached frontend for run "${runId}" can execute "${capabilityId}"`,
+        `the frontend bound to run "${runId}" does not offer "${capabilityId}" `
+        + `(it offers: ${session.descriptor.capabilities.join(', ') || 'nothing'})`,
       );
     }
-    if (candidates.length > 1) {
-      const ids = candidates.map((session) => session.descriptor.sessionId).join(', ');
-      // Picking one would silently act on a surface the user may not be looking at. Making the
-      // host choose is the only answer that cannot act on the wrong window.
-      throw new Error(
-        `"${capabilityId}" is claimed by ${candidates.length} attached frontends for run `
-        + `"${runId}" (${ids}) — detach all but the one that should act`,
-      );
-    }
-    return only;
+    return session;
   }
 
   function attach(
@@ -178,12 +189,27 @@ export function createFrontendSessionRegistry(
       sessionId: descriptor.sessionId,
       detach(): void {
         sessions.delete(descriptor.sessionId);
+        for (const [runId, boundTo] of runBindings) {
+          if (boundTo === descriptor.sessionId) runBindings.delete(runId);
+        }
         for (const [, entry] of session.pending) {
           entry.dispose();
           entry.reject(new Error(`frontend session "${descriptor.sessionId}" detached before answering`));
         }
         session.pending.clear();
       },
+    };
+  }
+
+  function bindRun(runId: string, sessionId: string): () => void {
+    if (!sessions.has(sessionId)) {
+      throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" to unattached session "${sessionId}"`);
+    }
+    runBindings.set(runId, sessionId);
+    return () => {
+      // Only release a binding this call still owns: a run taken over by another surface must not
+      // have its newer binding torn down by the older one\'s cleanup.
+      if (runBindings.get(runId) === sessionId) runBindings.delete(runId);
     };
   }
 
@@ -201,14 +227,16 @@ export function createFrontendSessionRegistry(
     const invocationId = newInvocationId();
 
     return new Promise<unknown>((resolve, reject) => {
+      const cancelled = (): Error =>
+        new Error(`"${capabilityId}" was cancelled before the frontend answered`);
       const onAbort = (): void => {
         target.pending.delete(invocationId);
-        reject(new Error(`"${capabilityId}" was cancelled before the frontend answered`));
+        reject(cancelled());
       };
       const dispose = (): void => signal?.removeEventListener('abort', onAbort);
 
       if (signal?.aborted) {
-        reject(new Error(`"${capabilityId}" was cancelled before the frontend answered`));
+        reject(cancelled());
         return;
       }
       signal?.addEventListener('abort', onAbort, { once: true });
@@ -226,26 +254,24 @@ export function createFrontendSessionRegistry(
   }
 
   function settle(sessionId: string, invocationId: string, outcome: FrontendOutcome): boolean {
-    const entry = sessions.get(sessionId)?.pending.get(invocationId);
-    if (entry === undefined) return false;
-    sessions.get(sessionId)?.pending.delete(invocationId);
+    const session = sessions.get(sessionId);
+    const entry = session?.pending.get(invocationId);
+    if (session === undefined || entry === undefined) return false;
+    session.pending.delete(invocationId);
     entry.dispose();
     if (outcome.ok) entry.resolve(outcome.output);
     else entry.reject(new Error(outcome.message));
     return true;
   }
 
+  function sessionFor(runId: string): FrontendSessionDescriptor | undefined {
+    const sessionId = runBindings.get(runId);
+    return sessionId === undefined ? undefined : sessions.get(sessionId)?.descriptor;
+  }
+
   function capabilitiesFor(runId: string): readonly string[] {
-    const claimed = new Set<string>();
-    for (const session of sessionsForRun(runId)) {
-      for (const capability of session.descriptor.capabilities) claimed.add(capability);
-    }
-    return [...claimed];
+    return sessionFor(runId)?.capabilities ?? [];
   }
 
-  function sessionsFor(runId: string): readonly FrontendSessionDescriptor[] {
-    return sessionsForRun(runId).map((session) => session.descriptor);
-  }
-
-  return { attach, invoke, settle, capabilitiesFor, sessionsFor };
+  return { attach, bindRun, invoke, settle, capabilitiesFor, sessionFor };
 }
