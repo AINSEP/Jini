@@ -423,11 +423,15 @@ describe('highlight', () => {
     expect(element.style.outline).toBe('1px dotted blue');
   });
 
-  it('does nothing for a node with no style to set', async () => {
+  it('refuses a node with no style to set, rather than reporting a highlight that never drew', async () => {
+    // Previously this silently no-opped — no style change, no error — while page-executor.ts's
+    // page.highlight branch has no way to know that and unconditionally reports success. Refusing,
+    // like click() already does for the same target, turns a guaranteed false positive into a
+    // named error the caller can act on.
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('data-agent-element', 'chart-svg');
     root.append(svg);
-    await expect(makeDriver().highlight('chart-svg', 10)).resolves.toBeUndefined();
+    await expect(makeDriver().highlight('chart-svg', 10)).rejects.toThrow(/"chart-svg" is not highlightable/);
   });
 });
 

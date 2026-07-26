@@ -338,7 +338,11 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
 
     async highlight(handle, durationMs) {
       const element = find(handle);
-      if (!(element instanceof HTMLElement)) return;
+      // Same refusal as `click()`, for the same reason: an SVG (or other non-HTMLElement) target
+      // has no `.style` to draw an outline on, so silently returning here drew nothing while
+      // `page-executor.ts` unconditionally reports the highlight as successful — a guaranteed
+      // false positive with no way for the caller to tell. Refusing makes that visible instead.
+      if (!(element instanceof HTMLElement)) throw new Error(`"${handle}" is not highlightable`);
       const active = highlights.get(handle);
       if (active !== undefined) clearTimeout(active.timer);
 
