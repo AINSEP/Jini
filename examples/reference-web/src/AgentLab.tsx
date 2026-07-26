@@ -1,11 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { executePageCapability } from '@jini/chat-core';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini/chat-core';
-import { ChatPane } from '@jini/chat-react';
+import {
+  ChatPane,
+  createDomPageDriver,
+  createFrontendSessionBridge,
+  type FrontendSessionBridge,
+} from '@jini/chat-react';
 import { uploadChatAttachments } from './attachments.js';
 import { ChatFab } from './ChatFab.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
-import { createDomPageDriver } from './dom-page-driver.js';
 import { PLAYGROUND_RUNTIME_ACCESS } from './runtime-access.js';
 
 /**
@@ -41,19 +44,6 @@ const LAB_PAGES: Record<string, () => void> = {
   playground: () => { globalThis.location.hash = '#/'; },
 };
 
-/**
- * Where a caller reaches the page verbs in this example.
- *
- * Example-only, and it must stay that way: a global that drives the page is a capability handed
- * to every script on it. A real host routes these through the daemon's gated tool path, where
- * they get a principal, a policy check and an audit record. This exists so the verbs can be
- * exercised and tested before that wiring lands.
- */
-declare global {
-  // eslint-disable-next-line no-var
-  var __jiniAgentLab: { run: (capabilityId: string, input?: Record<string, unknown>) => Promise<unknown> } | undefined;
-}
-
 const LAB_CHAT_TRANSPORT = createDaemonChatTransport();
 
 /**
@@ -84,20 +74,49 @@ export function AgentLab() {
   const [draft, setDraft] = useState('');
   const [status, setStatus] = useState('Ready.');
   const [chatOpen, setChatOpen] = useState(false);
+  const [bridge, setBridge] = useState<FrontendSessionBridge | null>(null);
   const rootRef = useRef<HTMLElement>(null);
+  /** Read at send time, not render time — the token arrives asynchronously, after attach. */
+  const bindTokenRef = useRef<string | undefined>(undefined);
 
   const remaining = items.filter((item) => !item.done).length;
 
+  // Memoized on the bridge itself: the hook keys on bridge *presence*, so this only has to be
+  // stable enough not to churn — but a fresh object every render is still the pattern that made
+  // that keying necessary in the first place, and the example should model the good habit.
+  const agentControl = useMemo(
+    () => (bridge === null ? AGENT_CONTROL : { enabled: true, bridgeAccess: bridge.bridgeAccess }),
+    [bridge],
+  );
+
+  /**
+   * The daemon-relayed control channel, replacing the `window.__jiniAgentLab` stopgap this page
+   * used to publish. That global was a capability handed to every script on the page; the same
+   * verbs now arrive over the surface's own SSE connection, having already passed `ToolExecutor`'s
+   * authorization, confirmation, timeout and audit on the way in.
+   */
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
     // Scoped to this page's subtree, never `document` — scanning everything would make any
     // markup on the page an authorization decision.
     const driver = createDomPageDriver({ root, pages: LAB_PAGES, currentPage: 'agent-lab' });
-    globalThis.__jiniAgentLab = {
-      run: (capabilityId, input = {}) => executePageCapability(driver, capabilityId, input),
+    const session = createFrontendSessionBridge({
+      pageDriver: driver,
+      // The activity trail the design debate flagged as missing: the user can see the agent
+      // acting on their own screen instead of inferring it from the transcript.
+      onInvocation: (action) => setStatus(`Agent ran ${action.capabilityId}.`),
+      onError: (error) => console.error('[agent-lab] frontend session', error),
+    });
+    session.ready
+      .then(({ bindToken }) => { bindTokenRef.current = bindToken; })
+      .catch((error: unknown) => console.error('[agent-lab] never attached', error));
+    setBridge(session);
+    return () => {
+      session.close();
+      setBridge(null);
+      bindTokenRef.current = undefined;
     };
-    return () => { globalThis.__jiniAgentLab = undefined; };
   }, []);
 
   const toggle = (id: string) => {
@@ -267,9 +286,15 @@ export function AgentLab() {
             'What controls are on this page?',
             'Check off "Water the window plants".',
           ]}
-          // Opt in to the chat.* capability surface. This is the pane driving itself; the
-          // page.* verbs reach the surrounding page through window.__jiniAgentLab.
-          agentControl={AGENT_CONTROL}
+          // Opt in to the chat.* capability surface AND the daemon relay. Both families now
+          // arrive over one connection: chat.* is served by the pane, page.* by the driver above.
+          agentControl={agentControl}
+          // Carries the surface's bind token so the daemon can route this run's page.* calls back
+          // to this tab. Read from a ref at send time because it arrives after attach.
+          runContext={() => ({
+            project: 'starter-site',
+            ...(bindTokenRef.current === undefined ? {} : { frontendBindToken: bindTokenRef.current }),
+          })}
         />
       </aside>
 

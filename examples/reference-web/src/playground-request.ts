@@ -15,6 +15,12 @@ export interface PlaygroundRunRequest {
   reasoning?: string;
   workingDirectory?: string;
   attachments?: PlaygroundAttachment[];
+  /**
+   * Proves which browser surface started this run, so the daemon can route `page.*` calls back to
+   * it. Rides in this host-owned envelope rather than on the neutral run DTO — see
+   * `@jini/node-host`'s `createFrontendControl`. Absent for a run with no originating tab.
+   */
+  frontendBindToken?: string;
 }
 
 interface PlaygroundFailureLifecycle {
@@ -141,9 +147,15 @@ export function decodePlaygroundRunRequest({
       })
     : undefined;
 
+  const frontendBindToken =
+    typeof parsed.frontendBindToken === 'string' && parsed.frontendBindToken.length > 0
+      ? parsed.frontendBindToken
+      : undefined;
+
   return {
     prompt: parsed.prompt,
     project: parsed.project,
+    ...(frontendBindToken !== undefined ? { frontendBindToken } : {}),
     ...(model !== undefined ? { model } : {}),
     ...(reasoning !== undefined ? { reasoning } : {}),
     ...(workingDirectory !== undefined ? { workingDirectory } : {}),

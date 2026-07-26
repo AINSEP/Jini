@@ -57,3 +57,17 @@ export { AttachmentTray } from './react/components/AttachmentTray.js';
 export type { AttachmentTrayProps } from './react/components/AttachmentTray.js';
 export { JiniChatProvider, useJiniChatSlots, useOnFeedback } from './react/components/JiniChatProvider.js';
 export type { JiniChatProviderProps, JiniChatSlots } from './react/components/JiniChatProvider.js';
+
+/**
+ * Agent bridge — the browser half of daemon-relayed frontend control.
+ *
+ * Lives here rather than in an example because a consumer cannot copy-paste its way to a
+ * transport: this is the piece that makes `ChatPaneAgentBridgeAccess` satisfiable at all.
+ */
+export { createFrontendSessionBridge } from './agent-bridge/frontend-session-bridge.js';
+export type {
+  FrontendSessionBridge,
+  FrontendSessionBridgeOptions,
+} from './agent-bridge/frontend-session-bridge.js';
+export { createDomPageDriver, currentAgentPage } from './agent-bridge/dom-page-driver.js';
+export type { DomPageDriverOptions } from './agent-bridge/dom-page-driver.js';

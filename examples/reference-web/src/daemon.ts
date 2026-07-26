@@ -8,7 +8,8 @@ import { createAgentExecutor } from '@jini/daemon';
 import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini/http';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini/media';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini/memory';
-import { createLocalNodeDaemon } from '@jini/node-host';
+import { createFrontendControl, createLocalNodeDaemon } from '@jini/node-host';
+import { CHAT_CAPABILITIES, PAGE_CAPABILITIES } from '@jini/chat-core';
 import type { RunAgentPayload } from '@jini/protocol';
 import {
   createPlaygroundRuntimeEnvironment,
@@ -125,6 +126,28 @@ async function main(): Promise<void> {
   attachmentPruneTimer.unref();
   let activeUploadCount = 0;
 
+  /**
+   * Agent-driven frontend control. The playground allows every capability outright because it is a
+   * demo on loopback; a real product supplies a policy that consults its own roles.
+   */
+  const frontendControl = createFrontendControl({
+    capabilities: [...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES],
+    policy: { authorize: () => 'allow' },
+    resolveBindToken: (request) => {
+      try {
+        return decodePlaygroundRunRequest({
+          contextRef: request.contextRef,
+          allowedProjects: PROJECTS,
+          prefix: PLAYGROUND_PREFIX,
+        }).frontendBindToken;
+      } catch {
+        // A run whose context this host cannot read is not this seam's problem to report — the
+        // run-start path already fails it with a real message.
+        return undefined;
+      }
+    },
+  });
+
   let daemon: Awaited<ReturnType<typeof createLocalNodeDaemon>>;
   try {
     daemon = await createLocalNodeDaemon({
@@ -134,7 +157,9 @@ async function main(): Promise<void> {
       env,
       resolveWorkspaceRoot: ({ resourceRef }) =>
         PROJECTS.has(resourceRef) ? resolve(repoRoot, 'examples/sample-projects', resourceRef) : undefined,
+      toolRegistrations: frontendControl.toolRegistrations,
       httpExtensions: [
+        frontendControl.httpExtension,
         (app) => {
           app.post('/api/playground/working-directory-grants', async (request, response) => {
             if (!isLoopbackAddress(request.socket.remoteAddress)) {
@@ -245,7 +270,10 @@ async function main(): Promise<void> {
         await attachmentRegistry.dispose();
         await mediaTaskStore.close();
       },
-      onRunStarted: ({ request, run, lifecycle }) => {
+      onRunStarted: (context) => {
+        // Bind first: the run must be reachable from its own tab before the agent starts asking.
+        frontendControl.bindOnStarted(context);
+        const { request, run, lifecycle } = context;
         void (async () => {
           try {
             const decoded = decodePlaygroundRunRequest({

@@ -26,6 +26,7 @@ interface PlaygroundContext {
   model?: unknown;
   reasoning?: unknown;
   workingDirectory?: unknown;
+  frontendBindToken?: unknown;
 }
 
 interface ComposeRunPromptInput {
@@ -61,6 +62,7 @@ export function encodeRunContext(
   reasoning?: string,
   workingDirectory?: string,
   attachments: readonly ChatAttachment[] = [],
+  frontendBindToken?: string,
 ): string {
   const bytes = new TextEncoder().encode(JSON.stringify({
     prompt,
@@ -69,6 +71,7 @@ export function encodeRunContext(
     ...(reasoning !== undefined ? { reasoning } : {}),
     ...(workingDirectory !== undefined ? { workingDirectory } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
+    ...(frontendBindToken !== undefined ? { frontendBindToken } : {}),
   }));
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -227,6 +230,11 @@ export function createDaemonChatTransport(): ChatTransport {
         typeof context.workingDirectory === 'string' && context.workingDirectory.length > 0
           ? context.workingDirectory
           : undefined;
+      // Proves which tab started this run so page.* calls can be routed back to it.
+      const frontendBindToken =
+        typeof context.frontendBindToken === 'string' && context.frontendBindToken.length > 0
+          ? context.frontendBindToken
+          : undefined;
       const response = await fetch('/api/runs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -238,6 +246,7 @@ export function createDaemonChatTransport(): ChatTransport {
             reasoning,
             workingDirectory,
             input.attachments ?? [],
+            frontendBindToken,
           ),
           agentId,
         }),
