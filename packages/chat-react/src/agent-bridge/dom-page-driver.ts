@@ -69,6 +69,49 @@ function isEditableRegion(element: Element): element is HTMLElement {
   return element.isContentEditable === true;
 }
 
+/** Every `<label>` associated with `control` by whichever relationship resolves first. */
+function labelTextOf(control: Element): string | undefined {
+  // Real form controls carry `.labels` — every associated <label>, both for-linked and wrapping.
+  const associated = 'labels' in control
+    ? Array.from((control as { labels?: NodeListOf<HTMLLabelElement> }).labels ?? [])
+    : [];
+  for (const label of associated) {
+    const text = label.textContent?.trim();
+    if (text) return text;
+  }
+  // A contenteditable region is not a form control and has no `.labels`; resolve the same two
+  // relationships by hand — an ancestor <label> (implicit wrapping) and a for-linked one (explicit).
+  const wrapping = control.closest('label');
+  if (wrapping) {
+    const text = wrapping.textContent?.trim();
+    if (text) return text;
+  }
+  if (control.id) {
+    for (const label of Array.from(control.ownerDocument.querySelectorAll('label'))) {
+      if ((label as HTMLLabelElement).htmlFor === control.id) {
+        const text = label.textContent?.trim();
+        if (text) return text;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The field's human-visible label, for the guard's benefit: `name`/`id` are the machine names, and
+ * a CMS emitting `name="field_47"` next to a visibly-labelled "Card number" leaves every guard here
+ * nothing to judge unless this is populated. Resolution order: `aria-label`, then `placeholder`,
+ * then the text of an associated `<label>` (for-linked or wrapping) — whichever the driver can
+ * resolve first.
+ */
+function accessibleLabelOf(control: Element): string | undefined {
+  const ariaLabel = control.getAttribute('aria-label')?.trim();
+  if (ariaLabel) return ariaLabel;
+  const placeholder = control.getAttribute('placeholder')?.trim();
+  if (placeholder) return placeholder;
+  return labelTextOf(control);
+}
+
 /** The field attributes the guards need, or `null` when the control is not a text-bearing input. */
 function fieldDescriptorOf(control: Element): FieldDescriptor | null {
   if (isEditableRegion(control)) {
@@ -84,6 +127,7 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
       autocomplete: control.getAttribute('autocomplete')?.toLowerCase() || undefined,
       name: control.getAttribute('name') || undefined,
       id: control.id || undefined,
+      accessibleLabel: accessibleLabelOf(control),
       readOnly: control.getAttribute('aria-readonly') === 'true',
       disabled: control.getAttribute('aria-disabled') === 'true',
     } satisfies FieldDescriptor;
@@ -96,6 +140,7 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
     autocomplete: control.getAttribute('autocomplete')?.toLowerCase() ?? undefined,
     name: control.name || undefined,
     id: control.id || undefined,
+    accessibleLabel: accessibleLabelOf(control),
     readOnly: control.readOnly,
     // `.disabled` reflects only this element's own attribute — not the "actually disabled" state
     // a control gets from an ancestor `<fieldset disabled>`. `:disabled` is the platform's own

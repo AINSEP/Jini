@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { findFieldFillRefusal } from '@jini/chat-core';
+
 import { createDomPageDriver, currentAgentPage } from '../dom-page-driver.js';
 
 /**
@@ -210,6 +212,72 @@ describe('describeField', () => {
       '<fieldset disabled><input data-agent-element="fieldset-disabled-input" name="f" /></fieldset>',
     );
     expect(await makeDriver().describeField('fieldset-disabled-input')).toMatchObject({ disabled: true });
+  });
+});
+
+describe('accessibleLabel', () => {
+  // `name`/`id` are machine names; a CMS or form builder emitting `name="field_47"` next to a
+  // visibly-labelled "Card number" leaves the guard nothing to judge unless this is populated.
+  it('prefers aria-label over placeholder', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<input data-agent-element="al-aria" aria-label="Card number" placeholder="1234" name="cc" />',
+    );
+    expect(await makeDriver().describeField('al-aria')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('falls back to placeholder when there is no aria-label', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<input data-agent-element="al-placeholder" placeholder="Card number" name="cc" />',
+    );
+    expect(await makeDriver().describeField('al-placeholder')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('falls back to an explicit <label for> when there is no aria-label or placeholder', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label for="al-for-target">Card number</label><input id="al-for-target" data-agent-element="al-for" name="cc" />',
+    );
+    expect(await makeDriver().describeField('al-for')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('falls back to an ancestor <label> that wraps the control', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label>Card number <input data-agent-element="al-wrap" name="cc" /></label>',
+    );
+    expect(await makeDriver().describeField('al-wrap')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('resolves the same way for a contenteditable region', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<div data-agent-element="al-ce" contenteditable="true" aria-label="Card number"></div>',
+    );
+    expect(await makeDriver().describeField('al-ce')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('leaves accessibleLabel undefined when nothing on the page names the field', async () => {
+    // `bio-input` (from MARKUP) carries no aria-label, placeholder or associated <label>. This is
+    // proof the property is actually SET (to undefined) rather than merely absent: `toMatchObject`
+    // treats a missing key differently from a key present with value `undefined`, so this genuinely
+    // fails pre-fix (no `accessibleLabel` key at all) and passes post-fix.
+    expect(await makeDriver().describeField('bio-input')).toMatchObject({ accessibleLabel: undefined });
+  });
+
+  it('end to end: a field named only "field_47" but visibly labelled "Card number" is refused by the fill guard', async () => {
+    // This is the real-world case the whole finding is about: a CMS or form builder emits a
+    // generated, meaningless `name`/`id`, and only the visible <label> tells a human — or an
+    // agent — what the field actually holds. Before this fix, `findFieldFillRefusal` had no way
+    // to see that label at all and would have let this field through.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label for="field_47">Card number</label><input id="field_47" data-agent-element="al-e2e" name="field_47" />',
+    );
+    const field = await makeDriver().describeField('al-e2e');
+    expect(field).not.toBeNull();
+    expect(findFieldFillRefusal(field!)).toBe('suspicious-name');
   });
 });
 
