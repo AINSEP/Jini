@@ -133,6 +133,9 @@ export function findFieldReadRefusal(field: FieldDescriptor): FieldReadRefusal |
   if (
     SUSPICIOUS_NAME.test(squashSeparators(field.name ?? ''))
     || SUSPICIOUS_NAME.test(squashSeparators(field.id ?? ''))
+    // `name`/`id` are the *machine* names; a form builder or CMS that emits `name="field_47"`
+    // next to a visible "Card number" label left the guard nothing to judge until this existed.
+    || SUSPICIOUS_NAME.test(squashSeparators(field.accessibleLabel ?? ''))
   ) {
     return 'suspicious-name';
   }

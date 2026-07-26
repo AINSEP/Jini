@@ -92,6 +92,19 @@ describe('findFieldFillRefusal', () => {
     expect(findFieldFillRefusal({ type: 'text', name: 'pass​word' })).toBe('suspicious-name');
   });
 
+  it('reads sensitivity from accessibleLabel when name/id carry none at all', () => {
+    // The case an allowlist and a name/id check both miss: a form builder or CMS emitting
+    // name="field_47" next to a visible "Card number" label. Before accessibleLabel was wired
+    // into the guard, this field was invisible to it.
+    expect(findFieldFillRefusal({ type: 'text', name: 'field_47' })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', name: 'field_47', accessibleLabel: 'Card number' }))
+      .toBe('suspicious-name');
+    expect(findFieldReadRefusal({ type: 'text', id: 'f1', accessibleLabel: 'Auth token' }))
+      .toBe('suspicious-name');
+    // Separator conventions in the label are squashed identically to name/id.
+    expect(findFieldFillRefusal({ type: 'text', accessibleLabel: 'CVV Code' })).toBe('suspicious-name');
+  });
+
   it('refuses fields the user could not type into either', () => {
     expect(findFieldFillRefusal({ type: 'text', readOnly: true })).toBe('read-only');
     expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');
