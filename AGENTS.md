@@ -12,8 +12,10 @@
 > code — but it is a set of *fragments*, and **there is no runnable daemon.** The
 > entire backend service spine (`server.ts`, `cli.ts` bootstrap, `routes/`,
 > `mcp.ts`, `start-chat-run.ts`, `db.ts` schema, `plugins/` host) — **~49K lines** —
-> is **absent**, and `@jini/node-host`'s `createLocalNodeDaemon` assembly does not
-> exist. Measured 2026-07-18: **~73.5K lines ported** (of which ~15K frontend is
+> is **absent**. `@jini/node-host`'s `createLocalNodeDaemon` assembly now **does
+> exist** (`packages/node-host/src/create-local-node-daemon.ts`, ~840 lines) — it
+> assembles the daemon's pieces, but the backend service spine above is still the
+> load-bearing gap it would sit in front of. Measured 2026-07-18: **~73.5K lines ported** (of which ~15K frontend is
 > *unaudited*), **~93K generic still to port** (the ~49K backend spine is the
 > load-bearing gap), and **~364K of OD is *product*** that must stay out of the
 > neutral engine. **Do not read the package list below as "the engine is mostly
