@@ -54,9 +54,27 @@ const SUSPICIOUS_NAME = /(?:password|passwd|secret|token|csrf|xsrf|otp|cvv|cvc|s
  * Drops everything that is not a letter or digit, so separator conventions do not decide whether
  * a guard fires. Over-matching is the safe direction here and is the point: this guard fails
  * closed, and the cost of a false positive is a field an agent must leave to the user.
+ *
+ * Normalizes before squashing rather than after, because the naive squash used to *delete* any
+ * character outside ASCII `[a-z0-9]` instead of folding it. Deleting, not folding, is the bug:
+ * replacing one letter of a trigger word with a look-alike codepoint (fullwidth, accented, …)
+ * used to remove that letter from the squashed string entirely, so `ｐassword` (fullwidth
+ * U+FF50 `ｐ`) squashed to `assword` and matched nothing. NFKC folds that class of look-alike —
+ * fullwidth/halfwidth forms, and the Latin compatibility block — to its ordinary ASCII form
+ * before the letter can be deleted. The NFD pass afterward strips combining marks so an accented
+ * letter (`á` → `a` + combining acute) folds the same way once the mark itself is dropped.
+ *
+ * This does NOT close the general homoglyph class. NFKC has no cross-script confusables table:
+ * Cyrillic `а` (U+0430) and Greek `ο` (U+03BF) stay distinct codepoints from Latin `a`/`o` after
+ * NFKC, so `pаssword` (Cyrillic а) still squashes to something other than `password` and still
+ * bypasses `SUSPICIOUS_NAME`. Closing that would need an explicit confusables-folding table
+ * (e.g. Unicode TR39's) mapping each look-alike script's letters onto Latin before squashing —
+ * deliberately not built here; see the "known limit" test in guards.test.ts for the concrete gap.
  */
 function squashSeparators(value: string): string {
-  return value.replace(/[^a-z0-9]/gi, '');
+  const foldedWidth = value.normalize('NFKC');
+  const withoutMarks = foldedWidth.normalize('NFD').replace(/\p{M}/gu, '');
+  return withoutMarks.replace(/[^a-z0-9]/gi, '');
 }
 
 /**

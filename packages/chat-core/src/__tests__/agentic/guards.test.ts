@@ -54,6 +54,31 @@ describe('findFieldFillRefusal', () => {
     }
   });
 
+  it('folds a fullwidth homoglyph before squashing, instead of deleting it', () => {
+    // Regression: squashSeparators used to delete any non-ASCII character rather than fold it,
+    // so replacing one letter of "password" with its fullwidth look-alike left "assword" behind
+    // — a real letter short of matching. Fullwidth forms fold to plain ASCII under NFKC.
+    expect(findFieldFillRefusal({ type: 'text', name: 'ｐassword' })).toBe('suspicious-name');
+    // An accented look-alike folds the same way once its combining mark is stripped.
+    expect(findFieldFillRefusal({ type: 'text', name: 'pásswörd' })).toBe('suspicious-name');
+  });
+
+  it('KNOWN LIMITATION: a Cyrillic look-alike still bypasses the guard', () => {
+    // Not a passing guarantee — the opposite. NFKC has no cross-script confusables table:
+    // Cyrillic а (U+0430) stays a distinct codepoint from Latin a after NFKC, so this still
+    // squashes to something other than "password" and is NOT caught. Closing this needs an
+    // explicit confusables-folding table (e.g. Unicode TR39's), not attempted here.
+    const cyrillicLookalike = `pаssword`; // Cyrillic а (U+0430), not Latin a (U+0061)
+    expect(findFieldFillRefusal({ type: 'text', name: cyrillicLookalike })).toBeNull();
+  });
+
+  it('still refuses a zero-width character inserted into a trigger word', () => {
+    // Contrast with the homoglyph case: deleting a zero-width character (rather than a visible
+    // look-alike) leaves the real letters intact, so this was never broken. Kept here so a
+    // future refactor of squashSeparators cannot regress it silently.
+    expect(findFieldFillRefusal({ type: 'text', name: 'pass​word' })).toBe('suspicious-name');
+  });
+
   it('refuses fields the user could not type into either', () => {
     expect(findFieldFillRefusal({ type: 'text', readOnly: true })).toBe('read-only');
     expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');
