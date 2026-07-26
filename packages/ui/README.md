@@ -250,9 +250,9 @@ Real content has landed in several parallel passes — see
   deliberately left behind (the OD-specific color-selection heuristic that
   consumes the math, not the math itself).
 - `src/features/lexical-rich-text-editor/` (renamed from `rich-text-input/`,
-  2026-07-26, once a second, TipTap-based editor became a planned sibling and
-  `rich-text-input` stopped being an unambiguous name — see
-  `packages/ui/source-map.md`'s dated rename entry) — a real Lexical (Meta's
+  2026-07-26 — the feature is Lexical specifically, not a general rich-text
+  input, so the old name promised an engine-neutrality its Lexical-shaped API
+  never had; see `packages/ui/source-map.md`'s dated rename entry) — a real Lexical (Meta's
   rich-text framework) editor integration ported from OD's chat composer
   (2026-07-18): editor setup/config, an atomic `@mention`/`/command`
   token node type (generic, host-injected `resolveMentionColor` instead of

@@ -5642,12 +5642,22 @@ text renders.
 
 ## Section: `features/rich-text-input/` renamed to `features/lexical-rich-text-editor/` (2026-07-26)
 
-**Why:** a second, TipTap-based rich-text editor feature is being added as a
-sibling in a follow-up dispatch. `rich-text-input` named the *kind* of thing
-(a rich-text input) rather than *which* engine backs it, so once a second
-engine existed under `features/`, the old name would have been ambiguous
-between the two. The new name states the engine (Lexical) the same way a
-future TipTap sibling would state its own.
+**Why:** `rich-text-input` named the *kind* of thing (a rich-text input)
+rather than *which* engine backs it, and this feature is not a general
+rich-text input — it is Lexical specifically. Its public surface is
+Lexical-shaped (`mention-node.ts` subclasses Lexical's `TextNode`; `rules.ts`
+and six hooks are written against Lexical's selection API), so the old name
+promised an engine-neutrality it never had. The new name says what it is.
+
+**Correction (same day):** this entry originally justified the rename as
+"a second, TipTap-based editor is being added as a sibling in a follow-up
+dispatch." That is no longer true and the sibling was never built. The TipTap
+feature was dropped on the observation that `RichTextInput` currently has
+**zero consumers** — nothing outside its own directory imports it, in any
+package or example — so adding a second rich-text framework would have
+multiplied a cost nothing was yet paying. The engine choice belongs to the
+first consumer that actually needs an editor, judged against its real
+requirements. The rename stands on its own merits, above.
 
 **What moved:** `git mv packages/ui/src/features/rich-text-input/ →
 packages/ui/src/features/lexical-rich-text-editor/` — directory contents,
