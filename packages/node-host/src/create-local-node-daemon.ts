@@ -68,6 +68,7 @@ import {
   registerConnectorsRoutes,
   registerDaemonDbRoutes,
   registerDaemonStatusRoutes,
+  registerDelegatedToolRoutes,
   registerHealthRoutes,
   registerHostToolsRoutes,
   registerModelProxyRoutes,
@@ -79,6 +80,7 @@ import {
   type AgentSummary,
   type DaemonDbOperations,
   type DaemonDbVacuumResult,
+  type DelegatedToolExecuteRequest,
   type RunStartHandler,
   type WorkspaceRootResolver,
 } from '@jini/http';
@@ -107,6 +109,27 @@ const DEFAULT_BIND_HOST_ENV_VAR = 'JINI_BIND_HOST';
  * package that genuinely does need per-request identity).
  */
 const LOCAL_DAEMON_PRINCIPAL: Principal = { id: 'local-daemon' };
+
+/**
+ * The identity a delegated tool call runs as when the host has not supplied
+ * {@link CreateLocalNodeDaemonConfig.resolveDelegatedPrincipal}.
+ *
+ * Carries **no roles**, deliberately. `@jini/http`'s `delegated-tools.ts` documents
+ * `resolvePrincipal` as mandatory because "there is no safe default identity this package could
+ * assume on a host's behalf" — and that stays true. What makes a default acceptable *here* is that
+ * this preset's inertness never depended on identity in the first place: every tool it registers
+ * is guarded by a deny-by-default `ToolPolicy` (`denyAllTerminalCreatePolicy`,
+ * `denyAllDaemonDbPolicy`, `@jini/daemon`'s `denyAllFrontendCapabilityPolicy`), so an anonymous
+ * caller is refused by the policy rather than by the absence of a route. A host that grants access
+ * does so by supplying a permissive policy through `toolRegistrations` — an explicit act — and a
+ * host that wants real identities to branch on supplies `resolveDelegatedPrincipal`.
+ *
+ * Mounting-but-inert matches this preset's established shape for every other capability it cannot
+ * configure on a host's behalf (`registerConnectorsRoutes`' 503 slots, `registerXaiRoutes`,
+ * `denyAllWorkspaceRoots`): the route is reachable and diagnosable instead of a 404 that looks
+ * like a missing build.
+ */
+const ANONYMOUS_DELEGATED_PRINCIPAL: Principal = { id: 'anonymous-delegated' };
 
 /**
  * Builds a `DaemonDbOperations` (see `@jini/http`'s `db-ops.ts`) against `db` — a *second*
@@ -300,6 +323,22 @@ export interface CreateLocalNodeDaemonConfig<
    * explicit, never implicit.
    */
   toolRegistrations?: readonly ToolRegistration[];
+  /**
+   * Resolves the `Principal` one `POST /api/delegated-tool-calls` request executes as — the
+   * identity every `ToolPolicy` on that path branches on.
+   *
+   * This route is what makes `toolRegistrations` reachable *by an agent*: a spawned CLI calls the
+   * injected MCP server's `execute_delegated_tool`, which posts here, which runs the call through
+   * `DelegatedToolBridge` → `ToolExecutor`. Without it the registry above is complete and
+   * correct and nothing can call it.
+   *
+   * @default {@link ANONYMOUS_DELEGATED_PRINCIPAL} — see its doc for why a default is safe here
+   * when `@jini/http` refuses to define one: inertness comes from deny-by-default policies, not
+   * from the identity.
+   */
+  resolveDelegatedPrincipal?: (
+    request: DelegatedToolExecuteRequest,
+  ) => Principal | Promise<Principal>;
   /**
    * Where this daemon's local discovery record (URL/host/port/pid) is written once it starts
    * listening, so a separate CLI process on the same machine can find it via
@@ -691,6 +730,20 @@ export async function createLocalNodeDaemon(
   registerActiveContextRoutes(app, activeContextRoutesDeps, { resolvedPortRef });
   registerTerminalRoutes(app, terminalRoutesDeps, { resolvedPortRef });
   registerDaemonDbRoutes(app, daemonDbRoutesDeps, { resolvedPortRef });
+  // The agent-facing door onto `zeroConfigToolRegistry` — same registry, same `ToolExecutor`, and
+  // therefore the same authorization/confirmation/timeout/truncation/audit as every route above.
+  // Mounted unconditionally so a host that supplied `toolRegistrations` does not also have to
+  // discover that nothing can reach them; every call is still refused by the tools' own
+  // deny-by-default policies until the host opts in.
+  registerDelegatedToolRoutes(
+    app,
+    {
+      lifecycle: runLifecycle,
+      toolExecutor: zeroConfigToolExecutor,
+      resolvePrincipal: config.resolveDelegatedPrincipal ?? (() => ANONYMOUS_DELEGATED_PRINCIPAL),
+    },
+    { resolvedPortRef },
+  );
   // Zero-config defaults, deliberately: `registerConnectorsRoutes`' five capability slots
   // (auth/storage/payments/db/realtime) are all independently optional and left unconfigured here
   // — every connectors route is reachable but answers 503 NOT_CONFIGURED until a caller-supplied

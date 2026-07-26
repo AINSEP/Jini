@@ -296,6 +296,152 @@ describe('createLocalNodeDaemon', () => {
     });
   });
 
+  // The route that makes `toolRegistrations` reachable by an agent. Without it the registry is
+  // complete and correct and nothing can call it, which is the state this preset shipped in.
+  describe('delegated tool calls', () => {
+    const allowAll = { authorize: (): 'allow' => 'allow' };
+
+    /** Starts a run through the real route so the delegated call has an existing run to target. */
+    async function startRun(url: string): Promise<string> {
+      const response = await fetch(`${url}/api/runs`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ contextRef: 'delegated-context', agentId: 'complete' }),
+      });
+      expect(response.status).toBe(201);
+      return ((await response.json()) as { run: { id: string } }).run.id;
+    }
+
+    async function callDelegatedTool(
+      url: string,
+      body: Record<string, unknown>,
+    ): Promise<{ status: number; json: unknown }> {
+      const response = await fetch(`${url}/api/delegated-tool-calls`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      return { status: response.status, json: await response.json() };
+    }
+
+    it('executes a host registration through the shared ToolExecutor', async () => {
+      const seen: unknown[] = [];
+      const daemon = await createLocalNodeDaemon({
+        dataDir: makeTempDataDir(),
+        packs: [makePingPack()],
+        toolRegistrations: [{
+          descriptor: { id: 'page.click' },
+          handler: async (ctx) => {
+            seen.push(ctx.input);
+            return { clicked: true };
+          },
+          policy: allowAll,
+        }],
+      });
+      daemonsToStop.push(daemon);
+      const runId = await startRun(daemon.url);
+
+      const { status, json } = await callDelegatedTool(daemon.url, {
+        runId, toolUseId: 'use-1', toolId: 'page.click', input: { element: 'save' },
+      });
+
+      expect(status).toBe(200);
+      expect(json).toMatchObject({ result: { status: 'completed', output: { clicked: true } } });
+      expect(seen).toEqual([{ element: 'save' }]);
+    });
+
+    // Inertness must come from the policy, not from the route being absent — an unreachable route
+    // is indistinguishable from a broken build, which is why this preset mounts it regardless.
+    it('is reachable but refused when the tool keeps a deny-by-default policy', async () => {
+      const daemon = await createLocalNodeDaemon({
+        dataDir: makeTempDataDir(),
+        packs: [makePingPack()],
+        toolRegistrations: [{
+          descriptor: { id: 'page.click' },
+          handler: async () => 'never runs',
+          policy: { authorize: (): 'deny' => 'deny' },
+        }],
+      });
+      daemonsToStop.push(daemon);
+      const runId = await startRun(daemon.url);
+
+      const { status, json } = await callDelegatedTool(daemon.url, {
+        runId, toolUseId: 'use-1', toolId: 'page.click', input: {},
+      });
+
+      expect(status).toBe(200);
+      expect(json).toMatchObject({ result: { status: 'denied' } });
+    });
+
+    it('runs as the anonymous principal when the host supplies no resolver', async () => {
+      const principals: string[] = [];
+      const daemon = await createLocalNodeDaemon({
+        dataDir: makeTempDataDir(),
+        packs: [makePingPack()],
+        toolRegistrations: [{
+          descriptor: { id: 'page.click' },
+          handler: async () => 'ok',
+          policy: {
+            authorize: (ctx): 'allow' => {
+              principals.push(ctx.principal.id);
+              return 'allow';
+            },
+          },
+        }],
+      });
+      daemonsToStop.push(daemon);
+      const runId = await startRun(daemon.url);
+
+      await callDelegatedTool(daemon.url, { runId, toolUseId: 'u', toolId: 'page.click', input: {} });
+
+      expect(principals).toEqual(['anonymous-delegated']);
+    });
+
+    it('runs as the host-resolved principal, and passes it the request', async () => {
+      const principals: Array<{ id: string; roles?: readonly string[] }> = [];
+      const requests: unknown[] = [];
+      const daemon = await createLocalNodeDaemon({
+        dataDir: makeTempDataDir(),
+        packs: [makePingPack()],
+        resolveDelegatedPrincipal: (request) => {
+          requests.push({ toolId: request.toolId, toolUseId: request.toolUseId });
+          return { id: 'editor-7', roles: ['editor'] };
+        },
+        toolRegistrations: [{
+          descriptor: { id: 'page.click' },
+          handler: async () => 'ok',
+          policy: {
+            authorize: (ctx): 'allow' => {
+              principals.push(ctx.principal);
+              return 'allow';
+            },
+          },
+        }],
+      });
+      daemonsToStop.push(daemon);
+      const runId = await startRun(daemon.url);
+
+      await callDelegatedTool(daemon.url, { runId, toolUseId: 'u-9', toolId: 'page.click', input: {} });
+
+      expect(principals).toEqual([{ id: 'editor-7', roles: ['editor'] }]);
+      expect(requests).toEqual([{ toolId: 'page.click', toolUseId: 'u-9' }]);
+    });
+
+    it('reports an unknown run rather than executing anything', async () => {
+      const daemon = await createLocalNodeDaemon({
+        dataDir: makeTempDataDir(),
+        packs: [makePingPack()],
+      });
+      daemonsToStop.push(daemon);
+
+      const { status } = await callDelegatedTool(daemon.url, {
+        runId: 'no-such-run', toolUseId: 'u', toolId: 'page.click', input: {},
+      });
+
+      expect(status).toBe(404);
+    });
+  });
+
   it('substitutes 127.0.0.1 into the reported URL when bound to 0.0.0.0', async () => {
     const dataDir = makeTempDataDir();
     const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], host: '0.0.0.0' });
