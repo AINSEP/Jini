@@ -165,13 +165,23 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
   }
 
   source.addEventListener('message', (event: MessageEvent<string>) => {
-    let frame: Record<string, unknown>;
+    let parsed: unknown;
     try {
-      frame = JSON.parse(event.data) as Record<string, unknown>;
+      parsed = JSON.parse(event.data);
     } catch (error) {
       options.onError?.(error);
       return;
     }
+    // `JSON.parse` succeeds on any valid JSON value, not just objects — a bare `null`, number,
+    // string or boolean parses cleanly and would throw *outside* this try/catch on the very next
+    // `frame['type']` read (`null` is the one of those that actually throws; the others just read
+    // back `undefined` harmlessly). Guarding here routes every one of those through the same
+    // `onError` path as an unparseable frame, rather than only some of them crashing the listener.
+    if (parsed === null || typeof parsed !== 'object') {
+      options.onError?.(new Error(`malformed frame: expected a JSON object, got ${JSON.stringify(parsed)}`));
+      return;
+    }
+    const frame = parsed as Record<string, unknown>;
 
     if (frame['type'] === 'attached') {
       sessionId = String(frame['sessionId']);

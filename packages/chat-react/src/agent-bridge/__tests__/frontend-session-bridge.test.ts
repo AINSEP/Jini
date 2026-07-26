@@ -314,6 +314,17 @@ describe('malformed and unexpected frames', () => {
     expect(onError).toHaveBeenCalledOnce();
   });
 
+  it('reports a bare JSON null frame through onError, rather than throwing inside the event listener', () => {
+    // `JSON.parse('null')` is valid JSON and returns `null` without throwing, so the try/catch
+    // around the parse never runs — the very next `frame['type']` read then threw a raw TypeError
+    // outside any catch, bypassing onError entirely. `null` is not "unparseable"; it parses fine
+    // and is simply not the object shape every frame handler after it assumes.
+    const onError = vi.fn();
+    createFrontendSessionBridge({ onError });
+    expect(() => FakeEventSource.last?.emit('null')).not.toThrow();
+    expect(onError).toHaveBeenCalledOnce();
+  });
+
   it('ignores a frame type this build has never heard of, so the daemon can grow its vocabulary', async () => {
     const onError = vi.fn();
     createFrontendSessionBridge({ pageDriver: createDriver(), onError });
