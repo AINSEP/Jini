@@ -595,6 +595,30 @@ describe('selectOption', () => {
       .rejects.toThrow(/"Astronaut" is not an option of "role-select"\. Available: Choose one…, Engineer, Designer/);
   });
 
+  it('bounds and strips control/bidi characters from both the page\'s option text and the caller\'s option before either reaches a thrown message', async () => {
+    // Every other piece of page-authored text this system hands to a model goes through
+    // normalizeAgentLabel first. `available` (built from the page's own <option> texts) and the
+    // caller-supplied `option` were the one path here that skipped it — a bidi-override plus a
+    // 5000-char run would have survived verbatim, exactly the shape chat-core's page.navigate had
+    // (commit d1504aa6a) before the identical fix.
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    const bidiOverride = '‮'; // RIGHT-TO-LEFT OVERRIDE
+    const pagePayload = `${bidiOverride}${'x'.repeat(5000)}`;
+    select.innerHTML = `<option value="v">${pagePayload}</option>`;
+    const callerPayload = `${bidiOverride}${'y'.repeat(5000)}`;
+
+    let message = '';
+    try {
+      await makeDriver().selectOption('role-select', callerPayload);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).not.toContain(bidiOverride);
+    expect(message).not.toContain('x'.repeat(5000));
+    expect(message).not.toContain('y'.repeat(5000));
+    expect(message.length).toBeLessThan(500);
+  });
+
   it('reports (none) when the dropdown has no labelled options at all', async () => {
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     select.innerHTML = '';
@@ -665,6 +689,26 @@ describe('selectOption with an explicit `selected`', () => {
     );
   });
 
+  it('bounds and strips control/bidi characters from the option named in the single-select deselect refusal', async () => {
+    // Reaching this branch needs a real match, so the payload has to be an actual option's text —
+    // constructed rather than an arbitrary caller string, but the interpolation site is the same
+    // unbounded `${option}` this whole item is about.
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    const bidiOverride = '‮';
+    const payload = `${bidiOverride}${'z'.repeat(5000)}`;
+    select.innerHTML = `<option value="v" selected>${payload}</option>`;
+
+    let message = '';
+    try {
+      await makeDriver().selectOption('role-select', payload, false);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).not.toContain(bidiOverride);
+    expect(message).not.toContain('z'.repeat(5000));
+    expect(message.length).toBeLessThan(500);
+  });
+
   it('does not change the single-select\'s value when the deselect is refused', async () => {
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     select.value = 'designer';
@@ -698,6 +742,23 @@ describe('navigate', () => {
   it('refuses an unpublished page even though the executor checked first', async () => {
     // Belt on the braces: this driver may one day be reachable from something else.
     await expect(makeDriver().navigate('admin')).rejects.toThrow(/"admin" is not a published page/);
+  });
+
+  it('bounds and strips control/bidi characters from an unpublished page id, for a caller that reaches this method directly', async () => {
+    // The executor sanitizes this same message before this driver-level check is ever reached
+    // through it (chat-core commit d1504aa6a). But PageDriver is a public interface, so a caller
+    // bypassing the executor hands `page` in unsanitized — same shape of problem, same fix.
+    const bidiOverride = '‮';
+    const payload = `${bidiOverride}${'w'.repeat(5000)}`;
+    let message = '';
+    try {
+      await makeDriver().navigate(payload);
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).not.toContain(bidiOverride);
+    expect(message).not.toContain('w'.repeat(5000));
+    expect(message.length).toBeLessThan(500);
   });
 });
 

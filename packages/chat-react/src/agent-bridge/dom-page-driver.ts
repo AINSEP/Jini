@@ -4,6 +4,7 @@ import {
   AGENT_PAGE_ATTRIBUTE,
   AGENT_ROLE_ATTRIBUTE,
   AGENT_ELEMENT_ROLES,
+  normalizeAgentLabel,
   resolveHandleSelector,
   type AgentElementDescriptor,
   type AgentElementRawState,
@@ -446,9 +447,19 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       const match = options.find((entry) => entry.text.trim() === option)
         ?? options.find((entry) => entry.value === option);
       if (match === undefined) {
-        const available = options.map((entry) => entry.text.trim()).filter((text) => text.length > 0);
+        // Every other piece of page-authored text this system hands to a model goes through
+        // normalizeAgentLabel first — bounded, control- and bidi-stripped. `available` is exactly
+        // that: the page's own <option> texts, read verbatim with no length bound of their own.
+        // The caller's `option` is sanitized too, for the same reason page.navigate's caller-
+        // supplied `page` now is — an unbounded value reaching a thrown message a model reads is
+        // the same shape of problem regardless of which side authored it. `handle` needs no
+        // treatment: it is already validated ASCII, length-capped by isValidElementHandle before
+        // this driver is ever called.
+        const safeOption = normalizeAgentLabel(option).text;
+        const available = options.map((entry) => normalizeAgentLabel(entry.text.trim()).text)
+          .filter((text) => text.length > 0);
         throw new Error(
-          `"${option}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
+          `"${safeOption}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
         );
       }
       if (control.multiple) {
@@ -463,7 +474,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
         // the control would invent a third state (no selection) that a native <select> cannot hold.
         throw new Error(
           `"${handle}" is a single-select; its choice cannot be removed, only replaced — `
-          + `select a different option instead of deselecting "${option}"`,
+          + `select a different option instead of deselecting "${normalizeAgentLabel(option).text}"`,
         );
       } else {
         // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
@@ -478,8 +489,12 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
 
     async navigate(page) {
       const go = pages[page];
-      // The executor already checked the allowlist; this is the belt on the braces.
-      if (go === undefined) throw new Error(`"${page}" is not a published page`);
+      // The executor already checked the allowlist and sanitizes this same message before this
+      // driver-level check would ever be reached through it; this is the belt on the braces. But
+      // `PageDriver` is a public interface — a caller that reaches this method directly, bypassing
+      // the executor entirely, hands `page` in unsanitized, so the same bound-and-strip treatment
+      // applies here too rather than assuming the only caller is the one that already checked.
+      if (go === undefined) throw new Error(`"${normalizeAgentLabel(page).text}" is not a published page`);
       go();
     },
   };
