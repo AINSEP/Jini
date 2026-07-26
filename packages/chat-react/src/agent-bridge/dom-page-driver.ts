@@ -110,10 +110,20 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
  * `content-visibility` and an empty box at once. Where it is missing, this reports nothing rather
  * than falling back to a layout measurement — a headless DOM has no layout, so that fallback would
  * confidently declare every element invisible.
+ *
+ * The options are passed explicitly rather than relying on the method's defaults: per spec every
+ * option defaults to `false`, so a bare `checkVisibility()` misses `visibility:hidden` and
+ * `opacity:0` ancestors — two of the most common real ways to hide interactive UI (fade
+ * transitions, visually-hidden-but-focusable patterns) — while still correctly reporting
+ * `display:none`. Confirmed in real Chromium: `checkOpacity`/`checkVisibilityCSS` (this build's
+ * spelling) turn a false `visible: true` on a `visibility:hidden`/`opacity:0` ancestor into the
+ * correct `false`; jsdom does not implement the method at all, so no unit test can show this.
  */
 function visibilityOf(element: Element): boolean | undefined {
-  const check = (element as { checkVisibility?: () => boolean }).checkVisibility;
-  return typeof check === 'function' ? check.call(element) : undefined;
+  const check = (element as { checkVisibility?: (options?: CheckVisibilityOptions) => boolean }).checkVisibility;
+  return typeof check === 'function'
+    ? check.call(element, { checkOpacity: true, checkVisibilityCSS: true })
+    : undefined;
 }
 
 /**

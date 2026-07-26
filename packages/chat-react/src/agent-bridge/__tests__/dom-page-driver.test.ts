@@ -277,6 +277,29 @@ describe('describeState', () => {
     expect((await makeDriver().describeState?.('save-button'))?.visible).toBe(false);
   });
 
+  it('asks checkVisibility to also account for visibility:hidden and opacity:0, not just its defaults', async () => {
+    // jsdom does not implement checkVisibility at all, so this cannot prove the *browser's* answer
+    // changes — only that the driver asks the right question. Confirmed separately in real
+    // Chromium (see the function's own doc comment) that the browser's answer does change: a bare
+    // no-arg call reports a `visibility:hidden`/`opacity:0` ancestor as visible, which these
+    // options correct.
+    const seenOptions: unknown[] = [];
+    const button = root.querySelector('[data-agent-element="save-button"]') as HTMLElement
+      & { checkVisibility?: (options?: unknown) => boolean };
+    button.checkVisibility = (options?: unknown) => {
+      seenOptions.push(options);
+      return true;
+    };
+    await makeDriver().describeState?.('save-button');
+    // `describeState` reads `visibilityOf` more than once (once to decide whether to include the
+    // field, once for the value) — asserting on every recorded call rather than the count, so this
+    // stays robust to that detail.
+    expect(seenOptions.length).toBeGreaterThan(0);
+    for (const options of seenOptions) {
+      expect(options).toEqual({ checkOpacity: true, checkVisibilityCSS: true });
+    }
+  });
+
   it('returns null, not an error, when the element is gone — which is itself the observation', async () => {
     const driver = makeDriver();
     root.querySelector('[data-agent-element="save-button"]')?.remove();
