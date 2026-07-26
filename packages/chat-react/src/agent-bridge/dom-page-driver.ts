@@ -52,6 +52,12 @@ function isAgentElementRole(value: string | null): value is AgentElementRole {
  */
 function isEditableRegion(element: Element): element is HTMLElement {
   if (!(element instanceof HTMLElement)) return false;
+  // A control embedded in a rich-text document is still that control. Without this, a real
+  // browser — which, unlike jsdom, propagates `isContentEditable` to every descendant — reports
+  // the Save button inside an editor as a fillable text region, and `fill` overwrites its label
+  // instead of refusing. The type-based refusals in `findFieldFillRefusal` cannot catch that
+  // either, because the descriptor would say `contenteditable` rather than `button`.
+  if (element.matches('input, textarea, select, button, a[href], summary, option')) return false;
   // The attribute is checked before `isContentEditable` because a headless DOM does not compute
   // the latter — relying on it alone makes every one of these tests pass vacuously while the real
   // browser behaves differently. `contenteditable=""` and `"plaintext-only"` are both editable;
@@ -70,9 +76,14 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
     // in any denied set, which is correct — the guard should judge it by name and attributes.
     return {
       type: 'contenteditable',
+      // Read for the same reason `name` is: neither attribute is standard on a div, but a page
+      // that bothers to set one is telling the guard what the field holds, and honouring `name`
+      // while ignoring `autocomplete` would refuse `name="card_number"` and accept the
+      // `autocomplete="cc-number"` spelling of the same field.
+      autocomplete: control.getAttribute('autocomplete')?.toLowerCase() || undefined,
       name: control.getAttribute('name') || undefined,
       id: control.id || undefined,
-      readOnly: false,
+      readOnly: control.getAttribute('aria-readonly') === 'true',
       disabled: control.getAttribute('aria-disabled') === 'true',
     } satisfies FieldDescriptor;
   }
@@ -186,7 +197,13 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     // An editable region IS the control. Descending would find a link inside a rich-text document
     // and address that instead of the text the caller meant to write.
     if (isEditableRegion(element)) return element;
-    if (element instanceof HTMLDetailsElement) return element.querySelector('summary') ?? element;
+    // `:scope >` because only a *direct child* `<summary>` is the disclosure control. An
+    // unscoped query returns the first summary anywhere in the subtree, so a `<details>`
+    // containing another one would toggle the inner disclosure while reporting that the outer
+    // handle was clicked — the false success this whole suite exists to catch.
+    if (element instanceof HTMLDetailsElement) {
+      return element.querySelector(':scope > summary') ?? element;
+    }
     return element.matches('input, textarea, select, button, a')
       ? element
       : element.querySelector('input, textarea, select, button, a, summary') ?? element;

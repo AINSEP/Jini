@@ -125,6 +125,18 @@ describe('click across the activatable elements', () => {
     expect((root.querySelector('details') as HTMLDetailsElement).open).toBe(true);
   });
 
+  it('toggles the outer <details>, not a nested one that owns the first <summary>', async () => {
+    // Only a direct-child <summary> is the disclosure control. Querying the whole subtree finds
+    // the inner one first, opens *that*, and reports the outer handle as clicked.
+    mount(`<details data-agent-element="outer">
+      <details id="inner"><summary>inner</summary><p>inner body</p></details>
+      <summary>own</summary>
+    </details>`);
+    await makeDriver().click('outer');
+    expect((root.querySelector('[data-agent-element="outer"]') as HTMLDetailsElement).open).toBe(true);
+    expect((root.querySelector('#inner') as HTMLDetailsElement).open).toBe(false);
+  });
+
   it('clicks a <details> that has no <summary>, without descending into its body', async () => {
     // Malformed but legal markup. Falling back to the element itself is the honest answer —
     // there is no disclosure control to press.
@@ -205,6 +217,41 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     // refused exactly as an <input> of that name would be.
     mount('<div data-agent-element="target" data-agent-role="field" contenteditable="true" name="card_number"></div>');
     expect(await makeDriver().describeField('target')).toMatchObject({ name: 'card_number' });
+  });
+
+  it('reports the same guard signals for a contenteditable as for an input', async () => {
+    // `autocomplete` is no more standard on a div than `name` is, but reading one and not the
+    // other refuses `name="card_number"` while accepting `autocomplete="cc-number"` — the same
+    // field, spelled the way the denied-token list actually recognises.
+    mount('<div data-agent-element="target" contenteditable="true" autocomplete="cc-number" aria-readonly="true"></div>');
+    expect(await makeDriver().describeField('target')).toMatchObject({
+      autocomplete: 'cc-number',
+      readOnly: true,
+    });
+  });
+
+  it('does not treat a control inside an editable region as fillable text', async () => {
+    // jsdom never computes `isContentEditable`, so the inherited-editability branch is invisible
+    // to every other test here. A real engine sets it on every descendant — including the Save
+    // button of a rich-text editor, whose label `fill` would otherwise overwrite.
+    mount('<div contenteditable="true"><button data-agent-element="save">Save</button></div>');
+    const button = root.querySelector('[data-agent-element="save"]') as HTMLElement;
+    Object.defineProperty(button, 'isContentEditable', { value: true, configurable: true });
+
+    expect(await makeDriver().describeField('save')).toBeNull();
+    await expect(makeDriver().fill('save', 'pwned')).rejects.toThrow(/not a fillable field/);
+    expect(button.textContent).toBe('Save');
+  });
+
+  it('fills a region that inherits its editability from an ancestor', async () => {
+    // The other half of that branch: a plain region inside an editor is genuinely editable text,
+    // and stays fillable.
+    mount('<div contenteditable="true"><p data-agent-element="para">old</p></div>');
+    const para = root.querySelector('[data-agent-element="para"]') as HTMLElement;
+    Object.defineProperty(para, 'isContentEditable', { value: true, configurable: true });
+
+    await makeDriver().fill('para', 'new');
+    expect(para.textContent).toBe('new');
   });
 
   it('accumulates options on a multi-select instead of replacing the selection', async () => {
