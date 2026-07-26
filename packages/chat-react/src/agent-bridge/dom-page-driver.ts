@@ -54,7 +54,15 @@ export interface DomPageDriverOptions {
   readonly root: ParentNode & { querySelector: Element['querySelector'] };
   /** Page ids this driver may navigate to, and how to get there. */
   readonly pages: Readonly<Record<string, () => void>>;
-  /** The id of the page currently shown, reported on every element. */
+  /**
+   * The id of the page currently shown, reported on every element.
+   *
+   * Omit it in a single-page app that swaps views: the driver then reads `data-agent-page` from
+   * the live DOM on every call, so navigating actually changes what elements report. A value
+   * captured here is fixed for the driver's whole lifetime, which is right only for a surface that
+   * never changes view — and silently wrong for one that does, since the driver outlives any one
+   * view (it is bound to the connection, not the render).
+   */
   readonly currentPage?: string | undefined;
 }
 
@@ -65,7 +73,9 @@ export interface DomPageDriverOptions {
  * @returns A driver ready to hand to `executePageCapability`.
  */
 export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
-  const { root, pages, currentPage } = options;
+  const { root, pages } = options;
+  /** Static when the host pinned one, otherwise read live so a view swap is reflected. */
+  const resolvePage = (): string | undefined => options.currentPage ?? currentAgentPage(root);
   /** Timers keyed by handle, so re-highlighting the same element restarts rather than stacks. */
   const highlightTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -83,8 +93,9 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
 
   return {
     async findElements(filter: FindElementsFilter) {
+      const page = resolvePage();
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
-        .map((element) => describe(element, currentPage))
+        .map((element) => describe(element, page))
         .filter((element) => element.handle.length > 0);
       const query = filter.query?.toLowerCase();
       return found.filter((element) => {

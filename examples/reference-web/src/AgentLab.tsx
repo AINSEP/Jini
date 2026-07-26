@@ -9,6 +9,7 @@ import {
 import { uploadChatAttachments } from './attachments.js';
 import { ChatFab } from './ChatFab.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
+import { EMPTY_SUBMISSION, LabSignupForm, LabSummary, type SignupSubmission } from './LabPages.js';
 import { PLAYGROUND_RUNTIME_ACCESS } from './runtime-access.js';
 
 /**
@@ -39,10 +40,17 @@ const INITIAL_ITEMS: LabItem[] = [
  * The page ids this surface can navigate between, and how. `page.navigate` is checked against
  * these keys, so a page absent here is unreachable no matter what a caller asks for.
  */
-const LAB_PAGES: Record<string, () => void> = {
-  'agent-lab': () => { globalThis.location.hash = '#/agent-lab'; },
-  playground: () => { globalThis.location.hash = '#/'; },
-};
+type LabView = 'agent-lab' | 'signup-form' | 'submission';
+
+/**
+ * Where this surface can navigate. `page.navigate` is checked against these keys, so a view absent
+ * here is unreachable no matter what a caller asks for.
+ *
+ * The three in-surface views swap a React state rather than the URL: one connection, one driver,
+ * several views — which is what a real single-page product does, and what a full navigation would
+ * break by tearing the surface down mid-run.
+ */
+const LAB_VIEWS: readonly LabView[] = ['agent-lab', 'signup-form', 'submission'];
 
 const LAB_CHAT_TRANSPORT = createDaemonChatTransport();
 
@@ -75,6 +83,12 @@ export function AgentLab() {
   const [status, setStatus] = useState('Ready.');
   const [chatOpen, setChatOpen] = useState(false);
   const [bridge, setBridge] = useState<FrontendSessionBridge | null>(null);
+  const [view, setView] = useState<LabView>('agent-lab');
+  const [signup, setSignup] = useState<SignupSubmission>(EMPTY_SUBMISSION);
+  const [submitted, setSubmitted] = useState<SignupSubmission>(EMPTY_SUBMISSION);
+  /** Read by the navigation map, which must keep one identity for the driver's whole lifetime. */
+  const navigateRef = useRef<(next: LabView) => void>(() => undefined);
+  navigateRef.current = setView;
   const rootRef = useRef<HTMLElement>(null);
   /** Read at send time, not render time — the token arrives asynchronously, after attach. */
   const bindTokenRef = useRef<string | undefined>(undefined);
@@ -89,6 +103,11 @@ export function AgentLab() {
     [bridge],
   );
 
+  const labPages = useMemo<Record<string, () => void>>(() => ({
+    ...Object.fromEntries(LAB_VIEWS.map((id) => [id, () => navigateRef.current(id)])),
+    playground: () => { globalThis.location.hash = '#/'; },
+  }), []);
+
   /**
    * The daemon-relayed control channel, replacing the `window.__jiniAgentLab` stopgap this page
    * used to publish. That global was a capability handed to every script on the page; the same
@@ -100,7 +119,9 @@ export function AgentLab() {
     if (!root) return;
     // Scoped to this page's subtree, never `document` — scanning everything would make any
     // markup on the page an authorization decision.
-    const driver = createDomPageDriver({ root, pages: LAB_PAGES, currentPage: 'agent-lab' });
+    // No `currentPage`: the driver reads `data-agent-page` from whichever view is mounted, so a
+    // page.navigate actually changes what elements report themselves as belonging to.
+    const driver = createDomPageDriver({ root, pages: labPages });
     const session = createFrontendSessionBridge({
       pageDriver: driver,
       // The activity trail the design debate flagged as missing: the user can see the agent
@@ -117,7 +138,7 @@ export function AgentLab() {
       setBridge(null);
       bindTokenRef.current = undefined;
     };
-  }, []);
+  }, [labPages]);
 
   const toggle = (id: string) => {
     setItems((current) =>
@@ -140,7 +161,9 @@ export function AgentLab() {
 
   return (
     <div className={`agent-lab-shell${chatOpen ? ' agent-lab-shell-open' : ''}`}>
-      <main className="agent-lab" data-agent-page="agent-lab" ref={rootRef}>
+      <main className="agent-lab" ref={rootRef}>
+        {view === 'agent-lab' && (
+        <section data-agent-page="agent-lab">
       <header
         data-agent-element="lab-header"
         data-agent-role="region"
@@ -170,6 +193,16 @@ export function AgentLab() {
         >
           Plain HTML sample →
         </a>
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setView('signup-form')}
+          data-agent-element="link-signup-form"
+          data-agent-role="link"
+          data-agent-label="Open the workspace signup form on this surface"
+        >
+          Signup form →
+        </button>
       </nav>
 
       <form
@@ -264,6 +297,21 @@ export function AgentLab() {
           {status}
         </span>
       </footer>
+        </section>
+        )}
+
+        {view === 'signup-form' && (
+          <LabSignupForm
+            value={signup}
+            onChange={setSignup}
+            onSubmit={() => { setSubmitted(signup); setStatus('Workspace submitted.'); setView('submission'); }}
+            onCancel={() => { setStatus('Signup cancelled.'); setView('agent-lab'); }}
+          />
+        )}
+
+        {view === 'submission' && (
+          <LabSummary submission={submitted} onBack={() => setView('agent-lab')} />
+        )}
       </main>
 
       {/*

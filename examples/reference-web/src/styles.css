@@ -1005,3 +1005,64 @@ button {
 .chat-fab-open {
   background: var(--muted, #52525b);
 }
+
+/*
+ * The lab's additional views. One surface, several views — so these deliberately reuse the
+ * `.agent-lab` container's spacing rather than establishing their own layout: an agent navigating
+ * between them should find the same shapes, not a different app.
+ */
+.lab-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.lab-page form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lab-page label.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.lab-page dl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.lab-page dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #e4e4e7);
+  border-radius: 8px;
+}
+
+.lab-page dt {
+  color: var(--muted, #52525b);
+}
+
+.lab-page dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+/* A button that reads as a link, so the nav row stays one visual group. */
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent, #4f46e5);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
