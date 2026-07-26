@@ -50,13 +50,37 @@ export const DEFAULT_FRONTEND_CAPABILITY_TIMEOUT_MS = 30_000;
 
 /**
  * The minimum a manifest entry must describe. Structural on purpose — see the module doc.
+ *
+ * Every field here exists on `@jini/chat-core`'s `CapabilityDef`, so a manifest satisfies this
+ * without conversion. The first version of this type accepted only `id`, `description`, and
+ * `requiresConfirmation` and silently dropped the rest, which made the projection **lossy**: a
+ * registered capability could no longer say what arguments it took or how dangerous it was, so
+ * nothing downstream could describe it to an agent or reason about it. Discovery cannot be correct
+ * on top of a projection that has already thrown the answer away.
  */
 export interface FrontendCapabilitySpec {
   readonly id: string;
   readonly description: string;
   /** Surfaced on the descriptor so `ToolExecutor`'s confirmation gate enforces it. */
   readonly requiresConfirmation?: boolean;
+  /** Carried onto `ToolDescriptor.inputSchema` so a discovery surface can state the arguments. */
+  readonly inputSchema?: unknown;
 }
+
+/**
+ * Deliberately NOT projected yet: `CapabilityDef`'s `risk` and `surface`.
+ *
+ * They belong on whatever a discovery surface returns — `risk` labels how dangerous a capability
+ * is, and `surface` says whether "no frontend is bound" is a temporary condition or a permanent
+ * refusal, which decides whether a caller should wait or give up. But nothing reads them until
+ * that surface exists, and a public type carrying fields no code consumes is indistinguishable
+ * from one carrying fields whose consumer was deleted. They graduate here when the catalog that
+ * needs them lands, together with the decision about whether they belong on `ToolDescriptor` (and
+ * so on `ToolRegistry.list()`) or are joined from the host's manifest.
+ *
+ * A host still loses nothing today: a `CapabilityDef` satisfies {@link FrontendCapabilitySpec}
+ * structurally with those fields intact on the value it already holds.
+ */
 
 export interface CreateFrontendCapabilityRegistrationsOptions {
   readonly registry: FrontendSessionRegistry;
@@ -119,6 +143,10 @@ export function createFrontendCapabilityRegistrations(
       ...(capability.requiresConfirmation !== undefined
         ? { requiresConfirmation: capability.requiresConfirmation }
         : {}),
+      // Absent rather than `undefined`: a descriptor that *has* an `inputSchema` key holding
+      // `undefined` is indistinguishable from one describing a schemaless tool once serialized,
+      // and a catalog would render "takes no arguments" for a capability that takes several.
+      ...(capability.inputSchema !== undefined ? { inputSchema: capability.inputSchema } : {}),
       ...(maxOutputBytes !== undefined ? { maxOutputBytes } : {}),
     },
     policy,

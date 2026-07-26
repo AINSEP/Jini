@@ -32,6 +32,17 @@ export interface RunRef {
 export interface ToolDescriptor {
   readonly id: string;
   readonly description?: string;
+  /**
+   * JSON-Schema-shaped description of this tool's accepted input, carried as `unknown` because the
+   * kernel neither parses nor validates it — a schema dialect is a consumer concern, and taking a
+   * validator dependency here would put one in every package that touches a registry.
+   *
+   * It exists because *every* discovery mechanism needs it and nothing else in the kernel can
+   * supply it: a caller that can enumerate `ToolRegistry.list()` still cannot tell an agent what
+   * arguments a tool takes, which reduces discovery to guess-and-check against an opaque id.
+   * Optional and additive, so no existing registration changes shape.
+   */
+  readonly inputSchema?: unknown;
   /** When true, `ToolExecutor` asks the transport's `ExecutionDelegate.onConfirm` before running, in addition to authorization. */
   readonly requiresConfirmation?: boolean;
   /** Milliseconds before `ToolExecutor` aborts an in-flight call and reports `'timed-out'`. Omit for no timeout. */

@@ -101,6 +101,56 @@ describe('createFrontendCapabilityRegistrations', () => {
       expect(click?.descriptor).not.toHaveProperty('requiresConfirmation');
     });
 
+    it('carries inputSchema onto the descriptor so ToolRegistry.list() can describe the arguments', () => {
+      const { registry } = recordingRegistry();
+      const schema = {
+        type: 'object',
+        properties: { element: { type: 'string' } },
+        required: ['element'],
+        additionalProperties: false,
+      };
+
+      const [registration] = createFrontendCapabilityRegistrations({
+        registry,
+        capabilities: [{ ...PAGE_CLICK, inputSchema: schema }],
+      });
+
+      expect(registration?.descriptor.inputSchema).toEqual(schema);
+    });
+
+    // Present-but-undefined and absent serialize identically, so a catalog would render
+    // "takes no arguments" for a capability that takes several.
+    it('omits inputSchema entirely rather than setting it to undefined', () => {
+      const { registry } = recordingRegistry();
+
+      const [registration] = createFrontendCapabilityRegistrations({
+        registry,
+        capabilities: [PAGE_CLICK],
+      });
+
+      expect(registration?.descriptor).not.toHaveProperty('inputSchema');
+    });
+
+    it('accepts a full CapabilityDef-shaped manifest entry without conversion', () => {
+      const { registry } = recordingRegistry();
+      // The shape @jini/chat-core's PAGE_CAPABILITIES entries actually have, extra fields and all.
+      const capabilityDef = {
+        id: 'page.fill',
+        description: 'Type text into one input field.',
+        inputSchema: { type: 'object', properties: { element: { type: 'string' } } },
+        risk: 'write' as const,
+        surface: 'session' as const,
+      };
+
+      const [registration] = createFrontendCapabilityRegistrations({
+        registry,
+        capabilities: [capabilityDef],
+      });
+
+      expect(registration?.descriptor.id).toBe('page.fill');
+      expect(registration?.descriptor.inputSchema).toEqual(capabilityDef.inputSchema);
+    });
+
     it('carries maxOutputBytes through when supplied, and omits it when not', () => {
       const { registry } = recordingRegistry();
 
