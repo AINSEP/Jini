@@ -44,6 +44,15 @@ export const FRONTEND_SESSION_RESPONSE_ROUTE_PATH = '/api/frontend-sessions/:ses
 export interface FrontendSessionAttachedEvent {
   readonly type: 'attached';
   readonly sessionId: string;
+  /**
+   * Secret this surface presents to bind a run to itself. Delivered here and nowhere else: this
+   * stream is the one channel already proven to belong to the surface that opened it.
+   *
+   * Never put this in a URL, a query string, or a log. It is separate from `sessionId` precisely
+   * because that id already travels in a request path (`…/:sessionId/responses`) and therefore
+   * leaks into access logs and proxies by design — see `@jini/daemon`'s `FrontendSessionHandle`.
+   */
+  readonly bindToken: string;
 }
 
 /** One capability call for the surface to execute. */
@@ -170,7 +179,11 @@ export function handleFrontendSessionStream(
     (invocation) => connection.send({ type: 'invocation', ...invocation } satisfies FrontendSessionInvocationEvent),
   );
 
-  connection.send({ type: 'attached', sessionId } satisfies FrontendSessionAttachedEvent);
+  connection.send({
+    type: 'attached',
+    sessionId,
+    bindToken: handle.bindToken,
+  } satisfies FrontendSessionAttachedEvent);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

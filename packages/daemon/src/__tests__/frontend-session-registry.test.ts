@@ -60,6 +60,27 @@ describe('createFrontendSessionRegistry', () => {
       await expect(pending).rejects.toThrow(/refusing to fill "password"/);
     });
 
+    it('mints a bind token distinct from the session id', () => {
+      const registry = createFrontendSessionRegistry();
+
+      const handle = registry.attach({ sessionId: 'session-1', capabilities: [] }, () => undefined);
+
+      expect(handle.bindToken).toEqual(expect.any(String));
+      expect(handle.bindToken).not.toBe('');
+      // The whole point: the session id travels in a URL path and therefore leaks into logs and
+      // proxies. If the token were the same value, separating them would buy nothing.
+      expect(handle.bindToken).not.toBe(handle.sessionId);
+    });
+
+    it('gives every surface its own token', () => {
+      const registry = createFrontendSessionRegistry();
+
+      const first = registry.attach({ sessionId: 's-1', capabilities: [] }, () => undefined);
+      const second = registry.attach({ sessionId: 's-2', capabilities: [] }, () => undefined);
+
+      expect(first.bindToken).not.toBe(second.bindToken);
+    });
+
     it('mints its own invocation id rather than trusting the surface', async () => {
       const registry = createFrontendSessionRegistry();
       const surface = attachAndBind(registry, 'session-1', 'run-1');
@@ -166,6 +187,88 @@ describe('createFrontendSessionRegistry', () => {
       first.unbind();
 
       expect(registry.sessionFor('run-1')?.sessionId).toBe('session-2');
+    });
+  });
+
+  // `bindRun` trusts its sessionId argument, which is right for a composition root and unsafe for
+  // anything a caller supplied — session ids travel in URL paths and leak into logs. The token is
+  // the wire-safe form.
+  describe('binding by token', () => {
+    it('binds the run to the surface holding the token', async () => {
+      const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
+      const surface = recordingSurface();
+      const handle = registry.attach({ sessionId: 'session-1', capabilities: ['page.click'] }, surface.deliver);
+
+      registry.bindRunByToken('run-1', handle.bindToken);
+      void registry.invoke('run-1', 'page.click', { element: 'save' }).catch(() => undefined);
+
+      expect(registry.sessionFor('run-1')?.sessionId).toBe('session-1');
+      expect(surface.delivered).toHaveLength(1);
+    });
+
+    it('returns a working unbind, like bindRun does', async () => {
+      const registry = createFrontendSessionRegistry();
+      const handle = registry.attach({ sessionId: 'session-1', capabilities: ['page.click'] }, () => undefined);
+
+      const unbind = registry.bindRunByToken('run-1', handle.bindToken);
+      unbind();
+
+      expect(registry.sessionFor('run-1')).toBeUndefined();
+    });
+
+    it('refuses a token that was never issued', () => {
+      const registry = createFrontendSessionRegistry();
+      registry.attach({ sessionId: 'session-1', capabilities: [] }, () => undefined);
+
+      expect(() => registry.bindRunByToken('run-1', 'not-a-real-token')).toThrow(
+        'cannot bind run "run-1" — unknown or expired bind token',
+      );
+      expect(registry.sessionFor('run-1')).toBeUndefined();
+    });
+
+    it('refuses a token whose surface has detached, so a token dies with its surface', () => {
+      const registry = createFrontendSessionRegistry();
+      const handle = registry.attach({ sessionId: 'session-1', capabilities: [] }, () => undefined);
+      const token = handle.bindToken;
+
+      handle.detach();
+
+      expect(() => registry.bindRunByToken('run-1', token)).toThrow(/unknown or expired bind token/);
+    });
+
+    // A different message for "wrong token" than for "expired token" tells a caller whether a
+    // guess was close, which is the only feedback a probe needs.
+    it('reports an expired token identically to an unknown one', () => {
+      const registry = createFrontendSessionRegistry();
+      const handle = registry.attach({ sessionId: 'session-1', capabilities: [] }, () => undefined);
+      handle.detach();
+
+      const expired = ((): string => {
+        try { registry.bindRunByToken('run-1', handle.bindToken); return ''; }
+        catch (error) { return (error as Error).message; }
+      })();
+      const unknown = ((): string => {
+        try { registry.bindRunByToken('run-1', 'never-issued'); return ''; }
+        catch (error) { return (error as Error).message; }
+      })();
+
+      expect(expired).toBe(unknown);
+    });
+
+    // States the threat model exactly, including its limit: the token IS the authority, so
+    // whoever holds it can bind. What this closes is that *knowing a session id* — a value the
+    // system prints into URLs and therefore into logs — is no longer sufficient.
+    it('treats the token as the authority and the session id as merely an address', () => {
+      const registry = createFrontendSessionRegistry();
+      const surface = registry.attach({ sessionId: 'victim-tab', capabilities: ['page.click'] }, () => undefined);
+
+      // Knowing the session id is not enough. That is the whole point of the separation.
+      expect(() => registry.bindRunByToken('other-run', 'victim-tab')).toThrow(/unknown or expired/);
+
+      // Holding the token is sufficient by design — which is why it is delivered only on that
+      // surface's own stream and never appears in a request path.
+      registry.bindRunByToken('other-run', surface.bindToken);
+      expect(registry.sessionFor('other-run')?.sessionId).toBe('victim-tab');
     });
   });
 

@@ -57,7 +57,7 @@ describe('registerFrontendSessionRoutes', () => {
   }
 
   it('serves a real SSE stream and routes a capability call through it end to end', async () => {
-    const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
+    const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1', newBindToken: () => 'bind-1' });
     const base = await listen(makeDeps(registry));
 
     const controller = new AbortController();
@@ -79,7 +79,7 @@ describe('registerFrontendSessionRoutes', () => {
       }
     };
 
-    expect(await readEvent()).toEqual({ type: 'attached', sessionId: 'session-1' });
+    expect(await readEvent()).toEqual({ type: 'attached', sessionId: 'session-1', bindToken: 'bind-1' });
 
     registry.bindRun('run-1', 'session-1');
     const pending = registry.invoke('run-1', 'page.click', { element: 'save-button' });
@@ -215,12 +215,12 @@ describe('parseCapabilityQuery', () => {
 
 describe('handleFrontendSessionStream', () => {
   it('attaches the surface and reports the minted session id as the first event', () => {
-    const registry = createFrontendSessionRegistry();
+    const registry = createFrontendSessionRegistry({ newBindToken: () => 'bind-1' });
     const { req, res, raw } = makeReqRes({ capability: ['page.click', 'page.fill'] });
 
     handleFrontendSessionStream(req, res, makeDeps(registry));
 
-    expect(sentEvents(raw)).toEqual([{ type: 'attached', sessionId: 'session-1' }]);
+    expect(sentEvents(raw)).toEqual([{ type: 'attached', sessionId: 'session-1', bindToken: 'bind-1' }]);
     registry.bindRun('run-1', 'session-1');
     expect(registry.capabilitiesFor('run-1')).toEqual(['page.click', 'page.fill']);
   });
@@ -257,13 +257,13 @@ describe('handleFrontendSessionStream', () => {
   });
 
   it('never mints a session id the caller supplied', () => {
-    const registry = createFrontendSessionRegistry();
+    const registry = createFrontendSessionRegistry({ newBindToken: () => 'bind-1' });
     // An id chosen by the caller could collide with, or impersonate, an attached session.
     const { req, res, raw } = makeReqRes({ capability: 'page.click', sessionId: 'attacker-chosen' });
 
     handleFrontendSessionStream(req, res, makeDeps(registry));
 
-    expect(sentEvents(raw)[0]).toEqual({ type: 'attached', sessionId: 'session-1' });
+    expect(sentEvents(raw)[0]).toEqual({ type: 'attached', sessionId: 'session-1', bindToken: 'bind-1' });
   });
 
   it('reports a bad capability query as an SSE error event and closes, attaching nothing', () => {

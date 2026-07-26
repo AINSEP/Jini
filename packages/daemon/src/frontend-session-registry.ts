@@ -66,6 +66,17 @@ export type FrontendOutcome =
 export interface FrontendSessionHandle {
   readonly sessionId: string;
   /**
+   * Secret that proves a caller is the surface this handle belongs to, and the only thing that
+   * may cross a wire to bind a run (see {@link FrontendSessionRegistry.bindRunByToken}).
+   *
+   * Separate from `sessionId` on purpose. The session id is *addressing*, not authority: it
+   * appears in a URL path (`/api/frontend-sessions/:sessionId/responses`), and URLs leak by
+   * default — into access logs, proxies, browser history, `Referer` headers, and crash reports.
+   * Binding a run is the act that hands an agent control of a real user's screen, so it must not
+   * be authorized by a value the system is already scattering across places designed to be read.
+   */
+  readonly bindToken: string;
+  /**
    * Detaches the surface. Every invocation still awaiting it is rejected rather than left pending,
    * so a closed tab surfaces as a failed tool call instead of a run that never finishes.
    */
@@ -95,6 +106,22 @@ export interface FrontendSessionRegistry {
    * produce calls that hang until their tool timeout instead of failing immediately.
    */
   bindRun(runId: string, sessionId: string): () => void;
+  /**
+   * Binds a run to whichever surface holds `bindToken` — the wire-safe form of {@link bindRun}.
+   *
+   * **Use this for anything a caller supplied.** `bindRun` trusts its `sessionId` argument
+   * completely, which is correct for a composition root choosing among surfaces it already knows
+   * about, and unsafe the moment the id came from outside: session ids travel in URLs, so a caller
+   * that observed one in a log could bind *its* run to *someone else's* tab and drive that screen.
+   * A bind token is minted per surface, delivered once over that surface's own stream, and never
+   * appears in a URL.
+   *
+   * @returns The same unbind function `bindRun` returns.
+   * @throws If no attached surface holds this token. The message deliberately does not
+   * distinguish "never existed" from "detached" — telling a caller which one it guessed is how a
+   * probe learns whether a token is worth retrying.
+   */
+  bindRunByToken(runId: string, bindToken: string): () => void;
   /**
    * Routes one capability call to the surface bound to `runId` and resolves with its output.
    *
@@ -127,6 +154,14 @@ export interface FrontendSessionRegistry {
 export interface CreateFrontendSessionRegistryOptions {
   /** Injectable id source for invocation ids — defaults to `randomUUID`. Test-only hook. */
   readonly newInvocationId?: () => string;
+  /**
+   * Injectable source for bind tokens — defaults to `randomUUID`. Test-only hook.
+   *
+   * A production override must be unguessable: this value is the sole authority for binding a run
+   * to a surface, so a predictable sequence would reintroduce exactly the hazard
+   * {@link FrontendSessionRegistry.bindRunByToken} exists to close.
+   */
+  readonly newBindToken?: () => string;
 }
 
 interface PendingInvocation {
@@ -156,8 +191,11 @@ export function createFrontendSessionRegistry(
   options: CreateFrontendSessionRegistryOptions = {},
 ): FrontendSessionRegistry {
   const newInvocationId = options.newInvocationId ?? randomUUID;
+  const newBindToken = options.newBindToken ?? randomUUID;
   const sessions = new Map<string, AttachedSession>();
   const runBindings = new Map<string, string>();
+  /** bind token → session id. Cleared on detach, so a token dies with the surface it proves. */
+  const bindTokens = new Map<string, string>();
 
   /** Resolves the surface that may serve this call, or explains precisely what is missing. */
   function resolveTarget(runId: string, capabilityId: string): AttachedSession {
@@ -184,11 +222,15 @@ export function createFrontendSessionRegistry(
     }
     const session: AttachedSession = { descriptor, deliver, pending: new Map() };
     sessions.set(descriptor.sessionId, session);
+    const bindToken = newBindToken();
+    bindTokens.set(bindToken, descriptor.sessionId);
 
     return {
       sessionId: descriptor.sessionId,
+      bindToken,
       detach(): void {
         sessions.delete(descriptor.sessionId);
+        bindTokens.delete(bindToken);
         for (const [runId, boundTo] of runBindings) {
           if (boundTo === descriptor.sessionId) runBindings.delete(runId);
         }
@@ -211,6 +253,17 @@ export function createFrontendSessionRegistry(
       // have its newer binding torn down by the older one\'s cleanup.
       if (runBindings.get(runId) === sessionId) runBindings.delete(runId);
     };
+  }
+
+  function bindRunByToken(runId: string, bindToken: string): () => void {
+    const sessionId = bindTokens.get(bindToken);
+    // One message for both "no such token" and "the surface holding it detached". Distinguishing
+    // them tells a caller whether a guess was close, which is the feedback a probe needs and the
+    // only feedback it needs.
+    if (sessionId === undefined) {
+      throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" — unknown or expired bind token`);
+    }
+    return bindRun(runId, sessionId);
   }
 
   // `async` so that a routing refusal from `resolveTarget` surfaces as a rejected promise like
@@ -273,5 +326,5 @@ export function createFrontendSessionRegistry(
     return sessionFor(runId)?.capabilities ?? [];
   }
 
-  return { attach, bindRun, invoke, settle, capabilitiesFor, sessionFor };
+  return { attach, bindRun, bindRunByToken, invoke, settle, capabilitiesFor, sessionFor };
 }
