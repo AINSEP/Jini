@@ -105,6 +105,26 @@ describe('findFieldFillRefusal', () => {
     expect(findFieldFillRefusal({ type: 'text', accessibleLabel: 'CVV Code' })).toBe('suspicious-name');
   });
 
+  it('does not refuse ordinary fields that happen to contain pin/pan as a substring', () => {
+    // Guards against a future edit adding bare "pin" or "pan" to SUSPICIOUS_NAME: both are real
+    // PCI/banking terms, but as bare substrings they collide with ordinary field names once
+    // separators are squashed out — "shipping" contains "pin", "company" contains "pan".
+    expect(findFieldFillRefusal({ type: 'text', name: 'shipping_address' })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', name: 'company_name' })).toBeNull();
+    expect(findFieldReadRefusal({ type: 'text', id: 'shipping-address' })).toBeNull();
+    expect(findFieldReadRefusal({ type: 'text', accessibleLabel: 'Company name' })).toBeNull();
+  });
+
+  it('catches the additional credential/payment/recovery spellings', () => {
+    for (const name of [
+      'cc-number', 'card_num', 'account_number', 'routing_number', 'iban', 'sort_code',
+      'security_code', 'passphrase', 'private_key', 'client_secret', 'access_key', 'secret_key',
+      'recovery_code', 'backup_code', 'mfa_code',
+    ]) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBe('suspicious-name');
+    }
+  });
+
   it('refuses fields the user could not type into either', () => {
     expect(findFieldFillRefusal({ type: 'text', readOnly: true })).toBe('read-only');
     expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');

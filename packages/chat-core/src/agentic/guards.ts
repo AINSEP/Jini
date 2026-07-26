@@ -48,7 +48,15 @@ const DENIED_AUTOCOMPLETE = new Set([
  * spellings people actually use. `api_key`, `api-key` and `apiKey` are all the same field; a
  * literal-substring match sees only the last one, which is the least common of the three.
  */
-const SUSPICIOUS_NAME = /(?:password|passwd|secret|token|csrf|xsrf|otp|cvv|cvc|ssn|creditcard|cardnumber|apikey)/i;
+const SUSPICIOUS_NAME =
+  /(?:password|passwd|secret|token|csrf|xsrf|otp|cvv|cvc|ssn|creditcard|cardnumber|apikey|ccnumber|cardnum|accountnumber|routing|iban|sortcode|securitycode|passphrase|privatekey|clientsecret|accesskey|secretkey|recoverycode|backupcode|mfa)/i;
+
+// Deliberately NOT added as bare substrings, even though both are real PCI/banking terms
+// ("pin", "PAN" — Primary Account Number): they collide with ordinary field names once
+// separators are squashed out. `shipping` contains "pin"; `company` contains "pan". Adding
+// either here would refuse a large share of legitimate, non-sensitive fields. See
+// guards.test.ts's "does not refuse ordinary fields that happen to contain pin/pan as a
+// substring" test — it exists specifically so a future edit cannot add either back silently.
 
 /**
  * Drops everything that is not a letter or digit, so separator conventions do not decide whether
