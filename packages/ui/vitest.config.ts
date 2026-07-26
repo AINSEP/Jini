@@ -99,9 +99,9 @@ export default defineConfig({
         // verified with the same grep before excluding.
         'src/features/resource-dashboard/types.ts',
         'src/features/resource-dashboard/ports.ts',
-        // rich-text-input/types.ts is pure `interface`/`type` declarations,
-        // zero runtime statements (same verification check).
-        'src/features/rich-text-input/types.ts',
+        // lexical-rich-text-editor/types.ts is pure `interface`/`type`
+        // declarations, zero runtime statements (same verification check).
+        'src/features/lexical-rich-text-editor/types.ts',
         // iframe-pool/types.ts is likewise pure `interface` declarations,
         // zero runtime statements (same verification grep).
         'src/features/iframe-pool/types.ts',

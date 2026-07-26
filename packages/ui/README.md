@@ -249,8 +249,11 @@ Real content has landed in several parallel passes — see
   `packages/ui/source-map.md` for the full writeup, including what was
   deliberately left behind (the OD-specific color-selection heuristic that
   consumes the math, not the math itself).
-- `src/features/rich-text-input/` — a real Lexical (Meta's rich-text
-  framework) editor integration ported from OD's chat composer
+- `src/features/lexical-rich-text-editor/` (renamed from `rich-text-input/`,
+  2026-07-26, once a second, TipTap-based editor became a planned sibling and
+  `rich-text-input` stopped being an unambiguous name — see
+  `packages/ui/source-map.md`'s dated rename entry) — a real Lexical (Meta's
+  rich-text framework) editor integration ported from OD's chat composer
   (2026-07-18): editor setup/config, an atomic `@mention`/`/command`
   token node type (generic, host-injected `resolveMentionColor` instead of
   importing OD's connector-brand-color logic), a caret-floating-layer
@@ -268,7 +271,7 @@ Real content has landed in several parallel passes — see
 Section B (vertical-slice `features/<domain>/` work: `byok-config`,
 `mcp-config`) and section C (cross-package routing) of the extraction plan
 are not started. `workspace-tabs` (renamed `tab-strip`, see the
-Consolidation map's naming-reconciliation note) and `rich-text-input` are
-now landed, per above — no longer in this "not started" list. The
-god-components-extraction-plan.md list beyond the features enumerated
-above is also not started.
+Consolidation map's naming-reconciliation note) and `rich-text-input`
+(renamed `lexical-rich-text-editor`, 2026-07-26) are now landed, per above —
+no longer in this "not started" list. The god-components-extraction-plan.md
+list beyond the features enumerated above is also not started.
