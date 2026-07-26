@@ -132,6 +132,11 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
     ...(raw.checked !== undefined ? { checked: raw.checked } : {}),
     ...(raw.disabled !== undefined ? { disabled: raw.disabled } : {}),
     ...(raw.visible !== undefined ? { visible: raw.visible } : {}),
+    // Bounded like every other page-authored string, but never withheld: the options a dropdown
+    // offers are part of the UI's shape, not the user's data.
+    ...(raw.options !== undefined
+      ? { options: raw.options.map((option) => normalizeAgentLabel(option).text) }
+      : {}),
   };
 
   if (raw.value === undefined) return base;
@@ -311,6 +316,17 @@ export async function executePageCapability(
 
       const observation = await observeWrite(driver, handle, () => driver.fill(handle, text));
       return { filled: handle, ...observation };
+    }
+
+    case 'page.select_option': {
+      const handle = requireHandle(input, 'element');
+      // Required and string-typed by the manifest, already enforced above. See page.fill.
+      const option = input['option'] as string;
+      // No field guard: a dropdown's options are authored by the page, so choosing one reveals
+      // nothing the page had not already published, and none of the credential field types this
+      // surface refuses can be a `<select>`.
+      const observation = await observeWrite(driver, handle, () => driver.selectOption(handle, option));
+      return { selected: handle, option, ...observation };
     }
 
     case 'page.navigate': {

@@ -68,6 +68,18 @@ export interface PageDriver {
   /** Called only after the fill guard has passed. */
   fill(handle: string, text: string): Promise<void>;
 
+  /**
+   * Chooses an option in a dropdown, matching visible text before value.
+   *
+   * Separate from {@link PageDriver.fill} because a dropdown is not a text field: its value must
+   * be one of a fixed set, so "type this in" has no meaning. A driver rejects an option that does
+   * not exist rather than inventing one — a caller told an unavailable option was selected would
+   * carry that wrong belief into everything it did next.
+   *
+   * @throws When the handle is not a dropdown, or when no option matches.
+   */
+  selectOption(handle: string, option: string): Promise<void>;
+
   /** Called only after `page` has been checked against {@link PageDriver.listPages}. */
   navigate(page: string): Promise<void>;
 

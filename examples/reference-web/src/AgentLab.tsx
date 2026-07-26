@@ -10,6 +10,15 @@ import { uploadChatAttachments } from './attachments.js';
 import { ChatFab } from './ChatFab.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { EMPTY_SUBMISSION, LabSignupForm, LabSummary, type SignupSubmission } from './LabPages.js';
+import { LabNav } from './LabNav.js';
+import {
+  EMPTY_EXPENSE_FORM,
+  LabExpenseFormView,
+  LabExpenseQueue,
+  LabExpenseReceipt,
+  type ExpenseForm,
+  type ExpenseReceipt,
+} from './LabExpense.js';
 import { PLAYGROUND_RUNTIME_ACCESS } from './runtime-access.js';
 
 /**
@@ -40,7 +49,13 @@ const INITIAL_ITEMS: LabItem[] = [
  * The page ids this surface can navigate between, and how. `page.navigate` is checked against
  * these keys, so a page absent here is unreachable no matter what a caller asks for.
  */
-type LabView = 'agent-lab' | 'signup-form' | 'submission';
+type LabView =
+  | 'agent-lab'
+  | 'signup-form'
+  | 'submission'
+  | 'expense-queue'
+  | 'expense-form'
+  | 'expense-receipt';
 
 /**
  * Where this surface can navigate. `page.navigate` is checked against these keys, so a view absent
@@ -50,7 +65,14 @@ type LabView = 'agent-lab' | 'signup-form' | 'submission';
  * several views — which is what a real single-page product does, and what a full navigation would
  * break by tearing the surface down mid-run.
  */
-const LAB_VIEWS: readonly LabView[] = ['agent-lab', 'signup-form', 'submission'];
+const LAB_VIEWS: readonly LabView[] = [
+  'agent-lab',
+  'signup-form',
+  'submission',
+  'expense-queue',
+  'expense-form',
+  'expense-receipt',
+];
 
 const LAB_CHAT_TRANSPORT = createDaemonChatTransport();
 
@@ -87,6 +109,8 @@ export function AgentLab() {
   const [view, setView] = useState<LabView>('agent-lab');
   const [signup, setSignup] = useState<SignupSubmission>(EMPTY_SUBMISSION);
   const [submitted, setSubmitted] = useState<SignupSubmission>(EMPTY_SUBMISSION);
+  const [expense, setExpense] = useState<ExpenseForm>(EMPTY_EXPENSE_FORM);
+  const [receipt, setReceipt] = useState<ExpenseReceipt | null>(null);
   /** Read by the navigation map, which must keep one identity for the driver's whole lifetime. */
   const navigateRef = useRef<(next: LabView) => void>(() => undefined);
   navigateRef.current = setView;
@@ -171,6 +195,13 @@ export function AgentLab() {
   return (
     <div className={`agent-lab-shell${chatOpen ? ' agent-lab-shell-open' : ''}`}>
       <main className="agent-lab" ref={rootRef}>
+        {/*
+          Outside the per-view sections on purpose: the driver reads `data-agent-page` from
+          whichever view is mounted, and a nav that lived inside one would disappear the moment
+          an agent navigated away from it.
+        */}
+        <LabNav current={view} onNavigate={(id) => setView(id as LabView)} />
+
         {view === 'agent-lab' && (
         <section data-agent-page="agent-lab">
       <header
@@ -211,6 +242,16 @@ export function AgentLab() {
           data-agent-label="Open the workspace signup form on this surface"
         >
           Signup form →
+        </button>
+        <button
+          type="button"
+          className="link-button"
+          onClick={() => setView('expense-queue')}
+          data-agent-element="link-expense-queue"
+          data-agent-role="link"
+          data-agent-label="Open the expense queue, the start of the three-step claim workflow"
+        >
+          Expense queue →
         </button>
       </nav>
 
@@ -320,6 +361,35 @@ export function AgentLab() {
 
         {view === 'submission' && (
           <LabSummary submission={submitted} onBack={() => setView('agent-lab')} />
+        )}
+
+        {view === 'expense-queue' && (
+          <LabExpenseQueue
+            onReview={(claim) => {
+              // Carry the row's own values into the form, so the workflow has a real data
+              // dependency: reviewing the wrong claim produces a visibly wrong receipt.
+              setExpense({ ...EMPTY_EXPENSE_FORM, vendor: claim.vendor, amount: claim.amount });
+              setStatus(`Reviewing the ${claim.vendor} claim.`);
+              setView('expense-form');
+            }}
+          />
+        )}
+
+        {view === 'expense-form' && (
+          <LabExpenseFormView
+            value={expense}
+            onChange={setExpense}
+            onSubmit={(next) => {
+              setReceipt(next);
+              setStatus(`Claim ${next.reference} submitted.`);
+              setView('expense-receipt');
+            }}
+            onCancel={() => { setStatus('Claim cancelled.'); setView('expense-queue'); }}
+          />
+        )}
+
+        {view === 'expense-receipt' && (
+          <LabExpenseReceipt receipt={receipt} onBack={() => setView('expense-queue')} />
         )}
       </main>
 

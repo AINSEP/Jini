@@ -110,6 +110,26 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
     surface: 'session',
   },
   {
+    id: 'page.select_option',
+    description:
+      'Choose an option in a dropdown, by its visible text or its underlying value. Dropdowns cannot be operated with page.click or page.fill — clicking one only opens it, and it is not a text field — so this is the only way to set one. Call page.find_elements with withState to see which options exist and which is chosen.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        ...HANDLE_PROPERTY,
+        option: {
+          type: 'string',
+          description:
+            'The option to choose, matched against its visible text first and then its value. Must already exist in the dropdown — this never adds one.',
+        },
+      },
+      required: ['element', 'option'],
+      additionalProperties: false,
+    },
+    risk: 'write',
+    surface: 'session',
+  },
+  {
     id: 'page.navigate',
     description:
       'Move to another page of this site, named by its data-agent-page id. Only pages the host has published are reachable; arbitrary URLs are refused. Returns which page was showing before and after, and how many controls each publishes — call page.find_elements again afterwards, since every handle you hold may belong to the page you just left.',

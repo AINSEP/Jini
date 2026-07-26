@@ -62,7 +62,17 @@ export type FieldReadRefusal =
   | 'denied-autocomplete'
   | 'suspicious-name';
 
-export type FieldRefusal = FieldReadRefusal | 'read-only' | 'disabled';
+/**
+ * Input types that hold no text.
+ *
+ * Writing to one succeeds mechanically and accomplishes nothing: setting `value` on a checkbox
+ * changes the string submitted *if* it is ticked, and leaves `checked` alone. The caller is told
+ * the fill worked and the box is still clear — a false success, which is worse than a refusal
+ * because it is never retried.
+ */
+const NON_TEXT_TYPES = new Set(['checkbox', 'radio', 'submit', 'reset', 'button']);
+
+export type FieldRefusal = FieldReadRefusal | 'not-text' | 'read-only' | 'disabled';
 
 /**
  * Why this field's current value must not be reported back to a caller, or `null` when reading
@@ -111,6 +121,8 @@ export function findFieldReadRefusal(field: FieldDescriptor): FieldReadRefusal |
 export function findFieldFillRefusal(field: FieldDescriptor): FieldRefusal | null {
   const secrecy = findFieldReadRefusal(field);
   if (secrecy !== null) return secrecy;
+  const type = field.type?.toLowerCase();
+  if (type !== undefined && NON_TEXT_TYPES.has(type)) return 'not-text';
   if (field.readOnly === true) return 'read-only';
   if (field.disabled === true) return 'disabled';
   return null;
@@ -120,6 +132,7 @@ const FIELD_REFUSAL_MESSAGES: Record<FieldRefusal, string> = {
   'denied-type': 'this field type can never be filled by an agent',
   'denied-autocomplete': 'this field holds a credential or payment instrument',
   'suspicious-name': 'this field name indicates a secret or anti-forgery token',
+  'not-text': 'this control holds no text — activate it with the click verb instead of filling it',
   'read-only': 'this field is read-only',
   disabled: 'this field is disabled',
 };

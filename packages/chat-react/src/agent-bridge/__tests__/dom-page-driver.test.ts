@@ -23,6 +23,11 @@ const MARKUP = `
            name="password" type="password" value="hunter2" />
     <textarea data-agent-element="bio-input" data-agent-role="field" data-agent-label="Bio">A short bio</textarea>
     <button data-agent-element="disabled-button" data-agent-role="button" data-agent-label="Unavailable" disabled>Nope</button>
+    <select data-agent-element="role-select" data-agent-role="field" data-agent-label="Role" name="role" id="role">
+      <option value="">Choose one…</option>
+      <option value="engineer">Engineer</option>
+      <option value="designer">Designer</option>
+    </select>
     <span data-agent-element="status-line" data-agent-role="status" data-agent-label="What happened">  Ready.  </span>
     <span data-agent-element="" data-agent-role="status">Untagged</span>
     <span data-agent-role="status">No handle attribute at all</span>
@@ -68,6 +73,7 @@ describe('findElements', () => {
       'account-password',
       'bio-input',
       'disabled-button',
+      'role-select',
       'status-line',
     ]);
   });
@@ -191,6 +197,30 @@ describe('describeState', () => {
     const driver = makeDriver();
     expect(await driver.describeState?.('disabled-button')).toMatchObject({ disabled: true });
     expect((await driver.describeState?.('status-line'))?.disabled).toBeUndefined();
+  });
+
+  it('reports a dropdown\'s value, its options, and a descriptor the read guard can check', async () => {
+    // Without `options` a caller has to guess what page.select_option will accept; without a
+    // descriptor, a `<select name="secret">` would report its value unguarded.
+    expect(await makeDriver().describeState?.('role-select')).toMatchObject({
+      value: '',
+      options: ['Choose one…', 'Engineer', 'Designer'],
+      field: { type: 'select', name: 'role', id: 'role', disabled: false },
+    });
+  });
+
+  it('omits an unnamed dropdown\'s empty name and id rather than reporting blank strings', async () => {
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    select.removeAttribute('name');
+    select.removeAttribute('id');
+    const field = (await makeDriver().describeState?.('role-select'))?.field;
+    expect(field?.name).toBeUndefined();
+    expect(field?.id).toBeUndefined();
+  });
+
+  it('omits options for everything that is not a dropdown', async () => {
+    expect((await makeDriver().describeState?.('full-name-input'))?.options).toBeUndefined();
+    expect((await makeDriver().describeState?.('status-line'))?.options).toBeUndefined();
   });
 
   it('omits value and field entirely for something that is not a field', async () => {
@@ -379,6 +409,63 @@ describe('fill', () => {
   it('refuses a target that is not a field', async () => {
     await expect(makeDriver().fill('save-button', 'x'))
       .rejects.toThrow(/"save-button" is not a fillable field/);
+  });
+});
+
+describe('selectOption', () => {
+  it('chooses by visible text and dispatches, so React notices', async () => {
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    const events: string[] = [];
+    select.addEventListener('input', () => events.push('input'));
+    select.addEventListener('change', () => events.push('change'));
+
+    await makeDriver().selectOption('role-select', 'Engineer');
+    expect(select.value).toBe('engineer');
+    expect(events).toEqual(['input', 'change']);
+  });
+
+  it('falls back to matching the underlying value', async () => {
+    await makeDriver().selectOption('role-select', 'designer');
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    expect(select.value).toBe('designer');
+  });
+
+  it('prefers visible text over value when the two collide across options', async () => {
+    // A page can name one option's value the same as another's label. Matching value first would
+    // quietly select the wrong row.
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    select.innerHTML = '<option value="Engineer">Designer</option><option value="x">Engineer</option>';
+    await makeDriver().selectOption('role-select', 'Engineer');
+    expect(select.value).toBe('x');
+  });
+
+  it('refuses an option that does not exist, and names the ones that do', async () => {
+    await expect(makeDriver().selectOption('role-select', 'Astronaut'))
+      .rejects.toThrow(/"Astronaut" is not an option of "role-select"\. Available: Choose one…, Engineer, Designer/);
+  });
+
+  it('reports (none) when the dropdown has no labelled options at all', async () => {
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    select.innerHTML = '';
+    await expect(makeDriver().selectOption('role-select', 'Engineer'))
+      .rejects.toThrow(/Available: \(none\)/);
+  });
+
+  it('refuses a target that is not a dropdown', async () => {
+    await expect(makeDriver().selectOption('full-name-input', 'Engineer'))
+      .rejects.toThrow(/"full-name-input" is not a dropdown/);
+  });
+
+  it('falls back to plain assignment where the prototype exposes no value setter', async () => {
+    const real = Object.getOwnPropertyDescriptor;
+    vi.spyOn(Object, 'getOwnPropertyDescriptor').mockImplementation((target, property) =>
+      target === HTMLSelectElement.prototype && property === 'value'
+        ? { configurable: true, get: () => '' }
+        : real(target, property));
+
+    await makeDriver().selectOption('role-select', 'Engineer');
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    expect(select.value).toBe('engineer');
   });
 });
 

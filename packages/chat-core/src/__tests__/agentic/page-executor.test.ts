@@ -45,6 +45,7 @@ function createFakeDriver(overrides: Partial<PageDriver> = {}) {
     scrollTo: vi.fn(async () => undefined),
     click: vi.fn(async () => undefined),
     fill: vi.fn(async () => undefined),
+    selectOption: vi.fn(async () => undefined),
     navigate: vi.fn(async () => undefined),
     ...overrides,
   };
@@ -275,6 +276,49 @@ describe('page.fill', () => {
   });
 });
 
+describe('page.select_option', () => {
+  it('passes the chosen option to the driver and echoes it back', async () => {
+    const result = await executePageCapability(driver, 'page.select_option', {
+      element: 'new-task-input',
+      option: 'Engineer',
+    });
+    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer');
+    expect(result).toMatchObject({ selected: 'new-task-input', option: 'Engineer' });
+  });
+
+  it('requires both the element and the option', async () => {
+    await expect(executePageCapability(driver, 'page.select_option', { element: 'new-task-input' }))
+      .rejects.toThrow(/"option" is required/);
+    await expect(executePageCapability(driver, 'page.select_option', { option: 'Engineer' }))
+      .rejects.toThrow(/"element" is required/);
+    expect(driver.selectOption).not.toHaveBeenCalled();
+  });
+
+  it('refuses a handle that is not a published one, like every other element-addressed verb', async () => {
+    await expect(executePageCapability(driver, 'page.select_option', {
+      element: 'select[name=role]',
+      option: 'Engineer',
+    })).rejects.toThrow(/published element handle/);
+    expect(driver.selectOption).not.toHaveBeenCalled();
+  });
+
+  it('reports the target before and after, so a caller can confirm what got chosen', async () => {
+    const { driver: observing } = createObservingDriver([
+      { text: '', value: '', field: { type: 'select', name: 'role' }, options: ['Engineer', 'Designer'] },
+      { text: '', value: 'engineer', field: { type: 'select', name: 'role' }, options: ['Engineer', 'Designer'] },
+    ]);
+    const result = await executePageCapability(observing, 'page.select_option', {
+      element: 'new-task-input',
+      option: 'Engineer',
+    });
+    expect(result).toMatchObject({
+      selected: 'new-task-input',
+      after: { value: 'engineer', options: ['Engineer', 'Designer'] },
+      targetChanged: true,
+    });
+  });
+});
+
 describe('page.navigate', () => {
   it('navigates to a published page, reporting what was showing before and after', async () => {
     expect(await executePageCapability(driver, 'page.navigate', { page: 'notes' }))
@@ -432,6 +476,21 @@ describe('projectElementState — what a caller may see', () => {
     const state = projectElementState({ text: '', value: 'unknown provenance' });
     expect(state.value).toBeUndefined();
     expect(state.valueWithheld).toMatch(/without the attributes needed to check it for secrets/);
+  });
+
+  it('reports a dropdown\'s options, bounded but never withheld', () => {
+    // Which options exist is the page's own ontology — a caller needs it to pass a valid one to
+    // page.select_option, and it reveals nothing about the user.
+    const state = projectElementState({
+      text: '',
+      value: 'secret',
+      field: { type: 'select', name: 'auth_token' },
+      options: ['  Engineer  ', 'Designer'],
+    });
+    expect(state.options).toEqual(['Engineer', 'Designer']);
+    // ...while the selected value of a secret-named dropdown is still withheld.
+    expect(state.value).toBeUndefined();
+    expect(state.valueWithheld).toBeDefined();
   });
 
   it('passes checked, disabled and visible through when the driver reported them', () => {

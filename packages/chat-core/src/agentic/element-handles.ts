@@ -105,6 +105,12 @@ export interface AgentElementState {
   readonly disabled?: boolean;
   /** False when the element is present in the DOM but not rendered. */
   readonly visible?: boolean;
+  /**
+   * A dropdown's available option texts — what `page.select_option` will accept. Absent for
+   * everything else. Reported even when the current `value` is withheld: which options exist is
+   * page-authored ontology, not the user's data.
+   */
+  readonly options?: readonly string[];
 }
 
 /**
@@ -125,4 +131,6 @@ export interface AgentElementRawState {
   readonly visible?: boolean | undefined;
   /** Present when the element resolves to a field, so the executor can apply the read guard. */
   readonly field?: FieldDescriptor | undefined;
+  /** A dropdown's option texts. Page-authored, so it is bounded but never withheld. */
+  readonly options?: readonly string[] | undefined;
 }

@@ -59,6 +59,23 @@ describe('findFieldFillRefusal', () => {
     expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');
   });
 
+  it('refuses controls that hold no text, pointing at the verb that does work', () => {
+    // Filling a checkbox sets the string it submits when ticked and leaves `checked` alone — a
+    // write that succeeds and accomplishes nothing, which a caller never retries.
+    for (const type of ['checkbox', 'radio', 'submit', 'reset', 'button']) {
+      expect(findFieldFillRefusal({ type, name: 'agree' })).toBe('not-text');
+    }
+    expect(describeFieldRefusal('not-text')).toMatch(/click verb/);
+    // Reading one is fine — only writing is meaningless.
+    expect(findFieldReadRefusal({ type: 'checkbox', name: 'agree' })).toBeNull();
+  });
+
+  it('still allows the value-bearing input types that are not plain text', () => {
+    for (const type of ['range', 'color', 'date', 'time', 'number', 'select']) {
+      expect(findFieldFillRefusal({ type, name: 'f' })).toBeNull();
+    }
+  });
+
   it('is the read guard plus the two refusals that are only about writing', () => {
     // Anything an agent may not read is certainly not something it may overwrite...
     expect(findFieldReadRefusal({ type: 'password' })).toBe('denied-type');

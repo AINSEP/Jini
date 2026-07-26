@@ -184,17 +184,38 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       const field = fieldDescriptorOf(control);
       const checkable = control instanceof HTMLInputElement
         && (control.type === 'checkbox' || control.type === 'radio');
+      // A dropdown reports its option texts alongside its value. Without them a caller can only
+      // guess what to pass to `page.select_option`, and a wrong guess is a refusal it could have
+      // avoided by looking. It carries a descriptor too, so the read guard still runs — a
+      // `<select name="secret_token">` is no more readable than an input of the same name.
+      const dropdown = control instanceof HTMLSelectElement ? control : undefined;
+      const readable = field ?? (dropdown === undefined ? null : {
+        type: 'select',
+        name: dropdown.name || undefined,
+        id: dropdown.id || undefined,
+        disabled: dropdown.disabled,
+      } satisfies FieldDescriptor);
+      const value = field !== null
+        ? (control as HTMLInputElement | HTMLTextAreaElement).value
+        : dropdown?.value;
       /* c8 ignore next -- as in `describe`: an Element's textContent is always a string. */
       const text = element.textContent ?? '';
       return {
         text,
         // Reported raw and unconditionally; `projectElementState` applies the read guard. A
         // driver deciding here which values are secret is a driver holding policy.
-        ...(field !== null ? { value: (control as HTMLInputElement | HTMLTextAreaElement).value } : {}),
+        ...(value !== undefined ? { value } : {}),
         ...(checkable ? { checked: (control as HTMLInputElement).checked } : {}),
         ...(disabledOf(control) !== undefined ? { disabled: disabledOf(control) } : {}),
         ...(visibilityOf(element) !== undefined ? { visible: visibilityOf(element) } : {}),
-        ...(field !== null ? { field } : {}),
+        ...(readable !== null ? { field: readable } : {}),
+        ...(dropdown !== undefined
+          ? {
+              options: Array.from(dropdown.options)
+                .map((entry) => entry.text.trim())
+                .filter((entry) => entry.length > 0),
+            }
+          : {}),
       } satisfies AgentElementRawState;
     },
 
@@ -270,6 +291,34 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
       if (setter) setter.call(control, text);
       else control.value = text;
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+
+    async selectOption(handle, option) {
+      const control = controlOf(find(handle));
+      if (!(control instanceof HTMLSelectElement)) {
+        throw new Error(`"${handle}" is not a dropdown`);
+      }
+      // Visible text first, then value: the text is what a caller saw in `find_elements`, and
+      // matching value first would make an option whose value collides with another's label
+      // resolve to the wrong entry.
+      // A disabled option is not selectable by the user either, so offering it to an agent would
+      // be a way around the page's own rule — and the resulting selection cannot be submitted.
+      const options = Array.from(control.options).filter((entry) => !entry.disabled);
+      const match = options.find((entry) => entry.text.trim() === option)
+        ?? options.find((entry) => entry.value === option);
+      if (match === undefined) {
+        const available = options.map((entry) => entry.text.trim()).filter((text) => text.length > 0);
+        throw new Error(
+          `"${option}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
+        );
+      }
+      // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
+      // value on the node and ignores a change event whose value it believes it already has.
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+      if (setter) setter.call(control, match.value);
+      else control.value = match.value;
       control.dispatchEvent(new Event('input', { bubbles: true }));
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
