@@ -95,8 +95,28 @@ async function setDraftAction(pane: UseChatPaneResult, input: Record<string, unk
   return { ok: true };
 }
 
+/**
+ * Only a runtime this machine actually offers.
+ *
+ * `setSelection` normalizes an unknown or unavailable agent to the first available one — correct
+ * for the picker, which must not break when a runtime disappears mid-session. For a caller that is
+ * told `{ok:true}`, that same behavior is a lie with a safety edge: asking for a constrained
+ * runtime and silently getting a more capable one is how a prompt intended for a sandboxed agent
+ * reaches a full coding agent instead. So this refuses by name rather than substituting.
+ */
 async function selectAgentAction(pane: UseChatPaneResult, input: Record<string, unknown>): Promise<unknown> {
   const agentId = requireStringField(input, 'agentId');
+  const agent = pane.agents.find((candidate) => candidate.id === agentId);
+  if (agent === undefined) {
+    const known = pane.agents.map((candidate) => candidate.id).join(', ');
+    throw new Error(`unknown agent "${agentId}" — this pane offers: ${known || 'none'}`);
+  }
+  if (agent.available === false) {
+    throw new Error(
+      `agent "${agentId}" is not available on this machine`
+      + `${agent.diagnostic === undefined ? '' : ` (${agent.diagnostic})`}`,
+    );
+  }
   const model = optionalStringField(input, 'model');
   const reasoning = optionalStringField(input, 'reasoning');
   pane.setSelection(definedProps({ agentId, model, reasoning }));

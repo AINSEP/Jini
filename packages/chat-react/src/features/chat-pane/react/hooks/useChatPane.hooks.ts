@@ -53,6 +53,16 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
   composer: UseComposerResult;
   selection: ChatPaneAgentSelection;
   selectedAgent: ChatPaneAgent | undefined;
+  /**
+   * The runtime inventory this pane is choosing from.
+   *
+   * Exposed so a caller can tell whether a selection *would* be honored before making it.
+   * {@link setSelection} normalizes an unknown or unavailable agent to the first available one —
+   * right for a picker, which must not break when a runtime disappears, and wrong for a
+   * programmatic caller, which would otherwise be told its choice succeeded while a different
+   * runtime was selected.
+   */
+  agents: readonly ChatPaneAgent[];
   activity: ChatPaneActivity;
   canSend: boolean;
   /**
@@ -295,6 +305,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     composer,
     selection,
     selectedAgent,
+    agents: options.agents,
     activity,
     canSend,
     sendBlocker,

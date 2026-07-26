@@ -14,6 +14,9 @@ import { useChatPaneAgentControl } from '../react/hooks/useChatPaneAgentControl.
 const agents: ChatPaneAgent[] = [
   { id: 'codex', name: 'Codex CLI', available: true },
   { id: 'offline', name: 'Offline CLI', available: false },
+  // Unavailable *and* able to say why — a refusal should pass that reason through rather than
+  // making the caller guess whether the runtime is missing, unauthenticated, or misconfigured.
+  { id: 'unauthed', name: 'Unauthed CLI', available: false, diagnostic: 'run `unauthed login` first' },
 ];
 
 interface RegisteredTool {
@@ -58,6 +61,8 @@ function renderControlledPane(
     directoryExists?: boolean;
     recentDirectories?: readonly string[];
     bridgeAccess?: ChatPaneAgentBridgeAccess;
+    /** Overrides the runtime inventory — a pane with none is a real state (daemon offline). */
+    agents?: readonly ChatPaneAgent[];
   } = {},
 ) {
   const transport = createFakeChatTransport();
@@ -65,7 +70,7 @@ function renderControlledPane(
   const view = renderHook(() => {
     const pane = useChatPane({
       transport,
-      agents,
+      agents: options.agents ?? agents,
       selection: { agentId: 'codex' },
       conversationId: null,
       ...(options.workingDirectory === undefined ? {} : { workingDirectory: options.workingDirectory }),
@@ -455,6 +460,45 @@ describe('useChatPaneAgentControl — remaining capabilities', () => {
     renderControlledPane();
     await expect(context.tools.get('chat.select_agent')?.execute({}))
       .rejects.toThrow(/"agentId" is required/);
+  });
+
+  // setSelection normalizes an unknown agent to the first available one, which is right for the
+  // picker and a lie for a caller that gets {ok:true}: asking for a constrained runtime and
+  // silently getting a more capable one is how a prompt meant for a sandboxed agent reaches a full
+  // coding agent. Observed live on 2026-07-26 before this refusal existed.
+  it('refuses an agent this pane does not offer, naming the ones it does', async () => {
+    const context = installModelContext();
+    const { pane } = renderControlledPane();
+
+    await expect(context.tools.get('chat.select_agent')?.execute({ agentId: 'playground-demo' }))
+      .rejects.toThrow('unknown agent "playground-demo" — this pane offers: codex, offline, unauthed');
+    // The previous selection survives, rather than being quietly replaced.
+    expect(pane().selection.agentId).toBe('codex');
+  });
+
+  it('refuses an agent that exists but is unavailable on this machine', async () => {
+    const context = installModelContext();
+    const { pane } = renderControlledPane();
+
+    await expect(context.tools.get('chat.select_agent')?.execute({ agentId: 'offline' }))
+      .rejects.toThrow('agent "offline" is not available on this machine');
+    expect(pane().selection.agentId).toBe('codex');
+  });
+
+  it('says so plainly when the pane has no runtimes at all', async () => {
+    const context = installModelContext();
+    renderControlledPane({ agents: [] });
+
+    await expect(context.tools.get('chat.select_agent')?.execute({ agentId: 'codex' }))
+      .rejects.toThrow('unknown agent "codex" — this pane offers: none');
+  });
+
+  it('passes the runtime\'s own diagnostic through, so the caller need not guess why', async () => {
+    const context = installModelContext();
+    renderControlledPane();
+
+    await expect(context.tools.get('chat.select_agent')?.execute({ agentId: 'unauthed' }))
+      .rejects.toThrow('agent "unauthed" is not available on this machine (run `unauthed login` first)');
   });
 
   it('cancels an in-flight run', async () => {
