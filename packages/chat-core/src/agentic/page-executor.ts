@@ -126,10 +126,23 @@ function isAgentElementRole(value: unknown): value is AgentElementRole {
  */
 export function projectElementState(raw: AgentElementRawState): AgentElementState {
   const text = normalizeAgentLabel(raw.text);
+
+  // Computed once, up front, so `checked` is gated by the exact same refusal as `value` below
+  // rather than being copied through unconditionally. A checkbox/radio's `checked` is a second
+  // secrecy channel, not a formatting detail: for a field like `health_disclosure_password`,
+  // *which* option is ticked is itself the secret, even though it is a boolean and `value` was
+  // already withheld. `text` is deliberately NOT gated here, on purpose, even for a refused
+  // field: for a checkbox/radio, `text` is the option's own visible label (e.g. "I am HIV
+  // positive") — page-authored content the page already renders openly to anyone who looks at
+  // it, exactly like a `<select>`'s `options` below. The secret is which option is checked, not
+  // what the option is called; withholding the label too would blind a caller to the page's own
+  // ontology for no reduction in what actually leaks.
+  const refusal = raw.field !== undefined ? findFieldReadRefusal(raw.field) : null;
+
   const base: AgentElementState = {
     text: text.text,
     textTruncated: text.truncated,
-    ...(raw.checked !== undefined ? { checked: raw.checked } : {}),
+    ...(raw.checked !== undefined && refusal === null ? { checked: raw.checked } : {}),
     ...(raw.disabled !== undefined ? { disabled: raw.disabled } : {}),
     ...(raw.visible !== undefined ? { visible: raw.visible } : {}),
     // Bounded like every other page-authored string, but never withheld: the options a dropdown
@@ -146,7 +159,6 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
       valueWithheld: 'this element reported a value without the attributes needed to check it for secrets',
     };
   }
-  const refusal = findFieldReadRefusal(raw.field);
   if (refusal !== null) return { ...base, valueWithheld: describeFieldReadRefusal(refusal) };
 
   const value = normalizeAgentLabel(raw.value);

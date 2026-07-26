@@ -526,6 +526,45 @@ describe('projectElementState — what a caller may see', () => {
       .toEqual({ text: 'Submit', textTruncated: false, checked: false, disabled: true, visible: false });
   });
 
+  it('withholds checked, not just value, on a refused checkbox/radio field', () => {
+    // Regression: checked used to be spread into the result unconditionally, three lines above
+    // the refusal check, so a checkbox whose name triggered the guard still reported its boolean
+    // state even though `value` was withheld on the same descriptor.
+    const state = projectElementState({
+      text: '',
+      value: 'on',
+      checked: true,
+      field: { type: 'checkbox', name: 'otp_verified' },
+    });
+    expect(state.checked).toBeUndefined();
+    expect(state.valueWithheld).toBe('this field name indicates a secret or anti-forgery token');
+  });
+
+  it('withholds checked on a radio group named for a credential even though the option label is plain', () => {
+    const state = projectElementState({
+      text: 'I am HIV positive',
+      value: 'hiv-positive',
+      checked: true,
+      field: { type: 'radio', name: 'health_disclosure_password' },
+    });
+    expect(state.checked).toBeUndefined();
+    expect(state.valueWithheld).toBeDefined();
+    // The option's own visible label is page ontology, not the user's data — unlike `checked`,
+    // it must NOT be withheld. Blinding a caller to it would lose the "what is this option"
+    // information for no reduction in what actually leaks (which option is chosen).
+    expect(state.text).toBe('I am HIV positive');
+  });
+
+  it('still reports checked on an unrefused checkbox — the gate is the refusal, not the shape', () => {
+    const state = projectElementState({
+      text: 'Water the plants',
+      value: 'on',
+      checked: true,
+      field: { type: 'checkbox', name: 'task-water-plants' },
+    });
+    expect(state.checked).toBe(true);
+  });
+
   it('omits checked, disabled and visible rather than inventing false for them', () => {
     expect(projectElementState({ text: 'Heading' })).toEqual({ text: 'Heading', textTruncated: false });
   });
