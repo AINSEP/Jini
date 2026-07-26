@@ -1,8 +1,8 @@
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { dirname, extname, resolve } from 'node:path';
+import { dirname, extname, join, resolve } from 'node:path';
 import { createAguiEncoder } from '@jini/agui';
 import { createAgentExecutor } from '@jini/daemon';
 import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini/http';
@@ -27,6 +27,7 @@ import {
   createPlaygroundWorkingDirectoryAuthority,
   isLoopbackAddress,
 } from './working-directory-authority.js';
+import { resolveJiniMcpBridge, type JiniMcpBridgeInjection } from './mcp-bridge.js';
 
 const PLAYGROUND_PREFIX = 'playground:';
 const PLAYGROUND_PORT = 4317;
@@ -95,9 +96,36 @@ async function runDemo(
   await lifecycle.finish({ runId, status: 'succeeded', code: 0, signal: null, resumable: false });
 }
 
+/**
+ * Resolves the `jini-mcp` bridge injected into MCP-capable agent runs, reporting a missing build
+ * as a startup warning rather than a boot failure: the demo agent and every non-MCP runtime run
+ * fine without it, so refusing to start would break more than it protects.
+ */
+function resolvePlaygroundMcpBridge(): JiniMcpBridgeInjection | undefined {
+  const resolution = resolveJiniMcpBridge({
+    repoRoot,
+    daemonUrl: `http://127.0.0.1:${PLAYGROUND_PORT}`,
+    nodePath: process.execPath,
+    fileExists: existsSync,
+    join,
+  });
+  if (!resolution.ok) {
+    console.warn(
+      `[Jini Playground] @jini/mcp is not built (${resolution.missingPath} is missing), so agent runs `
+        + 'start without the jini MCP bridge and no agent can call execute_delegated_tool. '
+        + 'Run `pnpm --filter @jini/mcp build`.',
+    );
+    return undefined;
+  }
+  return resolution.injection;
+}
+
 async function main(): Promise<void> {
   mkdirSync(dataDir, { recursive: true });
   mkdirSync(uploadDir, { recursive: true });
+  // Writes a merged `.mcp.json` into each run's cwd at spawn — for a granted working directory
+  // that is the user's own folder, which is exactly why the grant is an explicit, secret-gated act.
+  const mcpBridge = resolvePlaygroundMcpBridge();
   process.env.JINI_DISABLE_API_AUTH = '1';
   process.env.JINI_ALLOWED_ORIGINS = 'http://127.0.0.1:4173,http://localhost:4173';
   const env: NodeJS.ProcessEnv = {
@@ -309,7 +337,12 @@ async function main(): Promise<void> {
               decoded.workingDirectory,
               decoded.project,
             );
-            const executor = createAgentExecutor({ lifecycle });
+            const executor = createAgentExecutor({
+              lifecycle,
+              // Gives the spawned CLI `execute_delegated_tool`, the agent-native route into the
+              // same `ToolExecutor` gate `frontendControl` registers its capabilities behind.
+              ...(mcpBridge !== undefined ? { mcpJsonInjection: mcpBridge } : {}),
+            });
             await executor.run({
               runId: run.id,
               agentId: request.agentId,

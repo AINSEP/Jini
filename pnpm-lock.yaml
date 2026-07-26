@@ -87,6 +87,9 @@ importers:
       '@jini/http':
         specifier: workspace:*
         version: link:../../packages/http
+      '@jini/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
       '@jini/media':
         specifier: workspace:*
         version: link:../../packages/media

@@ -16,6 +16,7 @@
     "@jini/chat-react": "workspace:*",
     "@jini/daemon": "workspace:*",
     "@jini/http": "workspace:*",
+    "@jini/mcp": "workspace:*",
     "@jini/media": "workspace:*",
     "@jini/memory": "workspace:*",
     "@jini/node-host": "workspace:*",
