@@ -260,9 +260,17 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     if (element instanceof HTMLDetailsElement) {
       return element.querySelector(':scope > summary') ?? element;
     }
-    return element.matches('input, textarea, select, button, a')
-      ? element
-      : element.querySelector('input, textarea, select, button, a, summary') ?? element;
+    if (element.matches('input, textarea, select, button, a')) return element;
+    // A descendant that is itself independently published (its own `[data-agent-element]`) must
+    // never be silently adopted as this handle's control — it is a distinct, separately
+    // addressable target with its own label, not unhandled wrapper markup like the plain
+    // `<li><label><input>` this descent exists for. Filtering to descendants whose nearest
+    // published ancestor is still `element` itself excludes exactly that case while leaving
+    // ordinary wrapper descent untouched.
+    const owned = (node: Element): boolean => node.closest(`[${AGENT_ELEMENT_ATTRIBUTE}]`) === element;
+    const candidate = Array.from(element.querySelectorAll('input, textarea, select, button, a, summary'))
+      .find(owned);
+    return candidate ?? element;
   };
 
   return {

@@ -504,6 +504,23 @@ describe('click', () => {
     root.append(svg);
     await expect(makeDriver().click('chart-svg')).rejects.toThrow(/"chart-svg" is not clickable/);
   });
+
+  it('does not descend into a nested descendant that is itself a separately published handle', async () => {
+    // controlOf's descent exists for a plain wrapper like `<li><label><input>`. A nested,
+    // independently published control (its own [data-agent-element], own label) is a distinct,
+    // separately addressable target — clicking the container must not silently activate it.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<div data-agent-element="outer" data-agent-label="Outer region">'
+      + '<button data-agent-element="inner" data-agent-label="Inner button">Click</button>'
+      + '</div>',
+    );
+    const inner = root.querySelector('[data-agent-element="inner"]') as HTMLButtonElement;
+    const clicked = vi.fn();
+    inner.addEventListener('click', clicked);
+    await makeDriver().click('outer');
+    expect(clicked).not.toHaveBeenCalled();
+  });
 });
 
 describe('fill', () => {
