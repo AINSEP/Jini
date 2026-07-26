@@ -9,6 +9,22 @@ export interface UseChatPaneAgentControlOptions {
   /** Defaults to `false` — agent control is opt-in. */
   enabled?: boolean;
   bridgeAccess?: ChatPaneAgentBridgeAccess;
+  /**
+   * Register these tools with the in-page WebMCP surface (`document.modelContext`). Defaults to
+   * `false`, and that default is a security position rather than caution.
+   *
+   * The daemon-relayed channel routes every call through `ToolExecutor` — policy, confirmation,
+   * timeout, audit. A WebMCP call cannot: it originates inside the page from a browser-native
+   * caller, with no run and no principal to authorize against, so there is nothing for the gate to
+   * decide on and no run to attribute the action to. Routing it through the daemon would mean
+   * inventing both, which is worse than not gating — an invented principal is a gate that says yes.
+   *
+   * So a host that turns this on is accepting that anything able to reach `document.modelContext`
+   * — a browser extension, another script on the page — can drive this pane ungated. That is a
+   * legitimate choice for a trusted first-party surface and a bad one for a page hosting untrusted
+   * content, which is exactly why it has to be the host's call and not a default.
+   */
+  webmcp?: boolean;
 }
 
 /** The minimal WebMCP surface this hook needs — matches the draft `document.modelContext`/`navigator.modelContext` shape (see `agent-tools.ts`'s module doc); no `@mcp-b/*` dependency, feature-detected like this package's other host bridges. */
@@ -237,12 +253,16 @@ async function deliverBridgeAction(
 
 /**
  * Wires the chat pane's own actions (send/draft/selection/cancel/reset/working-directory/state) up
- * to every outside-caller surface the pane supports: in-page WebMCP tool registration
- * (`document.modelContext.registerTool`, feature-detected — a no-op when unavailable) and, when
- * `bridgeAccess` is supplied, a daemon-relayed action channel so an HTTP- or MCP-driven caller can
- * reach this SAME live pane instance. Both surfaces dispatch through one identical action map (see
- * `runChatPaneAction`, module scope above), so a WebMCP-native agent and a daemon-relayed one can
- * never diverge in behavior.
+ * to the outside-caller surfaces the pane supports: a daemon-relayed action channel when
+ * `bridgeAccess` is supplied, so an HTTP- or MCP-driven caller can reach this SAME live pane
+ * instance, and — only when the host sets `webmcp` — in-page WebMCP tool registration
+ * (`document.modelContext.registerTool`, feature-detected). Both dispatch through one identical
+ * action map (`runChatPaneAction`, module scope above), so the two callers can never diverge in
+ * *behavior*.
+ *
+ * They do differ in *authorization*, and that difference is the reason WebMCP is off by default.
+ * The relayed channel arrives having already passed `ToolExecutor`; a WebMCP call has no run and
+ * no principal, so it cannot. See {@link UseChatPaneAgentControlOptions.webmcp}.
  */
 export function useChatPaneAgentControl(
   pane: UseChatPaneResult,
@@ -263,7 +283,9 @@ export function useChatPaneAgentControl(
 
     const cleanups: Array<() => void> = [];
 
-    const modelContext = getModelContext();
+    // Not registered unless the host opted in: see `webmcp`'s own doc for why this path cannot be
+    // gated and therefore must not be on by default.
+    const modelContext = options.webmcp === true ? getModelContext() : undefined;
     if (modelContext) {
       const controller = new AbortController();
       for (const tool of CHAT_PANE_AGENT_TOOLS) {

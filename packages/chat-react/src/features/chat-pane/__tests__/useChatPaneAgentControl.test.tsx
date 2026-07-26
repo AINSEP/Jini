@@ -56,6 +56,8 @@ function removeModelContext(): void {
 function renderControlledPane(
   options: {
     enabled?: boolean;
+    /** Defaults to true here; the not-by-default behavior is asserted separately. */
+    webmcp?: boolean;
     workingDirectory?: string | null;
     /** Host filesystem bridge — required for the pane to ever mark a directory invalid. */
     directoryExists?: boolean;
@@ -86,6 +88,9 @@ function renderControlledPane(
     });
     useChatPaneAgentControl(pane, {
       enabled: options.enabled ?? true,
+      // These cases are about what the WebMCP surface does once a host has accepted it, so they
+      // opt in. That it is *not* on by default has its own case at the bottom of this file.
+      webmcp: options.webmcp ?? true,
       ...(options.bridgeAccess === undefined ? {} : { bridgeAccess: options.bridgeAccess }),
     });
     return pane;
@@ -112,7 +117,7 @@ describe('useChatPaneAgentControl — registration lifecycle', () => {
     const view = renderHook(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
       // A NEW object literal every render — exactly how hosts write this prop in JSX.
-      useChatPaneAgentControl(pane, { enabled: true, bridgeAccess: { ...bridge } });
+      useChatPaneAgentControl(pane, { enabled: true, webmcp: true, bridgeAccess: { ...bridge } });
       return pane;
     });
 
@@ -406,6 +411,31 @@ describe('useChatPaneAgentControl — host surface detection', () => {
     });
     // Agent control is opt-in in the library even when a host means to enable it.
     expect(context.registerCalls).toBe(0);
+  });
+
+  it('does not register with WebMCP unless the host opted in, even with agent control enabled', () => {
+    // A WebMCP caller has no run and no principal, so it never passes ToolExecutor. Anything that
+    // can reach `document.modelContext` — a browser extension, another script on the page — would
+    // otherwise drive the pane ungated the moment a host enabled the daemon-relayed channel.
+    const context = installModelContext();
+    const transport = createFakeChatTransport();
+    renderHook(() => {
+      const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
+      useChatPaneAgentControl(pane, { enabled: true });
+      return pane;
+    });
+    expect(context.registerCalls).toBe(0);
+  });
+
+  it('registers with WebMCP once the host accepts the tradeoff', () => {
+    const context = installModelContext();
+    const transport = createFakeChatTransport();
+    renderHook(() => {
+      const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
+      useChatPaneAgentControl(pane, { enabled: true, webmcp: true });
+      return pane;
+    });
+    expect(context.registerCalls).toBeGreaterThan(0);
   });
 });
 

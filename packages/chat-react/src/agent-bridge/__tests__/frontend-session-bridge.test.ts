@@ -59,6 +59,7 @@ function createDriver(overrides: Partial<PageDriver> = {}): PageDriver {
       { handle: 'save-button', role: 'button' as const, label: 'Save', labelTruncated: false, page: 'home' },
     ]),
     listPages: vi.fn(async () => ['home']),
+    selectOption: vi.fn(async () => undefined),
     describeField: vi.fn(async () => null),
     highlight: vi.fn(async () => undefined),
     scrollTo: vi.fn(async () => undefined),

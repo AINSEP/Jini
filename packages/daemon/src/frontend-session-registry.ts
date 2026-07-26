@@ -18,6 +18,14 @@
  * confirmation, timeout, cancellation, truncation, and audit trail. A route that called `invoke`
  * directly would be strictly weaker, which is exactly the failure this design exists to avoid.
  *
+ * That statement is about *this* path, and is worth stating precisely, because one ungated path
+ * does exist elsewhere: a frontend may register the same capabilities with the browser's in-page
+ * WebMCP surface, where a caller has no run and no principal and therefore never reaches
+ * `ToolExecutor` at all. Nothing in this package can gate that — it happens entirely in the page —
+ * so it is off unless a host opts in (`@jini/chat-react`'s `agentControl.webmcp`). A reader who
+ * takes "no second execution path" as a whole-system guarantee would be wrong; it is a guarantee
+ * about everything that arrives here.
+ *
  * **Attaching and binding are separate on purpose.** A surface attaches once, when it opens — a
  * chat pane mounts long before the user sends anything, and runs are created per message, so a
  * surface cannot know a run id at attach time. A run is *bound* to the surface that originated it

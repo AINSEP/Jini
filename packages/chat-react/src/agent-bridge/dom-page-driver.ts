@@ -45,8 +45,37 @@ function isAgentElementRole(value: string | null): value is AgentElementRole {
   return value !== null && (AGENT_ELEMENT_ROLES as readonly string[]).includes(value);
 }
 
+/**
+ * Whether the element is a rich-text surface — a `contenteditable` region rather than a form
+ * control. Rich-text editors are built this way, so treating one as unfillable makes every
+ * comment box, description field and document editor unreachable.
+ */
+function isEditableRegion(element: Element): element is HTMLElement {
+  if (!(element instanceof HTMLElement)) return false;
+  // The attribute is checked before `isContentEditable` because a headless DOM does not compute
+  // the latter — relying on it alone makes every one of these tests pass vacuously while the real
+  // browser behaves differently. `contenteditable=""` and `"plaintext-only"` are both editable;
+  // only an explicit `"false"` is not.
+  const attribute = element.getAttribute('contenteditable');
+  if (attribute !== null) return attribute !== 'false';
+  // Editability inherited from an ancestor, which only a real layout engine can tell us about.
+  return element.isContentEditable === true;
+}
+
 /** The field attributes the guards need, or `null` when the control is not a text-bearing input. */
 function fieldDescriptorOf(control: Element): FieldDescriptor | null {
+  if (isEditableRegion(control)) {
+    // Reported as a field so the same guards run: a contenteditable div named `card-number` is
+    // no more fillable than an input would be. `type` is not a real HTML input type, and is not
+    // in any denied set, which is correct — the guard should judge it by name and attributes.
+    return {
+      type: 'contenteditable',
+      name: control.getAttribute('name') || undefined,
+      id: control.id || undefined,
+      readOnly: false,
+      disabled: control.getAttribute('aria-disabled') === 'true',
+    } satisfies FieldDescriptor;
+  }
   if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
     return null;
   }
@@ -146,11 +175,22 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     return element;
   };
 
-  /** The control a handle addresses — for a wrapper like `<li><label><input>`, the input. */
-  const controlOf = (element: Element): Element =>
-    element.matches('input, textarea, select, button, a')
+  /**
+   * The control a handle addresses — for a wrapper like `<li><label><input>`, the input.
+   *
+   * `<details>` is called out because its interactive part is the `<summary>`: clicking the
+   * `<details>` element itself dispatches an event the platform ignores, so a disclosure widget
+   * would never open and the caller would be told the click landed.
+   */
+  const controlOf = (element: Element): Element => {
+    // An editable region IS the control. Descending would find a link inside a rich-text document
+    // and address that instead of the text the caller meant to write.
+    if (isEditableRegion(element)) return element;
+    if (element instanceof HTMLDetailsElement) return element.querySelector('summary') ?? element;
+    return element.matches('input, textarea, select, button, a')
       ? element
-      : element.querySelector('input, textarea, select, button, a') ?? element;
+      : element.querySelector('input, textarea, select, button, a, summary') ?? element;
+  };
 
   return {
     async findElements(filter: FindElementsFilter) {
@@ -279,6 +319,16 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
 
     async fill(handle, text) {
       const control = controlOf(find(handle));
+      if (isEditableRegion(control)) {
+        // A contenteditable region has no `value`; its content *is* its children. `textContent`
+        // replaces them wholesale, which is what "fill" means — and deliberately drops any markup
+        // rather than injecting caller text as HTML.
+        control.textContent = text;
+        // Editors listen for `input`, not `change`; `change` is a form-control event and firing it
+        // here would be inventing an event the platform never sends for this element.
+        control.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
       if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
         throw new Error(`"${handle}" is not a fillable field`);
       }
@@ -314,11 +364,17 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
           `"${option}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
         );
       }
-      // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
-      // value on the node and ignores a change event whose value it believes it already has.
-      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
-      if (setter) setter.call(control, match.value);
-      else control.value = match.value;
+      if (control.multiple) {
+        // A multi-select accumulates. Assigning `value` would silently clear every prior choice,
+        // so a caller building up a selection would end with only its last call's option.
+        match.selected = true;
+      } else {
+        // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
+        // value on the node and ignores a change event whose value it believes it already has.
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+        if (setter) setter.call(control, match.value);
+        else control.value = match.value;
+      }
       control.dispatchEvent(new Event('input', { bubbles: true }));
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },

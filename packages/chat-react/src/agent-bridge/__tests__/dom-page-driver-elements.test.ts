@@ -118,19 +118,37 @@ describe('click across the activatable elements', () => {
   });
 
   it('toggles a <details> through its <summary>', async () => {
+    // Clicking the <details> element itself dispatches an event the platform ignores, so the
+    // disclosure would never open while the caller was told the click landed.
     mount('<details data-agent-element="target"><summary>More</summary><p>body</p></details>');
-    const details = root.querySelector('details') as HTMLDetailsElement;
-    // `controlOf` finds no input/button/a inside, so the handle element itself is clicked —
-    // which for <details> is not the summary, so the disclosure does not toggle.
     await makeDriver().click('target');
-    expect(details.open).toBe(false);
+    expect((root.querySelector('details') as HTMLDetailsElement).open).toBe(true);
   });
 
-  it('refuses an element with nothing activatable inside it', async () => {
+  it('clicks a <details> that has no <summary>, without descending into its body', async () => {
+    // Malformed but legal markup. Falling back to the element itself is the honest answer —
+    // there is no disclosure control to press.
+    mount('<details data-agent-element="target"><p>body</p></details>');
+    const seen = vi.fn();
+    (root.querySelector('[data-agent-element="target"]') as HTMLElement).addEventListener('click', seen);
+    await makeDriver().click('target');
+    expect(seen).toHaveBeenCalledOnce();
+  });
+
+  it('addresses an editable region itself rather than a link inside it', async () => {
+    mount('<div data-agent-element="target" contenteditable="true"><a href="#x">link</a></div>');
+    await makeDriver().fill('target', 'replaced');
+    expect((root.querySelector('[data-agent-element="target"]') as HTMLElement).textContent).toBe('replaced');
+  });
+
+  it('clicks a plain element, because a div with a handler is a real control', async () => {
+    // Deliberately not refused. React attaches onClick to divs constantly, and nothing in the DOM
+    // distinguishes one of those from an inert div — refusing would break more than it protects.
     mount('<div data-agent-element="target"><span>just text</span></div>');
-    // A <div> is an HTMLElement, so `.click()` dispatches — it just does nothing useful. This is
-    // the shape of a false success: the caller is told the click landed.
-    await expect(makeDriver().click('target')).resolves.toBeUndefined();
+    const seen = vi.fn();
+    (root.querySelector('[data-agent-element="target"]') as HTMLElement).addEventListener('click', seen);
+    await makeDriver().click('target');
+    expect(seen).toHaveBeenCalledOnce();
   });
 });
 
@@ -168,13 +186,28 @@ describe('state readback across element kinds', () => {
 });
 
 describe('known gaps — asserted so closing one is a deliberate act', () => {
-  it('GAP: a contenteditable region is not fillable, so rich-text editors are unreachable', async () => {
+  it('fills a contenteditable region, which is how every rich-text editor is built', async () => {
     mount('<div data-agent-element="target" data-agent-role="field" contenteditable="true"></div>');
-    expect(await makeDriver().describeField('target')).toBeNull();
-    await expect(makeDriver().fill('target', 'hello')).rejects.toThrow(/not a fillable field/);
+    const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
+    const events: string[] = [];
+    target.addEventListener('input', () => events.push('input'));
+    target.addEventListener('change', () => events.push('change'));
+
+    expect(await makeDriver().describeField('target')).toMatchObject({ type: 'contenteditable' });
+    await makeDriver().fill('target', 'hello');
+    expect(target.textContent).toBe('hello');
+    // `input` only: `change` is a form-control event the platform never fires for this element.
+    expect(events).toEqual(['input']);
   });
 
-  it('GAP: selectOption on a multi-select replaces the selection instead of adding to it', async () => {
+  it('guards a contenteditable region by name like any other field', async () => {
+    // Rich-text surfaces are still fields — a contenteditable named for a card number must be
+    // refused exactly as an <input> of that name would be.
+    mount('<div data-agent-element="target" data-agent-role="field" contenteditable="true" name="card_number"></div>');
+    expect(await makeDriver().describeField('target')).toMatchObject({ name: 'card_number' });
+  });
+
+  it('accumulates options on a multi-select instead of replacing the selection', async () => {
     mount(`<select data-agent-element="target" multiple>
       <option value="a">Alpha</option><option value="b">Beta</option>
     </select>`);
@@ -182,7 +215,17 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     await driver.selectOption('target', 'Alpha');
     await driver.selectOption('target', 'Beta');
     const select = root.querySelector('[data-agent-element="target"]') as HTMLSelectElement;
-    expect(Array.from(select.selectedOptions).map((option) => option.value)).toEqual(['b']);
+    expect(Array.from(select.selectedOptions).map((option) => option.value)).toEqual(['a', 'b']);
+  });
+
+  it('still replaces the selection on a single-select', async () => {
+    mount(`<select data-agent-element="target">
+      <option value="a">Alpha</option><option value="b">Beta</option>
+    </select>`);
+    const driver = makeDriver();
+    await driver.selectOption('target', 'Alpha');
+    await driver.selectOption('target', 'Beta');
+    expect((root.querySelector('[data-agent-element="target"]') as HTMLSelectElement).value).toBe('b');
   });
 
   it('handles an <optgroup> correctly, because options are read flat', async () => {
