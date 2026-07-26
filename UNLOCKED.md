@@ -80,13 +80,6 @@ still `PENDING` for every entry; see the "Promotion" section below for what chan
     "signOff": "PENDING",
     "note": "Not named anywhere in extraction-plan.md; not even listed in AGENTS.md's own package inventory."
   },
-  "@jini/metatool": {
-    "status": "incubating",
-    "consumers": [],
-    "lockedPackagesMayImport": false,
-    "signOff": "PENDING",
-    "note": "Own source-map.md states: 'Ported speculatively with no current consumer... likely not needed by an engine.' No other package in this repo imports it. Highest-priority candidate for archival alongside capability-providers."
-  },
   "@jini/agui": {
     "status": "incubating",
     "consumers": ["examples/reference-web (workspace composition root; not promotion-qualified)"],
