@@ -339,10 +339,9 @@ export function AgentLab() {
           placeholder="Ask about this page…"
           uploadAttachments={uploadChatAttachments}
           initialWorkingDirectory="examples/reference-web"
-          suggestions={[
-            'What controls are on this page?',
-            'Check off "Water the window plants".',
-          ]}
+          // No `suggestions`: the row sits in normal flow directly above the composer and never
+          // goes away, so in a pane this narrow it costs the transcript a line for the whole life
+          // of the conversation — long after example prompts are of any use.
           // Opt in to the chat.* capability surface AND the daemon relay. Both families now
           // arrive over one connection: chat.* is served by the pane, page.* by the driver above.
           agentControl={agentControl}
