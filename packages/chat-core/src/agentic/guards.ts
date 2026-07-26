@@ -120,7 +120,12 @@ export function findFieldReadRefusal(field: FieldDescriptor): FieldReadRefusal |
 
   const autocomplete = field.autocomplete?.toLowerCase();
   if (autocomplete !== undefined) {
-    for (const token of autocomplete.split(/\s+/)) {
+    // The real grammar is space-separated tokens, but a comma-joined value
+    // (`"new-password,current-password"`) is markup an attacker-controlled page can trivially
+    // emit even though real browsers won't autofill it correctly either — splitting on
+    // whitespace alone turned the whole string into one unrecognized token, so the field still
+    // worked as a plain text input while looking unguarded.
+    for (const token of autocomplete.split(/[\s,]+/)) {
       if (DENIED_AUTOCOMPLETE.has(token)) return 'denied-autocomplete';
     }
   }

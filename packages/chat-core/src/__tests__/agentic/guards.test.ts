@@ -32,6 +32,19 @@ describe('findFieldFillRefusal', () => {
     expect(findFieldFillRefusal({ type: 'text', autocomplete: 'one-time-code' })).toBe('denied-autocomplete');
   });
 
+  it('catches a comma-separated autocomplete value, not just a space-separated one', () => {
+    // Regression: `autocomplete.split(/\s+/)` turned "new-password,current-password" into one
+    // unrecognized token, so a comma-joined value (spec-invalid HTML, but markup an
+    // attacker-controlled page can trivially emit) bypassed the guard for both a password token
+    // and a card token.
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'new-password,current-password' }))
+      .toBe('denied-autocomplete');
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'cc-number,cc-csc' })).toBe('denied-autocomplete');
+    // Still sound for the ordinary space-separated, section-scoped grammar.
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'section-blue shipping cc-number' }))
+      .toBe('denied-autocomplete');
+  });
+
   it('refuses a secret-looking field even when type and autocomplete are innocent', () => {
     // The case an allowlist alone misses: the field carries a handle and looks like plain text.
     expect(findFieldFillRefusal({ type: 'text', name: 'csrf_token' })).toBe('suspicious-name');
