@@ -148,6 +148,24 @@ describe('attachment', () => {
     await expect(bridge.ready).rejects.toThrow('capability not permitted');
   });
 
+  it('drops the bind token the moment the stream errors, because the daemon already has', async () => {
+    // The registry deletes a session's token as soon as its connection goes; keeping it here
+    // until the next `attached` frame leaves a gap where a run binds to a surface that is gone.
+    const bridge = createFrontendSessionBridge();
+    FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
+    FakeEventSource.last?.fail();
+    expect(bridge.bindToken()).toBeUndefined();
+    await expect(bridge.bridgeAccess.respondSuccess('i1', {})).rejects.toThrow(/not attached yet/);
+  });
+
+  it('picks the new token up when the connection comes back', () => {
+    const bridge = createFrontendSessionBridge();
+    FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
+    FakeEventSource.last?.fail();
+    FakeEventSource.last?.emit({ type: 'attached', sessionId: 's2', bindToken: 't2' });
+    expect(bridge.bindToken()).toBe('t2');
+  });
+
   it('surrenders its bind token when closed, so a torn-down surface cannot strand a run', () => {
     const bridge = createFrontendSessionBridge();
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });

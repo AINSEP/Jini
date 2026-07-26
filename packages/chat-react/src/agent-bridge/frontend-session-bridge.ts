@@ -209,7 +209,17 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
     void serveLocally(action);
   });
 
-  source.addEventListener('error', (event) => options.onError?.(event));
+  source.addEventListener('error', (event) => {
+    // The daemon deletes a session's bind token the instant that connection drops, so by the time
+    // this fires the token in hand is already gone from the registry. Holding it until the next
+    // `attached` frame leaves a window where `bindToken()` hands back something dead, and a run
+    // started in that window fails to bind — reported to the agent only as "no frontend is bound
+    // to this run", with the real reason (a reconnect it never saw) nowhere in view.
+    // Reporting no token is the honest answer for a surface that is, right now, not attached.
+    currentBindToken = undefined;
+    sessionId = undefined;
+    options.onError?.(event);
+  });
 
   const bridgeAccess: ChatPaneAgentBridgeAccess = {
     subscribe(onAction) {
