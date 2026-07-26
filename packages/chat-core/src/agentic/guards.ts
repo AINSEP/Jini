@@ -31,27 +31,52 @@ const DENIED_AUTOCOMPLETE = new Set([
   'cc-number', 'cc-exp', 'cc-exp-month', 'cc-exp-year', 'cc-csc', 'cc-name', 'cc-type',
 ]);
 
-/** Substrings in `name`/`id` that indicate a secret even when type/autocomplete are unset. */
+/**
+ * Substrings in `name`/`id` that indicate a secret even when type/autocomplete are unset.
+ *
+ * Matched against {@link squashSeparators}'d text, so the multi-word entries catch the separator
+ * spellings people actually use. `api_key`, `api-key` and `apiKey` are all the same field; a
+ * literal-substring match sees only the last one, which is the least common of the three.
+ */
 const SUSPICIOUS_NAME = /(?:password|passwd|secret|token|csrf|xsrf|otp|cvv|cvc|ssn|creditcard|cardnumber|apikey)/i;
 
-export type FieldRefusal =
-  | 'denied-type'
-  | 'denied-autocomplete'
-  | 'suspicious-name'
-  | 'read-only'
-  | 'disabled';
+/**
+ * Drops everything that is not a letter or digit, so separator conventions do not decide whether
+ * a guard fires. Over-matching is the safe direction here and is the point: this guard fails
+ * closed, and the cost of a false positive is a field an agent must leave to the user.
+ */
+function squashSeparators(value: string): string {
+  return value.replace(/[^a-z0-9]/gi, '');
+}
 
 /**
- * Why an automated fill must be refused for this field, or `null` when it is safe to write.
+ * The refusals that are about *secrecy* — the field's contents are not an agent's to know.
  *
- * Fails closed on anything that looks like a credential, payment instrument, one-time code, or
- * anti-forgery token, independent of whether the field carries an agent handle. Tagging a
- * password box does not make it fillable.
+ * Separated from the two writability refusals below because reading and writing are different
+ * questions with different answers. A read-only field's value is perfectly safe to read back; a
+ * password's is not safe to read even though it is, mechanically, just as readable. Folding both
+ * into one list would either leak the password or hide the read-only field's value for no reason.
+ */
+export type FieldReadRefusal =
+  | 'denied-type'
+  | 'denied-autocomplete'
+  | 'suspicious-name';
+
+export type FieldRefusal = FieldReadRefusal | 'read-only' | 'disabled';
+
+/**
+ * Why this field's current value must not be reported back to a caller, or `null` when reading
+ * it is safe.
+ *
+ * Reading is the strictly more dangerous direction: writing into a password box gives an agent
+ * nothing, whereas reading one out hands over the secret itself. So every secrecy signal the fill
+ * guard uses applies here identically — type, autocomplete token, and a name or id that indicates
+ * a credential or anti-forgery token — and none of them may be relaxed for reads.
  *
  * @param field - The field's attributes.
- * @returns The first refusal reason, or `null` when the field may be filled.
+ * @returns The first secrecy refusal, or `null` when the value may be reported.
  */
-export function findFieldFillRefusal(field: FieldDescriptor): FieldRefusal | null {
+export function findFieldReadRefusal(field: FieldDescriptor): FieldReadRefusal | null {
   const type = field.type?.toLowerCase();
   if (type !== undefined && DENIED_TYPES.has(type)) return 'denied-type';
 
@@ -62,9 +87,30 @@ export function findFieldFillRefusal(field: FieldDescriptor): FieldRefusal | nul
     }
   }
 
-  if (SUSPICIOUS_NAME.test(field.name ?? '') || SUSPICIOUS_NAME.test(field.id ?? '')) {
+  if (
+    SUSPICIOUS_NAME.test(squashSeparators(field.name ?? ''))
+    || SUSPICIOUS_NAME.test(squashSeparators(field.id ?? ''))
+  ) {
     return 'suspicious-name';
   }
+  return null;
+}
+
+/**
+ * Why an automated fill must be refused for this field, or `null` when it is safe to write.
+ *
+ * Fails closed on anything that looks like a credential, payment instrument, one-time code, or
+ * anti-forgery token, independent of whether the field carries an agent handle. Tagging a
+ * password box does not make it fillable. Every secrecy refusal is also a fill refusal — a field
+ * whose contents an agent may not read is certainly not one it may overwrite — and two further
+ * refusals cover fields that are simply not writable.
+ *
+ * @param field - The field's attributes.
+ * @returns The first refusal reason, or `null` when the field may be filled.
+ */
+export function findFieldFillRefusal(field: FieldDescriptor): FieldRefusal | null {
+  const secrecy = findFieldReadRefusal(field);
+  if (secrecy !== null) return secrecy;
   if (field.readOnly === true) return 'read-only';
   if (field.disabled === true) return 'disabled';
   return null;
@@ -78,9 +124,20 @@ const FIELD_REFUSAL_MESSAGES: Record<FieldRefusal, string> = {
   disabled: 'this field is disabled',
 };
 
+const FIELD_READ_REFUSAL_MESSAGES: Record<FieldReadRefusal, string> = {
+  'denied-type': 'this field type is never readable by an agent',
+  'denied-autocomplete': 'this field holds a credential or payment instrument',
+  'suspicious-name': 'this field name indicates a secret or anti-forgery token',
+};
+
 /** Model-readable reason for a refusal, so a blocked fill explains itself instead of failing opaquely. */
 export function describeFieldRefusal(refusal: FieldRefusal): string {
   return FIELD_REFUSAL_MESSAGES[refusal];
+}
+
+/** Model-readable reason a value was withheld, so a caller knows the field has contents it may not see rather than assuming it is empty. */
+export function describeFieldReadRefusal(refusal: FieldReadRefusal): string {
+  return FIELD_READ_REFUSAL_MESSAGES[refusal];
 }
 
 /** Default cap on page-authored text handed to a model. */

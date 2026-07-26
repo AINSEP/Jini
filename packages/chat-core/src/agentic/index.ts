@@ -27,10 +27,14 @@ export type { PageDriver, FindElementsFilter } from './page-driver.js';
 
 export {
   executePageCapability,
+  projectElementState,
   DEFAULT_HIGHLIGHT_MS,
   MAX_HIGHLIGHT_MS,
+  MAX_STATEFUL_ELEMENTS,
   type FindElementsResult,
   type PageElementResult,
+  type PageSummary,
+  type PageWriteObservation,
 } from './page-executor.js';
 
 export { CHAT_CAPABILITIES } from './chat-capabilities.js';
@@ -46,15 +50,20 @@ export {
   resolveHandleSelector,
   type AgentElementRole,
   type AgentElementDescriptor,
+  type AgentElementRawState,
+  type AgentElementState,
 } from './element-handles.js';
 
 export {
   findFieldFillRefusal,
+  findFieldReadRefusal,
   describeFieldRefusal,
+  describeFieldReadRefusal,
   normalizeAgentLabel,
   MAX_AGENT_LABEL_LENGTH,
   type FieldDescriptor,
   type FieldRefusal,
+  type FieldReadRefusal,
   type NormalizedLabel,
 } from './guards.js';
 

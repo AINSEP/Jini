@@ -6,6 +6,7 @@ import {
   AGENT_ELEMENT_ROLES,
   resolveHandleSelector,
   type AgentElementDescriptor,
+  type AgentElementRawState,
   type AgentElementRole,
   type FieldDescriptor,
   type FindElementsFilter,
@@ -31,15 +32,66 @@ const HIGHLIGHT_STYLE = {
   borderRadius: '4px',
 } as const;
 
+/**
+ * Upper bound on {@link createDomPageDriver}'s `settle`.
+ *
+ * A hidden tab stops delivering animation frames, so waiting for one never returns — and a
+ * background tab is exactly where an agent-driven page ends up while the user works elsewhere.
+ * This is the ceiling that keeps every write bounded regardless.
+ */
+const SETTLE_TIMEOUT_MS = 120;
+
 function isAgentElementRole(value: string | null): value is AgentElementRole {
   return value !== null && (AGENT_ELEMENT_ROLES as readonly string[]).includes(value);
 }
 
+/** The field attributes the guards need, or `null` when the control is not a text-bearing input. */
+function fieldDescriptorOf(control: Element): FieldDescriptor | null {
+  if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
+    return null;
+  }
+  return {
+    type: control instanceof HTMLInputElement ? control.type.toLowerCase() : 'textarea',
+    autocomplete: control.getAttribute('autocomplete')?.toLowerCase() ?? undefined,
+    name: control.name || undefined,
+    id: control.id || undefined,
+    readOnly: control.readOnly,
+    disabled: control.disabled,
+  } satisfies FieldDescriptor;
+}
+
+/**
+ * Whether the element is actually rendered, or `undefined` when the platform cannot say.
+ *
+ * `checkVisibility` is the only answer that accounts for `display:none` on an ancestor, `hidden`,
+ * `content-visibility` and an empty box at once. Where it is missing, this reports nothing rather
+ * than falling back to a layout measurement — a headless DOM has no layout, so that fallback would
+ * confidently declare every element invisible.
+ */
+function visibilityOf(element: Element): boolean | undefined {
+  const check = (element as { checkVisibility?: () => boolean }).checkVisibility;
+  return typeof check === 'function' ? check.call(element) : undefined;
+}
+
+/** `disabled` for the controls that have one; `undefined` for everything else, which is not the same as `false`. */
+function disabledOf(control: Element): boolean | undefined {
+  return control instanceof HTMLInputElement
+    || control instanceof HTMLTextAreaElement
+    || control instanceof HTMLButtonElement
+    || control instanceof HTMLSelectElement
+    ? control.disabled
+    : undefined;
+}
+
 function describe(element: Element, page: string | undefined): AgentElementDescriptor {
   const role = element.getAttribute(AGENT_ROLE_ATTRIBUTE);
-  const label = element.getAttribute(AGENT_LABEL_ATTRIBUTE) ?? element.textContent ?? '';
+  /* c8 ignore next -- `Node.textContent` is typed nullable for the abstract node; on an Element it is always a string, so the `?? ''` satisfies the type and is not a reachable path. */
+  const text = element.textContent ?? '';
+  const label = element.getAttribute(AGENT_LABEL_ATTRIBUTE) ?? text;
+  /* c8 ignore next -- only ever called on a `[data-agent-element]` match, so the attribute is present by construction. */
+  const handle = element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '';
   return {
-    handle: element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '',
+    handle,
     role: isAgentElementRole(role) ? role : undefined,
     // The executor normalizes and bounds this; raw here on purpose so the guard is applied in
     // exactly one place rather than half-applied in two.
@@ -76,8 +128,17 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
   const { root, pages } = options;
   /** Static when the host pinned one, otherwise read live so a view swap is reflected. */
   const resolvePage = (): string | undefined => options.currentPage ?? currentAgentPage(root);
-  /** Timers keyed by handle, so re-highlighting the same element restarts rather than stacks. */
-  const highlightTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /**
+   * Active markers keyed by handle, so re-highlighting the same element restarts rather than
+   * stacks — and carrying the styling to put back, which must be captured once, on the first
+   * highlight. Re-reading the element on a restart would snapshot the marker itself, and the
+   * element would keep it forever: a capability classified `read` precisely because it is
+   * transient would permanently change how someone's page looks.
+   */
+  const highlights = new Map<string, {
+    timer: ReturnType<typeof setTimeout>;
+    restore: { outline: string; outlineOffset: string; borderRadius: string };
+  }>();
 
   const find = (handle: string): Element => {
     const element = root.querySelector(resolveHandleSelector(handle));
@@ -111,27 +172,65 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     },
 
     async describeField(handle) {
-      const control = controlOf(find(handle));
-      if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
-        return null;
-      }
+      return fieldDescriptorOf(controlOf(find(handle)));
+    },
+
+    async describeState(handle) {
+      // Unlike every other method here, a handle that no longer resolves is an answer rather than
+      // an error: an element that a click removed is exactly what the caller is asking about.
+      const element = root.querySelector(resolveHandleSelector(handle));
+      if (element === null) return null;
+      const control = controlOf(element);
+      const field = fieldDescriptorOf(control);
+      const checkable = control instanceof HTMLInputElement
+        && (control.type === 'checkbox' || control.type === 'radio');
+      /* c8 ignore next -- as in `describe`: an Element's textContent is always a string. */
+      const text = element.textContent ?? '';
       return {
-        type: control instanceof HTMLInputElement ? control.type.toLowerCase() : 'textarea',
-        autocomplete: control.getAttribute('autocomplete')?.toLowerCase() ?? undefined,
-        name: control.name || undefined,
-        id: control.id || undefined,
-        readOnly: control.readOnly,
-        disabled: control.disabled,
-      } satisfies FieldDescriptor;
+        text,
+        // Reported raw and unconditionally; `projectElementState` applies the read guard. A
+        // driver deciding here which values are secret is a driver holding policy.
+        ...(field !== null ? { value: (control as HTMLInputElement | HTMLTextAreaElement).value } : {}),
+        ...(checkable ? { checked: (control as HTMLInputElement).checked } : {}),
+        ...(disabledOf(control) !== undefined ? { disabled: disabledOf(control) } : {}),
+        ...(visibilityOf(element) !== undefined ? { visible: visibilityOf(element) } : {}),
+        ...(field !== null ? { field } : {}),
+      } satisfies AgentElementRawState;
+    },
+
+    /**
+     * Two animation frames — long enough for a framework to have re-rendered and the browser to
+     * have painted — or {@link SETTLE_TIMEOUT_MS}, whichever lands first. Without the timeout this
+     * would hang for the whole life of a backgrounded tab; without the frames every write would
+     * report its own target unchanged, because the read would beat the render.
+     */
+    async settle() {
+      await new Promise<void>((resolve) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        // No re-entry guard: whichever side loses the race calls this again, and both of its
+        // effects are already idempotent — clearing an elapsed timer is a no-op, and a second
+        // `resolve` on a settled promise is ignored. A flag here would only be a branch nothing
+        // can distinguish.
+        const finish = (): void => {
+          if (timer !== undefined) clearTimeout(timer);
+          resolve();
+        };
+        const raf = globalThis.requestAnimationFrame;
+        // With no animation frames to wait for, one macrotask is the whole mechanism, and waiting
+        // the full ceiling on every write would be pure latency.
+        timer = setTimeout(finish, typeof raf === 'function' ? SETTLE_TIMEOUT_MS : 0);
+        if (typeof raf === 'function') raf(() => raf(finish));
+      });
     },
 
     async highlight(handle, durationMs) {
       const element = find(handle);
       if (!(element instanceof HTMLElement)) return;
-      const previous = highlightTimers.get(handle);
-      if (previous !== undefined) clearTimeout(previous);
+      const active = highlights.get(handle);
+      if (active !== undefined) clearTimeout(active.timer);
 
-      const restore = {
+      // Reuse the first capture on a restart; see the map's own doc for what re-reading would cost.
+      const restore = active?.restore ?? {
         outline: element.style.outline,
         outlineOffset: element.style.outlineOffset,
         borderRadius: element.style.borderRadius,
@@ -139,11 +238,12 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       Object.assign(element.style, HIGHLIGHT_STYLE);
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-      highlightTimers.set(handle, setTimeout(() => {
+      const timer = setTimeout(() => {
         // Restore what was there rather than clearing: the element may have had its own outline.
         Object.assign(element.style, restore);
-        highlightTimers.delete(handle);
-      }, durationMs));
+        highlights.delete(handle);
+      }, durationMs);
+      highlights.set(handle, { timer, restore });
     },
 
     async scrollTo(handle) {

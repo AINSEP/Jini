@@ -18,9 +18,17 @@ import {
 import {
   AGENT_ELEMENT_ROLES,
   isValidElementHandle,
+  type AgentElementRawState,
   type AgentElementRole,
+  type AgentElementState,
 } from './element-handles.js';
-import { describeFieldRefusal, findFieldFillRefusal, normalizeAgentLabel } from './guards.js';
+import {
+  describeFieldReadRefusal,
+  describeFieldRefusal,
+  findFieldFillRefusal,
+  findFieldReadRefusal,
+  normalizeAgentLabel,
+} from './guards.js';
 import { PAGE_CAPABILITIES } from './page-capabilities.js';
 import type { PageDriver } from './page-driver.js';
 
@@ -34,6 +42,16 @@ export const DEFAULT_HIGHLIGHT_MS = 3_000;
  */
 export const MAX_HIGHLIGHT_MS = 15_000;
 
+/**
+ * How many elements `withState` will describe in one call.
+ *
+ * State is per-element work and per-element payload, so an unfiltered `withState` on a large page
+ * is both the slowest and the largest thing this surface can be asked for. The cap turns that into
+ * a bounded answer plus an explicit `stateTruncated`, rather than a caller discovering the limit
+ * as a timeout or a truncated blob. Narrowing with `role`/`query` is the intended way past it.
+ */
+export const MAX_STATEFUL_ELEMENTS = 50;
+
 /** An element as returned to a caller, with page-authored text already bounded. */
 export interface PageElementResult {
   readonly handle: string;
@@ -41,6 +59,8 @@ export interface PageElementResult {
   readonly label: string;
   readonly labelTruncated: boolean;
   readonly page: string | undefined;
+  /** Present only when `withState` was asked for, the driver can observe, and the element resolved. */
+  readonly state?: AgentElementState;
 }
 
 export interface FindElementsResult {
@@ -51,6 +71,29 @@ export interface FindElementsResult {
    * instructions, however imperative they read.
    */
   readonly untrustedFields: readonly string[];
+  /** True when `withState` was asked for but this surface cannot observe itself. */
+  readonly stateUnavailable?: boolean;
+  /** True when more elements matched than {@link MAX_STATEFUL_ELEMENTS}, so later ones carry no state. */
+  readonly stateTruncated?: boolean;
+}
+
+/**
+ * What a write did to its target, as seen by the surface itself.
+ *
+ * The point is that a caller can check its own work. Before this, `page.click` replied
+ * `{clicked: "item-water-window-plants"}` — an echo of the request, true whether or not anything
+ * happened.
+ */
+export interface PageWriteObservation {
+  /** Target state before the action. Absent when the surface cannot observe itself. */
+  readonly before?: AgentElementState;
+  /** Target state afterwards. Absent when unobservable, or when the action removed its own target. */
+  readonly after?: AgentElementState;
+  /**
+   * Whether the target's own state differs. Deliberately named for what was actually compared:
+   * a click can change much of a page while leaving the button it hit exactly as it was.
+   */
+  readonly targetChanged?: boolean;
 }
 
 function requireHandle(input: Record<string, unknown>, key: string): string {
@@ -71,6 +114,105 @@ function clampHighlightDuration(value: unknown): number {
 
 function isAgentElementRole(value: unknown): value is AgentElementRole {
   return typeof value === 'string' && (AGENT_ELEMENT_ROLES as readonly string[]).includes(value);
+}
+
+/**
+ * Turns a driver's raw reading into what a caller may see.
+ *
+ * The one decision here that is not formatting: whether a field's contents are reportable at all.
+ * That runs on the descriptor the driver supplied, in this layer, for the same reason the fill
+ * guard does — a secrecy rule re-derived by each driver is a secrecy rule that will eventually be
+ * derived wrong. A value arriving with no descriptor to check is withheld rather than trusted.
+ */
+export function projectElementState(raw: AgentElementRawState): AgentElementState {
+  const text = normalizeAgentLabel(raw.text);
+  const base: AgentElementState = {
+    text: text.text,
+    textTruncated: text.truncated,
+    ...(raw.checked !== undefined ? { checked: raw.checked } : {}),
+    ...(raw.disabled !== undefined ? { disabled: raw.disabled } : {}),
+    ...(raw.visible !== undefined ? { visible: raw.visible } : {}),
+  };
+
+  if (raw.value === undefined) return base;
+  if (raw.field === undefined) {
+    return {
+      ...base,
+      valueWithheld: 'this element reported a value without the attributes needed to check it for secrets',
+    };
+  }
+  const refusal = findFieldReadRefusal(raw.field);
+  if (refusal !== null) return { ...base, valueWithheld: describeFieldReadRefusal(refusal) };
+
+  const value = normalizeAgentLabel(raw.value);
+  return { ...base, value: value.text, valueTruncated: value.truncated };
+}
+
+/**
+ * Whether two readings of the same element are indistinguishable to a caller.
+ *
+ * Compares only what the caller can actually see: a withheld value is compared as "withheld",
+ * so a secret that changed reads as unchanged. That is the honest answer — a change no caller may
+ * observe is not one this can report — and is why the field it feeds is named `targetChanged`.
+ */
+function sameElementState(a: AgentElementState, b: AgentElementState): boolean {
+  return a.text === b.text
+    && a.value === b.value
+    && a.valueWithheld === b.valueWithheld
+    && a.checked === b.checked
+    && a.disabled === b.disabled
+    && a.visible === b.visible;
+}
+
+/**
+ * Reads one element's state, or `undefined` when there is nothing to read.
+ *
+ * Two different absences collapse here on purpose: a driver that cannot observe at all, and an
+ * element that no longer resolves. A caller distinguishes them from context — `before` present
+ * with `after` absent means the action removed its own target; both absent means the surface does
+ * not report state.
+ */
+async function observeElement(driver: PageDriver, handle: string): Promise<AgentElementState | undefined> {
+  if (driver.describeState === undefined || !isValidElementHandle(handle)) return undefined;
+  const raw = await driver.describeState(handle);
+  return raw === null ? undefined : projectElementState(raw);
+}
+
+/** Runs a write between two readings of its target, waiting for the surface to settle in between. */
+async function observeWrite(
+  driver: PageDriver,
+  handle: string,
+  write: () => Promise<void>,
+): Promise<PageWriteObservation> {
+  const before = await observeElement(driver, handle);
+  await write();
+  if (driver.settle !== undefined) await driver.settle();
+  const after = await observeElement(driver, handle);
+  return {
+    ...(before !== undefined ? { before } : {}),
+    ...(after !== undefined ? { after } : {}),
+    ...(before !== undefined && after !== undefined
+      ? { targetChanged: !sameElementState(before, after) }
+      : {}),
+  };
+}
+
+/** What page is showing and how much it publishes — the before/after pair for a navigation. */
+export interface PageSummary {
+  readonly page: string | undefined;
+  readonly elementCount: number;
+}
+
+/**
+ * Reads the showing page from the elements themselves, which is where a driver reports it. A
+ * surface that publishes nothing has no page id to report, and says so rather than guessing.
+ */
+async function summarizePage(driver: PageDriver): Promise<PageSummary> {
+  const elements = await driver.findElements({});
+  return {
+    page: elements.find((element) => element.page !== undefined)?.page,
+    elementCount: elements.length,
+  };
 }
 
 /**
@@ -105,19 +247,31 @@ export async function executePageCapability(
         ...(typeof input['query'] === 'string' ? { query: input['query'] } : {}),
       };
       const [found, pages] = await Promise.all([driver.findElements(filter), driver.listPages()]);
+      const withState = input['withState'] === true;
+      const observing = withState && driver.describeState !== undefined;
+
+      const elements = await Promise.all(found.map(async (element, index): Promise<PageElementResult> => {
+        const label = normalizeAgentLabel(element.label);
+        const base: PageElementResult = {
+          handle: element.handle,
+          role: element.role,
+          label: label.text,
+          labelTruncated: label.truncated,
+          page: element.page,
+        };
+        if (!observing || index >= MAX_STATEFUL_ELEMENTS) return base;
+        const state = await observeElement(driver, element.handle);
+        return state === undefined ? base : { ...base, state };
+      }));
+
       return {
-        elements: found.map((element) => {
-          const label = normalizeAgentLabel(element.label);
-          return {
-            handle: element.handle,
-            role: element.role,
-            label: label.text,
-            labelTruncated: label.truncated,
-            page: element.page,
-          };
-        }),
+        elements,
         pages,
-        untrustedFields: ['elements[].label'],
+        untrustedFields: observing
+          ? ['elements[].label', 'elements[].state.text', 'elements[].state.value']
+          : ['elements[].label'],
+        ...(withState && !observing ? { stateUnavailable: true } : {}),
+        ...(observing && found.length > MAX_STATEFUL_ELEMENTS ? { stateTruncated: true } : {}),
       } satisfies FindElementsResult;
     }
 
@@ -136,8 +290,8 @@ export async function executePageCapability(
 
     case 'page.click': {
       const handle = requireHandle(input, 'element');
-      await driver.click(handle);
-      return { clicked: handle };
+      const observation = await observeWrite(driver, handle, () => driver.click(handle));
+      return { clicked: handle, ...observation };
     }
 
     case 'page.fill': {
@@ -155,8 +309,8 @@ export async function executePageCapability(
         throw new Error(`refusing to fill "${handle}": ${describeFieldRefusal(refusal)}`);
       }
 
-      await driver.fill(handle, text);
-      return { filled: handle };
+      const observation = await observeWrite(driver, handle, () => driver.fill(handle, text));
+      return { filled: handle, ...observation };
     }
 
     case 'page.navigate': {
@@ -168,8 +322,11 @@ export async function executePageCapability(
           `"${page}" is not a published page. Available: ${pages.length > 0 ? pages.join(', ') : '(none)'}`,
         );
       }
+      const before = await summarizePage(driver);
       await driver.navigate(page);
-      return { navigatedTo: page };
+      if (driver.settle !== undefined) await driver.settle();
+      const after = await summarizePage(driver);
+      return { navigatedTo: page, before, after };
     }
 
     /* c8 ignore next 2 -- unreachable: the id was matched against PAGE_CAPABILITIES above. */

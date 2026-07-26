@@ -8,6 +8,7 @@
  * `resolveHandleSelector` can only ever build `[data-agent-element="<validated-handle>"]`,
  * so there is no path from caller input to an arbitrary `querySelector`.
  */
+import type { FieldDescriptor } from './guards.js';
 
 export const AGENT_ELEMENT_ATTRIBUTE = 'data-agent-element';
 export const AGENT_ROLE_ATTRIBUTE = 'data-agent-role';
@@ -73,4 +74,55 @@ export interface AgentElementDescriptor {
   readonly label: string;
   readonly labelTruncated: boolean;
   readonly page: string | undefined;
+}
+
+/**
+ * What an element currently *is*, as opposed to what it is *for*.
+ *
+ * `label` answers "what is this control" and is stable page ontology — it stays `"Full name"`
+ * whether the box is empty or holds `"Ada Lovelace"`. That stability is the reason a caller can
+ * address the same element across a whole session, and the reason a driver must never overwrite a
+ * label with live text. But it leaves a caller unable to check its own work: after typing a name,
+ * after ticking a box, after navigating, the reply named the element and said nothing about
+ * whether anything had actually happened.
+ *
+ * This is the missing half — a separate channel, so observation is added rather than ontology
+ * traded away.
+ *
+ * `text` and any `value` are page-authored and therefore untrusted, exactly like `label`.
+ */
+export interface AgentElementState {
+  /** Live text rendered inside the element, normalized and bounded. Empty for a bare input. */
+  readonly text: string;
+  readonly textTruncated: boolean;
+  /** The field's current contents. Absent when the element is not a field, or when withheld. */
+  readonly value?: string;
+  readonly valueTruncated?: boolean;
+  /** Why `value` is absent on a field that has one — so a caller reads "withheld", not "empty". */
+  readonly valueWithheld?: string;
+  /** Checkbox/radio state. Absent when the element is neither. */
+  readonly checked?: boolean;
+  readonly disabled?: boolean;
+  /** False when the element is present in the DOM but not rendered. */
+  readonly visible?: boolean;
+}
+
+/**
+ * What a driver reports for one element, before policy runs.
+ *
+ * Drivers stay mechanical: this carries the raw `value` and the `field` descriptor, and the
+ * executor decides whether the value may be reported at all (see `findFieldReadRefusal`). Putting
+ * that decision in the driver would place a secrecy rule in the one layer this design says must
+ * not hold policy — and would have to be re-derived correctly by every future driver.
+ */
+export interface AgentElementRawState {
+  /** Raw text content. The executor normalizes and bounds it. */
+  readonly text: string;
+  /** Raw field contents, reported unconditionally; the executor applies the read guard. */
+  readonly value?: string | undefined;
+  readonly checked?: boolean | undefined;
+  readonly disabled?: boolean | undefined;
+  readonly visible?: boolean | undefined;
+  /** Present when the element resolves to a field, so the executor can apply the read guard. */
+  readonly field?: FieldDescriptor | undefined;
 }

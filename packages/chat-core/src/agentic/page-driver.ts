@@ -17,7 +17,7 @@
  * Drivers are trusted to be mechanical. They must NOT re-implement policy — every refusal in
  * `page-executor.ts` runs before the driver is called.
  */
-import type { AgentElementDescriptor, AgentElementRole } from './element-handles.js';
+import type { AgentElementDescriptor, AgentElementRawState, AgentElementRole } from './element-handles.js';
 import type { FieldDescriptor } from './guards.js';
 
 /** Filter for {@link PageDriver.findElements}. Both fields are optional; absent means "no filter". */
@@ -70,4 +70,30 @@ export interface PageDriver {
 
   /** Called only after `page` has been checked against {@link PageDriver.listPages}. */
   navigate(page: string): Promise<void>;
+
+  /**
+   * What the element currently is: its live text, a field's contents, checked/disabled/visible.
+   *
+   * Optional, and honestly so. A driver over a surface that cannot be read back — a fire-and-forget
+   * native host, a write-only bridge — should omit it rather than fabricate a state, and the
+   * executor then reports observation as unavailable instead of implying an empty page.
+   *
+   * @param handle - A validated element handle.
+   * @returns The raw state, or `null` when the handle no longer resolves — which is itself an
+   * observation (a click that removed its own target), not an error.
+   */
+  describeState?(handle: string): Promise<AgentElementRawState | null>;
+
+  /**
+   * Resolves once the surface has finished reacting to the write that just happened.
+   *
+   * Without this, reading state back immediately after an action reads the DOM *before* the
+   * framework has re-rendered, and every write reports "nothing changed" — the precise failure
+   * this observation channel exists to fix. Optional because a surface with no async render has
+   * nothing to wait for; a DOM driver does, and must implement it.
+   *
+   * Implementations must be bounded: a hidden tab suspends animation frames indefinitely, so a
+   * naive "wait for the next frame" never resolves for exactly the background agent this is for.
+   */
+  settle?(): Promise<void>;
 }

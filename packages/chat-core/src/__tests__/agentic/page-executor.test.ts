@@ -2,10 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DEFAULT_HIGHLIGHT_MS,
+  MAX_AGENT_LABEL_LENGTH,
   MAX_HIGHLIGHT_MS,
+  MAX_STATEFUL_ELEMENTS,
   executePageCapability,
+  projectElementState,
   type AgentElementDescriptor,
+  type AgentElementRawState,
   type FieldDescriptor,
+  type FindElementsResult,
   type PageDriver,
 } from '../../agentic/index.js';
 
@@ -271,9 +276,13 @@ describe('page.fill', () => {
 });
 
 describe('page.navigate', () => {
-  it('navigates to a published page', async () => {
+  it('navigates to a published page, reporting what was showing before and after', async () => {
     expect(await executePageCapability(driver, 'page.navigate', { page: 'notes' }))
-      .toEqual({ navigatedTo: 'notes' });
+      .toEqual({
+        navigatedTo: 'notes',
+        before: { page: 'sunday-list', elementCount: 4 },
+        after: { page: 'sunday-list', elementCount: 4 },
+      });
     expect(driver.navigate).toHaveBeenCalledWith('notes');
   });
 
@@ -287,5 +296,231 @@ describe('page.navigate', () => {
     const pageless = createFakeDriver({ listPages: vi.fn(async () => []) });
     await expect(executePageCapability(pageless, 'page.navigate', { page: 'anywhere' }))
       .rejects.toThrow(/Available: \(none\)/);
+  });
+
+  it('reports an undefined page when the surface publishes no tagged elements to read one from', async () => {
+    const bare = createFakeDriver({ findElements: vi.fn(async () => []) });
+    expect(await executePageCapability(bare, 'page.navigate', { page: 'notes' }))
+      .toEqual({
+        navigatedTo: 'notes',
+        before: { page: undefined, elementCount: 0 },
+        after: { page: undefined, elementCount: 0 },
+      });
+  });
+
+  it('waits for the surface to settle before reading the destination', async () => {
+    const order: string[] = [];
+    const observing = createFakeDriver({
+      navigate: vi.fn(async () => { order.push('navigate'); }),
+      settle: vi.fn(async () => { order.push('settle'); }),
+      findElements: vi.fn(async () => { order.push('read'); return ELEMENTS; }),
+    });
+    await executePageCapability(observing, 'page.navigate', { page: 'notes' });
+    // listPages/allowlist read happens first; what matters is read-navigate-settle-read.
+    expect(order).toEqual(['read', 'navigate', 'settle', 'read']);
+  });
+});
+
+/** State a driver reports for one handle, so the observation tests can vary it per call. */
+function createObservingDriver(states: AgentElementRawState[]) {
+  const queue = [...states];
+  const describeState = vi.fn(async () => queue.shift() ?? null);
+  return { driver: createFakeDriver({ describeState, settle: vi.fn(async () => undefined) }), describeState };
+}
+
+const UNCHECKED: AgentElementRawState = { text: 'Water the window plants', checked: false, visible: true };
+const CHECKED: AgentElementRawState = { text: 'Water the window plants', checked: true, visible: true };
+
+describe('write observation — the caller can check its own work', () => {
+  it('reports the target before and after a click, and that it changed', async () => {
+    const { driver: observing } = createObservingDriver([UNCHECKED, CHECKED]);
+    expect(await executePageCapability(observing, 'page.click', { element: 'task-water-plants' }))
+      .toEqual({
+        clicked: 'task-water-plants',
+        before: { text: 'Water the window plants', textTruncated: false, checked: false, visible: true },
+        after: { text: 'Water the window plants', textTruncated: false, checked: true, visible: true },
+        targetChanged: true,
+      });
+  });
+
+  it('reports targetChanged false when the click left its own target exactly as it was', async () => {
+    const { driver: observing } = createObservingDriver([UNCHECKED, UNCHECKED]);
+    const result = await executePageCapability(observing, 'page.click', { element: 'task-water-plants' });
+    expect(result).toMatchObject({ targetChanged: false });
+  });
+
+  it('reads state, acts, settles, then reads again — in that order', async () => {
+    const order: string[] = [];
+    const observing = createFakeDriver({
+      describeState: vi.fn(async () => { order.push('read'); return UNCHECKED; }),
+      click: vi.fn(async () => { order.push('click'); }),
+      settle: vi.fn(async () => { order.push('settle'); }),
+    });
+    await executePageCapability(observing, 'page.click', { element: 'task-water-plants' });
+    expect(order).toEqual(['read', 'click', 'settle', 'read']);
+  });
+
+  it('omits the after reading, and any verdict, when the click removed its own target', async () => {
+    const { driver: observing } = createObservingDriver([UNCHECKED]);
+    const result = await executePageCapability(observing, 'page.click', { element: 'task-water-plants' });
+    expect(result).toEqual({
+      clicked: 'task-water-plants',
+      before: { text: 'Water the window plants', textTruncated: false, checked: false, visible: true },
+    });
+  });
+
+  it('adds nothing at all for a driver that cannot observe itself', async () => {
+    expect(await executePageCapability(driver, 'page.click', { element: 'task-water-plants' }))
+      .toEqual({ clicked: 'task-water-plants' });
+  });
+
+  it('reports what a filled field now holds', async () => {
+    const { driver: observing } = createObservingDriver([
+      { text: '', value: '', field: { type: 'text', name: 'task' } },
+      { text: '', value: 'Ada Lovelace', field: { type: 'text', name: 'task' } },
+    ]);
+    const result = await executePageCapability(observing, 'page.fill', { element: 'new-task-input', text: 'Ada Lovelace' });
+    expect(result).toMatchObject({
+      filled: 'new-task-input',
+      after: { value: 'Ada Lovelace', valueTruncated: false },
+      targetChanged: true,
+    });
+  });
+
+  it('still refuses a guarded field before observing anything', async () => {
+    const { driver: observing, describeState } = createObservingDriver([UNCHECKED, UNCHECKED]);
+    await expect(executePageCapability(observing, 'page.fill', { element: 'account-password', text: 'hunter2' }))
+      .rejects.toThrow(/refusing to fill "account-password"/);
+    expect(describeState).not.toHaveBeenCalled();
+  });
+});
+
+describe('projectElementState — what a caller may see', () => {
+  it('normalizes and bounds page-authored text', () => {
+    expect(projectElementState({ text: '  Water   the‮ plants  ' }))
+      .toEqual({ text: 'Water the plants', textTruncated: false });
+    expect(projectElementState({ text: 'x'.repeat(MAX_AGENT_LABEL_LENGTH + 10) }).textTruncated).toBe(true);
+  });
+
+  it('reports the value of an ordinary field', () => {
+    expect(projectElementState({ text: '', value: 'Ada', field: { type: 'text', name: 'full-name' } }))
+      .toMatchObject({ value: 'Ada', valueTruncated: false });
+  });
+
+  it('reports the value of a read-only field, which is not a secrecy question', () => {
+    expect(projectElementState({ text: '', value: 'ACME Inc', field: { type: 'text', name: 'org', readOnly: true } }))
+      .toMatchObject({ value: 'ACME Inc' });
+  });
+
+  it('reports the value of a disabled field for the same reason', () => {
+    expect(projectElementState({ text: '', value: 'ACME Inc', field: { type: 'text', name: 'org', disabled: true } }))
+      .toMatchObject({ value: 'ACME Inc' });
+  });
+
+  it.each([
+    ['a password box', { type: 'password', name: 'password' }, 'this field type is never readable by an agent'],
+    ['a hidden anti-forgery field', { type: 'hidden', name: 'csrf_token' }, 'this field type is never readable by an agent'],
+    ['a card number', { type: 'text', autocomplete: 'cc-number', name: 'card' }, 'this field holds a credential or payment instrument'],
+    ['a secret-looking name', { type: 'text', name: 'api_key' }, 'this field name indicates a secret or anti-forgery token'],
+  ])('withholds the value of %s, and says so rather than reporting it empty', (_label, field, reason) => {
+    const state = projectElementState({ text: '', value: 'super-secret', field });
+    expect(state.value).toBeUndefined();
+    expect(state.valueWithheld).toBe(reason);
+  });
+
+  it('withholds a value that arrived with no attributes to check it against', () => {
+    const state = projectElementState({ text: '', value: 'unknown provenance' });
+    expect(state.value).toBeUndefined();
+    expect(state.valueWithheld).toMatch(/without the attributes needed to check it for secrets/);
+  });
+
+  it('passes checked, disabled and visible through when the driver reported them', () => {
+    expect(projectElementState({ text: 'Submit', checked: false, disabled: true, visible: false }))
+      .toEqual({ text: 'Submit', textTruncated: false, checked: false, disabled: true, visible: false });
+  });
+
+  it('omits checked, disabled and visible rather than inventing false for them', () => {
+    expect(projectElementState({ text: 'Heading' })).toEqual({ text: 'Heading', textTruncated: false });
+  });
+});
+
+describe('page.find_elements — withState', () => {
+  it('reports no state at all by default', async () => {
+    const { driver: observing, describeState } = createObservingDriver([]);
+    const result = await executePageCapability(observing, 'page.find_elements', {}) as FindElementsResult;
+    expect(result.elements.every((element) => element.state === undefined)).toBe(true);
+    expect(describeState).not.toHaveBeenCalled();
+  });
+
+  it('attaches state to each element when asked', async () => {
+    const observing = createFakeDriver({
+      describeState: vi.fn(async (handle: string) => ({ text: `state of ${handle}`, visible: true })),
+    });
+    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    expect(result.elements[0]?.state).toEqual({
+      text: 'state of add-task-button',
+      textTruncated: false,
+      visible: true,
+    });
+    expect(result.untrustedFields).toContain('elements[].state.value');
+  });
+
+  it('never reports a password field\'s contents, even in a bulk listing', async () => {
+    const observing = createFakeDriver({
+      describeState: vi.fn(async (handle: string) => ({
+        text: '',
+        value: 'hunter2',
+        field: FIELDS[handle] ?? undefined,
+      })),
+    });
+    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    const password = result.elements.find((element) => element.handle === 'account-password');
+    expect(password?.state?.value).toBeUndefined();
+    expect(password?.state?.valueWithheld).toBe('this field type is never readable by an agent');
+  });
+
+  it('says so plainly when the surface cannot observe itself', async () => {
+    const result = await executePageCapability(driver, 'page.find_elements', { withState: true }) as FindElementsResult;
+    expect(result.stateUnavailable).toBe(true);
+    expect(result.elements.every((element) => element.state === undefined)).toBe(true);
+    expect(result.untrustedFields).toEqual(['elements[].label']);
+  });
+
+  it('caps how many elements it will describe, and reports the cap rather than silently stopping', async () => {
+    const many: AgentElementDescriptor[] = Array.from({ length: MAX_STATEFUL_ELEMENTS + 3 }, (_unused, index) => ({
+      handle: `row-${index}`, role: 'status' as const, label: `Row ${index}`, labelTruncated: false, page: 'sunday-list',
+    }));
+    const observing = createFakeDriver({
+      findElements: vi.fn(async () => many),
+      describeState: vi.fn(async () => ({ text: 'row' })),
+    });
+    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    expect(result.stateTruncated).toBe(true);
+    expect(result.elements[MAX_STATEFUL_ELEMENTS - 1]?.state).toBeDefined();
+    expect(result.elements[MAX_STATEFUL_ELEMENTS]?.state).toBeUndefined();
+    expect(observing.describeState).toHaveBeenCalledTimes(MAX_STATEFUL_ELEMENTS);
+  });
+
+  it('does not set stateTruncated when everything matched fits under the cap', async () => {
+    const observing = createFakeDriver({ describeState: vi.fn(async () => ({ text: 'x' })) });
+    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    expect(result.stateTruncated).toBeUndefined();
+  });
+
+  it('skips state for an element the page published under an unusable handle, rather than failing the listing', async () => {
+    const observing = createFakeDriver({
+      findElements: vi.fn(async () => [
+        { handle: 'Not A Handle', role: undefined, label: 'Malformed', labelTruncated: false, page: 'sunday-list' },
+      ]),
+      describeState: vi.fn(async () => ({ text: 'never reached' })),
+    });
+    const result = await executePageCapability(observing, 'page.find_elements', { withState: true }) as FindElementsResult;
+    expect(result.elements[0]?.state).toBeUndefined();
+    expect(observing.describeState).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-boolean withState through the shared schema check', async () => {
+    await expect(executePageCapability(driver, 'page.find_elements', { withState: 'yes' }))
+      .rejects.toThrow(/"withState" must be a boolean, received string/);
   });
 });

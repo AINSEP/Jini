@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import {
   MAX_AGENT_LABEL_LENGTH,
+  describeFieldReadRefusal,
   describeFieldRefusal,
   findFieldFillRefusal,
+  findFieldReadRefusal,
   normalizeAgentLabel,
 } from '../../agentic/index.js';
 
@@ -34,13 +36,52 @@ describe('findFieldFillRefusal', () => {
     // The case an allowlist alone misses: the field carries a handle and looks like plain text.
     expect(findFieldFillRefusal({ type: 'text', name: 'csrf_token' })).toBe('suspicious-name');
     expect(findFieldFillRefusal({ type: 'text', id: 'user-apikey' })).toBe('suspicious-name');
-    expect(findFieldFillRefusal({ type: 'text', name: 'card-number' })).toBeNull();
     expect(findFieldFillRefusal({ type: 'text', name: 'cardnumber' })).toBe('suspicious-name');
+  });
+
+  it('sees through the separator a field name happens to use', () => {
+    // These are the same field under three conventions, and the guard has to agree about all
+    // three. It previously matched only the run-together spelling, which is the rarest one.
+    for (const name of ['card-number', 'card_number', 'cardNumber']) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBe('suspicious-name');
+    }
+    for (const name of ['api_key', 'api-key', 'apiKey', 'credit_card', 'one.time.otp']) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBe('suspicious-name');
+    }
+    // Squashing separators must not start refusing ordinary fields.
+    for (const name of ['full-name', 'work_email', 'teamSize', 'street-address']) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBeNull();
+    }
   });
 
   it('refuses fields the user could not type into either', () => {
     expect(findFieldFillRefusal({ type: 'text', readOnly: true })).toBe('read-only');
     expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');
+  });
+
+  it('is the read guard plus the two refusals that are only about writing', () => {
+    // Anything an agent may not read is certainly not something it may overwrite...
+    expect(findFieldReadRefusal({ type: 'password' })).toBe('denied-type');
+    expect(findFieldFillRefusal({ type: 'password' })).toBe('denied-type');
+    // ...but read-only and disabled say nothing about whether the value is a secret, so reading
+    // one back is fine. Conflating the two would hide ordinary values for no benefit.
+    expect(findFieldReadRefusal({ type: 'text', readOnly: true })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', readOnly: true })).toBe('read-only');
+    expect(findFieldReadRefusal({ type: 'text', disabled: true })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');
+  });
+
+  it('describes every read refusal it can return, in read terms', () => {
+    const refusals = [
+      findFieldReadRefusal({ type: 'hidden' }),
+      findFieldReadRefusal({ autocomplete: 'cc-csc' }),
+      findFieldReadRefusal({ name: 'auth_token' }),
+    ];
+    for (const refusal of refusals) {
+      expect(refusal).not.toBeNull();
+      expect(describeFieldReadRefusal(refusal!).length).toBeGreaterThan(5);
+    }
+    expect(describeFieldReadRefusal('denied-type')).toMatch(/readable/);
   });
 
   it('describes every refusal it can return', () => {
