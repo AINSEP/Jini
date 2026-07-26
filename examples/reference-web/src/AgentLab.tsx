@@ -91,8 +91,15 @@ export function AgentLab() {
   const navigateRef = useRef<(next: LabView) => void>(() => undefined);
   navigateRef.current = setView;
   const rootRef = useRef<HTMLElement>(null);
-  /** Read at send time, not render time — the token arrives asynchronously, after attach. */
-  const bindTokenRef = useRef<string | undefined>(undefined);
+  /**
+   * The live bridge, read at send time.
+   *
+   * Not a captured token: the connection reattaches on its own and mints a new one each time, and
+   * under StrictMode's double-mount the first bridge's `ready` can resolve *after* its own cleanup
+   * and overwrite a good token with a dead one. Asking the current bridge for its current token
+   * has neither problem.
+   */
+  const bridgeRef = useRef<FrontendSessionBridge | null>(null);
 
   const remaining = items.filter((item) => !item.done).length;
 
@@ -130,14 +137,15 @@ export function AgentLab() {
       onInvocation: (action) => setStatus(`Agent ran ${action.capabilityId}.`),
       onError: (error) => console.error('[agent-lab] frontend session', error),
     });
-    session.ready
-      .then(({ bindToken }) => { bindTokenRef.current = bindToken; })
-      .catch((error: unknown) => console.error('[agent-lab] never attached', error));
+    session.ready.catch((error: unknown) => console.error('[agent-lab] never attached', error));
+    bridgeRef.current = session;
     setBridge(session);
     return () => {
       session.close();
       setBridge(null);
-      bindTokenRef.current = undefined;
+      // Only if this effect's own session is still the current one: under StrictMode the next
+      // mount has already installed its bridge by the time this cleanup runs.
+      if (bridgeRef.current === session) bridgeRef.current = null;
     };
   }, [labPages]);
 
@@ -339,11 +347,15 @@ export function AgentLab() {
           // arrive over one connection: chat.* is served by the pane, page.* by the driver above.
           agentControl={agentControl}
           // Carries the surface's bind token so the daemon can route this run's page.* calls back
-          // to this tab. Read from a ref at send time because it arrives after attach.
-          runContext={() => ({
-            project: 'starter-site',
-            ...(bindTokenRef.current === undefined ? {} : { frontendBindToken: bindTokenRef.current }),
-          })}
+          // to this tab. Asked for at send time: a token captured earlier may belong to a
+          // connection that has since reattached, and the daemon rejects it.
+          runContext={() => {
+            const bindToken = bridgeRef.current?.bindToken();
+            return {
+              project: 'starter-site',
+              ...(bindToken === undefined ? {} : { frontendBindToken: bindToken }),
+            };
+          }}
         />
       </aside>
 

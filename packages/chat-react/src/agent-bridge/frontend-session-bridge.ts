@@ -26,6 +26,13 @@
  * - **The bind token never leaves this module except to the host.** It arrives on the `attached`
  *   event and must ride to run-start; it deliberately does not appear in any URL (see
  *   `@jini/daemon`'s `FrontendSessionHandle`).
+ * - **Read the bind token at send time, not once.** `EventSource` reconnects on its own — after a
+ *   daemon restart, a sleeping laptop, or an ordinary network blip — and each reattach mints a new
+ *   session and a new token. A host that captured `ready`'s token keeps sending a dead one, every
+ *   later run fails to bind, and the only trace is a daemon-side log line: the agent is simply told
+ *   "no frontend is bound to this run". `ready` therefore answers "has it attached at least once";
+ *   {@link FrontendSessionBridge.bindToken} answers "what is valid now", and only the latter
+ *   belongs in a run request.
  */
 import { CHAT_CAPABILITIES, PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini/chat-core';
 
@@ -53,8 +60,18 @@ export interface FrontendSessionBridgeOptions {
 export interface FrontendSessionBridge {
   /** Hand this to `ChatPane`'s `agentControl.bridgeAccess`. */
   readonly bridgeAccess: ChatPaneAgentBridgeAccess;
-  /** Resolves once the daemon has attached this surface. Include in the run-start request. */
+  /**
+   * Resolves the *first* time the daemon attaches this surface — an "is it live yet" signal.
+   *
+   * Its `bindToken` is only correct until the next reconnect, so do not stash it. Call
+   * {@link FrontendSessionBridge.bindToken} when building a run request instead.
+   */
   readonly ready: Promise<{ sessionId: string; bindToken: string }>;
+  /**
+   * The token for the attachment that is live *now*, or `undefined` before the first attach and
+   * after {@link FrontendSessionBridge.close}. Read it at run-start; see the module doc.
+   */
+  bindToken(): string | undefined;
   close(): void;
 }
 
@@ -85,8 +102,13 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
   const capabilities = claimedCapabilities(options);
 
   let sessionId: string | undefined;
-  let resolveReady: (value: { sessionId: string; bindToken: string }) => void = () => undefined;
-  let rejectReady: (error: unknown) => void = () => undefined;
+  /** Replaced on every reattach; a promise resolved once could never carry this. */
+  let currentBindToken: string | undefined;
+  // Definite assignment rather than no-op placeholders: a Promise executor runs synchronously, so
+  // both are set before this line finishes, and placeholders would only add two functions that
+  // can never be called.
+  let resolveReady!: (value: { sessionId: string; bindToken: string }) => void;
+  let rejectReady!: (error: unknown) => void;
   const ready = new Promise<{ sessionId: string; bindToken: string }>((resolve, reject) => {
     resolveReady = resolve;
     rejectReady = reject;
@@ -153,7 +175,9 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
 
     if (frame['type'] === 'attached') {
       sessionId = String(frame['sessionId']);
-      resolveReady({ sessionId, bindToken: String(frame['bindToken']) });
+      currentBindToken = String(frame['bindToken']);
+      // A no-op after the first attach — which is exactly why `currentBindToken` exists.
+      resolveReady({ sessionId, bindToken: currentBindToken });
       return;
     }
     if (frame['type'] === 'error') {
@@ -200,9 +224,15 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
   return {
     bridgeAccess,
     ready,
+    bindToken: () => currentBindToken,
     close() {
       source.close();
       chatListeners.clear();
+      // A closed bridge serves nothing, so binding a run to it would strand that run rather than
+      // fail it — this is what stops a torn-down surface (a StrictMode remount, a route change)
+      // from handing its dead token to the next run.
+      currentBindToken = undefined;
+      sessionId = undefined;
     },
   };
 }
