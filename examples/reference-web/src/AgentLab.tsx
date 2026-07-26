@@ -71,7 +71,8 @@ const LAB_INITIAL_MESSAGES: ChatMessage[] = [
     content:
       'This pane is docked **inline** — opening it resizes the page rather than covering it, which '
       + 'is how a real product embeds a chat pane. The page around me is tagged for agent control; '
-      + 'the six `page.*` verbs run against it through `window.__jiniAgentLab.run`.',
+      + 'the six `page.*` verbs reach it over this surface\'s own daemon connection, each one having '
+      + 'already passed `ToolExecutor`.',
     runStatus: 'succeeded',
     createdAt: Date.now(),
   },
