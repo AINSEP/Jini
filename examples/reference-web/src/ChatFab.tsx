@@ -81,7 +81,10 @@ export function ChatFab({ open, onToggle, label = 'chat' }: ChatFabProps) {
     if (Math.abs(next.x - rect.left) > DRAG_THRESHOLD_PX || Math.abs(next.y - rect.top) > DRAG_THRESHOLD_PX) {
       state.moved = true;
     }
-    setPosition(next);
+    // Only commit a position once this is genuinely a drag. Setting it on every move meant a
+    // click with a pixel of jitter pinned the button to an inline `left`/`top` forever — which
+    // silently defeats the CSS default and made the button appear to wander on its own.
+    if (state.moved) setPosition(next);
   }, []);
 
   const endDrag = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
