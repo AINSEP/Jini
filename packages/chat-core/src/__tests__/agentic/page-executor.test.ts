@@ -277,13 +277,41 @@ describe('page.fill', () => {
 });
 
 describe('page.select_option', () => {
-  it('passes the chosen option to the driver and echoes it back', async () => {
+  it('passes the chosen option to the driver and echoes it back, defaulting selected to true', async () => {
     const result = await executePageCapability(driver, 'page.select_option', {
       element: 'new-task-input',
       option: 'Engineer',
     });
-    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer');
-    expect(result).toMatchObject({ selected: 'new-task-input', option: 'Engineer' });
+    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer', true);
+    expect(result).toMatchObject({ selected: 'new-task-input', option: 'Engineer', optionSelected: true });
+  });
+
+  it('passes an explicit selected: false through to the driver and echoes it back', async () => {
+    const result = await executePageCapability(driver, 'page.select_option', {
+      element: 'new-task-input',
+      option: 'Engineer',
+      selected: false,
+    });
+    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer', false);
+    expect(result).toMatchObject({ selected: 'new-task-input', option: 'Engineer', optionSelected: false });
+  });
+
+  it('passes an explicit selected: true through the same as the default', async () => {
+    await executePageCapability(driver, 'page.select_option', {
+      element: 'new-task-input',
+      option: 'Engineer',
+      selected: true,
+    });
+    expect(driver.selectOption).toHaveBeenCalledWith('new-task-input', 'Engineer', true);
+  });
+
+  it('rejects a non-boolean selected rather than coercing it', async () => {
+    await expect(executePageCapability(driver, 'page.select_option', {
+      element: 'new-task-input',
+      option: 'Engineer',
+      selected: 'yes',
+    })).rejects.toThrow(/"selected" must be a boolean/);
+    expect(driver.selectOption).not.toHaveBeenCalled();
   });
 
   it('requires both the element and the option', async () => {

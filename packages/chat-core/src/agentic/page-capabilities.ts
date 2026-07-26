@@ -112,7 +112,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
   {
     id: 'page.select_option',
     description:
-      'Choose an option in a dropdown, by its visible text or its underlying value. Dropdowns cannot be operated with page.click or page.fill — clicking one only opens it, and it is not a text field — so this is the only way to set one. Call page.find_elements with withState to see which options exist and which is chosen.',
+      'Choose an option in a dropdown, by its visible text or its underlying value. Dropdowns cannot be operated with page.click or page.fill — clicking one only opens it, and it is not a text field — so this is the only way to set one. Call page.find_elements with withState to see which options exist and which is chosen. Pass selected: false to remove an option from a multi-select\'s current choices instead of adding one; a single-select always has exactly one choice, so selected: false there is refused — pick a different option instead.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -121,6 +121,11 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
           type: 'string',
           description:
             'The option to choose, matched against its visible text first and then its value. Must already exist in the dropdown — this never adds one.',
+        },
+        selected: {
+          type: 'boolean',
+          description:
+            'Whether the option should end up chosen. Defaults to true. Set to false to toggle membership off in a multi-select; refused on a single-select, which cannot be left with its choice removed.',
         },
       },
       required: ['element', 'option'],

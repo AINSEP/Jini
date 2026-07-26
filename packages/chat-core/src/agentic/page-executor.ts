@@ -322,11 +322,16 @@ export async function executePageCapability(
       const handle = requireHandle(input, 'element');
       // Required and string-typed by the manifest, already enforced above. See page.fill.
       const option = input['option'] as string;
+      // Optional and boolean-typed by the manifest; absent means "select it", same as before this
+      // argument existed.
+      const selected = input['selected'] === false ? false : true;
       // No field guard: a dropdown's options are authored by the page, so choosing one reveals
       // nothing the page had not already published, and none of the credential field types this
       // surface refuses can be a `<select>`.
-      const observation = await observeWrite(driver, handle, () => driver.selectOption(handle, option));
-      return { selected: handle, option, ...observation };
+      const observation = await observeWrite(driver, handle, () => driver.selectOption(handle, option, selected));
+      // `optionSelected` names the boolean rather than reusing `selected`, which already means
+      // "the handle this call acted on" for every verb in this switch (`clicked`, `filled`, …).
+      return { selected: handle, option, optionSelected: selected, ...observation };
     }
 
     case 'page.navigate': {

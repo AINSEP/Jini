@@ -69,16 +69,23 @@ export interface PageDriver {
   fill(handle: string, text: string): Promise<void>;
 
   /**
-   * Chooses an option in a dropdown, matching visible text before value.
+   * Chooses — or, in a multi-select, removes — an option in a dropdown, matching visible text
+   * before value.
    *
    * Separate from {@link PageDriver.fill} because a dropdown is not a text field: its value must
    * be one of a fixed set, so "type this in" has no meaning. A driver rejects an option that does
    * not exist rather than inventing one — a caller told an unavailable option was selected would
    * carry that wrong belief into everything it did next.
    *
-   * @throws When the handle is not a dropdown, or when no option matches.
+   * @param selected - Whether the option should end up selected. Defaults to `true`. A
+   * multi-select honours `false` by deselecting just that option, leaving the rest of the
+   * selection untouched. A single-select has no meaningful "off" — its one choice cannot be
+   * removed, only replaced — so `false` there is refused rather than silently ignored or
+   * clearing the control.
+   * @throws When the handle is not a dropdown, when no option matches, or when `selected: false`
+   * is requested on a single-select.
    */
-  selectOption(handle: string, option: string): Promise<void>;
+  selectOption(handle: string, option: string, selected?: boolean): Promise<void>;
 
   /** Called only after `page` has been checked against {@link PageDriver.listPages}. */
   navigate(page: string): Promise<void>;

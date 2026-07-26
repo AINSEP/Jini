@@ -28,6 +28,11 @@ const MARKUP = `
       <option value="engineer">Engineer</option>
       <option value="designer">Designer</option>
     </select>
+    <select data-agent-element="skills-select" data-agent-role="field" data-agent-label="Skills" name="skills" id="skills" multiple>
+      <option value="engineer">Engineer</option>
+      <option value="designer">Designer</option>
+      <option value="pilot" disabled>Pilot</option>
+    </select>
     <span data-agent-element="status-line" data-agent-role="status" data-agent-label="What happened">  Ready.  </span>
     <span data-agent-element="" data-agent-role="status">Untagged</span>
     <span data-agent-role="status">No handle attribute at all</span>
@@ -74,6 +79,7 @@ describe('findElements', () => {
       'bio-input',
       'disabled-button',
       'role-select',
+      'skills-select',
       'status-line',
     ]);
   });
@@ -466,6 +472,75 @@ describe('selectOption', () => {
     await makeDriver().selectOption('role-select', 'Engineer');
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     expect(select.value).toBe('engineer');
+  });
+});
+
+describe('selectOption with an explicit `selected`', () => {
+  const skillsValues = () => Array.from(
+    (root.querySelector('[data-agent-element="skills-select"]') as HTMLSelectElement).selectedOptions,
+  ).map((entry) => entry.value);
+
+  it('toggles one option off a multi-select without disturbing the rest', async () => {
+    const driver = makeDriver();
+    await driver.selectOption('skills-select', 'Engineer');
+    await driver.selectOption('skills-select', 'Designer');
+    await driver.selectOption('skills-select', 'Engineer', false);
+    expect(skillsValues()).toEqual(['designer']);
+  });
+
+  it('toggles that option back on', async () => {
+    const driver = makeDriver();
+    await driver.selectOption('skills-select', 'Engineer');
+    await driver.selectOption('skills-select', 'Engineer', false);
+    // Checked mid-sequence, not just at the end: without this, a driver that ignored the `false`
+    // altogether would still pass, since selecting Engineer again at the end lands on the same
+    // final state either way.
+    expect(skillsValues()).toEqual([]);
+    await driver.selectOption('skills-select', 'Engineer', true);
+    expect(skillsValues()).toEqual(['engineer']);
+  });
+
+  it('deselecting an option that was never selected is a harmless no-op', async () => {
+    await makeDriver().selectOption('skills-select', 'Designer', false);
+    expect(skillsValues()).toEqual([]);
+  });
+
+  it('still dispatches input and change on a no-op deselect, since the driver ran the write', async () => {
+    const select = root.querySelector('[data-agent-element="skills-select"]') as HTMLSelectElement;
+    const events: string[] = [];
+    select.addEventListener('input', () => events.push('input'));
+    select.addEventListener('change', () => events.push('change'));
+    await makeDriver().selectOption('skills-select', 'Designer', false);
+    expect(events).toEqual(['input', 'change']);
+  });
+
+  it('refuses to deselect on a single-select, naming the option and pointing at the alternative', async () => {
+    await expect(makeDriver().selectOption('role-select', 'Engineer', false)).rejects.toThrow(
+      /"role-select" is a single-select; its choice cannot be removed, only replaced — select a different option instead of deselecting "Engineer"/,
+    );
+  });
+
+  it('does not change the single-select\'s value when the deselect is refused', async () => {
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    select.value = 'designer';
+    await expect(makeDriver().selectOption('role-select', 'Engineer', false)).rejects.toThrow();
+    expect(select.value).toBe('designer');
+  });
+
+  it('selected: true on a single-select is unchanged from today\'s behaviour', async () => {
+    await makeDriver().selectOption('role-select', 'Engineer', true);
+    const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
+    expect(select.value).toBe('engineer');
+  });
+
+  it('still refuses an option that does not exist when selected: false is requested', async () => {
+    await expect(makeDriver().selectOption('skills-select', 'Astronaut', false))
+      .rejects.toThrow(/"Astronaut" is not an option of "skills-select"\. Available: Engineer, Designer/);
+  });
+
+  it('still refuses a disabled option when selected: false is requested', async () => {
+    await expect(makeDriver().selectOption('skills-select', 'Pilot', false))
+      .rejects.toThrow(/"Pilot" is not an option of "skills-select"\. Available: Engineer, Designer/);
   });
 });
 

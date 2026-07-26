@@ -362,7 +362,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
 
-    async selectOption(handle, option) {
+    async selectOption(handle, option, selected = true) {
       const control = controlOf(find(handle));
       if (!(control instanceof HTMLSelectElement)) {
         throw new Error(`"${handle}" is not a dropdown`);
@@ -382,9 +382,19 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
         );
       }
       if (control.multiple) {
-        // A multi-select accumulates. Assigning `value` would silently clear every prior choice,
-        // so a caller building up a selection would end with only its last call's option.
-        match.selected = true;
+        // A multi-select accumulates by default. Assigning `value` would silently clear every
+        // prior choice, so a caller building up a selection would end with only its last call's
+        // option — and setting `.selected` directly is also how a caller narrows one back off
+        // without disturbing the rest.
+        match.selected = selected;
+      } else if (!selected) {
+        // A single-select's one option IS its value; there is no "off" state to put it in. Silently
+        // ignoring this would tell the caller a deselect happened when nothing changed, and clearing
+        // the control would invent a third state (no selection) that a native <select> cannot hold.
+        throw new Error(
+          `"${handle}" is a single-select; its choice cannot be removed, only replaced — `
+          + `select a different option instead of deselecting "${option}"`,
+        );
       } else {
         // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
         // value on the node and ignores a change event whose value it believes it already has.
