@@ -18,6 +18,16 @@ export interface FieldDescriptor {
   readonly autocomplete?: string | undefined;
   readonly name?: string | undefined;
   readonly id?: string | undefined;
+  /**
+   * The field's human-visible label — `aria-label`, `placeholder`, or the text of an associated
+   * `<label>`, whichever the driver can resolve.
+   *
+   * Carried because `name`/`id` are the *machine* names, and a form builder or CMS that emits
+   * `name="field_47"` leaves the guard nothing to judge while the page still plainly reads
+   * "Card number" to the user. A field whose sensitivity is stated only in its label was
+   * invisible to every refusal here until this existed.
+   */
+  readonly accessibleLabel?: string | undefined;
   readonly readOnly?: boolean | undefined;
   readonly disabled?: boolean | undefined;
 }

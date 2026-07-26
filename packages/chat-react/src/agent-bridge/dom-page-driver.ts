@@ -429,6 +429,12 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
  * jsdom implements neither a real editing host nor `execCommand`, so every unit test here exercises
  * the fallback: the previous `textContent` + synthetic `input` behaviour, kept for exactly that
  * case and for a real browser that reports the command did not run.
+ *
+ * Verified 2026-07-26 in Chromium against real Lexical 0.36.2 — the editor
+ * `packages/ui/src/features/rich-text-input/` is built on — driving both paths at one editor each
+ * and reading back Lexical's own `EditorState`, not the DOM. The `textContent` write left the
+ * model at its seed value and was reverted in the DOM too; the `execCommand` path landed in the
+ * model. That is the whole reason this function exists, and no unit test in this repo can show it.
  */
 function fillEditableRegion(control: HTMLElement, text: string): void {
   control.focus();
