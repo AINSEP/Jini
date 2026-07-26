@@ -1,127 +1,28 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
-  type ReactNode,
-} from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon } from '@jini/ui';
 
 import { useT } from '../../../../react/hooks/context.js';
-import { defaultChatPaneSelection, orderChatPaneAgents } from '../../rules.js';
+import { defaultChatPaneSelection } from '../../rules.js';
+import {
+  runtimeOptionLabel,
+  runtimePopoverPosition,
+  useAgentRuntimePicker,
+} from '../hooks/useAgentRuntimePicker.hooks.js';
 import type {
   AgentRuntimePickerProps,
   ChatPaneAgent,
   ChatPaneAgentSelection,
-  RuntimePickerPlacement,
 } from '../../types.js';
+
+// Re-exported so this module's public surface is unchanged by the behavior extraction; both are
+// pure and now live beside the hook that consumes them.
+export { runtimeOptionLabel, runtimePopoverPosition };
 
 export function runtimeAgentStatus(agent: ChatPaneAgent): string {
   if (agent.available === false) return agent.diagnostic ?? 'Not found on PATH';
   if (agent.authStatus === 'missing') return 'Installed · sign-in required';
   return agent.version ?? 'Installed';
-}
-
-/**
- * Resolves the user-facing label for a selected model or reasoning option.
- *
- * @complexity Time: O(n) in the supplied option count; space: O(1).
- * @overallScore 100/100
- */
-export function runtimeOptionLabel(
-  options: readonly { id: string; label: string }[] | undefined,
-  value: string | undefined,
-  fallback: string,
-): string {
-  if (!value || value === 'default') return fallback;
-  return options?.find((option) => option.id === value)?.label ?? value;
-}
-
-/**
- * Computes a viewport-bounded fixed position for the body-portaled picker.
- *
- * @complexity Time/space: O(1).
- * @overallScore 100/100
- */
-export function runtimePopoverPosition(
-  trigger: DOMRect,
-  placement: RuntimePickerPlacement,
-): CSSProperties {
-  const margin = 12;
-  const gap = 8;
-  const width = Math.min(320, window.innerWidth - margin * 2);
-  const left = Math.min(
-    Math.max(trigger.left + trigger.width / 2 - width / 2, margin),
-    window.innerWidth - width - margin,
-  );
-  if (placement === 'up') {
-    const availableHeight = Math.max(0, trigger.top - margin - gap);
-    return {
-      position: 'fixed',
-      left,
-      bottom: Math.max(margin, window.innerHeight - trigger.top + gap),
-      width,
-      maxHeight: Math.min(620, availableHeight),
-      overflowY: 'auto',
-      zIndex: 1000,
-    };
-  }
-  const top = trigger.bottom + gap;
-  const availableHeight = Math.max(0, window.innerHeight - top - margin);
-  return {
-    position: 'fixed',
-    top,
-    left,
-    width,
-    maxHeight: Math.min(620, availableHeight),
-    overflowY: 'auto',
-    zIndex: 1000,
-  };
-}
-
-/** `Tab` wraps focus around the popover's control list instead of leaving it (the popover is a
- * modal-ish dialog). Returns the index to wrap TO, or `null` when `Tab` should behave natively
- * (not at an edge). `currentIndex` may be `-1` (active element not in `controls`); `atStart`/
- * `atEnd` below only matter when it legitimately is 0 or `count - 1`. */
-function resolveTabWrapIndex(shiftKey: boolean, currentIndex: number, count: number): number | null {
-  if (shiftKey && currentIndex === 0) return count - 1;
-  if (!shiftKey && currentIndex === count - 1) return 0;
-  return null;
-}
-
-/** Arrow/Home/End roving-tabindex target, or `null` for any other key. `currentIndex === -1`
- * (nothing in `controls` focused yet) is a legitimate input — the modulo arithmetic below relies
- * on it wrapping the same way a real index would. */
-function resolveRovingIndex(key: string, currentIndex: number, count: number): number | null {
-  if (key === 'Home') return 0;
-  if (key === 'End') return count - 1;
-  if (key === 'ArrowDown') return (currentIndex + 1 + count) % count;
-  if (key === 'ArrowUp') return (currentIndex - 1 + count) % count;
-  return null;
-}
-
-/**
- * The control index `handlePopoverKeyDown` should move focus to, or `null` to leave focus alone
- * (and, in the caller, to skip `preventDefault()`). `Tab` is resolved and returned immediately —
- * it must never fall through to the roving-tabindex logic below it.
- */
-function resolvePopoverKeyAction(
-  key: string,
-  shiftKey: boolean,
-  isButtonTarget: boolean,
-  currentIndex: number,
-  count: number,
-): number | null {
-  if (key === 'Tab') return resolveTabWrapIndex(shiftKey, currentIndex, count);
-  // Native selects own their arrow/Home/End behavior. Roving applies only
-  // when a button (including the agent radios) has focus.
-  if (!isButtonTarget) return null;
-  return resolveRovingIndex(key, currentIndex, count);
 }
 
 interface RuntimeModeButtonsProps {
@@ -330,105 +231,19 @@ export function AgentRuntimePicker({
   agentIconBasePath = '/agent-icons',
 }: AgentRuntimePickerProps) {
   const t = useT();
-  const dialogId = useId();
-  const [open, setOpen] = useState(false);
-  const [position, setPosition] = useState<CSSProperties>();
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const popoverRef = useRef<HTMLDivElement | null>(null);
-  const orderedAgents = useMemo(
-    () => orderChatPaneAgents(agents.filter((agent) => agent.available !== false)),
-    [agents],
-  );
-  const selectedAgent = orderedAgents.find((agent) => agent.id === value.agentId);
-  const modelLabel = runtimeOptionLabel(
-    selectedAgent?.models,
-    value.model,
-    t('Default model'),
-  );
-
-  const focusTrigger = useCallback(() => {
-    triggerRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    const closeOnOutsidePointer = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        triggerRef.current?.contains(target)
-        || popoverRef.current?.contains(target)
-      ) return;
-      setOpen(false);
-      // Let the pointer's click complete before restoring focus. Otherwise the
-      // browser focuses the clicked node after this mousedown handler runs.
-      window.setTimeout(focusTrigger, 0);
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return;
-      setOpen(false);
-      focusTrigger();
-    };
-    document.addEventListener('mousedown', closeOnOutsidePointer);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeOnOutsidePointer);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [focusTrigger, open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const update = () => {
-      const rect = triggerRef.current?.getBoundingClientRect();
-      if (rect) setPosition(runtimePopoverPosition(rect, placement));
-    };
-    update();
-    window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    return () => {
-      window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-    };
-  }, [open, placement]);
-
-  useEffect(() => {
-    if (!open || !position) return;
-    const popover = popoverRef.current;
-    const selectedRadio = popover?.querySelector<HTMLElement>(
-      '[role="radio"][aria-checked="true"]',
-    );
-    const fallback = popover?.querySelector<HTMLElement>(
-      'button:not(:disabled), select:not(:disabled), input:not(:disabled)',
-    );
-    (selectedRadio ?? fallback)?.focus();
-  }, [open, position]);
-
-  const handlePopoverKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
-    // No `?? []` fallback for a null ref: this handler is only ever reachable via the
-    // `onKeyDown` React wires to the exact element `popoverRef` is attached to (below), and
-    // React attaches refs during commit — before that element can dispatch any event — so
-    // `popoverRef.current` is guaranteed non-null by the time this runs.
-    const controls = [...popoverRef.current!.querySelectorAll<HTMLElement>(
-      'button:not(:disabled), select:not(:disabled), input:not(:disabled)',
-    )];
-    if (controls.length === 0) return;
-
-    const currentIndex = controls.indexOf(document.activeElement as HTMLElement);
-    const nextIndex = resolvePopoverKeyAction(
-      event.key,
-      event.shiftKey,
-      event.target instanceof HTMLButtonElement,
-      currentIndex,
-      controls.length,
-    );
-    if (nextIndex === null) return;
-    event.preventDefault();
-    controls[nextIndex]?.focus();
-  }, []);
-
-  const runtimeSummary = selectedAgent
-    ? `${selectedAgent.name}${selectedAgent.version ? ` · ${selectedAgent.version}` : ''} · ${modelLabel}`
-    : t('No agent selected');
+  const {
+    dialogId,
+    open,
+    position,
+    triggerRef,
+    popoverRef,
+    orderedAgents,
+    selectedAgent,
+    modelLabel,
+    runtimeSummary,
+    toggleOpen,
+    handlePopoverKeyDown,
+  } = useAgentRuntimePicker({ agents, value, placement, t });
 
   return (
     <div className="jini-runtime-picker">
@@ -440,7 +255,7 @@ export function AgentRuntimePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={dialogId}
-        onClick={() => setOpen((current) => !current)}
+        onClick={toggleOpen}
       >
         <AgentIcon
           id={selectedAgent?.id ?? ''}
