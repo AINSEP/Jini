@@ -4,6 +4,17 @@ import { DEFAULT_MODEL_OPTION } from './shared.js';
 import { loadMmdRouteModels } from '../mmd-routes.js';
 import type { RuntimeAgentDef } from '../types.js';
 
+/**
+ * The levels `claude --effort` accepts, as the CLI itself reports them when
+ * given an unknown one. Anything outside this set is dropped rather than
+ * forwarded: the CLI answers an unrecognized level with a stderr warning and
+ * then runs at its default, so passing one through would look like the setting
+ * applied while silently doing nothing.
+ */
+const CLAUDE_EFFORT_LEVELS: ReadonlySet<string> = new Set([
+  'low', 'medium', 'high', 'xhigh', 'max',
+]);
+
 const CLAUDE_FALLBACK_MODELS = [
   DEFAULT_MODEL_OPTION,
   { id: 'sonnet', label: 'Sonnet (alias)' },
@@ -37,12 +48,28 @@ export const claudeAgentDef = {
       // Fixes issue #430: --add-dir never detected because it wasn't in global help.
       '--include-partial-messages': 'partialMessages',
       '--add-dir': 'addDir',
+      '--effort': 'effort',
     },
     // `claude` has no list-models subcommand. Prefer local mmd/MMS routes
     // when present so proxy-backed Claude-compatible models appear in the
     // picker, then keep the built-in aliases as fallback hints.
     fallbackModels: CLAUDE_FALLBACK_MODELS,
     fetchModels: async (_resolvedBin, env) => loadMmdRouteModels(env, CLAUDE_FALLBACK_MODELS),
+    // `claude --effort <level>`. The set differs from codex's on both ends — it
+    // has `max` and has no `none`/`minimal` — so it is spelled out rather than
+    // shared, and `CLAUDE_EFFORT_LEVELS` below is what `buildArgs` validates
+    // against: a level carried over from another runtime's picker must not reach
+    // the CLI, which would warn on stderr and silently fall back to the default.
+    reasoningOptions: [
+      // Spelled out rather than reusing DEFAULT_MODEL_OPTION: its label reads
+      // "Default (CLI config)", which is right for a model row and wrong here.
+      { id: 'default', label: 'Default' },
+      { id: 'low', label: 'Low' },
+      { id: 'medium', label: 'Medium' },
+      { id: 'high', label: 'High' },
+      { id: 'xhigh', label: 'XHigh' },
+      { id: 'max', label: 'Max' },
+    ],
     // Prompt delivered via stdin to avoid both Linux `spawn E2BIG`
     // (MAX_ARG_STRLEN caps a single argv entry at ~128 KB) and Windows
     // `spawn ENAMETOOLONG` (CreateProcess caps the full command line at
@@ -66,6 +93,16 @@ export const claudeAgentDef = {
       }
       if (options.model && options.model !== 'default') {
         args.push('--model', options.model);
+      }
+      // `--effort` is newer than `--model`, so it gets the same probe gate as
+      // `--include-partial-messages`: an older build rejects an unknown option
+      // with exit 1, which kills the chat rather than degrading it.
+      if (
+        caps.effort
+        && typeof options.reasoning === 'string'
+        && CLAUDE_EFFORT_LEVELS.has(options.reasoning)
+      ) {
+        args.push('--effort', options.reasoning);
       }
       const dirs = (extraAllowedDirs || []).filter(
         (d) => typeof d === 'string' && d.length > 0,

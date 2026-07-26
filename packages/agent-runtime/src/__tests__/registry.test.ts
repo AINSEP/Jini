@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
+import { agentCapabilities } from '../capabilities.js';
 import { AGENT_DEFS, BASE_AGENT_DEFS, getAgentDef } from '../registry.js';
+
+// `agentCapabilities` is process-global, so a probe result set by one test would
+// otherwise decide what argv a later one builds.
+afterEach(() => {
+  agentCapabilities.delete('claude');
+});
 
 describe('registry', () => {
   it('exposes a non-empty catalog of built-in agent defs', () => {
@@ -41,6 +48,37 @@ describe('registry', () => {
     expect(args).toContain('--model');
     expect(args).toContain('sonnet');
     expect(args).toContain('--output-format');
+  });
+
+  it('claude offers the effort levels its CLI actually accepts', () => {
+    // `claude --effort` reports these five when handed an unknown level. The set
+    // differs from codex's on both ends, so it must not be shared with it.
+    const claude = getAgentDef('claude')!;
+    expect(claude.reasoningOptions?.map((option) => option.id))
+      .toEqual(['default', 'low', 'medium', 'high', 'xhigh', 'max']);
+  });
+
+  it('claude passes --effort only once the probe has seen the flag', () => {
+    // Older builds exit 1 on an unknown option, which kills the chat rather
+    // than degrading it — same reason `--include-partial-messages` is gated.
+    const claude = getAgentDef('claude')!;
+    agentCapabilities.set('claude', {});
+    expect(claude.buildArgs('hi', [], [], { reasoning: 'high' }, {})).not.toContain('--effort');
+
+    agentCapabilities.set('claude', { effort: true });
+    const args = claude.buildArgs('hi', [], [], { reasoning: 'high' }, {});
+    expect(args.slice(args.indexOf('--effort'), args.indexOf('--effort') + 2))
+      .toEqual(['--effort', 'high']);
+  });
+
+  it('claude omits --effort for the default level and for a level from another runtime', () => {
+    const claude = getAgentDef('claude')!;
+    agentCapabilities.set('claude', { effort: true });
+    expect(claude.buildArgs('hi', [], [], { reasoning: 'default' }, {})).not.toContain('--effort');
+    // 'minimal' is one of codex's levels; reaching the CLI it would warn on
+    // stderr and run at the default, looking like the setting had applied.
+    expect(claude.buildArgs('hi', [], [], { reasoning: 'minimal' }, {})).not.toContain('--effort');
+    expect(claude.buildArgs('hi', [], [], {}, {})).not.toContain('--effort');
   });
 
   it('the amr def declares supportsCustomModel: false (ACP-driven model selection)', () => {
