@@ -198,7 +198,11 @@ describe('state readback across element kinds', () => {
 });
 
 describe('known gaps — asserted so closing one is a deliberate act', () => {
-  it('fills a contenteditable region, which is how every rich-text editor is built', async () => {
+  it('fills a contenteditable region via the textContent fallback, which is all jsdom can prove', async () => {
+    // `fill` now tries `execCommand('insertText'|'delete')` first — see the dedicated describe
+    // below — but jsdom implements no editing host and no `execCommand` at all, so every case in
+    // *this* file exercises only the fallback that predates it. This one still documents the
+    // fallback's own shape: plain `textContent`, `input` only, no `change`.
     mount('<div data-agent-element="target" data-agent-role="field" contenteditable="true"></div>');
     const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
     const events: string[] = [];
@@ -291,5 +295,90 @@ describe('known gaps — asserted so closing one is a deliberate act', () => {
     </select>`);
     await expect(makeDriver().selectOption('target', 'Beta'))
       .rejects.toThrow(/"Beta" is not an option of "target"\. Available: Alpha/);
+  });
+});
+
+/**
+ * `fill` on a contenteditable region, mechanics only jsdom cannot exercise on its own.
+ *
+ * jsdom has no editing host and no `execCommand`, so these mock `document.execCommand` to prove
+ * the driver's *own* logic — what it selects, what it calls, and when it falls back — rather than
+ * a real browser's editing behaviour, which only Playwright against a real page can prove. See
+ * this package's Playwright verification for that half.
+ */
+describe('fill on a contenteditable: driving it via execCommand where the platform supports it', () => {
+  function mockExecCommand(result: boolean) {
+    const execCommand = vi.fn(() => result);
+    Object.defineProperty(document, 'execCommand', { value: execCommand, configurable: true });
+    return execCommand;
+  }
+
+  afterEach(() => {
+    // `execCommand` is not a jsdom global; remove the mock rather than let it leak into a test
+    // that means to exercise the real (absent) jsdom behaviour.
+    delete (document as { execCommand?: unknown }).execCommand;
+  });
+
+  it('focuses the element, selects its existing contents, then inserts text via execCommand', async () => {
+    mount('<div data-agent-element="target" contenteditable="true">old</div>');
+    const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
+    const focusSpy = vi.spyOn(target, 'focus');
+    const execCommand = mockExecCommand(true);
+    const selection = { removeAllRanges: vi.fn(), addRange: vi.fn() };
+    vi.spyOn(window, 'getSelection').mockReturnValue(selection as unknown as Selection);
+    const rangeSpy = vi.spyOn(document, 'createRange');
+
+    await makeDriver().fill('target', 'new text');
+
+    expect(focusSpy).toHaveBeenCalledOnce();
+    expect(rangeSpy).toHaveBeenCalledOnce();
+    expect(selection.removeAllRanges).toHaveBeenCalledOnce();
+    expect(selection.addRange).toHaveBeenCalledOnce();
+    expect(execCommand).toHaveBeenCalledWith('insertText', false, 'new text');
+  });
+
+  it('does not fall back to textContent when execCommand reports it ran', async () => {
+    mount('<div data-agent-element="target" contenteditable="true">old</div>');
+    const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
+    mockExecCommand(true);
+    const events: string[] = [];
+    target.addEventListener('input', () => events.push('input'));
+
+    await makeDriver().fill('target', 'new text');
+
+    // A real browser's execCommand would update the DOM and fire input/beforeinput itself; this
+    // mock does neither, so an unchanged DOM and no synthetic event together prove the driver took
+    // execCommand's word for it rather than also running the fallback.
+    expect(target.textContent).toBe('old');
+    expect(events).toEqual([]);
+  });
+
+  it('issues delete rather than insertText for an empty replacement', async () => {
+    mount('<div data-agent-element="target" contenteditable="true">old</div>');
+    const execCommand = mockExecCommand(true);
+    await makeDriver().fill('target', '');
+    expect(execCommand).toHaveBeenCalledWith('delete');
+    expect(execCommand).not.toHaveBeenCalledWith('insertText', expect.anything(), expect.anything());
+  });
+
+  it('falls back to textContent + synthetic input when execCommand reports it did not run', async () => {
+    mount('<div data-agent-element="target" contenteditable="true">old</div>');
+    const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
+    mockExecCommand(false);
+    const events: string[] = [];
+    target.addEventListener('input', () => events.push('input'));
+
+    await makeDriver().fill('target', 'fallback text');
+
+    expect(target.textContent).toBe('fallback text');
+    expect(events).toEqual(['input']);
+  });
+
+  it('falls back the same way when the platform has no execCommand at all, as jsdom does not', async () => {
+    mount('<div data-agent-element="target" contenteditable="true">old</div>');
+    expect(typeof document.execCommand).toBe('undefined');
+    await makeDriver().fill('target', 'hello');
+    const target = root.querySelector('[data-agent-element="target"]') as HTMLElement;
+    expect(target.textContent).toBe('hello');
   });
 });

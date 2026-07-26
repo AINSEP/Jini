@@ -337,13 +337,10 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     async fill(handle, text) {
       const control = controlOf(find(handle));
       if (isEditableRegion(control)) {
-        // A contenteditable region has no `value`; its content *is* its children. `textContent`
-        // replaces them wholesale, which is what "fill" means — and deliberately drops any markup
-        // rather than injecting caller text as HTML.
-        control.textContent = text;
-        // Editors listen for `input`, not `change`; `change` is a form-control event and firing it
-        // here would be inventing an event the platform never sends for this element.
-        control.dispatchEvent(new Event('input', { bubbles: true }));
+        // A contenteditable region has no `value`; its content *is* its children, and a real
+        // editor owns that subtree. See `fillEditableRegion` for why this drives it through
+        // selection + `execCommand` rather than replacing `textContent` directly.
+        fillEditableRegion(control, text);
         return;
       }
       if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
@@ -413,6 +410,46 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       go();
     },
   };
+}
+
+/**
+ * Writes into a contenteditable region the way a real user typing would, rather than by replacing
+ * its DOM directly.
+ *
+ * A framework rich-text editor (Lexical, ProseMirror, Quill, CodeMirror) owns its subtree: it
+ * keeps its own model and reconciles the DOM to match it, so a direct `textContent =` write is
+ * either invisible to that model or gets reverted on the editor's next render — and it always
+ * destroys whatever node structure the editor had built (a mention's `<span>`, a paragraph's `<p>`)
+ * in favour of one bare text node. Selecting the existing contents and issuing a real editing
+ * command instead is what Playwright's own `fill` does against a contenteditable, for the same
+ * reason: `execCommand('insertText'|'delete')` is the platform's own command, so the browser fires
+ * `beforeinput`/`input` itself with the correct `inputType` — the exact signal these editors
+ * listen for — rather than this driver guessing at a contract it does not own by hand-rolling one.
+ *
+ * jsdom implements neither a real editing host nor `execCommand`, so every unit test here exercises
+ * the fallback: the previous `textContent` + synthetic `input` behaviour, kept for exactly that
+ * case and for a real browser that reports the command did not run.
+ */
+function fillEditableRegion(control: HTMLElement, text: string): void {
+  control.focus();
+  const selection = globalThis.getSelection?.();
+  if (selection) {
+    const range = control.ownerDocument.createRange();
+    range.selectNodeContents(control);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  const execCommand = control.ownerDocument.execCommand?.bind(control.ownerDocument);
+  if (typeof execCommand === 'function') {
+    // An empty replacement has no text to insert; `delete` removes the just-selected contents,
+    // which `insertText` with an empty string is not guaranteed to do in every engine.
+    const ran = text.length > 0 ? execCommand('insertText', false, text) : execCommand('delete');
+    if (ran) return;
+  }
+  control.textContent = text;
+  // Editors listen for `input`, not `change`; `change` is a form-control event and firing it here
+  // would be inventing an event the platform never sends for this element.
+  control.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
 /** Reads the current page's `data-agent-page`, for hosts that tag the body. */
