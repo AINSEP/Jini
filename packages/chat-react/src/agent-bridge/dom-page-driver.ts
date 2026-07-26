@@ -96,7 +96,10 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
     name: control.name || undefined,
     id: control.id || undefined,
     readOnly: control.readOnly,
-    disabled: control.disabled,
+    // `.disabled` reflects only this element's own attribute — not the "actually disabled" state
+    // a control gets from an ancestor `<fieldset disabled>`. `:disabled` is the platform's own
+    // answer for both, and is what decides whether the value even reaches form submission.
+    disabled: control.matches(':disabled'),
   } satisfies FieldDescriptor;
 }
 
@@ -113,13 +116,21 @@ function visibilityOf(element: Element): boolean | undefined {
   return typeof check === 'function' ? check.call(element) : undefined;
 }
 
-/** `disabled` for the controls that have one; `undefined` for everything else, which is not the same as `false`. */
+/**
+ * `disabled` for the controls that have one; `undefined` for everything else, which is not the
+ * same as `false`.
+ *
+ * `:disabled` rather than the `.disabled` IDL property: the property only reflects the element's
+ * own attribute, so a control disabled solely by an ancestor `<fieldset disabled>` reads as
+ * enabled even though a real user cannot type into or click it, and its value is excluded from
+ * form submission entirely. `:disabled` is the platform's own answer and covers both cases.
+ */
 function disabledOf(control: Element): boolean | undefined {
   return control instanceof HTMLInputElement
     || control instanceof HTMLTextAreaElement
     || control instanceof HTMLButtonElement
     || control instanceof HTMLSelectElement
-    ? control.disabled
+    ? control.matches(':disabled')
     : undefined;
 }
 
@@ -250,7 +261,9 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
         type: 'select',
         name: dropdown.name || undefined,
         id: dropdown.id || undefined,
-        disabled: dropdown.disabled,
+        // Same `:disabled` reasoning as `disabledOf` — a `<select>` inside a disabled `<fieldset>`
+        // is not itself flagged by the `.disabled` IDL property.
+        disabled: dropdown.matches(':disabled'),
       } satisfies FieldDescriptor);
       const value = field !== null
         ? (control as HTMLInputElement | HTMLTextAreaElement).value

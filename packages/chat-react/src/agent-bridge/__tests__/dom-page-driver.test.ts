@@ -169,6 +169,18 @@ describe('describeField', () => {
     await expect(makeDriver().describeField('not-published'))
       .rejects.toThrow(/no element published as "not-published"/);
   });
+
+  it('reports disabled for a control disabled only via an ancestor <fieldset disabled>', async () => {
+    // The `.disabled` IDL property reflects only the element's own attribute — not the "actually
+    // disabled" state a form control gets from an ancestor fieldset. A real user cannot type into
+    // this field, and its value is excluded from submission, so the fill guard must see it as
+    // disabled even though the element carries no `disabled` attribute of its own.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<fieldset disabled><input data-agent-element="fieldset-disabled-input" name="f" /></fieldset>',
+    );
+    expect(await makeDriver().describeField('fieldset-disabled-input')).toMatchObject({ disabled: true });
+  });
 });
 
 describe('describeState', () => {
@@ -203,6 +215,25 @@ describe('describeState', () => {
     const driver = makeDriver();
     expect(await driver.describeState?.('disabled-button')).toMatchObject({ disabled: true });
     expect((await driver.describeState?.('status-line'))?.disabled).toBeUndefined();
+  });
+
+  it('reports disabled:true for a control disabled only via an ancestor <fieldset disabled>', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<fieldset disabled><input data-agent-element="fieldset-disabled-input2" name="f" /></fieldset>',
+    );
+    expect(await makeDriver().describeState?.('fieldset-disabled-input2')).toMatchObject({ disabled: true });
+  });
+
+  it('reports the field descriptor\'s disabled:true for a <select> disabled only via an ancestor fieldset', async () => {
+    // Exercises the dropdown branch specifically: `describeState` builds a separate FieldDescriptor
+    // for `<select>` rather than routing it through `fieldDescriptorOf`.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<fieldset disabled><select data-agent-element="fieldset-disabled-select"><option>a</option></select></fieldset>',
+    );
+    const state = await makeDriver().describeState?.('fieldset-disabled-select');
+    expect(state?.field).toMatchObject({ disabled: true });
   });
 
   it('reports a dropdown\'s value, its options, and a descriptor the read guard can check', async () => {
