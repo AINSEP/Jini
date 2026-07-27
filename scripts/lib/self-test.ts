@@ -12,6 +12,7 @@
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { checkAgenticDomPurity } from '../check-agentic-dom-purity.js';
 import { checkEngineBoundaries } from '../check-engine-boundaries.js';
 import { checkProtocolPurity } from '../check-protocol-purity.js';
 
@@ -143,8 +144,71 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     );
     write(root, 'packages/protocol/src/ok-protocol.ts', `export const wireType = 1;\n`);
 
+    // R9: DOM-purity guard fixtures for `checkAgenticDomPurity` — one tsconfig pair per case,
+    // deliberately OUTSIDE `packages/` (a top-level `dom-purity-fixtures/` dir instead) so they
+    // are never swept up by `checkEngineBoundaries`'s own `packages/` walk above, which would
+    // otherwise flag each as "missing package.json" noise unrelated to what this is testing.
+    // `checkAgenticDomPurity`'s `agenticDir` option is independent of `packagesDir`, so this is
+    // safe. Mirrors the real `packages/agentic/tsconfig{.dom}.json` shape exactly, including the
+    // `extends` chain, so a regression in the extends-resolution logic itself would also be caught.
+    write(root, 'tsconfig.base.json', JSON.stringify({ compilerOptions: { lib: ['ES2023'] } }, null, 2));
+    const GOOD_ROOT_TSCONFIG = {
+      extends: '../../tsconfig.base.json',
+      include: ['src'],
+      exclude: ['src/dom'],
+    };
+    const GOOD_DOM_TSCONFIG = {
+      extends: '../../tsconfig.base.json',
+      compilerOptions: { lib: ['ES2023', 'DOM', 'DOM.Iterable'] },
+      include: ['src/dom'],
+    };
+    function writeDomPurityFixture(
+      caseName: string,
+      rootTsconfig: Record<string, unknown>,
+      domTsconfig: Record<string, unknown>,
+    ): void {
+      write(root, `dom-purity-fixtures/${caseName}/tsconfig.json`, JSON.stringify(rootTsconfig, null, 2));
+      write(root, `dom-purity-fixtures/${caseName}/tsconfig.dom.json`, JSON.stringify(domTsconfig, null, 2));
+    }
+    writeDomPurityFixture('good', GOOD_ROOT_TSCONFIG, GOOD_DOM_TSCONFIG);
+    // Known-bad: root config no longer excludes src/dom.
+    writeDomPurityFixture('bad-exclude-removed', { ...GOOD_ROOT_TSCONFIG, exclude: [] }, GOOD_DOM_TSCONFIG);
+    // Known-bad: a DOM lib leaks into the root (DOM-free) config directly.
+    writeDomPurityFixture(
+      'bad-lib-leak',
+      { ...GOOD_ROOT_TSCONFIG, compilerOptions: { lib: ['ES2023', 'DOM'] } },
+      GOOD_DOM_TSCONFIG,
+    );
+    // Known-bad: the DOM config widens `include` to cover the whole package, not just src/dom.
+    writeDomPurityFixture('bad-dom-widened', GOOD_ROOT_TSCONFIG, { ...GOOD_DOM_TSCONFIG, include: ['src'] });
+    // Known-bad: the DOM config loses its own DOM lib (would break src/dom, not just the split).
+    writeDomPurityFixture('bad-dom-lib-missing', GOOD_ROOT_TSCONFIG, {
+      ...GOOD_DOM_TSCONFIG,
+      compilerOptions: { lib: ['ES2023'] },
+    });
+
     const engineViolations = await checkEngineBoundaries({ repoRoot: root });
     const protocolViolations = await checkProtocolPurity({ repoRoot: root });
+    const domPurityGood = await checkAgenticDomPurity({
+      repoRoot: root,
+      agenticDir: join(root, 'dom-purity-fixtures', 'good'),
+    });
+    const domPurityBadExclude = await checkAgenticDomPurity({
+      repoRoot: root,
+      agenticDir: join(root, 'dom-purity-fixtures', 'bad-exclude-removed'),
+    });
+    const domPurityBadLibLeak = await checkAgenticDomPurity({
+      repoRoot: root,
+      agenticDir: join(root, 'dom-purity-fixtures', 'bad-lib-leak'),
+    });
+    const domPurityBadDomWidened = await checkAgenticDomPurity({
+      repoRoot: root,
+      agenticDir: join(root, 'dom-purity-fixtures', 'bad-dom-widened'),
+    });
+    const domPurityBadDomLibMissing = await checkAgenticDomPurity({
+      repoRoot: root,
+      agenticDir: join(root, 'dom-purity-fixtures', 'bad-dom-lib-missing'),
+    });
 
     const has = (violations: { rule: string; file: string }[], rule: string, fileSuffix: string) =>
       violations.some((v) => v.rule === rule && v.file.endsWith(fileSuffix));
@@ -168,6 +232,23 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [has(protocolViolations, 'R3-protocol-purity', 'bad-r3-jini-import.ts'), 'R3 should catch protocol importing another @jini/* package'],
       [has(protocolViolations, 'R3-protocol-purity', 'bad-r3-boundary.ts'), 'R3 should catch protocol reaching into foundry/'],
       [!protocolViolations.some((v) => v.file.endsWith('ok-protocol.ts')), 'R3 must NOT flag ordinary protocol-local code'],
+      [domPurityGood.length === 0, 'R9 must NOT flag a correctly-shaped agentic tsconfig.json/tsconfig.dom.json pair'],
+      [
+        domPurityBadExclude.some((v) => v.rule === 'R9-dom-purity' && v.reason.includes('no longer excludes')),
+        'R9 should catch the root tsconfig no longer excluding src/dom',
+      ],
+      [
+        domPurityBadLibLeak.some((v) => v.rule === 'R9-dom-purity' && v.reason.includes('DOM entry') && v.file.endsWith('tsconfig.json')),
+        'R9 should catch a DOM lib leaking into the root (DOM-free) tsconfig',
+      ],
+      [
+        domPurityBadDomWidened.some((v) => v.rule === 'R9-dom-purity' && v.reason.includes('covers more than')),
+        'R9 should catch the DOM tsconfig widening include beyond src/dom',
+      ],
+      [
+        domPurityBadDomLibMissing.some((v) => v.rule === 'R9-dom-purity' && v.file.endsWith('tsconfig.dom.json') && v.reason.includes('no longer includes a DOM entry')),
+        'R9 should catch the DOM tsconfig losing its own DOM lib',
+      ],
     ];
 
     for (const [holds, expectation] of expectations) {
