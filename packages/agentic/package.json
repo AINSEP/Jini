@@ -7,7 +7,8 @@
     "domain": "agent",
     "kind": "capability-surface",
     "runtime": "universal",
-    "admission": "admitted"
+    "admission": "admitted",
+    "entries": { ".": "universal", "./dom": "browser" }
   },
   "type": "module",
   "exports": {

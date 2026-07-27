@@ -18,6 +18,15 @@
  * R8: every workspace package must declare canonical `jini` classification metadata in its
  *     package.json, and its admission state must agree with `UNLOCKED.md`. This keeps packages
  *     physically flat while making the conceptual domain/runtime grouping machine-readable.
+ *     Extension (2026-07-26, `@jini/agentic`'s two-entry-point split): an optional
+ *     `jini.entries` map gives a per-export-subpath `runtime` override for the rare package
+ *     whose single top-level `runtime` can't describe every subpath — e.g.
+ *     `{".": "universal", "./dom": "browser"}`. When present, every key must name a real
+ *     `exports` subpath and every `exports` subpath must have a matching key (mismatches in
+ *     either direction are exactly the drift worth catching: a typo'd subpath, or a new export
+ *     added without recording its runtime), and `entries["."]`, if set, must agree with the
+ *     top-level `runtime` field. Absent for every other package — this is opt-in and does not
+ *     require editing any package that doesn't need it. See `packages/README.md`.
  *
  * Deliberately a regex-based MVP over `scripts/lib/walk-imports.ts`, not a full
  * `ts.resolveModuleName` AST pass — per the debate's own convergence that this is sufficient
@@ -60,6 +69,14 @@ interface JiniPackageMetadata {
   readonly kind: string;
   readonly runtime: string;
   readonly admission: string;
+  /**
+   * Optional per-entry-point runtime override, e.g. `{".": "universal", "./dom": "browser"}` —
+   * for the rare package (currently only `@jini/agentic`) whose single top-level `runtime`
+   * cannot describe every subpath in its `exports` map. `null` when the package doesn't set it,
+   * which is the overwhelming majority — `entries` is opt-in precisely so no existing package
+   * needs to be touched to keep validating cleanly (see `packages/README.md`).
+   */
+  readonly entries: Readonly<Record<string, string>> | null;
 }
 
 interface PackageRecord {
@@ -86,6 +103,73 @@ function loadUnlockedManifest(root: string): Record<string, { status: string }> 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Validates the optional `jini.entries` extension (R8, see this file's module doc) and returns
+ * the parsed map, or `null` when the package doesn't set it. Pushes a violation for every: key
+ * that isn't a real `exports` subpath, `exports` subpath missing a key, invalid runtime value,
+ * or disagreement between `entries["."]` and the top-level `runtime` field.
+ */
+function resolveJiniEntries(
+  rawEntries: unknown,
+  rawExports: unknown,
+  runtime: string,
+  file: string,
+  violations: Violation[],
+): Readonly<Record<string, string>> | null {
+  if (rawEntries === undefined) return null;
+
+  if (!isRecord(rawEntries)) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: 'jini.entries must be an object mapping export subpaths to runtimes',
+    });
+    return null;
+  }
+
+  const exportKeys = isRecord(rawExports) ? new Set(Object.keys(rawExports)) : new Set<string>();
+  const entries: Record<string, string> = {};
+
+  for (const [subpath, value] of Object.entries(rawEntries)) {
+    if (typeof value !== 'string' || !PACKAGE_RUNTIMES.has(value)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `invalid jini.entries[${JSON.stringify(subpath)}] runtime ${JSON.stringify(value)}`,
+      });
+      continue;
+    }
+    entries[subpath] = value;
+    if (!exportKeys.has(subpath)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `jini.entries[${JSON.stringify(subpath)}] has no matching "exports" subpath — entries must name real export paths`,
+      });
+    }
+  }
+
+  for (const exportKey of exportKeys) {
+    if (!(exportKey in rawEntries)) {
+      violations.push({
+        rule: 'R8-package-metadata',
+        file,
+        reason: `"exports" subpath ${JSON.stringify(exportKey)} has no matching jini.entries key — a package that declares per-entry runtimes must cover every export`,
+      });
+    }
+  }
+
+  if (entries['.'] !== undefined && entries['.'] !== runtime) {
+    violations.push({
+      rule: 'R8-package-metadata',
+      file,
+      reason: `jini.entries["."] (${JSON.stringify(entries['.'])}) disagrees with jini.runtime (${JSON.stringify(runtime)}) — the root entry's runtime must match the top-level field`,
+    });
+  }
+
+  return entries;
 }
 
 function loadPackageRecords(
@@ -148,11 +232,15 @@ function loadPackageRecords(
       continue;
     }
 
+    const runtime = typeof rawMetadata.runtime === 'string' ? rawMetadata.runtime : '';
+    const entries = resolveJiniEntries(rawMetadata.entries, manifest.exports, runtime, file, violations);
+
     const metadata: JiniPackageMetadata = {
       domain: typeof rawMetadata.domain === 'string' ? rawMetadata.domain : '',
       kind: typeof rawMetadata.kind === 'string' ? rawMetadata.kind : '',
-      runtime: typeof rawMetadata.runtime === 'string' ? rawMetadata.runtime : '',
+      runtime,
       admission: typeof rawMetadata.admission === 'string' ? rawMetadata.admission : '',
+      entries,
     };
 
     if (!PACKAGE_DOMAINS.has(metadata.domain)) {

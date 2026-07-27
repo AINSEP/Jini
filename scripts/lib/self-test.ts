@@ -46,6 +46,38 @@ function writePackage(
   );
 }
 
+/** Writes a package.json exercising the optional `jini.entries` extension (R8) — see
+ * `check-engine-boundaries.ts`'s module doc "Extension (2026-07-26...)". `exportsMap` and
+ * `entries` are passed through verbatim (including deliberately-broken shapes) so the caller
+ * controls exactly what mismatch, if any, is under test. */
+function writePackageWithEntries(
+  root: string,
+  directory: string,
+  exportsMap: Record<string, unknown>,
+  entries: Record<string, unknown>,
+  runtime = 'universal',
+): void {
+  write(
+    root,
+    `packages/${directory}/package.json`,
+    JSON.stringify(
+      {
+        name: `@jini/${directory}`,
+        exports: exportsMap,
+        jini: {
+          domain: 'agent',
+          kind: 'self-test-fixture',
+          runtime,
+          admission: 'locked',
+          entries,
+        },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
 export interface SelfTestFailure {
   readonly expectation: string;
   readonly detail: string;
@@ -67,6 +99,30 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     writePackage(root, 'metatool', 'incubating');
     write(root, 'packages/missing-metadata/package.json', '{"name":"@jini/missing-metadata"}\n');
     write(root, 'packages/missing-metadata/src/index.ts', 'export const missingMetadata = true;\n');
+
+    // R8 jini.entries extension: a package whose entries exactly match its exports (good), one
+    // whose entries disagree with exports in BOTH directions at once (a typo'd key the exports
+    // map doesn't have, and a real export subpath entries forgot to cover), and one whose
+    // entries["."] disagrees with the top-level runtime field.
+    writePackageWithEntries(
+      root,
+      'entries-ok',
+      { '.': { types: './dist/index.d.ts' }, './dom': { types: './dist/dom/index.d.ts' } },
+      { '.': 'universal', './dom': 'browser' },
+    );
+    writePackageWithEntries(
+      root,
+      'entries-mismatch',
+      { '.': { types: './dist/index.d.ts' }, './dom': { types: './dist/dom/index.d.ts' } },
+      { '.': 'universal', './missing': 'browser' },
+    );
+    writePackageWithEntries(
+      root,
+      'entries-root-disagrees',
+      { '.': { types: './dist/index.d.ts' } },
+      { '.': 'browser' },
+      'universal',
+    );
 
     // R1: relative import escaping into a forbidden top-level dir.
     write(root, 'packages/core/src/bad-r1.ts', `import { x } from '../../../examples/reference-web/foo.js';\nexport { x };\n`);
@@ -226,6 +282,34 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [!has(engineViolations, 'R6-internal-leak', 'ok-r6-daemon.ts'), 'R6 must NOT flag a value import from inside @jini/daemon itself'],
       [has(engineViolations, 'R7-sprawl', 'bad-r7.tsx'), 'R7 should catch a locked package importing an unadmitted package from TSX'],
       [has(engineViolations, 'R8-package-metadata', 'packages/missing-metadata/package.json'), 'R8 should catch missing package classification metadata'],
+      [
+        !engineViolations.some((v) => v.file.endsWith('entries-ok/package.json')),
+        'R8 must NOT flag jini.entries that exactly match the exports map',
+      ],
+      [
+        engineViolations.some(
+          (v) =>
+            v.file.endsWith('entries-mismatch/package.json') &&
+            v.reason.includes('./missing') &&
+            v.reason.includes('no matching "exports" subpath'),
+        ),
+        'R8 should catch a jini.entries key with no matching exports subpath',
+      ],
+      [
+        engineViolations.some(
+          (v) =>
+            v.file.endsWith('entries-mismatch/package.json') &&
+            v.reason.includes('./dom') &&
+            v.reason.includes('no matching jini.entries key'),
+        ),
+        'R8 should catch an exports subpath with no matching jini.entries key',
+      ],
+      [
+        engineViolations.some(
+          (v) => v.file.endsWith('entries-root-disagrees/package.json') && v.reason.includes('disagrees with jini.runtime'),
+        ),
+        'R8 should catch jini.entries["."] disagreeing with the top-level jini.runtime',
+      ],
       [!engineViolations.some((v) => v.file.endsWith('ok-same-package.ts')), 'R1/R2 must NOT flag an ordinary same-package relative import'],
       [!engineViolations.some((v) => v.file.endsWith('ok-bare.ts')), 'R2 must NOT flag an ordinary bare @jini/<name> import'],
       [!engineViolations.some((v) => v.file.endsWith('ok-provenance-comment.ts')), 'R1/R2/R5 must NOT flag a provenance-citing doc comment as a live import or product-identity string'],

@@ -120,15 +120,27 @@ that it was folded in, not dropped — the distinction the plan is careful to dr
 admission and a promoted-in-place admission answer different questions ("does this code still need
 its own gate" vs. "did this code clear the gate").
 
-## Known metadata gap: `jini.runtime` cannot express two runtimes
+## Per-entry runtime metadata (`jini.entries`, 2026-07-26, plan §8 step 8)
 
 `package.json`'s `jini.runtime` is a single value (`universal | node | browser | desktop`), and
-`scripts/check-engine-boundaries.ts` validates exactly one. This package's root is universal but
-`./dom` is browser-only — no single value is honest. Set to `"universal"` here (the root entry is
-the dominant, dependency-free half; `./dom` is the smaller addendum), per plan §6's own flag of
-this exact gap. The plan's step 8 (extending the metadata model to a per-entry `jini.entries` map,
-or documenting the exception formally) is explicitly **out of scope** for the 2026-07-26 extraction
-that created this package — this note exists so the gap is not rediscovered as a surprise.
+this package's root is universal but `./dom` is browser-only — no single value is honest. The gap
+was recorded here (rather than worked around) when the package was created; it is now closed by an
+optional `jini.entries` map, validated by `scripts/check-engine-boundaries.ts`'s R8 extension:
+
+```json
+"jini": {
+  "runtime": "universal",
+  "entries": { ".": "universal", "./dom": "browser" }
+}
+```
+
+`entries["."]` agrees with the top-level `runtime` (kept for tooling that only reads the
+single-value field); `entries["./dom"]` records the browser-only half honestly. `pnpm guard`
+checks both directions — every `entries` key must name a real `exports` subpath and every
+`exports` subpath must have a matching `entries` key — so a stale or typo'd mapping is caught
+rather than silently drifting. See `packages/README.md`'s "`entries` — when one `runtime` can't
+describe every export subpath" for the general shape; every other package leaves `entries` unset
+and needed no edits for this to land.
 
 ## Admission
 
