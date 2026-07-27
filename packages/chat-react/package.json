@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@jini/agent-runtime": "workspace:*",
+    "@jini/agentic": "workspace:*",
     "@jini/chat-core": "workspace:*",
     "@jini/ui": "workspace:*"
   },

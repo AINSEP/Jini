@@ -9,7 +9,8 @@ import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } fro
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini/media';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini/memory';
 import { createFrontendControl, createLocalNodeDaemon } from '@jini/node-host';
-import { CHAT_CAPABILITIES, PAGE_CAPABILITIES } from '@jini/chat-core';
+import { CHAT_CAPABILITIES } from '@jini/chat-core';
+import { PAGE_CAPABILITIES } from '@jini/agentic';
 import type { RunAgentPayload } from '@jini/protocol';
 import {
   createPlaygroundRuntimeEnvironment,

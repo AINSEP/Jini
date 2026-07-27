@@ -15,7 +15,7 @@
  * prevent. There is no reason to add one: anything that can execute a tool can execute these.
  *
  * **Typed structurally, not against the frontend packages.** A capability spec here is anything
- * with an `id` and a `description` — `@jini/chat-core`'s `CapabilityDef` satisfies it without
+ * with an `id` and a `description` — `@jini/agentic`'s `CapabilityDef` satisfies it without
  * knowing this module exists. Importing that type would point a server package at the browser
  * vocabulary and invert the one-way edge the engine's layering depends on; the same reasoning as
  * `@jini/core`'s `RunRef`.
@@ -51,7 +51,7 @@ export const DEFAULT_FRONTEND_CAPABILITY_TIMEOUT_MS = 30_000;
 /**
  * The minimum a manifest entry must describe. Structural on purpose — see the module doc.
  *
- * Every field here exists on `@jini/chat-core`'s `CapabilityDef`, so a manifest satisfies this
+ * Every field here exists on `@jini/agentic`'s `CapabilityDef`, so a manifest satisfies this
  * without conversion. The first version of this type accepted only `id`, `description`, and
  * `requiresConfirmation` and silently dropped the rest, which made the projection **lossy**: a
  * registered capability could no longer say what arguments it took or how dangerous it was, so

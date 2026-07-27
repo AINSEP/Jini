@@ -34,7 +34,8 @@
  *   {@link FrontendSessionBridge.bindToken} answers "what is valid now", and only the latter
  *   belongs in a run request.
  */
-import { CHAT_CAPABILITIES, PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini/chat-core';
+import { CHAT_CAPABILITIES } from '@jini/chat-core';
+import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini/agentic';
 
 import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../features/chat-pane/types.js';
 

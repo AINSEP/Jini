@@ -1,5 +1,5 @@
 /**
- * @module @jini/chat-core/agentic/chat-capabilities
+ * @module agentic/chat-capabilities
  *
  * What an outside caller may ask a chat pane to do. Each id names a product OUTCOME the pane
  * already supports — not a UI click — so a headless caller and an in-page one reach the same

@@ -133,7 +133,7 @@ describe('createFrontendCapabilityRegistrations', () => {
 
     it('accepts a full CapabilityDef-shaped manifest entry without conversion', () => {
       const { registry } = recordingRegistry();
-      // The shape @jini/chat-core's PAGE_CAPABILITIES entries actually have, extra fields and all.
+      // The shape @jini/agentic's PAGE_CAPABILITIES entries actually have, extra fields and all.
       const capabilityDef = {
         id: 'page.fill',
         description: 'Type text into one input field.',

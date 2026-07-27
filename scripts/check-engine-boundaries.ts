@@ -2,7 +2,10 @@
  * R1: packages/@jini/** must not import foundry/**, examples/**, or AI-Dev-Shop/**.
  * R2: engine packages import each other only by package name (no deep paths) — a relative
  *     import must not escape its own package's `src/`, and a bare `@jini/<name>/<subpath>`
- *     import is forbidden except the specifically-gated `@jini/core/internal` subpath.
+ *     import is forbidden except two specifically-gated subpaths: `@jini/core/internal` and
+ *     `@jini/agentic/dom` (the browser half of `@jini/agentic`'s deliberate two-entry-point
+ *     split — see `packages/agentic/source-map.md`). Both are exact-literal exceptions, not a
+ *     pattern; a third package wanting a second entry point needs its own named exception here.
  * R5: no product-identity strings in packages/@jini/**.
  * R6: `getToolRegistration` (a runtime *value*, not `import type`) may only be imported from
  *     `@jini/core/internal` inside `packages/daemon/**` — closes the tool-handler-authz-bypass
@@ -298,11 +301,19 @@ export async function checkEngineBoundaries(
                 reason: 'value import of @jini/core/internal outside packages/daemon — bypasses the ToolExecutor authz gate',
               });
             }
+          } else if (spec === '@jini/agentic/dom') {
+            // R2 exception #2 (2026-07-26 extraction): @jini/agentic ships two entry points on
+            // purpose — a DOM-free root and a browser-only "./dom" half, split across two
+            // tsconfigs so the root's DOM-free guarantee stays compile-time (see
+            // packages/agentic/source-map.md's "The DOM split"). @jini/chat-react genuinely needs
+            // the DOM half (createDomPageDriver) and there is no third package for it to live in
+            // without adding to the sprawl this rule exists to bound. Gated to this exact literal,
+            // not a pattern — no other package's subpath is exempted by this branch.
           } else {
             violations.push({
               rule: 'R2-deep-path',
               file,
-              reason: `deep-path import "${spec}" — only bare "@jini/${targetPackage}" (or the gated @jini/core/internal) is allowed`,
+              reason: `deep-path import "${spec}" — only bare "@jini/${targetPackage}" (or the gated @jini/core/internal / @jini/agentic/dom) is allowed`,
             });
           }
         }

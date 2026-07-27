@@ -1,5 +1,5 @@
 /**
- * @module @jini/agentic/element-handles
+ * @module element-handles
  *
  * The `data-agent-*` markup convention: how a page names the things an agent may act on.
  *

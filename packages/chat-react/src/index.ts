@@ -63,11 +63,13 @@ export type { JiniChatProviderProps, JiniChatSlots } from './react/components/Ji
  *
  * Lives here rather than in an example because a consumer cannot copy-paste its way to a
  * transport: this is the piece that makes `ChatPaneAgentBridgeAccess` satisfiable at all.
+ *
+ * `createDomPageDriver`/`currentAgentPage` moved to `@jini/agentic/dom` in the 2026-07-26
+ * extraction — re-exported here so existing `@jini/chat-react` importers keep working.
  */
 export { createFrontendSessionBridge } from './agent-bridge/frontend-session-bridge.js';
 export type {
   FrontendSessionBridge,
   FrontendSessionBridgeOptions,
 } from './agent-bridge/frontend-session-bridge.js';
-export { createDomPageDriver, currentAgentPage } from './agent-bridge/dom-page-driver.js';
-export type { DomPageDriverOptions } from './agent-bridge/dom-page-driver.js';
+export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from '@jini/agentic/dom';

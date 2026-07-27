@@ -1,5 +1,5 @@
 /**
- * @module @jini/agentic/webmcp
+ * @module webmcp
  *
  * Projection: {@link CapabilityDef} → a WebMCP tool registration.
  *

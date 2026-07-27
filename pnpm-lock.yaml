@@ -72,6 +72,9 @@ importers:
 
   examples/reference-web:
     dependencies:
+      '@jini/agentic':
+        specifier: workspace:*
+        version: link:../../packages/agentic
       '@jini/agui':
         specifier: workspace:*
         version: link:../../packages/agui
@@ -215,6 +218,9 @@ importers:
       '@jini/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
+      '@jini/agentic':
+        specifier: workspace:*
+        version: link:../agentic
       '@jini/chat-core':
         specifier: workspace:*
         version: link:../chat-core

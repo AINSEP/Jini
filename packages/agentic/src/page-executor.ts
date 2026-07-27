@@ -1,5 +1,5 @@
 /**
- * @module @jini/agentic/page-executor
+ * @module page-executor
  *
  * The six `page.*` verbs, as policy over a {@link PageDriver}.
  *

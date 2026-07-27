@@ -1,5 +1,5 @@
 /**
- * @module @jini/agentic/page-capabilities
+ * @module page-capabilities
  *
  * What an outside caller may ask a *page* to do: find the tagged controls, point at one, and
  * operate it. Every verb addresses an element by its published `data-agent-element` handle —

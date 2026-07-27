@@ -10,8 +10,8 @@
  *
  * Deliberately generic. This module knows nothing about `page.*`, the DOM, or chat — it routes an
  * opaque `capabilityId` plus an opaque input to whichever surface claimed that capability. The
- * vocabulary of what can be executed is the host's to define (see `@jini/chat-core/agentic`), which
- * is what keeps a browser concept out of a server package.
+ * vocabulary of what can be executed is the host's to define (see `@jini/agentic`), which is what
+ * keeps a browser concept out of a server package.
  *
  * It also introduces **no second execution path**. The registry is only reachable from inside a
  * `ToolHandler`, so every call through it has already passed `ToolExecutor`'s authorization,

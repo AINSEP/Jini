@@ -1,5 +1,5 @@
 /**
- * @module @jini/agentic/capability
+ * @module capability
  *
  * The vocabulary every agent-drivable surface shares: what an outside caller may ask a
  * frontend to do, described as pure data with no transport, DOM, or framework attached.

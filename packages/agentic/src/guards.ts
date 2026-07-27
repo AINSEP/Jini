@@ -1,5 +1,5 @@
 /**
- * @module @jini/agentic/guards
+ * @module guards
  *
  * The refusals that must hold on every surface, expressed over plain descriptors rather than
  * DOM nodes so they are testable in Node and reusable from any framework binding.

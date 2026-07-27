@@ -1,5 +1,7 @@
 /**
- * @jini/chat-core/agentic — the chat pane's own capability manifest.
+ * @jini/chat-core's internal `agentic/` barrel — the chat pane's own capability manifest. Not a
+ * public subpath (there is no `"./agentic"` entry in package.json); re-exported from this
+ * package's root `index.ts` instead.
  *
  * Everything that used to live here besides `chat-capabilities.ts` (the framework-free
  * `CapabilityDef` vocabulary, the two shipped manifests' shared machinery, the `data-agent-*`

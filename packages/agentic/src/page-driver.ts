@@ -1,5 +1,5 @@
 /**
- * @module @jini/agentic/page-driver
+ * @module page-driver
  *
  * The seam between "what the agent asked for" and "the actual page".
  *

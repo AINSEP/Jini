@@ -72,6 +72,16 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // R2: deep cross-package relative reach, and a deep bare @jini/<name>/<subpath> import.
     write(root, 'packages/core/src/bad-r2-relative.ts', `import { x } from '../../daemon/src/foo.js';\nexport { x };\n`);
     write(root, 'packages/http/src/bad-r2-deep.ts', `import { x } from '@jini/daemon/dist/foo.js';\nexport { x };\n`);
+    // R2 exemption: @jini/agentic/dom is the one other named-literal exception, alongside
+    // @jini/core/internal — must NOT be flagged. A *different* subpath of the same package
+    // (bad-r2-agentic-other-subpath.ts) proves the exemption is the exact literal, not a pattern
+    // that swallows every @jini/agentic/* import.
+    write(root, 'packages/http/src/ok-r2-agentic-dom.ts', `import { x } from '@jini/agentic/dom';\nexport { x };\n`);
+    write(
+      root,
+      'packages/http/src/bad-r2-agentic-other-subpath.ts',
+      `import { x } from '@jini/agentic/other';\nexport { x };\n`,
+    );
     // R5: product-identity string + OD_ prefix.
     write(root, 'packages/core/src/bad-r5-string.ts', `export const NAME = 'Open Design';\n`);
     write(root, 'packages/core/src/bad-r5-prefix.ts', `export const OD_STAMP = 'x';\n`);
@@ -143,6 +153,8 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [has(engineViolations, 'R1-boundary', 'bad-r1.ts'), 'R1 should catch a relative import escaping into foundry/'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-relative.ts'), 'R2 should catch a relative import reaching into another package'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-deep.ts'), 'R2 should catch a deep bare @jini/<name>/<subpath> import'],
+      [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-dom.ts'), 'R2 must NOT flag the gated @jini/agentic/dom import'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-agentic-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini/agentic/<subpath> — the exemption is the exact literal, not a pattern'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-string.ts'), 'R5 should catch a product-identity string'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-prefix.ts'), 'R5 should catch an OD_ prefixed identifier'],
       [has(engineViolations, 'R6-internal-leak', 'bad-r6.ts'), 'R6 should catch a value import of getToolRegistration outside daemon'],
