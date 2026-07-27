@@ -30,7 +30,7 @@ import { PLAYGROUND_RUNTIME_ACCESS } from './runtime-access.js';
  * all. The sandboxed preview in the main playground is the special case, not this.
  *
  * It also carries two fields an agent must REFUSE to fill — a password and a hidden CSRF token —
- * so the guard in `@jini/chat-core`'s `findFieldFillRefusal` has something real to refuse. Both
+ * so the guard in `@jini/agentic`'s `findFieldFillRefusal` has something real to refuse. Both
  * are tagged with valid handles on purpose: a correct implementation still says no.
  */
 interface LabItem {
