@@ -83,40 +83,32 @@ export {
  */
 export { toWebMcpTool, toWebMcpTools, type WebMcpToolRegistration } from './webmcp.js';
 
+/**
+ * Both halves of AG-UI, from `./agui/` — the capability→frontend-tool projection and the
+ * run-stream→wire-event encoder (the latter folded in 2026-07-26 from the standalone
+ * `@jini/agui` package, plan §3a). They live in one directory because they are one protocol; see
+ * that directory's module doc for why they were briefly, and confusingly, apart.
+ */
 export {
   toAgUiTool,
   toAgUiTools,
   createAgUiToolResult,
   AG_UI_TOOL_CALL_EVENTS,
+  createAguiEncoder,
   type AgUiTool,
   type AgUiToolResultMessage,
-} from './ag-ui.js';
-
-/**
- * The other half of AG-UI, folded in 2026-07-26 from the standalone `@jini/agui` package (plan
- * §3a) into the `src/agui/` subdirectory: encodes a run's `RunProtocolEvent` stream into AG-UI
- * *wire* events for streaming to a frontend (over SSE, WebSocket, etc — this package opens no
- * connections itself). `ag-ui.ts` above projects capabilities into frontend *tool* declarations;
- * `agui/` projects the run stream into wire events. Same protocol, two unrelated halves — kept in
- * their own subdirectory rather than sprawling more flat files into `src/`.
- */
-export {
-  createAguiEncoder,
   type AguiEncodeContext,
   type AguiEncoder,
-} from './agui/encoder.js';
-
-export type {
-  AGUIAgentMessageEvent,
-  AGUIEvent,
-  AGUIEventBase,
-  AGUIEventKind,
-  AGUIRunLifecycleEvent,
-  AGUIStateUpdateEvent,
-  AGUISurfaceRequestedEvent,
-  AGUISurfaceRespondedEvent,
-  AGUIToolCallEvent,
-} from './agui/events.js';
+  type AGUIAgentMessageEvent,
+  type AGUIEvent,
+  type AGUIEventBase,
+  type AGUIEventKind,
+  type AGUIRunLifecycleEvent,
+  type AGUIStateUpdateEvent,
+  type AGUISurfaceRequestedEvent,
+  type AGUISurfaceRespondedEvent,
+  type AGUIToolCallEvent,
+} from './agui/index.js';
 
 export {
   MCP_UI_VIEW_METHODS,

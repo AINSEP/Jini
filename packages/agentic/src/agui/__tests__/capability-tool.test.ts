@@ -6,7 +6,7 @@ import {
   createAgUiToolResult,
   toAgUiTool,
   toAgUiTools,
-} from '../index.js';
+} from '../../index.js';
 
 // PAGE_CAPABILITIES alone already has multiple entries, which is all "projects a whole manifest
 // in order" below needs — this package ships no product-specific manifest of its own to combine
