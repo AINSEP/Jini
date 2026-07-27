@@ -80,13 +80,6 @@ still `PENDING` for every entry; see the "Promotion" section below for what chan
     "signOff": "PENDING",
     "note": "Not named anywhere in extraction-plan.md; not even listed in AGENTS.md's own package inventory."
   },
-  "@jini/agui": {
-    "status": "incubating",
-    "consumers": ["examples/reference-web (workspace composition root; not promotion-qualified)"],
-    "lockedPackagesMayImport": false,
-    "signOff": "PENDING",
-    "note": "Added 2026-07-19, before this manifest existed — fell through the admission process entirely rather than being deliberately deferred like the other 10 entries here. Not named anywhere in extraction-plan.md §3's locked set or its own §10 roadmap appendix. Backfilled 2026-07-22 to close the gap; needs the same named-consumer promotion path as every other incubating package."
-  },
   "@jini/composio": {
     "status": "incubating",
     "consumers": [],
@@ -103,6 +96,18 @@ still `PENDING` for every entry; see the "Promotion" section below for what chan
   }
 }
 ```
+
+## Removed entries
+
+- **`@jini/agui`** — removed 2026-07-26. Not dropped: folded into `@jini/agentic` (already
+  `"stable"` above) per `ADS-memory/reports/proposals/PLAN-jini-agentic-extraction-2026-07-26.md`
+  §3a/§4a. Its `"incubating"` status (never promoted; added 2026-07-19, backfilled 2026-07-22)
+  became moot the moment the package itself stopped existing — folding incubating code into an
+  admitted package promotes it, since there is no longer a standalone unit for the four normal
+  promotion requirements to apply to. See `packages/agentic/source-map.md`'s "Folded from
+  `@jini/agui`" section for the full reasoning, and `packages/agui/source-map.md` in git history
+  (commit `7773af01e` and earlier) for the package's own provenance, preserved rather than
+  re-derived.
 
 ## Promotion requirements (per the 2026-07-19 debate's convergence)
 

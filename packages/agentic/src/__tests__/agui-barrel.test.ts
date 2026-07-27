@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { RUN_PROTOCOL_VERSION } from '@jini/protocol';
 import * as agui from '../index.js';
 
-// Exercises the public root barrel.
-describe('@jini/agui public barrel', () => {
+// Exercises the public root barrel's re-export of src/agui/encoder.ts (folded in from the
+// standalone @jini/agui package, plan §3a — see that module's doc).
+describe('@jini/agentic public barrel — createAguiEncoder', () => {
   it('re-exports createAguiEncoder', () => {
     expect(agui.createAguiEncoder).toBeDefined();
     expect(typeof agui.createAguiEncoder).toBe('function');

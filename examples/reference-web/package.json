@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@jini/agentic": "workspace:*",
-    "@jini/agui": "workspace:*",
     "@jini/chat-core": "workspace:*",
     "@jini/chat-react": "workspace:*",
     "@jini/daemon": "workspace:*",

@@ -3,7 +3,7 @@ import { rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
-import { createAguiEncoder } from '@jini/agui';
+import { createAguiEncoder } from '@jini/agentic';
 import { createAgentExecutor } from '@jini/daemon';
 import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini/http';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini/media';

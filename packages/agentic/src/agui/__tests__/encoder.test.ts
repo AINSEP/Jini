@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RUN_PROTOCOL_VERSION, type RunEventPayload, type RunProtocolEvent } from '@jini/protocol';
-import { createAguiEncoder } from '../encode.js';
+import { createAguiEncoder } from '../encoder.js';
 
 const RUN_ID = 'run-1';
 let eventCounter = 0;

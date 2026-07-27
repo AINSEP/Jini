@@ -90,6 +90,32 @@ export {
   type AgUiToolResultMessage,
 } from './ag-ui.js';
 
+/**
+ * The other half of AG-UI, folded in 2026-07-26 from the standalone `@jini/agui` package (plan
+ * §3a) into the `src/agui/` subdirectory: encodes a run's `RunProtocolEvent` stream into AG-UI
+ * *wire* events for streaming to a frontend (over SSE, WebSocket, etc — this package opens no
+ * connections itself). `ag-ui.ts` above projects capabilities into frontend *tool* declarations;
+ * `agui/` projects the run stream into wire events. Same protocol, two unrelated halves — kept in
+ * their own subdirectory rather than sprawling more flat files into `src/`.
+ */
+export {
+  createAguiEncoder,
+  type AguiEncodeContext,
+  type AguiEncoder,
+} from './agui/encoder.js';
+
+export type {
+  AGUIAgentMessageEvent,
+  AGUIEvent,
+  AGUIEventBase,
+  AGUIEventKind,
+  AGUIRunLifecycleEvent,
+  AGUIStateUpdateEvent,
+  AGUISurfaceRequestedEvent,
+  AGUISurfaceRespondedEvent,
+  AGUIToolCallEvent,
+} from './agui/events.js';
+
 export {
   MCP_UI_VIEW_METHODS,
   MCP_UI_HOST_NOTIFICATIONS,

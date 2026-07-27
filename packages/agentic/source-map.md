@@ -19,6 +19,8 @@ of unwarranted coupling.
 
 | Jini file | Moved from | Transform |
 |---|---|---|
+| `src/agui/events.ts` | `@jini/agui`'s `src/types.ts` | `git mv` + renamed, into a new `src/agui/` subdirectory. See "Folded from `@jini/agui`" below. |
+| `src/agui/encoder.ts` | `@jini/agui`'s `src/encode.ts` | `git mv` + renamed, into a new `src/agui/` subdirectory. See "Folded from `@jini/agui`" below. |
 | `src/capability.ts` | `chat-core/src/agentic/capability.ts` | Verbatim `git mv`. |
 | `src/guards.ts` | `chat-core/src/agentic/guards.ts` | Verbatim `git mv`. |
 | `src/element-handles.ts` | `chat-core/src/agentic/element-handles.ts` | Verbatim `git mv`. |
@@ -65,6 +67,59 @@ pattern — because `@jini/chat-react` genuinely needs the DOM half and there is
 it to live in without recreating the sprawl this plan exists to reduce (23 packages vs. a locked
 14). See that script's own module doc for the up-to-date rule list.
 
+## Folded from `@jini/agui` (2026-07-26, plan §3a/§4a)
+
+The standalone `@jini/agui` package — three files, `types.ts`/`encode.ts`/`index.ts`, zero I/O —
+folded into this package and the package itself was deleted. The original plan (§3) kept it out on
+the grounds that it was "a transport, and a transport is not a vocabulary." §3a corrected that: the
+code has no node builtins, no fetch, no http, no streams; `createAguiEncoder()` is a pure
+`RunProtocolEvent → AguiEvent` transform, `runtime: universal`, depending only on `@jini/protocol`
+(a dependency-free leaf, so this adds no cycle). The actual SSE transport lives in `@jini/http`
+(`run-stream.ts`) and the actual connection is opened by a composition root
+(`examples/reference-web/src/daemon.ts`) — neither of those facts describes where the encoder
+*belongs*, only where it is *called*, which is the distinction the original plan missed.
+
+Placed in a new `src/agui/` subdirectory rather than as flat `src/agui-events.ts`/`agui-encoder.ts`
+files (mid-task course correction, once the flat names existed and made the collision-avoidance
+concern below visible as sprawl) — `src/dom/` already established the precedent that a
+package can hold a real subdirectory, not just one file per concern. This also sidesteps any
+naming collision with this package's own pre-existing `ag-ui.ts`: both are "AG-UI", but they are
+unrelated halves of the same external protocol.
+
+| File | What it does |
+|---|---|
+| `ag-ui.ts` (pre-existing, package root) | Projects a {@link CapabilityDef} into an AG-UI **frontend tool** declaration (`RunAgentInput.tools`) — the vocabulary translation for capabilities a frontend exposes to an agent. |
+| `agui/events.ts` / `agui/encoder.ts` (folded in) | Encodes a run's `RunProtocolEvent` **wire event stream** into AG-UI's SSE event shapes (`agent.message`, `tool_call`, `run.lifecycle`, …) — the opposite direction: an agent's run, projected outward for a UI to render. |
+
+Test files moved alongside: `src/__tests__/encode.test.ts` → `src/agui/__tests__/encoder.test.ts`
+(26 tests, unit tests of the encoder itself — only its `../encode.js` import path changed, to
+`../encoder.js`), and `src/__tests__/index.test.ts` → `src/__tests__/agui-barrel.test.ts` (2 tests
+— exercises `createAguiEncoder`'s presence and one end-to-end encode through this package's own
+top-level public barrel, so it stayed at `src/__tests__/` rather than moving into `src/agui/`,
+since its subject is the *package's* barrel, not the `agui/` module in isolation; needed no
+import-path change since it already imported its subject via `../index.js`, which is this
+package's barrel now instead of `@jini/agui`'s). agui's own `src/index.ts` (a two-line re-export
+barrel, no logic) did not survive as a discrete file — its exports were folded directly into this
+package's existing `src/index.ts` rather than kept as a separate near-empty file; nothing it did
+is lost, see this package's `index.ts` for the `agui/encoder.js`/`agui/events.js` export block.
+`examples/reference-web`'s `daemon.ts` (`createAguiEncoder` import) and `package.json` re-pointed
+from `@jini/agui` to `@jini/agentic`; `@jini/agui`'s own detailed provenance (the origin adapter it
+was ported from, the old→new field-mapping table, the six-event-kind generalization writeup that
+added `stage_start`/`stage_end`/`surface_request`/`surface_response` to `@jini/protocol`) is
+preserved verbatim in git history at `packages/agui/source-map.md` as of commit `7773af01e` and
+earlier — not re-derived or duplicated here.
+
+**Admission consequence:** `@jini/agui` was `jini.admission: "incubating"` (see `UNLOCKED.md`,
+added 2026-07-19, never promoted). Folding incubating code into an `admitted` package promotes it
+— there is no intermediate state for code that no longer has its own package boundary. This is not
+a bypass of the normal incubating→stable gate (named consumer, API snapshot, minimal-host slice
+test, sign-off): those four requirements were about `@jini/agui` continuing to exist as a
+standalone, separately-consumed unit, a question this move makes moot by removing that unit
+entirely. `UNLOCKED.md`'s `@jini/agui` entry is removed (not merely marked promoted) with a note
+that it was folded in, not dropped — the distinction the plan is careful to draw, since a folded-in
+admission and a promoted-in-place admission answer different questions ("does this code still need
+its own gate" vs. "did this code clear the gate").
+
 ## Known metadata gap: `jini.runtime` cannot express two runtimes
 
 `package.json`'s `jini.runtime` is a single value (`universal | node | browser | desktop`), and
@@ -86,9 +141,12 @@ packages cannot be imported by `locked` ones. See `UNLOCKED.md`'s entry for the 
 
 ## Dependencies
 
-None beyond the TypeScript standard library — same as `chat-core/agentic` before it. `src/dom/`
-depends on the DOM lib (a `lib`, not a package dependency) and on this package's own sibling
-modules; nothing else.
+`@jini/protocol` (workspace, type-only) — added by the `@jini/agui` fold above, for
+`RunAgentPayload`/`RunProtocolEvent`. `@jini/protocol` is a dependency-free leaf (per
+`extraction-plan.md`'s locked layering), so this is a new downward edge, not a cycle. Everything
+else in this package needs nothing beyond the TypeScript standard library — same as
+`chat-core/agentic` before it. `src/dom/` depends on the DOM lib (a `lib`, not a package
+dependency) and on this package's own sibling modules; nothing else.
 
 ## Not ported / explicitly deferred (inherited from before the move, not new)
 
