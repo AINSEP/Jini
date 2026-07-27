@@ -1,0 +1,26 @@
+{
+  "name": "@jini/agentic",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/agentic" },
+  "jini": {
+    "domain": "agent",
+    "kind": "capability-surface",
+    "runtime": "universal",
+    "admission": "admitted"
+  },
+  "type": "module",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
+    "./dom": { "types": "./dist/dom/index.d.ts", "import": "./dist/dom/index.js" }
+  },
+  "files": ["dist"],
+  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.dom.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.dom.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": { "@vitest/coverage-v8": "^2.1.9", "jsdom": "^25.0.1" }
+}

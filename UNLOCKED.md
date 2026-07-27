@@ -93,6 +93,13 @@ still `PENDING` for every entry; see the "Promotion" section below for what chan
     "lockedPackagesMayImport": false,
     "signOff": "PENDING",
     "note": "Concrete Composio catalog, OAuth, connected-account, and tool-execution adapter ported under the approved ADS-memory/reports/composio-port-plan-2026-07-23.md. No HTTP/UI wiring or external packed-tarball consumer yet."
+  },
+  "@jini/agentic": {
+    "status": "stable",
+    "consumers": ["@jini/chat-core (locked)", "@jini/chat-react (locked)", "examples/reference-web (workspace composition root; not promotion-qualified)"],
+    "lockedPackagesMayImport": true,
+    "signOff": "2026-07-26 — admitted at creation, Coordinator (agentic-extraction dispatch)",
+    "note": "Extracted 2026-07-26 out of @jini/chat-core's src/agentic/* (minus chat-capabilities.ts, which stayed) and @jini/chat-react's dom-page-driver.ts, per ADS-memory/reports/proposals/PLAN-jini-agentic-extraction-2026-07-26.md §6. Admitted directly to 'stable' rather than entering as 'incubating' and going through the normal 4-requirement promotion gate (named external consumer, API snapshot, minimal-host slice test, sign-off) — because that gate's premise (new, unproven surface) doesn't hold here: this is a relocation of code that was already inside a locked package with 615+393 tests passing against it. Entering as 'incubating' would have actively broken the extraction, since incubating packages cannot be imported by locked ones and chat-core/chat-react (both locked) are its first two consumers by construction. The normal 4 promotion requirements remain unmet (no external packed-tarball consumer yet) and should still be satisfied before this note is treated as a closed loop — flagged here rather than silently treated as equivalent to a package that actually cleared the gate."
   }
 }
 ```
