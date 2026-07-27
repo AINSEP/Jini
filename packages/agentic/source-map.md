@@ -154,8 +154,6 @@ dependency) and on this package's own sibling modules; nothing else.
   this extraction; `capability.test.ts`'s own comment already noted this (their behavior is
   exercised indirectly through `page-executor.test.ts` and `capability.test.ts`'s manifest-shape
   checks). Not introduced or fixed by this move.
-- Folding `model-context.ts` into `webmcp.ts` — plan §8 step 6, a separate follow-up dispatch.
-  (`handle.ts`/`agentHandle()`, step 5, landed 2026-07-26 — see below.)
 
 ## `handle.ts` — `agentHandle()` (2026-07-26, plan §8 step 5)
 

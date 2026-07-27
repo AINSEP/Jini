@@ -1,17 +1,24 @@
 /**
- * @module @jini/ui/features/agent-tools/model-context
+ * @module dom/model-context
  *
  * Feature-detected access to the browser's (draft) WebMCP surface —
  * `document.modelContext`, falling back to the deprecated `navigator.modelContext`
  * alias (the spec moved the getter from Navigator to Document in 2026;
  * see the polyfill ecosystem's own back-compat posture). No `@mcp-b/*` or
- * other WebMCP package dependency: this package only needs the shape, the
+ * other WebMCP package dependency: this module only needs the shape, the
  * same "typed global + validated getter + graceful unavailable path"
- * pattern `@jini/desktop-host`'s `bridge.ts` and this app's own
- * `desktop-bridge.ts` already use for other host-provided globals.
+ * pattern `@jini/desktop-host`'s `bridge.ts` and other host-provided-global
+ * bridges already use.
  * A page that wants `document.modelContext` to actually exist in a browser
  * without native support must load a real polyfill itself (e.g.
  * `@mcp-b/webmcp-polyfill`) — this module only ever reads what's there.
+ *
+ * Moved 2026-07-26 from `@jini/ui/src/features/agent-tools/model-context.ts` (plan §4/§8 step 6).
+ * Lives under `src/dom/`, not alongside `../webmcp.ts`'s pure `CapabilityDef` → WebMCP-tool
+ * projection, because it reads `document`/`navigator` — `webmcp.ts`'s own module doc is explicit
+ * that "that detection is deliberately NOT here: it touches browser globals, and this package
+ * holds none," which is exactly the DOM-free guarantee `src/dom/` exists to carve an exception
+ * for. See `dom/index.ts`'s re-export of this module.
  */
 
 export interface AgentModelContextToolRegistration {
