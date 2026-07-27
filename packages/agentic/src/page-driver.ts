@@ -1,5 +1,5 @@
 /**
- * @module @jini/chat-core/agentic/page-driver
+ * @module @jini/agentic/page-driver
  *
  * The seam between "what the agent asked for" and "the actual page".
  *

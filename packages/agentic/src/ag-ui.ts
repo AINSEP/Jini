@@ -1,5 +1,5 @@
 /**
- * @module @jini/chat-core/agentic/ag-ui
+ * @module @jini/agentic/ag-ui
  *
  * Projection: {@link CapabilityDef} → an AG-UI frontend tool.
  *

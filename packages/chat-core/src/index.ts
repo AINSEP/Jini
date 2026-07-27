@@ -16,10 +16,11 @@ export * from './question-form.js';
 export * from './util/index.js';
 export * from './transcript.js';
 /**
- * Agent-control vocabulary. Also published as the `@jini/chat-core/agentic` subpath for
- * consumers outside this repo who want only that slice; in-repo packages import it from here,
- * because `scripts/check-engine-boundaries.ts` R2 allows exactly one entry point per `@jini/*`
- * package.
+ * The chat pane's own capability manifest (`CHAT_CAPABILITIES`). The framework-free agent-control
+ * vocabulary this used to sit alongside — `CapabilityDef`, `PAGE_CAPABILITIES`, the
+ * `data-agent-*` convention, the policy gate, the protocol projections — moved to `@jini/agentic`
+ * on 2026-07-26; import it directly rather than through this package. See
+ * `packages/agentic/source-map.md` and this package's own source-map.md for the extraction.
  */
 export * from './agentic/index.js';
 

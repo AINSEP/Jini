@@ -7,7 +7,7 @@ import {
   findFieldFillRefusal,
   findFieldReadRefusal,
   normalizeAgentLabel,
-} from '../../agentic/index.js';
+} from '../index.js';
 
 describe('findFieldFillRefusal', () => {
   it('allows a field whose autocomplete is present but harmless', () => {

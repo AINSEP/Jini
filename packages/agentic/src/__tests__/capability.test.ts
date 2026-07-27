@@ -1,21 +1,43 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  CHAT_CAPABILITIES,
   PAGE_CAPABILITIES,
   availableCapabilities,
   findCapability,
   findCapabilityInputError,
   type CapabilityDef,
-} from '../../agentic/index.js';
+} from '../index.js';
 
-const ALL: readonly CapabilityDef[] = [...CHAT_CAPABILITIES, ...PAGE_CAPABILITIES];
+/**
+ * A synthetic destructive, server-surface capability standing in for a product's own manifest
+ * entry (chat-core's real `chat.reset_conversation`/`chat.send_message` play this role in
+ * `packages/chat-core/src/__tests__/agentic/chat-capabilities.test.ts`, which exercises the exact
+ * same two invariants below against the real combined manifest). This package ships no
+ * product-specific capability of its own — PAGE_CAPABILITIES alone has no `requiresConfirmation`
+ * entry and no `surface: 'server'` entry — so a synthetic fixture is what proves
+ * `availableCapabilities`/the shape checks generalize to ANY manifest, not just this package's.
+ */
+const DESTRUCTIVE_SERVER_CAPABILITY: CapabilityDef = {
+  id: 'test.destructive_server_capability',
+  description: 'A synthetic destructive, server-surface capability used to exercise the generic checks below.',
+  inputSchema: {
+    type: 'object',
+    properties: { confirm: { type: 'boolean', description: 'Must be true.' } },
+    required: ['confirm'],
+    additionalProperties: false,
+  },
+  risk: 'write',
+  surface: 'server',
+  requiresConfirmation: true,
+};
 
-// Placed here (capability.ts) rather than split across chat-capabilities.test.ts /
-// page-capabilities.test.ts: every it() below validates the generic CapabilityDef shape
-// contract over the combined manifest, not a function specific to either data module.
-// chat-capabilities.ts and page-capabilities.ts have no dedicated test file as a result —
-// see the reorg report's "modules with no test file" list.
+const ALL: readonly CapabilityDef[] = [DESTRUCTIVE_SERVER_CAPABILITY, ...PAGE_CAPABILITIES];
+
+// Placed here (capability.ts) rather than split across a dedicated page-capabilities.test.ts:
+// every it() below validates the generic CapabilityDef shape contract over a combined manifest,
+// not a function specific to page-capabilities.ts's own data. page-capabilities.ts has no
+// dedicated test file as a result — pre-existing before the 2026-07-26 extraction, not
+// introduced by it.
 describe('capability manifests', () => {
   it('declares unique ids and a complete shape for every capability', () => {
     const ids = ALL.map((capability) => capability.id);
@@ -38,9 +60,9 @@ describe('capability manifests', () => {
     }
   });
 
-  it('gates the one destructive capability behind explicit confirmation', () => {
+  it('gates a destructive capability behind explicit confirmation', () => {
     const confirming = ALL.filter((capability) => capability.requiresConfirmation === true);
-    expect(confirming.map((capability) => capability.id)).toEqual(['chat.reset_conversation']);
+    expect(confirming.map((capability) => capability.id)).toEqual([DESTRUCTIVE_SERVER_CAPABILITY.id]);
     for (const capability of confirming) {
       expect(capability.inputSchema.required).toContain('confirm');
       expect(capability.inputSchema.properties['confirm']?.type).toBe('boolean');
@@ -68,7 +90,7 @@ describe('availableCapabilities', () => {
   it('hides session-only capabilities when no frontend is connected', () => {
     const withoutSession = availableCapabilities(ALL, false);
     expect(withoutSession.every((capability) => capability.surface === 'server')).toBe(true);
-    expect(withoutSession.map((capability) => capability.id)).toEqual(['chat.send_message']);
+    expect(withoutSession.map((capability) => capability.id)).toEqual([DESTRUCTIVE_SERVER_CAPABILITY.id]);
     // No page verb is reachable without a live session — that must fail closed with a distinct
     // "no eligible frontend" answer rather than hanging until a timeout.
     expect(withoutSession.some((capability) => capability.id.startsWith('page.'))).toBe(false);
@@ -188,8 +210,10 @@ describe('findCapabilityInputError', () => {
   });
 
   it('accepts every shipped capability with valid input', () => {
-    expect(findCapabilityInputError(findCapability(ALL, 'chat.get_state')!, {})).toBeNull();
-    expect(findCapabilityInputError(findCapability(ALL, 'chat.send_message')!, { prompt: 'hi' })).toBeNull();
+    expect(
+      findCapabilityInputError(findCapability(ALL, DESTRUCTIVE_SERVER_CAPABILITY.id)!, { confirm: true }),
+    ).toBeNull();
+    expect(findCapabilityInputError(findCapability(ALL, 'page.fill')!, { element: 'x', text: 'y' })).toBeNull();
     expect(findCapabilityInputError(findCapability(ALL, 'page.click')!, { element: 'add-task-button' })).toBeNull();
   });
 });

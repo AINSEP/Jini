@@ -1,5 +1,5 @@
 /**
- * @module @jini/chat-core/agentic/mcp-ui
+ * @module @jini/agentic/mcp-ui
  *
  * The MCP Apps (`mcp-ui`) envelope: JSON-RPC 2.0 over `postMessage` between a host and a
  * sandboxed iframe View.

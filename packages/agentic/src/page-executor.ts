@@ -1,5 +1,5 @@
 /**
- * @module @jini/chat-core/agentic/page-executor
+ * @module @jini/agentic/page-executor
  *
  * The six `page.*` verbs, as policy over a {@link PageDriver}.
  *

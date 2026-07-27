@@ -1,8 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { CHAT_CAPABILITIES, PAGE_CAPABILITIES, toWebMcpTool, toWebMcpTools } from '../../agentic/index.js';
+import { PAGE_CAPABILITIES, toWebMcpTool, toWebMcpTools } from '../index.js';
 
-const ALL = [...CHAT_CAPABILITIES, ...PAGE_CAPABILITIES];
+// PAGE_CAPABILITIES alone already has multiple entries, which is all "projects a whole manifest
+// in order" below needs — this package ships no product-specific manifest of its own to combine
+// it with (chat-core's CHAT_CAPABILITIES stays in chat-core; see source-map.md's "What moves").
+const ALL = PAGE_CAPABILITIES;
 const HIGHLIGHT = PAGE_CAPABILITIES.find((c) => c.id === 'page.highlight')!;
 
 describe('webmcp projection', () => {

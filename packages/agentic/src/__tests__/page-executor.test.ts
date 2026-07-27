@@ -12,7 +12,7 @@ import {
   type FieldDescriptor,
   type FindElementsResult,
   type PageDriver,
-} from '../../agentic/index.js';
+} from '../index.js';
 
 const ELEMENTS: AgentElementDescriptor[] = [
   { handle: 'add-task-button', role: 'button', label: 'Submit the new task', labelTruncated: false, page: 'sunday-list' },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_ELEMENT_ATTRIBUTE, isValidElementHandle, resolveHandleSelector } from '../../agentic/index.js';
+import { AGENT_ELEMENT_ATTRIBUTE, isValidElementHandle, resolveHandleSelector } from '../index.js';
 
 describe('element handles', () => {
   it('accepts the handles the sample markup publishes', () => {

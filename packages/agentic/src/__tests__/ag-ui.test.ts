@@ -2,14 +2,16 @@ import { describe, expect, it } from 'vitest';
 
 import {
   AG_UI_TOOL_CALL_EVENTS,
-  CHAT_CAPABILITIES,
   PAGE_CAPABILITIES,
   createAgUiToolResult,
   toAgUiTool,
   toAgUiTools,
-} from '../../agentic/index.js';
+} from '../index.js';
 
-const ALL = [...CHAT_CAPABILITIES, ...PAGE_CAPABILITIES];
+// PAGE_CAPABILITIES alone already has multiple entries, which is all "projects a whole manifest
+// in order" below needs — this package ships no product-specific manifest of its own to combine
+// it with (chat-core's CHAT_CAPABILITIES stays in chat-core; see source-map.md's "What moves").
+const ALL = PAGE_CAPABILITIES;
 const HIGHLIGHT = PAGE_CAPABILITIES.find((c) => c.id === 'page.highlight')!;
 
 describe('ag-ui projection', () => {
