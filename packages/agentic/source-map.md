@@ -80,11 +80,36 @@ code has no node builtins, no fetch, no http, no streams; `createAguiEncoder()` 
 *belongs*, only where it is *called*, which is the distinction the original plan missed.
 
 Placed in a new `src/agui/` subdirectory rather than as flat `src/agui-events.ts`/`agui-encoder.ts`
-files (mid-task course correction, once the flat names existed and made the collision-avoidance
-concern below visible as sprawl) — `src/dom/` already established the precedent that a
-package can hold a real subdirectory, not just one file per concern. This also sidesteps any
-naming collision with this package's own pre-existing `ag-ui.ts`: both are "AG-UI", but they are
-unrelated halves of the same external protocol.
+files — `src/dom/` already established the precedent that a package can hold a real subdirectory,
+not just one file per concern.
+
+### Correction, same day: `ag-ui.ts` moved in too
+
+The fold initially left this package's pre-existing `ag-ui.ts` at `src/` root, *beside* the new
+`agui/` directory, on the reasoning that the differing spellings kept them "visually distinct at a
+glance." That was the wrong call and it was reversed within the hour.
+
+Two files about one protocol, told apart only by a hyphen, is a hazard rather than a distinction —
+and it is precisely the confusion that folding `@jini/agui` in was meant to remove. Everything
+AG-UI now lives in `src/agui/`, and `ag-ui.ts` became `agui/capability-tool.ts`, named for what it
+does rather than for how it is punctuated. A directory barrel (`agui/index.ts`) re-exports all
+three modules, so the root barrel imports one path instead of three.
+
+The two halves remain genuinely unrelated in function — one projects a `CapabilityDef` into a
+frontend *tool* declaration, the other encodes a run stream into *wire* events — but they are the
+same external protocol, and "where does AG-UI live" should have exactly one answer.
+
+`webmcp.ts` and `mcp-ui.ts` deliberately stay flat at `src/` root. Each is a single file; a
+directory per protocol would be ceremony where a filename already suffices. The rule this settles:
+a protocol gets a directory when it has more than one module, not on principle.
+
+**One defect came out of that move** (fixed in `81e78c5a6`, worth recording because the mechanism
+is easy to repeat): the rename was staged first, the now-wrong `./capability.js` import corrected
+in the working tree only, and a later `git checkout --` on the file — cleaning up an unrelated
+DOM-purity probe — restored it from the index, silently undoing the fix. `tsc` had been run before
+the probe rather than after, so nothing caught it, and `vitest` could not: the import is
+`import type`, which esbuild erases, so all four suites stayed green while `pnpm typecheck` failed
+with TS2307.
 
 | File | What it does |
 |---|---|
