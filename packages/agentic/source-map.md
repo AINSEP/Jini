@@ -154,5 +154,25 @@ dependency) and on this package's own sibling modules; nothing else.
   this extraction; `capability.test.ts`'s own comment already noted this (their behavior is
   exercised indirectly through `page-executor.test.ts` and `capability.test.ts`'s manifest-shape
   checks). Not introduced or fixed by this move.
-- `handle.ts` (`agentHandle()`) and folding `model-context.ts` into `webmcp.ts` — plan §8 steps 5
-  and 6, a separate follow-up dispatch.
+- Folding `model-context.ts` into `webmcp.ts` — plan §8 step 6, a separate follow-up dispatch.
+  (`handle.ts`/`agentHandle()`, step 5, landed 2026-07-26 — see below.)
+
+## `handle.ts` — `agentHandle()` (2026-07-26, plan §8 step 5)
+
+New file, not a move: the attribute-props helper a component spreads onto its root element to
+publish itself under this package's `data-agent-*` convention — `agentHandle('save')` →
+`{ 'data-agent-element': 'save' }`, with optional `role`/`label`/`page`. Pure data (an object of
+string attributes), no DOM — belongs in the universal root, not `./dom`.
+
+Deliberately reuses `element-handles.ts`'s own `isValidElementHandle` rather than writing a second
+validity check: an adversarial probe (`element-handles.test.ts`, "refuses anything that could
+escape the attribute selector" — quotes, brackets, backslashes, whitespace, uppercase, leading/
+trailing/double hyphens, unicode, overlong handles) already proved that function sound, so a
+second rule here would only risk drifting from it, not add safety.
+
+`@jini/ui` now depends on this package for `agentHandle()` — the first non-chat, non-daemon
+consumer this extraction's own rationale (§1: "the agent-facing surface... had nothing to do with
+chat, but lived inside `@jini/chat-core`... a future `@jini/ui` `agentHandle()`... had to depend on
+the chat package to reach it") named as the reason to extract in the first place. No `@jini/ui`
+component calls it yet — this dispatch adds the capability and the dependency edge; wiring it into
+an actual component is not part of this task and was not asked for.

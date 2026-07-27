@@ -57,6 +57,8 @@ export {
   type AgentElementState,
 } from './element-handles.js';
 
+export { agentHandle, type AgentHandleOptions, type AgentHandleProps } from './handle.js';
+
 export {
   findFieldFillRefusal,
   findFieldReadRefusal,

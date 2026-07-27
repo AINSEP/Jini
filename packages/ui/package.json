@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.1",
+    "@jini/agentic": "workspace:*",
     "@jini/renderers-react": "workspace:*",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",

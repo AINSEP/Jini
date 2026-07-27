@@ -538,6 +538,9 @@ importers:
       '@excalidraw/excalidraw':
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@jini/agentic':
+        specifier: workspace:*
+        version: link:../agentic
       '@jini/renderers-react':
         specifier: workspace:*
         version: link:../renderers-react
