@@ -1,5 +1,10 @@
 /**
- * @jini/agentic/dom — placeholder barrel, populated once dom-page-driver.ts lands (step 3 of
- * the 2026-07-26 extraction).
+ * @jini/agentic/dom — the browser half of agent control.
+ *
+ * The one `PageDriver` (see `@jini/agentic`'s `page-driver.ts`) that reads and writes a real DOM
+ * subtree. Split into its own entry point, compiled under its own `DOM`-lib `tsconfig.dom.json`,
+ * so the rest of this package can stay provably DOM-free — see source-map.md's "The DOM split".
+ *
+ * `@jini/chat-react` is this package's one in-repo consumer today.
  */
-export const AGENTIC_DOM_PACKAGE_PLACEHOLDER = true;
+export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from './dom-page-driver.js';

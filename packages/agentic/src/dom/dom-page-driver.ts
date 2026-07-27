@@ -4,15 +4,13 @@ import {
   AGENT_PAGE_ATTRIBUTE,
   AGENT_ROLE_ATTRIBUTE,
   AGENT_ELEMENT_ROLES,
-  normalizeAgentLabel,
   resolveHandleSelector,
   type AgentElementDescriptor,
   type AgentElementRawState,
   type AgentElementRole,
-  type FieldDescriptor,
-  type FindElementsFilter,
-  type PageDriver,
-} from '@jini/chat-core';
+} from '../element-handles.js';
+import { normalizeAgentLabel, type FieldDescriptor } from '../guards.js';
+import type { FindElementsFilter, PageDriver } from '../page-driver.js';
 
 /**
  * A {@link PageDriver} over a real DOM subtree.
