@@ -53,11 +53,34 @@ packages/agentic/
   `@jini/cli` + `@modelcontextprotocol/sdk` + `undici`, `runtime: node`, OAuth/token/config).
   Folding a node server binary in would drag the CLI and MCP SDK into a package whose root must
   stay universal. A transport is not a vocabulary.
-- **`@jini/agui`** stays its own package. It encodes run events → AG-UI SSE wire format and its one
-  consumer is `examples/reference-web/src/daemon.ts` — the server side. Note the direction:
-  `agentic/ag-ui.ts` (a projection *of capabilities*) moves IN; `@jini/agui` (an event encoder)
-  stays OUT. An earlier draft had this backwards; the arrow settles it — the projection depends on
-  `CapabilityDef`, and `@jini/agui` is `admission: incubating`, so locked packages cannot import it.
+## 3a. REVISED 2026-07-26 — `@jini/agui` folds IN
+
+This plan originally kept `@jini/agui` out, on the grounds that it was "a transport, and a
+transport is not a vocabulary." **That was factually wrong** and the code says so.
+
+`packages/agui/src/` is three files — `types.ts`, `encode.ts`, `index.ts` — with **zero I/O**: no
+node builtins, no fetch, no http, no streams. `createAguiEncoder()` is a pure
+`RunProtocolEvent → AguiEvent` transform, `runtime: universal`, depending only on `@jini/protocol`.
+The actual SSE lives in `@jini/http`, per agui's own module doc: *"a composition root supplies
+`createAguiEncoder()` to `@jini/http`'s encoder-driven SSE."* Seeing `daemon.ts` in its consumer
+list and reading that as "server infrastructure" was the error — where a pure function is *called*
+does not determine where it *belongs*.
+
+So it is the same category as `ag-ui.ts`, and keeping them apart leaves two packages knowing AG-UI.
+
+**Do:** fold `packages/agui/src/{types,encode,index}.ts` into `packages/agentic/src/` alongside the
+projections, and delete the package. Consequences: `agentic` gains a dependency on
+`@jini/protocol` (a dependency-free leaf — no cycle); agui is `incubating`, so folding it into an
+admitted package promotes it, which must be recorded in `UNLOCKED.md`;
+`examples/reference-web/src/daemon.ts` changes one import; net package count is unchanged
+(`+agentic, −agui`).
+
+**The organizing principle this settles:** `@jini/agentic` houses every agent-protocol projection
+and encoder — AG-UI, WebMCP, MCP-UI, and whatever comes next — so protocol knowledge lives in one
+place. What stays out is infrastructure that *serves* a protocol (`@jini/mcp`'s server binary,
+`@jini/http`'s SSE), never the encoding of it.
+
+This is step 4a in §8, to be done in the follow-up dispatch.
 
 ## 4. What dies
 
