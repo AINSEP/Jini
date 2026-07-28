@@ -188,12 +188,17 @@ describe('official fixture: text_variants.json — run through the interpreter (
 // -------------------------------------------------------------------------------------------
 // specification/v1_0/test/cases/contact_form_example.jsonl — a complete, real, spec-authored
 // message SEQUENCE (createSurface -> updateComponents -> updateDataModel -> deleteSurface) for a
-// contact form. Uses several real basic-catalog components this port does not implement (Card,
-// Icon, TextField, ChoicePicker, Divider, CheckBox) alongside ones it does (Column, Row, Text,
-// Button) — an authentic, not self-authored, mixed-catalog-coverage adversarial case: every line
-// must still PARSE (wire-level), and the interpreter must accept the implemented component types
-// while refusing the unimplemented ones individually (per-component granularity — see
-// interpreter.ts's module doc decision 1), not choke on the message as a whole.
+// contact form. It exercises 8 distinct real basic-catalog component types (Card, Column, Row,
+// Icon, Text, TextField, ChoicePicker, Divider, CheckBox, Button) in one message.
+//
+// Before the full-catalog pass this was a *mixed*-coverage case: 6 of those types were
+// unimplemented, and the assertion below was that they each got refused individually rather than
+// choking the whole message. Now that all 18 basic-catalog components are implemented, the same
+// unmodified fixture becomes a much stronger claim — the entire real, spec-authored contact form
+// is accepted end to end with ZERO validation errors, against schemas written from the catalog
+// definition rather than from this fixture. That is a genuine cross-check: the fixture was authored
+// independently of this port, so every optional/required/enum decision in the 18 schemas has to be
+// right for it to pass clean.
 // -------------------------------------------------------------------------------------------
 describe('official fixture: contact_form_example.jsonl (a real, complete message sequence)', () => {
   // Each line copied verbatim from the fetched .jsonl (one JSON object per line).
@@ -201,11 +206,12 @@ describe('official fixture: contact_form_example.jsonl (a real, complete message
   // (`https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json`, no fragment). This test
   // substitutes `createLabCatalog().catalogId` (the same URL plus `#lab-subset`) instead — using
   // the real, unmodified catalogId here would silently claim this port implements the *entire*
-  // real basic catalog (all 18 components), which is false; `interpreter.ts`'s own createSurface
-  // handling correctly refuses an unrecognized catalogId (tested elsewhere), so keeping the real
-  // fixture's literal catalogId would only prove that rejection path again, not let the rest of
-  // this real sequence exercise per-component catalog enforcement end to end. Every other field
-  // in every line below is unmodified from the fetched fixture.
+  // real basic catalog. All 18 of its components are now implemented, but only 3 of its 14
+  // functions are, so `#lab-subset` is still the honest identifier; `interpreter.ts`'s own
+  // createSurface handling correctly refuses an unrecognized catalogId (tested elsewhere), so
+  // keeping the real fixture's literal catalogId would only prove that rejection path again, not
+  // let the rest of this real sequence exercise per-component catalog enforcement end to end.
+  // Every other field in every line below is unmodified from the fetched fixture.
   const line1 = { version: 'v1.0', createSurface: { surfaceId: 'contact_form_1', catalogId: createLabCatalog().catalogId } };
   const line2 = {
     version: 'v1.0',
@@ -298,32 +304,29 @@ describe('official fixture: contact_form_example.jsonl (a real, complete message
     }
   });
 
-  it('the interpreter processes the real sequence end to end: accepts implemented component types (Column, Row, Text, Button), refuses unimplemented ones (Card, Icon, TextField, ChoicePicker, Divider, CheckBox) individually rather than choking on the whole message, and cleanly deletes the surface at the end', () => {
+  it('the interpreter processes the real sequence end to end with ZERO validation errors — every one of the 25 components in this real, spec-authored message is accepted, including a Card root', () => {
     const interpreter = createA2uiInterpreter(createLabCatalog());
     interpreter.applyAgentMessage(line1);
     const result = interpreter.applyAgentMessage(line2);
 
-    const surface = interpreter.getSurface('contact_form_1')!;
-    // Implemented types from this real sequence made it in.
-    expect(surface.components.has('form_container')).toBe(true); // Column
-    expect(surface.components.has('header_row')).toBe(true); // Row
-    expect(surface.components.has('name_row')).toBe(true); // Row
-    expect(surface.components.has('header_text')).toBe(true); // Text
-    // NOTE: 'root' itself is a Card in the real fixture, which this port does not implement — so
-    // this real sequence, unmodified, never actually gets a renderable root through this port's
-    // catalog. That is an honest, expected consequence of implementing 4 of the real catalog's 18
-    // components, not a bug in the interpreter (see catalog.ts's module doc for the full gap list).
-    expect(surface.components.has('root')).toBe(false);
+    // The whole point: no component in this real fixture is refused for any reason.
+    expect(result.rendererMessages).toEqual([]);
 
-    // Unimplemented real basic-catalog types are refused individually, each producing its own error.
-    const refusedIds = ['root' /* Card */, 'header_icon' /* Icon */, 'first_name_field' /* TextField */, 'pref_picker' /* ChoicePicker */, 'divider_1' /* Divider */, 'newsletter_checkbox' /* CheckBox */];
-    for (const id of refusedIds) {
-      expect(surface.components.has(id)).toBe(false);
+    const surface = interpreter.getSurface('contact_form_1')!;
+    expect(surface.components.size).toBe(line2.updateComponents.components.length);
+    for (const wireComponent of line2.updateComponents.components) {
+      expect(surface.components.has(wireComponent.id), wireComponent.id).toBe(true);
     }
-    expect(result.rendererMessages.length).toBeGreaterThanOrEqual(refusedIds.length);
-    for (const message of result.rendererMessages) {
-      expect(message).toMatchObject({ error: { code: 'VALIDATION_FAILED', surfaceId: 'contact_form_1' } });
-    }
+
+    // 'root' is a Card in the real fixture — this port now has a renderable root for this sequence.
+    expect(interpreter.getRoot('contact_form_1')).toMatchObject({ id: 'root', component: 'Card', props: { child: 'form_container' } });
+
+    // Spot-check that catalog defaults were actually applied to the newly-implemented types, not
+    // just that the components were waved through.
+    expect(surface.components.get('divider_1')?.props).toMatchObject({ axis: 'horizontal' }); // Divider
+    expect(surface.components.get('pref_picker')?.props).toMatchObject({ variant: 'mutuallyExclusive', displayStyle: 'checkbox', filterable: false }); // ChoicePicker
+    expect(surface.components.get('first_name_field')?.props).toMatchObject({ variant: 'shortText' }); // TextField
+    expect(surface.components.get('header_icon')?.props).toMatchObject({ name: 'mail' }); // Icon
 
     interpreter.applyAgentMessage(line3);
     expect(interpreter.getSurface('contact_form_1')?.dataModel).toMatchObject({ contact: { firstName: 'John', email: 'john.doe@example.com' } });
@@ -331,5 +334,165 @@ describe('official fixture: contact_form_example.jsonl (a real, complete message
     const deleteResult = interpreter.applyAgentMessage(line4);
     expect(deleteResult.rendererMessages).toEqual([]);
     expect(interpreter.listSurfaceIds()).toEqual([]);
+  });
+});
+
+// -------------------------------------------------------------------------------------------
+// The three official case files below target component types that were unimplemented until the
+// full-catalog pass, so none of them could be run before. Like text_variants.json above, they
+// nominally target `agent_to_renderer.json`, but every property they exercise is *catalog*-owned
+// (the generic wire schema has no opinion on any component's own properties) — so they are run
+// through the full interpreter, which is the layer that actually owns the per-type schema.
+//
+// Every literal below is copied verbatim from the fetched fixture file.
+// -------------------------------------------------------------------------------------------
+
+/** Creates a surface on a fresh interpreter, then returns `updateComponents` applied to it. */
+function runComponentsCase(components: unknown): { accepted: boolean; errors: unknown[] } {
+  const catalog = createLabCatalog();
+  const interpreter = createA2uiInterpreter(catalog);
+  interpreter.applyAgentMessage({ version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: catalog.catalogId } });
+  const result = interpreter.applyAgentMessage({ version: 'v1.0', updateComponents: { surfaceId: 'test_surface', components } });
+  return { accepted: result.rendererMessages.length === 0, errors: [...result.rendererMessages] };
+}
+
+// specification/v1_0/test/cases/icon_checks.json — all 6 cases, agreeing with the official flag 1:1.
+describe('official fixture: icon_checks.json', () => {
+  const cases: Array<{ description: string; valid: boolean; components: unknown }> = [
+    { description: 'Icon: Valid standard icon string', valid: true, components: [{ id: 'icon_std', component: 'Icon', name: 'star' }] },
+    { description: 'Icon: Valid custom SVG icon with literal svgPath string', valid: true, components: [{ id: 'icon_custom_literal', component: 'Icon', name: { svgPath: 'M10 10 H 90 V 90 H 10 Z' } }] },
+    { description: 'Icon: Valid custom SVG icon with data bound svgPath path', valid: true, components: [{ id: 'icon_custom_bound', component: 'Icon', name: { svgPath: { path: '/custom/svg/path' } } }] },
+    { description: 'Icon: Valid data bound Icon.name', valid: true, components: [{ id: 'icon_name_bound', component: 'Icon', name: { path: '/dynamic/icon/name' } }] },
+    { description: 'Icon: Invalid custom SVG icon with type mismatch on svgPath (should fail)', valid: false, components: [{ id: 'icon_invalid_type', component: 'Icon', name: { svgPath: 12345 } }] },
+    { description: 'Icon: Invalid custom SVG icon with extra fields in svgPath binding (should fail)', valid: false, components: [{ id: 'icon_invalid_extra', component: 'Icon', name: { svgPath: { path: '/custom/svg/path', extra: 1 } } }] },
+  ];
+
+  it.each(cases)('$description', ({ valid, components }) => {
+    expect(runComponentsCase(components).accepted).toBe(valid);
+  });
+});
+
+// specification/v1_0/test/cases/tabs_checks.json — both cases, agreeing with the official flag 1:1.
+describe('official fixture: tabs_checks.json', () => {
+  it('Tabs with empty tabs array (should fail)', () => {
+    expect(runComponentsCase([{ id: 'tabs_empty', component: 'Tabs', tabs: [] }]).accepted).toBe(false);
+  });
+
+  it('Tabs with valid tabs array', () => {
+    const result = runComponentsCase([
+      { id: 'tabs_valid', component: 'Tabs', tabs: [{ title: 'Tab 1', child: 'txt1' }] },
+      { id: 'txt1', component: 'Text', text: 'Tab 1 content' },
+    ]);
+    expect(result.accepted).toBe(true);
+  });
+});
+
+// specification/v1_0/test/cases/checkable_components.json — all 15 cases. These are the single
+// best independent check on the 6 Checkable components' schemas: they were authored by the spec's
+// own maintainers to pin down `checks` behavior across TextField/ChoicePicker/Slider/CheckBox/
+// DateTimeInput, and this port agrees with the official `valid` flag on all 15.
+describe('official fixture: checkable_components.json', () => {
+  const cases: Array<{ description: string; valid: boolean; components: unknown }> = [
+    {
+      description: 'TextField with valid checks',
+      valid: true,
+      components: [{ id: 'tf1', component: 'TextField', label: 'Email', value: { path: '/formData/email' }, checks: [{ condition: { call: 'required', args: { value: { path: '/formData/email' } } }, message: 'Email is required' }, { condition: { call: 'email', args: { value: { path: '/formData/email' } } }, message: 'Must be valid email' }] }],
+    },
+    {
+      description: 'ChoicePicker with valid checks',
+      valid: true,
+      components: [{ id: 'cp1', component: 'ChoicePicker', label: 'Interests', variant: 'multipleSelection', options: [{ label: 'Code', value: 'code' }, { label: 'Design', value: 'design' }], value: { path: '/formData/interests' }, checks: [{ condition: { call: 'length', args: { value: { path: '/formData/interests' }, min: 1 } }, message: 'Select at least one' }] }],
+    },
+    {
+      description: 'Slider with valid checks',
+      valid: true,
+      components: [{ id: 'sl1', component: 'Slider', label: 'Rating', min: 1, max: 5, value: { path: '/formData/rating' }, checks: [{ condition: { call: 'numeric', args: { value: { path: '/formData/rating' }, min: 3 } }, message: 'Rating must be > 3' }] }],
+    },
+    {
+      description: 'CheckBox with valid checks',
+      valid: true,
+      components: [{ id: 'cb1', component: 'CheckBox', label: 'I agree', value: { path: '/formData/agreed' }, checks: [{ condition: { call: 'required', args: { value: { path: '/formData/agreed' } } }, message: 'Must agree' }] }],
+    },
+    {
+      description: 'DateTimeInput with valid checks',
+      valid: true,
+      components: [{ id: 'dt1', component: 'DateTimeInput', label: 'Date', value: { path: '/formData/date' }, checks: [{ condition: { call: 'required', args: { value: { path: '/formData/date' } } }, message: 'Date required' }] }],
+    },
+    {
+      description: 'TextField with regex validation',
+      valid: true,
+      components: [{ id: 'tf_regex', component: 'TextField', label: 'Phone', value: { path: '/formData/phone' }, checks: [{ condition: { call: 'regex', args: { value: { path: '/formData/phone' }, pattern: '^\\d{10}$' } }, message: 'Must be 10 digits' }] }],
+    },
+    {
+      description: 'TextField with min/max length validation',
+      valid: true,
+      components: [{ id: 'tf_len', component: 'TextField', label: 'Password', value: { path: '/formData/pw' }, checks: [{ condition: { call: 'length', args: { value: { path: '/formData/pw' }, min: 8, max: 64 } }, message: 'Password must be 8-64 characters' }] }],
+    },
+    {
+      description: 'Slider with min/max numeric validation',
+      valid: true,
+      components: [{ id: 'sl_num', component: 'Slider', label: 'Score', min: 0, max: 100, value: { path: '/formData/score' }, checks: [{ condition: { call: 'numeric', args: { value: { path: '/formData/score' }, min: 0, max: 100 } }, message: 'Score must be between 0 and 100' }] }],
+    },
+    {
+      description: 'TextField with complex logic checks (AND/OR/NOT)',
+      valid: true,
+      components: [{ id: 'tf_complex', component: 'TextField', label: 'Secret Code', value: { path: '/formData/code' }, checks: [{ condition: { call: 'and', args: { values: [{ call: 'required', args: { value: { path: '/formData/code' } } }, { call: 'or', args: { values: [{ call: 'regex', args: { value: { path: '/formData/code' }, pattern: '^[A-Z]' } }, { call: 'not', args: { value: { call: 'regex', args: { value: { path: '/formData/code' }, pattern: '^[0-9]' } } } }] } }] } }, message: 'Code must start with letter or not start with number' }] }],
+    },
+    {
+      description: 'TextField with invalid check (missing message)',
+      valid: false,
+      components: [{ id: 'tf_invalid', component: 'TextField', label: 'Email', value: { path: '/formData/email' }, checks: [{ condition: { call: 'email', args: { value: { path: '/formData/email' } } } }] }],
+    },
+    {
+      // Agrees with the official flag, but for a narrower reason worth recording: the official
+      // catalog rejects this because `formatString`'s declared returnType is `string`, not the
+      // boolean a CheckRule condition requires — per-function returnType checking this port does
+      // not implement. This port rejects it one layer earlier: `returnType` is not a property
+      // `FunctionCall` permits at all (common_types.json#/$defs/FunctionCall declares only
+      // `call`/`args`, and every catalog function definition closes with
+      // `unevaluatedProperties: false`), so `.strict()` refuses the unknown key regardless of catalog.
+      description: 'TextField with invalid function returnType in check',
+      valid: false,
+      components: [{ id: 'tf_wrong_type', component: 'TextField', label: 'Name', value: { path: '/formData/name' }, checks: [{ condition: { call: 'formatString', args: { value: 'Hello ${/formData/name}' }, returnType: 'string' }, message: 'This should fail because returnType is string, not boolean' }] }],
+    },
+    {
+      description: 'ChoicePicker with length validation (exactly 2)',
+      valid: true,
+      components: [{ id: 'cp_len', component: 'ChoicePicker', label: 'Interests', variant: 'multipleSelection', options: [{ label: 'A', value: 'a' }, { label: 'B', value: 'b' }, { label: 'C', value: 'c' }], value: { path: '/formData/interests' }, checks: [{ condition: { call: 'length', args: { value: { path: '/formData/interests' }, min: 2, max: 2 } }, message: 'Select exactly 2 interests' }] }],
+    },
+    {
+      description: 'Slider with valid steps property',
+      valid: true,
+      components: [{ id: 'sl_steps', component: 'Slider', label: 'Continuous rating', min: 0, max: 10, steps: 5, value: { path: '/formData/rating' } }],
+    },
+    {
+      description: 'Slider with invalid steps property (string)',
+      valid: false,
+      components: [{ id: 'sl_steps_invalid_str', component: 'Slider', label: 'Rating', min: 0, max: 10, steps: 'five', value: { path: '/formData/rating' } }],
+    },
+    {
+      description: 'Slider with invalid steps property (less than 1)',
+      valid: false,
+      components: [{ id: 'sl_steps_invalid_num', component: 'Slider', label: 'Rating', min: 0, max: 10, steps: 0, value: { path: '/formData/rating' } }],
+    },
+  ];
+
+  it.each(cases)('$description', ({ valid, components }) => {
+    expect(runComponentsCase(components).accepted).toBe(valid);
+  });
+
+  it('the check-carrying components are actually stored with their CheckRules intact, not merely waved through', () => {
+    const catalog = createLabCatalog();
+    const interpreter = createA2uiInterpreter(catalog);
+    interpreter.applyAgentMessage({ version: 'v1.0', createSurface: { surfaceId: 'test_surface', catalogId: catalog.catalogId } });
+    interpreter.applyAgentMessage({
+      version: 'v1.0',
+      updateComponents: { surfaceId: 'test_surface', components: [{ id: 'tf1', component: 'TextField', label: 'Email', value: { path: '/formData/email' }, checks: [{ condition: { call: 'required', args: { value: { path: '/formData/email' } } }, message: 'Email is required' }] }] },
+    });
+    expect(interpreter.getSurface('test_surface')?.components.get('tf1')?.props).toMatchObject({
+      label: 'Email',
+      variant: 'shortText',
+      checks: [{ message: 'Email is required' }],
+    });
   });
 });

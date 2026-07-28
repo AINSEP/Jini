@@ -15,8 +15,8 @@
  * wire). Catalog membership (which component/function names are actually legal for a given
  * surface) is a separate, runtime concern — see `catalog.ts` and `interpreter.ts`. A component
  * object's own per-type property shape (e.g. what `Text` requires beyond `id`/`component`) is
- * also not encoded here — see `catalog.ts`'s `LAB_CATALOG` and the React renderer for the small,
- * real subset of the "basic" catalog this port actually renders.
+ * also not encoded here — see `catalog.ts`'s `createLabCatalog()`, which carries all 18 of the real
+ * "basic" catalog's components with their closed, per-type property schemas.
  */
 import { z } from 'zod';
 

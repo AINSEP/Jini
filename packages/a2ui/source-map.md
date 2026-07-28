@@ -49,13 +49,69 @@ anything. Verified directly against the npm registry and unpkg this session:
 | `src/tree.ts` | `flattenRenderTree` — cycle/missing-child-safe depth-first walk (static `ChildList` only). |
 | `src/interpreter.ts` | `createA2uiInterpreter(catalog)` — the stateful per-surface component-map + data-model interpreter; see its own module doc for 4 explicit, documented design decisions made where the spec text is silent. |
 
-## Catalog scope — 4 of 18 components, 3 (+3 lab-only) of 14 functions
+## Catalog scope — 18 of 18 components, 3 (+3 lab-only) of 14 functions
 
-`createLabCatalog()` implements **`Text`, `Column`, `Row`, `Button`** verbatim from the real basic
-catalog's own property definitions (default values, enum members, `Checkable` mixin on `Button`,
-all copied field-for-field). **Not implemented**: `Image`, `Icon`, `Video`, `AudioPlayer`, `List`,
-`Card`, `Tabs`, `Modal`, `Divider`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`,
-`DateTimeInput` — 14 of the real catalog's 18 components.
+`createLabCatalog()` implements **all 18** of the real basic catalog's components — `Text`,
+`Image`, `Icon`, `Video`, `AudioPlayer`, `Row`, `Column`, `List`, `Card`, `Tabs`, `Modal`,
+`Divider`, `Button`, `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput` — each
+ported field-for-field from `specification/v1_0/catalogs/basic/catalog.json`'s own property
+definitions: property names, types, `required` arrays, enum members, default values, and the
+`allOf` mixin composition, all copied from the fetched JSON rather than inferred from the
+component's name. (The initial pass implemented only the first four; the other 14 landed
+2026-07-28.)
+
+"Implemented" here means the **protocol/validation layer**: the type is whitelisted,
+closed-schema-validated (`.strict()`, Zod's equivalent of the real schema's
+`unevaluatedProperties: false`), defaulted, and held in interpreter state. Whether a given host
+renderer *draws* it is a separate concern this package has no opinion on — `examples/reference-web`'s
+`A2uiLab.tsx` still only has React cases for the original four.
+
+Structural details worth recording, each verified against the fetched catalog rather than assumed:
+
+- **`Checkable` is mixed in by exactly 6 of the 18** (`Button`, `TextField`, `CheckBox`,
+  `ChoicePicker`, `Slider`, `DateTimeInput`) — read off each component's own `allOf` list, not
+  guessed from which ones look form-shaped. The other 12 reject a `checks` property outright.
+- **`weight` is not part of `ComponentCommon`** — all 18 re-declare it individually with an
+  identical type and description. Hoisted into one shared shape only after confirming all 18 match.
+- **`Icon.name` is not a `DynamicString`.** Its `oneOf` admits an enum member (59 of them,
+  generated from the catalog JSON rather than transcribed), a `{svgPath}` object, or a bare
+  `DataBinding` — but **not** a `FunctionCall`, unlike essentially every other dynamic-valued
+  property in the catalog.
+- **`Slider.max` is required while `Slider.min` defaults to 0**, and `min`/`max` are plain numbers
+  while only `value` is dynamic — an asymmetry that reads like a transcription slip but is exactly
+  what the real schema says.
+- **`ChoicePicker`'s per-option `value` is a plain `string`**, not a `DynamicString` ("the stable
+  value associated with this option"), and `options` has no `minItems`, so an empty list is legal.
+- **`List` uses `direction`**, not Row/Column's `justify`.
+
+### A real bug this pass found and fixed: `accessibility` was refused on every component
+
+`common_types.json#/$defs/ComponentCommon` carries `id` **and `accessibility`**, and all 18
+components `allOf` it — so `accessibility` is legal on every one of them. But the interpreter
+strips only `id`/`component` before per-type validation, and every props schema is `.strict()`,
+so a spec-valid component carrying `accessibility` was rejected outright with
+`VALIDATION_FAILED: Unrecognized key(s) in object: 'accessibility'`. `AccessibilityAttributes`
+existed as a real, tested wire type in `common-types.ts`, but *nothing accepted it on a component* —
+the gap was invisible because no existing test sent one. Fixed by composing `ComponentCommon` into
+every props schema the way the real catalog does; pinned by a table-driven test over all 18 types
+so it cannot regress for a single component.
+
+### Documented judgment call: `DateTimeInput.min`/`max` format assertion
+
+The one genuinely ambiguous spot in the 18. The real definition is
+`allOf: [DynamicString, {if: {type: string}, then: {oneOf: [{format: date}, {format: time}, {format: date-time}]}}]`.
+JSON Schema's `format` is an *annotation* by default (ajv — which the spec's own conformance runner
+uses — only asserts it with `ajv-formats`), which would make the constraint advisory; but the author
+wrapped it in an `if`/`then`/`oneOf`, a construct that is only meaningful as an assertion.
+
+Decision: **assert it, but against ISO 8601 rather than RFC 3339.** The property's own description
+says "in ISO 8601 format", whereas JSON Schema's `format: time`/`date-time` formally mean RFC 3339 —
+which *requires* a UTC offset, so a literal `"09:00"` would be refused despite being good ISO 8601
+and an obvious thing for an agent to send. Rejecting that seemed clearly worse than accepting a
+value RFC 3339 purists would call under-specified. `DataBinding`/`FunctionCall` forms pass through
+unchecked (their value isn't known until resolution time). No official fixture pins this behavior
+either way, so it is flagged here and in a code comment on `IsoDateTimeBoundSchema` rather than
+presented as a literal port.
 
 Functions: `and`/`or`/`not` ported faithfully (see the bug-and-fix story below). **Not
 implemented**: `required`, `regex`, `length`, `numeric`, `email`, `formatString`, `formatNumber`,
@@ -100,12 +156,26 @@ official fixtures — verbatim, with attribution — through this package's own 
   contrary to what an LLM familiar with HTML might guess) verified against the real fixture's own
   valid/invalid cases, run through the interpreter (catalog-level, not wire-level, since `variant`
   is catalog-owned).
-- **`contact_form_example.jsonl`**: every line parses at the wire level regardless of which
-  components this port implements; the full 4-message sequence is run through the interpreter,
-  proving it accepts the implemented types (`Column`/`Row`/`Text`/`Button`) and refuses the
-  unimplemented ones (`Card`/`Icon`/`TextField`/`ChoicePicker`/`Divider`/`CheckBox`) **individually**
-  rather than choking on the whole message — an authentic, not self-authored, mixed-catalog
-  adversarial case.
+- **`contact_form_example.jsonl`**: every line parses at the wire level; the full 4-message sequence
+  is run through the interpreter. This case *strengthened* when the remaining 14 components landed —
+  it used to prove that unimplemented types (`Card`/`Icon`/`TextField`/`ChoicePicker`/`Divider`/
+  `CheckBox`) were refused **individually** rather than choking the whole message; now the same
+  unmodified fixture is accepted **end to end with zero validation errors**, all 25 components
+  including a `Card` root. That is the strongest single check on the 18 schemas: the fixture was
+  authored by the spec's maintainers, independently of this port, so every required/optional/enum/
+  default decision has to be right for it to pass clean.
+- **`icon_checks.json`** (6 cases) and **`tabs_checks.json`** (2 cases): 100% agreement with the
+  official `valid` flag, including `Icon`'s three-way `oneOf` (enum / `{svgPath}` / `DataBinding`),
+  the `svgPath: 12345` type mismatch, the extra-key-in-binding case, and `Tabs`' `minItems: 1`.
+- **`checkable_components.json`** (15 cases): 100% agreement — the single best independent check on
+  the 6 `Checkable` components, since the spec's own maintainers wrote it to pin down `checks`
+  behavior across `TextField`/`ChoicePicker`/`Slider`/`CheckBox`/`DateTimeInput` (including nested
+  `and`/`or`/`not` compositions and `Slider.steps`' integer-≥-1 constraint). One case agrees for a
+  narrower reason, recorded in the test: the official catalog rejects
+  `{call: 'formatString', …, returnType: 'string'}` because `formatString`'s declared `returnType`
+  isn't the boolean a `CheckRule` needs (per-function returnType checking this port doesn't
+  implement), while this port rejects it one layer earlier — `returnType` isn't a property
+  `FunctionCall` permits at all, so `.strict()` refuses the unknown key regardless of catalog.
 
 **A real bug this caught**: this port's first draft of `and`/`or` read an arbitrary flat map of
 `args` keys (`{a: true, b: false}`), each independently required `=== true`. The real basic
@@ -125,7 +195,7 @@ to search harder before trusting this port's own first-pass reading.
 ## Adversarial cases — every one from the task brief, both unit-level and live-in-browser
 
 All eight required cases were tested **both** ways: deterministically at the unit level (part of
-the 165 tests below, 100% coverage) **and** live, driving the actual running interpreter instance
+the test suite below, 100% coverage) **and** live, driving the actual running interpreter instance
 in a real browser via Playwright `browser_evaluate` against `window.__a2uiLab` (test-only global —
 see `A2uiLab.tsx`). Live results (verified this session, `examples/reference-web` on
 `http://127.0.0.1:7317`/`7173`, later reverted to the real 4317/4173 — see "Live verification" in
@@ -153,8 +223,9 @@ regression tests (`interpreter.test.ts`, "malformed envelopes never mutate state
 
 ## Tests
 
-167 tests across 10 files, **100% statement/branch/function/line coverage** on every file with
-executable statements (`pnpm --filter @jini-ai/a2ui exec vitest run --coverage --coverage.include='src/**'`).
+336 tests across 10 files, **100% statement/branch/function/line coverage** on every file with
+executable statements (`pnpm --filter @jini-ai/a2ui run test:coverage`; the configured threshold is
+98 on all four metrics).
 Reached honestly per this repo's `honest-testing` skill — no `ignore` comments, no lowered
 thresholds, no softened assertions; every genuinely-unreachable branch removed (not
 fake-tested) with a comment naming the invariant that guarantees it:
@@ -174,6 +245,18 @@ fake-tested) with a comment naming the invariant that guarantees it:
 
 Test count before this task: 0 (package did not exist). After: 165, all passing, all real
 (verified running — see the terminal output pasted into the final task report, not just claimed).
+
+### Full-catalog pass, 2026-07-28 (the remaining 14 components)
+
+**167 → 336 tests** (`catalog.test.ts` 5 → 150, `spec-fixtures.test.ts` 22 → 45), coverage still
+100/100/100/100. No existing test was deleted or weakened. Two existing assertions *inverted*,
+both because they encoded the old gap rather than a real invariant, and both became stronger:
+
+- `catalog.test.ts`'s "these real basic-catalog types are not allowed" list (`Image`, `Icon`,
+  `Video`, `Modal`, `TextField`, `CheckBox`, `DateTimeInput`) — now they *are* allowed, so the
+  adversarial test asserts refusal of genuinely-not-in-the-catalog names instead, including the
+  real casing traps `Checkbox`/`Textfield` (the spec spells them `CheckBox`/`TextField`).
+- `spec-fixtures.test.ts`'s contact-form assertion, described above.
 
 ### Reconciliation pass, 2026-07-28 (rebase onto `feat/agentic-capability-layer`)
 
@@ -242,7 +325,7 @@ is over an unrelated union. `packages/protocol`'s own test suite re-run clean af
 
 ## Honest overall gap against full v1.0 spec parity
 
-This is a real but partial port. Not implemented: 14 of 18 basic-catalog components; 11 of 14
+This is a real but partial port. Not implemented: 11 of 14
 basic-catalog functions (all format/validation-shaped, deliberately not guessed at); template/
 dynamic-list `ChildList` expansion (parsed, not rendered); per-catalog-function JSON-Schema
 argument validation (only name whitelist + `callableFrom` boundary enforcement); `sendDataModel`

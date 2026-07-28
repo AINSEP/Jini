@@ -9,28 +9,35 @@
  * that whitelist plus the closed per-component-type property shape for the small subset this port
  * actually renders; `interpreter.ts` is the code path that enforces it at message-processing time.
  *
- * **Scope**: the real basic catalog (`specification/v1_0/catalogs/basic/catalog.json`, fetched and
- * inspected this session — 53KB, 18 components, 14 functions) is far larger than what this port
- * renders. `LAB_CATALOG` below implements 4 components verbatim from that real catalog's own
- * property definitions (`Text`, `Column`, `Row`, `Button` — copied field-for-field, including
- * default values and enum members) plus 3 of its real functions (`and`/`or`/`not`, the only ones
- * with unambiguous, fully-specified semantics reachable from the fetched schema text alone — the
- * others, e.g. `formatString`/`formatDate`, depend on formatting semantics not fully pinned down
- * in what was fetched, and were deliberately not guessed at). The remaining 14 basic-catalog
- * components (`Image`, `Icon`, `Video`, `AudioPlayer`, `List`, `Card`, `Tabs`, `Modal`, `Divider`,
- * `TextField`, `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`) and 11 functions are **not
- * implemented** — see `../source-map.md` for the full gap list. `LAB_CATALOG` also adds three
- * lab-only demo functions (`greetUser`/`logServerEvent`/`adminReset`, clearly not part of the real
- * basic catalog) purely to exercise all three `callableFrom` values end-to-end — the real basic
- * catalog's own 14 functions are all `rendererOnly`, which alone can't test the `agentOnly` /
+ * **Scope**: `createLabCatalog()` below implements **all 18** of the real basic catalog's
+ * components (`specification/v1_0/catalogs/basic/catalog.json`, 53KB, fetched from the spec repo
+ * and read directly — every property name, type, enum member, default value, required-ness and
+ * mixin below was copied field-for-field from it, not inferred from the component's name). It
+ * implements 3 of that catalog's 14 **functions** (`and`/`or`/`not`, the only ones with
+ * unambiguous, fully-specified semantics reachable from the fetched schema text alone — the
+ * others, e.g. `formatString`/`formatDate`, depend on locale/formatting semantics not pinned down
+ * by the schema text, and are deliberately not guessed at). The remaining 11 functions are **not
+ * implemented** — see `../source-map.md` for the full gap list. `createLabCatalog()` also adds
+ * three lab-only demo functions (`greetUser`/`logServerEvent`/`adminReset`, clearly not part of
+ * the real basic catalog) purely to exercise all three `callableFrom` values end-to-end — the real
+ * basic catalog's own 14 functions are all `rendererOnly`, which alone can't test the `agentOnly` /
  * `rendererOrAgent` boundary this spec explicitly calls out as security-relevant.
+ *
+ * Note that "implemented" here means **the protocol/validation layer**: a component type in this
+ * catalog is accepted, closed-schema-validated and held in interpreter state. Whether any given
+ * host renderer draws it is a separate concern this package has no opinion on.
  */
 import { z } from 'zod';
 import {
+  AccessibilityAttributesSchema,
   ActionSchema,
   CheckRuleSchema,
   ChildListSchema,
   ChildSchema,
+  DataBindingSchema,
+  DynamicBooleanSchema,
+  DynamicNumberSchema,
+  DynamicStringListSchema,
   DynamicStringSchema,
 } from './common-types.js';
 
@@ -45,7 +52,24 @@ export interface FunctionSpec {
   readonly impl?: (args: Record<string, unknown>) => unknown;
 }
 
-export type ComponentKind = 'text' | 'container' | 'button';
+/**
+ * A coarse rendering hint, not a spec concept — the real catalog has no notion of "kind". It
+ * groups the 18 component types by the shape a host renderer would draw them with, so a renderer
+ * can fall back to something sane for a type it has no bespoke case for.
+ */
+export type ComponentKind =
+  | 'text'
+  | 'container'
+  | 'button'
+  | 'image'
+  | 'icon'
+  | 'video'
+  | 'audio'
+  | 'card'
+  | 'tabs'
+  | 'modal'
+  | 'divider'
+  | 'input';
 
 export interface ComponentSpec {
   readonly kind: ComponentKind;
@@ -82,41 +106,219 @@ export function isFunctionRegistered(catalog: Catalog, functionName: string): bo
 // ---------------------------------------------------------------------------------------------
 // Component property schemas — ported field-for-field from the real basic catalog's own
 // component definitions (`specification/v1_0/catalogs/basic/catalog.json`).
+//
+// Every one of the real catalog's 18 components is composed the same way:
+//   `allOf: [ComponentCommon, (Checkable,) {its own properties}]` + `unevaluatedProperties: false`.
+// The two builders below reproduce that composition literally — `.strict()` is Zod's equivalent of
+// the `unevaluatedProperties: false` closure, and the shared halves are spread in rather than
+// copy-pasted 18 times.
 // ---------------------------------------------------------------------------------------------
 
-const TextPropsSchema = z
-  .object({
-    text: DynamicStringSchema,
-    variant: z.enum(['caption', 'body']).default('body'),
-    weight: z.number().optional(),
-  })
-  .strict();
+/**
+ * `common_types.json#/$defs/ComponentCommon` minus `id` — the interpreter strips `id`/`component`
+ * off the wire object before per-type validation, so `accessibility` is the only part of
+ * ComponentCommon that ever reaches a props schema. All 18 components `allOf` ComponentCommon, so
+ * `accessibility` is legal on every one of them.
+ *
+ * This was a real bug before the full-catalog pass: no props schema listed `accessibility`, and
+ * every schema is `.strict()`, so a spec-valid component carrying it was refused with
+ * `VALIDATION_FAILED` ("Unrecognized key(s) in object: 'accessibility'"). `AccessibilityAttributes`
+ * existed as a tested wire type in `common-types.ts` but nothing actually accepted it on a
+ * component.
+ */
+const COMMON_PROPS = { accessibility: AccessibilityAttributesSchema.optional() };
+
+/**
+ * `weight` is **not** part of ComponentCommon — each of the 18 components re-declares it
+ * individually, with an identical type and description ("The relative weight of this component
+ * within a Row or Column..."). Verified identical across all 18 before hoisting it here.
+ */
+const WEIGHT_PROP = { weight: z.number().optional() };
+
+/**
+ * `common_types.json#/$defs/Checkable` — mixed in by exactly 6 of the 18 (`Button`, `TextField`,
+ * `CheckBox`, `ChoicePicker`, `Slider`, `DateTimeInput`), verified against each component's own
+ * `allOf` list rather than assumed from which ones "look like" form inputs. `checks` is a real
+ * `CheckRule[]`, not an unvalidated array — `specification/v1_0/test/cases/button_checks.json` and
+ * `checkable_components.json` both exercise nested `and`/`or`/`not`/`required` check compositions
+ * these schemas must actually accept.
+ */
+const CHECKABLE_PROPS = { checks: z.array(CheckRuleSchema).optional() };
+
+function componentProps<Shape extends z.ZodRawShape>(own: Shape) {
+  return z.object({ ...COMMON_PROPS, ...WEIGHT_PROP, ...own }).strict();
+}
+
+function checkableComponentProps<Shape extends z.ZodRawShape>(own: Shape) {
+  return z.object({ ...COMMON_PROPS, ...WEIGHT_PROP, ...CHECKABLE_PROPS, ...own }).strict();
+}
+
+const TextPropsSchema = componentProps({
+  text: DynamicStringSchema,
+  variant: z.enum(['caption', 'body']).default('body'),
+});
 
 const JUSTIFY_VALUES = ['start', 'center', 'end', 'spaceBetween', 'spaceAround', 'spaceEvenly', 'stretch'] as const;
 const ALIGN_VALUES = ['center', 'end', 'start', 'stretch'] as const;
 
-const ContainerPropsSchema = z
-  .object({
-    children: ChildListSchema,
-    justify: z.enum(JUSTIFY_VALUES).default('start'),
-    align: z.enum(ALIGN_VALUES).default('stretch'),
-    weight: z.number().optional(),
-  })
-  .strict();
+const ContainerPropsSchema = componentProps({
+  children: ChildListSchema,
+  justify: z.enum(JUSTIFY_VALUES).default('start'),
+  align: z.enum(ALIGN_VALUES).default('stretch'),
+});
 
-const ButtonPropsSchema = z
-  .object({
-    child: ChildSchema,
-    variant: z.enum(['default', 'primary', 'borderless']).default('default'),
-    action: ActionSchema,
-    weight: z.number().optional(),
-    // Real Button mixes in `Checkable` (`common_types.json#/$defs/Checkable`), not just its own
-    // properties — `checks` is a real `CheckRule[]`, not an unvalidated array (fixed after
-    // cross-checking `specification/v1_0/test/cases/button_checks.json`'s real fixture, which
-    // exercises a nested `and`/`or`/`required` check composition this schema must actually accept).
-    checks: z.array(CheckRuleSchema).optional(),
-  })
-  .strict();
+const ButtonPropsSchema = checkableComponentProps({
+  child: ChildSchema,
+  variant: z.enum(['default', 'primary', 'borderless']).default('default'),
+  action: ActionSchema,
+});
+
+const ImagePropsSchema = componentProps({
+  url: DynamicStringSchema,
+  description: DynamicStringSchema.optional(),
+  fit: z.enum(['contain', 'cover', 'fill', 'none', 'scaleDown']).default('fill'),
+  variant: z.enum(['icon', 'avatar', 'smallFeature', 'mediumFeature', 'largeFeature', 'header']).default('mediumFeature'),
+});
+
+/**
+ * The real `Icon.name` enum, all 59 members, generated directly from the fetched catalog JSON
+ * rather than typed out by hand. Note it is **not** a `DynamicString`: the spec's `oneOf` admits a
+ * literal enum member, a `{svgPath}` object, or a bare `DataBinding` — but *not* a `FunctionCall`.
+ */
+const ICON_NAMES = [
+  'accountCircle', 'add', 'arrowBack', 'arrowForward', 'attachFile', 'calendarToday', 'call', 'camera',
+  'check', 'close', 'delete', 'download', 'edit', 'event', 'error', 'fastForward', 'favorite',
+  'favoriteOff', 'folder', 'help', 'home', 'info', 'locationOn', 'lock', 'lockOpen', 'mail', 'menu',
+  'moreVert', 'moreHoriz', 'notificationsOff', 'notifications', 'pause', 'payment', 'person', 'phone',
+  'photo', 'play', 'print', 'refresh', 'rewind', 'search', 'send', 'settings', 'share', 'shoppingCart',
+  'skipNext', 'skipPrevious', 'star', 'starHalf', 'starOff', 'stop', 'upload', 'visibility',
+  'visibilityOff', 'volumeDown', 'volumeMute', 'volumeOff', 'volumeUp', 'warning',
+] as const;
+
+const IconPropsSchema = componentProps({
+  name: z.union([
+    z.enum(ICON_NAMES),
+    z.object({ svgPath: DynamicStringSchema }).strict(),
+    DataBindingSchema,
+  ]),
+});
+
+const VideoPropsSchema = componentProps({
+  url: DynamicStringSchema,
+  posterUrl: DynamicStringSchema.optional(),
+});
+
+const AudioPlayerPropsSchema = componentProps({
+  url: DynamicStringSchema,
+  description: DynamicStringSchema.optional(),
+});
+
+/** `List` is layout-shaped like Row/Column but has its own distinct property set: `direction` (not `justify`). */
+const ListPropsSchema = componentProps({
+  children: ChildListSchema,
+  direction: z.enum(['vertical', 'horizontal']).default('vertical'),
+  align: z.enum(['start', 'center', 'end', 'stretch']).default('stretch'),
+});
+
+const CardPropsSchema = componentProps({
+  child: ChildSchema,
+});
+
+const TabsPropsSchema = componentProps({
+  tabs: z
+    .array(z.object({ title: DynamicStringSchema, child: ChildSchema }).strict())
+    .min(1),
+});
+
+const ModalPropsSchema = componentProps({
+  trigger: ChildSchema,
+  content: ChildSchema,
+});
+
+const DividerPropsSchema = componentProps({
+  axis: z.enum(['horizontal', 'vertical']).default('horizontal'),
+});
+
+const TextFieldPropsSchema = checkableComponentProps({
+  label: DynamicStringSchema,
+  value: DynamicStringSchema.optional(),
+  placeholder: DynamicStringSchema.optional(),
+  variant: z.enum(['longText', 'number', 'shortText', 'obscured']).default('shortText'),
+});
+
+const CheckBoxPropsSchema = checkableComponentProps({
+  label: DynamicStringSchema,
+  value: DynamicBooleanSchema,
+});
+
+const ChoicePickerPropsSchema = checkableComponentProps({
+  label: DynamicStringSchema.optional(),
+  variant: z.enum(['multipleSelection', 'mutuallyExclusive']).default('mutuallyExclusive'),
+  // `options.items.value` is a plain `string`, deliberately NOT a DynamicString — the real schema
+  // calls it "the stable value associated with this option", and the array has no `minItems`, so an
+  // empty `options` array is spec-legal.
+  options: z.array(z.object({ label: DynamicStringSchema, value: z.string() }).strict()),
+  value: DynamicStringListSchema,
+  displayStyle: z.enum(['checkbox', 'chips']).default('checkbox'),
+  filterable: z.boolean().default(false),
+});
+
+const SliderPropsSchema = checkableComponentProps({
+  label: DynamicStringSchema.optional(),
+  // `min`/`max` are plain numbers here (only `value` is dynamic), and `max` is required while
+  // `min` has a default of 0 — an asymmetry copied from the real schema, not a transcription slip.
+  min: z.number().default(0),
+  max: z.number(),
+  value: DynamicNumberSchema,
+  steps: z.number().int().min(1).optional(),
+});
+
+/**
+ * `DateTimeInput.min`/`max` — the one place in the 18 where the real schema is genuinely ambiguous,
+ * so this is a **documented judgment call** rather than a literal port.
+ *
+ * The real definition is `allOf: [DynamicString, {if: {type: string}, then: {oneOf: [{format: date},
+ * {format: time}, {format: date-time}]}}]`. Two readings collide:
+ *
+ *  - JSON Schema's `format` is an *annotation* by default — a validator only asserts it if it opts
+ *    in (ajv, which the spec's own conformance runner uses, needs `ajv-formats` for this). Under
+ *    that reading the constraint is advisory and any string passes.
+ *  - But the author explicitly wrapped it in an `if`/`then`/`oneOf`, which is only meaningful as an
+ *    *assertion*. A structural wrapper around three annotations would be dead weight otherwise.
+ *
+ * Decision: assert it, because a validating renderer catching a malformed agent-sent bound is the
+ * entire point of this layer — but assert **ISO 8601** (what the property's own description says,
+ * "in ISO 8601 format") rather than RFC 3339, which is what JSON Schema's `format: time`/`date-time`
+ * formally mean. RFC 3339 *requires* a UTC offset, so a literal `"09:00"` would be refused under it
+ * while being perfectly good ISO 8601 and an obvious thing for an agent to send. Rejecting that
+ * seemed clearly worse than accepting a value RFC 3339 purists would call under-specified.
+ *
+ * So: literal strings must parse as an ISO 8601 date, time, or date-time (offset optional);
+ * `DataBinding`/`FunctionCall` forms are passed through unchecked, since their value isn't known
+ * until resolution time. `oneOf` is implemented as "matches at least one" — the three grammars are
+ * mutually exclusive in practice, so exactly-one and at-least-one coincide.
+ */
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_TIME = /^\d{2}:\d{2}(:\d{2}(\.\d+)?)?([Zz]|[+-]\d{2}:\d{2})?$/;
+const ISO_DATE_TIME = /^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?([Zz]|[+-]\d{2}:\d{2})?$/;
+
+const IsoDateTimeBoundSchema = DynamicStringSchema.superRefine((value, ctx) => {
+  if (typeof value !== 'string') return;
+  if (ISO_DATE.test(value) || ISO_TIME.test(value) || ISO_DATE_TIME.test(value)) return;
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: `literal date/time bound ${JSON.stringify(value)} is not an ISO 8601 date, time, or date-time`,
+  });
+});
+
+const DateTimeInputPropsSchema = checkableComponentProps({
+  value: DynamicStringSchema,
+  enableDate: z.boolean().default(false),
+  enableTime: z.boolean().default(false),
+  min: IsoDateTimeBoundSchema.optional(),
+  max: IsoDateTimeBoundSchema.optional(),
+  label: DynamicStringSchema.optional(),
+});
 
 /**
  * Real basic-catalog functions this port can actually evaluate (boolean combinators — unambiguous
@@ -149,11 +351,26 @@ function not(args: Record<string, unknown>): boolean {
  * without cross-test leakage.
  */
 export function createLabCatalog(): Catalog {
+  // All 18 components of the real basic catalog, in that catalog's own declaration order.
   const components = new Map<string, ComponentSpec>([
     ['Text', { kind: 'text', propsSchema: TextPropsSchema }],
-    ['Column', { kind: 'container', propsSchema: ContainerPropsSchema }],
+    ['Image', { kind: 'image', propsSchema: ImagePropsSchema }],
+    ['Icon', { kind: 'icon', propsSchema: IconPropsSchema }],
+    ['Video', { kind: 'video', propsSchema: VideoPropsSchema }],
+    ['AudioPlayer', { kind: 'audio', propsSchema: AudioPlayerPropsSchema }],
     ['Row', { kind: 'container', propsSchema: ContainerPropsSchema }],
+    ['Column', { kind: 'container', propsSchema: ContainerPropsSchema }],
+    ['List', { kind: 'container', propsSchema: ListPropsSchema }],
+    ['Card', { kind: 'card', propsSchema: CardPropsSchema }],
+    ['Tabs', { kind: 'tabs', propsSchema: TabsPropsSchema }],
+    ['Modal', { kind: 'modal', propsSchema: ModalPropsSchema }],
+    ['Divider', { kind: 'divider', propsSchema: DividerPropsSchema }],
     ['Button', { kind: 'button', propsSchema: ButtonPropsSchema }],
+    ['TextField', { kind: 'input', propsSchema: TextFieldPropsSchema }],
+    ['CheckBox', { kind: 'input', propsSchema: CheckBoxPropsSchema }],
+    ['ChoicePicker', { kind: 'input', propsSchema: ChoicePickerPropsSchema }],
+    ['Slider', { kind: 'input', propsSchema: SliderPropsSchema }],
+    ['DateTimeInput', { kind: 'input', propsSchema: DateTimeInputPropsSchema }],
   ]);
 
   const functions = new Map<string, FunctionSpec>([
