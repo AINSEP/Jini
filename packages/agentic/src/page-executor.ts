@@ -253,7 +253,15 @@ export async function executePageCapability(
   if (capability === undefined) throw new Error(`unknown page capability: ${capabilityId}`);
 
   const inputError = findCapabilityInputError(capability, input);
-  if (inputError !== null) throw new Error(`${capabilityId}: ${inputError}`);
+  if (inputError !== null) {
+    // The schema rides along with the refusal rather than making a caller spend a second
+    // round trip on describe_tool to learn what it already tried to guess — ai-control-plane.md
+    // §29.4's "schema-on-error" requirement, empirically forced by a real run: page.fill was
+    // called with `handle` instead of `element` twice before the caller gave up and looked the
+    // schema up separately. One JSON-Schema object, embedded once, turns that into a same-turn
+    // self-correction for every page.* verb this gate guards, not just the one that got measured.
+    throw new Error(`${capabilityId}: ${inputError}. Expected input: ${JSON.stringify(capability.inputSchema)}`);
+  }
 
   switch (capabilityId) {
     case 'page.find_elements': {

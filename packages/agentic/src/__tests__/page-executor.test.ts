@@ -5,6 +5,7 @@ import {
   MAX_AGENT_LABEL_LENGTH,
   MAX_HIGHLIGHT_MS,
   MAX_STATEFUL_ELEMENTS,
+  PAGE_CAPABILITIES,
   executePageCapability,
   projectElementState,
   type AgentElementDescriptor,
@@ -93,6 +94,28 @@ describe('executePageCapability — schema enforcement', () => {
     await expect(executePageCapability(driver, 'page.click', {})).rejects.toThrow(/"element" is required/);
     await expect(executePageCapability(driver, 'page.fill', { element: 'new-task-input' }))
       .rejects.toThrow(/"text" is required/);
+  });
+
+  it('embeds the capability\'s input schema in every validation-error message, so a caller can self-correct in the same turn instead of a separate describe_tool round trip', async () => {
+    await expect(executePageCapability(driver, 'page.fill', { element: 'new-task-input' }))
+      .rejects.toThrow(/Expected input: \{"type":"object".*"required":\["element","text"\]/);
+  });
+
+  it('the embedded schema is the exact capability inputSchema, not a hand-summarized approximation', async () => {
+    let message = '';
+    try {
+      await executePageCapability(driver, 'page.click', {});
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    const clickCapability = PAGE_CAPABILITIES.find((c) => c.id === 'page.click')!;
+    expect(message).toContain(`Expected input: ${JSON.stringify(clickCapability.inputSchema)}`);
+  });
+
+  it('embeds the schema on an unknown-argument refusal too, not only on missing/wrong-type', async () => {
+    await expect(
+      executePageCapability(driver, 'page.highlight', { element: 'add-task-button', bogus: 1 }),
+    ).rejects.toThrow(/Expected input: \{"type":"object"/);
   });
 
   it('rejects an argument of the wrong type', async () => {
