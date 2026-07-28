@@ -205,6 +205,28 @@ export function createFrontendSessionRegistry(
   /** bind token → session id. Cleared on detach, so a token dies with the surface it proves. */
   const bindTokens = new Map<string, string>();
 
+  /**
+   * Whether `claims` (one surface's `descriptor.capabilities`) covers `capabilityId` — either by
+   * naming it exactly, or by naming a trailing-dot PREFIX it falls under (`'webmcp.'` covers
+   * `'webmcp.add_note'`). No real capability id ends in `.` (every shipped manifest — `page.*`,
+   * `chat.*` — is `word.word`), so that trailing dot is an unambiguous, self-describing signal
+   * rather than a second field this descriptor would need to carry.
+   *
+   * This existed only as a doc-comment promise until found broken 2026-07-28: `@jini/chat-react`'s
+   * `createFrontendSessionBridge({ executors })` claims a bare prefix precisely so "a consumer
+   * exposes verbs the engine has never heard of" (its own module doc), but this function used to
+   * do a plain `.includes(capabilityId)` — which a prefix can never satisfy, since the claimed
+   * string and the called id are never equal. Every `executors`-backed capability therefore failed
+   * every call with "does not offer", 100% of the time, for every consumer, since the feature
+   * shipped — caught by a real end-to-end run (a live browser, a live daemon, a real coding agent),
+   * not a unit test: the existing tests exercise the client's claim-construction and the server's
+   * exact-match check in isolation, and each was internally consistent, so neither caught the two
+   * disagreeing about what a prefix claim means.
+   */
+  function coversCapability(claims: readonly string[], capabilityId: string): boolean {
+    return claims.some((claim) => claim === capabilityId || (claim.endsWith('.') && capabilityId.startsWith(claim)));
+  }
+
   /** Resolves the surface that may serve this call, or explains precisely what is missing. */
   function resolveTarget(runId: string, capabilityId: string): AttachedSession {
     const sessionId = runBindings.get(runId);
@@ -212,7 +234,7 @@ export function createFrontendSessionRegistry(
     if (session === undefined) {
       throw new Error(`no frontend is bound to run "${runId}", so "${capabilityId}" cannot be executed`);
     }
-    if (!session.descriptor.capabilities.includes(capabilityId)) {
+    if (!coversCapability(session.descriptor.capabilities, capabilityId)) {
       throw new Error(
         `the frontend bound to run "${runId}" does not offer "${capabilityId}" `
         + `(it offers: ${session.descriptor.capabilities.join(', ') || 'nothing'})`,

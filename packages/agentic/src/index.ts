@@ -84,8 +84,12 @@ export {
 export {
   toWebMcpTool,
   toWebMcpTools,
+  isValidWebMcpToolName,
   WebMcpConfirmationRequiredError,
+  InvalidWebMcpToolNameError,
   type WebMcpToolRegistration,
+  type WebMcpToolAnnotations,
+  type WebMcpRegisterToolOptions,
   type WebMcpUserInteraction,
   type RequestUserInteraction,
   type ToWebMcpToolOptions,

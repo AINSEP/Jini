@@ -2,6 +2,7 @@ import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AgentLab } from './AgentLab.js';
 import { App } from './App.js';
+import { WebMcpLab } from './WebMcpLab.js';
 import './remixicon.css';
 import './styles.css';
 
@@ -25,7 +26,9 @@ function Playground() {
     return () => globalThis.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  return route === 'agent-lab' ? <AgentLab /> : <App />;
+  if (route === 'agent-lab') return <AgentLab />;
+  if (route === 'webmcp-lab') return <WebMcpLab />;
+  return <App />;
 }
 
 const root = document.getElementById('root');
