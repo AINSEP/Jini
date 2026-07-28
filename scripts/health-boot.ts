@@ -83,7 +83,7 @@ async function main(): Promise<void> {
     //    this repo's pnpm workspace, so there is no workspace: protocol and nothing to symlink.
     execFileSync('npm', ['install', '--no-audit', '--no-fund'], { cwd: scratchHostDir, stdio: 'inherit' });
 
-    const scratchNodeModulesJini = join(scratchHostDir, 'node_modules', '@jini');
+    const scratchNodeModulesJini = join(scratchHostDir, 'node_modules', '@jini-ai');
     if (!existsSync(scratchNodeModulesJini)) {
       throw new Error(`health-boot: expected ${scratchNodeModulesJini} to exist after npm install`);
     }
