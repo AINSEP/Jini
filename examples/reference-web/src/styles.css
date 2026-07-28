@@ -1097,11 +1097,11 @@ button {
 }
 
 /*
- * No chat-pane CSS lives in this host anymore. `@jini/chat-react` turned out to already ship a
+ * No chat-pane CSS lives in this host anymore. `@jini-ai/chat-react` turned out to already ship a
  * complete default theme (`packages/chat-react/src/features/chat-pane/react/styles.ts`, injected
  * as a <style> tag) — the actual gap was that its user-bubble selectors had drifted from what
  * `MessageRow.tsx` renders (dead `.jini-message-row[data-role="user"]`, never `.jini-message-user`)
  * and it never covered tool-call cards or the usage-summary line at all. Both are fixed in that
- * file now, which benefits every `@jini/chat-react` consumer, not just this one — duplicating an
+ * file now, which benefits every `@jini-ai/chat-react` consumer, not just this one — duplicating an
  * app-local copy here would only reintroduce the drift risk that caused the original bug.
  */
