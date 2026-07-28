@@ -11,12 +11,12 @@ import {
   isJsonRpcRequest,
   type JsonRpcMessage,
   type JsonRpcRequest,
-} from '@jini/agentic';
+} from '@jini-ai/agentic';
 import { createEarlyMessageBuffer, type BufferedWindowMessage } from './mcpui-lab-message-buffer.js';
 import type { McpUiLabViewMode } from './mcpui-lab-view.js';
 
 /**
- * The Host half of the MCP Apps demo — the ONLY file in this fixture that imports `@jini/agentic`
+ * The Host half of the MCP Apps demo — the ONLY file in this fixture that imports `@jini-ai/agentic`
  * for the wire types, because the Host is the trusted side (see `mcpui-lab-view.ts`'s module doc
  * for why the View deliberately does NOT import from here).
  *

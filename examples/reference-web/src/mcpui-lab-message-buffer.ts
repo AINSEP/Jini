@@ -1,5 +1,5 @@
 /**
- * A tiny, framework-free fix for the exact race `@jini/agentic`'s `mcp-ui-apps.ts` module doc
+ * A tiny, framework-free fix for the exact race `@jini-ai/agentic`'s `mcp-ui-apps.ts` module doc
  * names as its reason for existing: a View can post `ui/notifications/initialized` before a Host
  * component has mounted and attached its `window.addEventListener('message', ...)` listener.
  *
