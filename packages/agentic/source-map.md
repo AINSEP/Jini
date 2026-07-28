@@ -266,16 +266,16 @@ an actual component is not part of this task and was not asked for.
 ## Folded from `@jini-ai/a2ui` (2026-07-28)
 
 The standalone `@jini-ai/a2ui` package — a from-scratch A2UI (a2ui.org v1.0) protocol port,
-18/18 basic-catalog components, 336 tests, already published to npm as its own package —
-folded into this package as `src/a2ui/`, mirroring the `agui`/`gen-ui` precedent above:
-one more "the agent shows the user more than plain text" protocol, alongside `gen-ui/`'s
-small GenUI surface-request shim and `mcp-ui-apps.ts`'s MCP-UI/MCP-Apps transport. Unlike
-that shim, this is a real, sizable, independently-versioned external spec implementation
-(zero DOM/React dependency — only `zod`) — kept as its own top-level package initially on
-exactly that reasoning, the same one that keeps `@jini-ai/mcp`/`@jini-ai/sqlite` separate.
-Reconsidered same-day: three UI-surface protocols split across two packages was the
-inconsistency that mattered more, so it moved. The already-published `@jini-ai/a2ui` npm
-package is deprecated, not unpublished — see its own registry listing for the pointer here.
+18/18 basic-catalog components, 336 tests — folded into this package as `src/a2ui/`, mirroring
+the `agui`/`gen-ui` precedent above: one more "the agent shows the user more than plain text"
+protocol, alongside `gen-ui/`'s small GenUI surface-request shim and `mcp-ui-apps.ts`'s
+MCP-UI/MCP-Apps transport. Unlike that shim, this is a real, sizable, independently-versioned
+external spec implementation (zero DOM/React dependency — only `zod`) — kept as its own
+top-level package initially on exactly that reasoning, the same one that keeps
+`@jini-ai/mcp`/`@jini-ai/sqlite` separate. Reconsidered same-day: three UI-surface protocols
+split across two packages was the inconsistency that mattered more, so it moved. It had never
+actually been published to npm as `@jini-ai/a2ui` — the real publish run happened before this
+branch's a2ui/webmcp/mcpui merges landed, so there is no orphaned registry listing to deprecate.
 
 Original provenance/scope/adversarial-testing report follows, verbatim except file paths
 (`src/foo.ts` -> `src/a2ui/foo.ts`) and package-name references:
