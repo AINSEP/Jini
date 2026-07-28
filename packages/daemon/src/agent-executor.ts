@@ -430,6 +430,22 @@ export interface AgentExecutorRunInput {
   readonly extraAllowedDirs?: readonly string[];
   /** Trusted root that must contain pi-rpc image paths after realpath resolution. */
   readonly uploadRoot?: string;
+  /**
+   * Credential(s) this run's selected agent/provider needs (e.g. `{ ANTHROPIC_API_KEY: '...' }`),
+   * delegated explicitly by the host and merged into the baseline-allowlisted env below. Never
+   * read implicitly from `process.env` — see SEC-001.
+   */
+  readonly credentialEnv?: Record<string, string>;
+  /**
+   * Explicit escape hatch: when supplied, used verbatim as the spawned subprocess's entire
+   * environment (no allowlist filtering) — for tests and hosts that have already done their own
+   * scoping. When omitted (the default), the subprocess gets only `BASELINE_AGENT_ENV_KEYS` from
+   * the host's real env plus `credentialEnv`, never a full `process.env` passthrough. A spawned
+   * coding-agent CLI is prompt-influenced and must be treated as potentially adversarial; it must
+   * not inherit secrets the daemon process happens to hold for unrelated reasons. See SEC-001
+   * (`ADS-memory/reports/proposals/PROP-agent-subprocess-env-allowlist-2026-07-21.md`) and locked
+   * architecture decision C8 (`foundry/docs/jini-port/extraction-plan.md`).
+   */
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -454,7 +470,8 @@ function errorMessage(err: unknown): string {
  * Drops `undefined` values so `NodeJS.ProcessEnv` (whose values are
  * `string | undefined`) can feed `resolveAgentLaunch`'s
  * `Record<string, string>` parameter.
- * @param env - The source environment (typically `input.env ?? process.env`).
+ * @param env - The source environment (the caller-supplied `input.env` escape hatch — the
+ * default path builds its env via `buildAgentEnv` instead, never this function on `process.env`).
  * @returns A new object containing only the string-valued entries.
  * @complexity O(n) in the number of env entries.
  * @overallScore 100/100
@@ -463,6 +480,36 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(env)) {
     if (typeof value === 'string') result[key] = value;
+  }
+  return result;
+}
+
+/**
+ * Fixed baseline of host environment variables every spawned agent subprocess may see by
+ * default — resolved from the host's env one name at a time, never derived programmatically
+ * from `process.env` as a bag, so this can't silently widen. SEC-001's deny-by-default fix; see
+ * `AgentExecutorRunInput.env`'s doc for the full threat model.
+ */
+const BASELINE_AGENT_ENV_KEYS = [
+  'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP', 'SHELL',
+  'LANG', 'LC_ALL', 'LC_CTYPE',
+  'SystemRoot', 'windir', 'ComSpec', 'PATHEXT', // Windows-only; harmless no-ops elsewhere
+] as const;
+
+/**
+ * Deny-by-default agent subprocess environment: `BASELINE_AGENT_ENV_KEYS` resolved from
+ * `hostEnv`, plus this run's explicitly-delegated credential(s) — never a passthrough of
+ * `hostEnv` itself. Only reached when the caller omits `AgentExecutorRunInput.env`; supplying
+ * `env` bypasses this function entirely (see its call site).
+ */
+function buildAgentEnv(hostEnv: NodeJS.ProcessEnv, credentialEnv: Record<string, string> | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const key of BASELINE_AGENT_ENV_KEYS) {
+    const value = hostEnv[key];
+    if (typeof value === 'string') result[key] = value;
+  }
+  for (const [key, value] of Object.entries(credentialEnv ?? {})) {
+    result[key] = value;
   }
   return result;
 }
@@ -1555,8 +1602,9 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       return failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', argvBudgetError.message);
     }
 
-    const configuredEnv = toStringEnvRecord(input.env ?? process.env);
-    const launch: AgentLaunchResolution = resolveAgentLaunchFn(def, configuredEnv);
+    const resolvedEnv: Record<string, string> =
+      input.env !== undefined ? toStringEnvRecord(input.env) : buildAgentEnv(process.env, input.credentialEnv);
+    const launch: AgentLaunchResolution = resolveAgentLaunchFn(def, resolvedEnv);
     if (!launch.launchPath) {
       return failBeforeSpawn(
         input.runId,
@@ -1565,7 +1613,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       );
     }
 
-    const spawnEnv = applyAgentLaunchEnvFn({ ...(input.env ?? process.env) }, launch);
+    const spawnEnv = applyAgentLaunchEnvFn({ ...resolvedEnv }, launch);
 
     // Stage a promptViaFile def's (grok-build) prompt to a temp file before
     // buildArgs runs — its buildArgs throws without

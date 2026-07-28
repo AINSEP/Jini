@@ -2966,3 +2966,73 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
     expect(events.find((e) => e.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
   });
 });
+
+describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () => {
+  const SENTINEL_KEY = 'JINI_TEST_SECRET_TOKEN';
+
+  it('never forwards arbitrary host env vars (a daemon secret) to the spawned agent by default', async () => {
+    vi.stubEnv(SENTINEL_KEY, 'should-never-appear');
+    vi.stubEnv('DATABASE_URL', 'postgres://should-never-appear');
+    try {
+      const { lifecycle, executor, spawnCalls } = createHarness();
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+      expect(spawnCalls).toHaveLength(1);
+      const env = spawnCalls[0]!.options.env as Record<string, string>;
+      expect(env[SENTINEL_KEY]).toBeUndefined();
+      expect(env.DATABASE_URL).toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('still forwards the baseline allowlist (PATH/HOME/locale) so the spawned agent can actually run', async () => {
+    vi.stubEnv('PATH', '/usr/bin:/bin');
+    vi.stubEnv('HOME', '/home/test-user');
+    vi.stubEnv('LANG', 'en_US.UTF-8');
+    try {
+      const { lifecycle, executor, spawnCalls } = createHarness();
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+      const env = spawnCalls[0]!.options.env as Record<string, string>;
+      expect(env.PATH).toBe('/usr/bin:/bin');
+      expect(env.HOME).toBe('/home/test-user');
+      expect(env.LANG).toBe('en_US.UTF-8');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('delegates a run-specific credential via credentialEnv even though it is absent from process.env', async () => {
+    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
+    const { lifecycle, executor, spawnCalls } = createHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'hi',
+      cwd: '/work',
+      credentialEnv: { ANTHROPIC_API_KEY: 'sk-test-explicit' },
+    });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.ANTHROPIC_API_KEY).toBe('sk-test-explicit');
+  });
+
+  it('the explicit input.env escape hatch still bypasses the allowlist entirely (advanced-caller path)', async () => {
+    const { lifecycle, executor, spawnCalls } = createHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'hi',
+      cwd: '/work',
+      env: { PATH: '/custom/bin', CUSTOM_UNALLOWLISTED_VAR: 'present-because-caller-opted-in' },
+    });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CUSTOM_UNALLOWLISTED_VAR).toBe('present-because-caller-opted-in');
+  });
+});
