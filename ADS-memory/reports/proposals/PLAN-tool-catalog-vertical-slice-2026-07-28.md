@@ -28,7 +28,7 @@ entries.**"* Its §9 sequencing, and debate question 5 ("is the bar in `migrate.
 both follow from that premise.
 
 The premise no longer holds. `packages/node-host/src/create-local-node-daemon.ts:585-613`
-unconditionally registers **five real first-party tools** into a real `ToolRegistry`, wired to a
+unconditionally registers **four real first-party tools** into a real `ToolRegistry`, wired to a
 real `ToolExecutor`, reachable over real HTTP routes:
 
 | tool | descriptor | policy today |
@@ -37,10 +37,26 @@ real `ToolExecutor`, reachable over real HTTP routes:
 | `daemon.db.inspect` | `packages/http/src/db-ops.ts:155` | `denyAllDaemonDbPolicy` |
 | `daemon.db.verify` | `packages/http/src/db-ops.ts:164` | `denyAllDaemonDbPolicy` |
 | `daemon.db.vacuum` | `packages/http/src/db-ops.ts:176` | `denyAllDaemonDbPolicy` |
-| `deploy.publish` | `packages/deploy/src/tool.ts:128` | `denyAllDeployPublishPolicy` (host opts in) |
+
+A fifth, `deploy.publish` (`packages/deploy/src/tool.ts:128`, `denyAllDeployPublishPolicy`), is built
+but requires a host to wire it; the reference app does not.
 
 Plus a host seam — `config.toolRegistrations` (`create-local-node-daemon.ts:325, 611-619`) — which
-is the *existing* third-party registration path, in code, at composition time.
+is the *existing* third-party registration path, in code, at composition time. **`examples/reference-web`
+uses it today**: `createFrontendControl({capabilities: [...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES]})`
+(`daemon.ts:162-164`) mints "one gated tool per capability" (`node-host/src/frontend-control.ts:89-90`),
+adding 14 more. **The running playground therefore has 18 registered tools, not zero.**
+
+Two caveats that keep this from being over-claimed:
+
+- The 14 frontend tools are **session-scoped** — they are meaningless with no tab attached
+  (`CapabilitySurface: 'session'`, `packages/agentic/src/capability.ts:27`). They prove the
+  registration and execution path, but they are not durable-catalog candidates; a catalog row cannot
+  describe a capability that exists only while a browser tab is open.
+- `reference-web` passes `policy: { authorize: () => 'allow' }` (`daemon.ts:164`). Fine for a
+  playground, but it is the example every future consumer will copy, and it is precisely the shape
+  A1 exists to make impossible to write accidentally — an allow with no `reasonCode`, no `policyId`,
+  and no way to tell from an audit row that it was a placeholder.
 
 **What this changes:**
 
