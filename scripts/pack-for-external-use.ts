@@ -1,7 +1,7 @@
 /**
  * scripts/pack-for-external-use.ts
  *
- * Packs real `@jini/*` tarballs for use in a project OUTSIDE this repo, without any real npm
+ * Packs real `@injini/*` tarballs for use in a project OUTSIDE this repo, without any real npm
  * publish — same build/pack/`file:`-dependency-rewrite technique `health-boot.ts` uses to prove
  * install-from-tarball works, but the output persists in `dist-tarballs/` instead of a scratch dir
  * that gets deleted after boot-proving. This is the fast path to "try Jini in another project"
@@ -9,8 +9,8 @@
  * has been made.
  *
  * Usage:
- *   tsx scripts/pack-for-external-use.ts                    # every @jini/* package
- *   tsx scripts/pack-for-external-use.ts --only core,daemon # just these + their @jini/* deps
+ *   tsx scripts/pack-for-external-use.ts                    # every @injini/* package
+ *   tsx scripts/pack-for-external-use.ts --only core,daemon # just these + their @injini/* deps
  *
  * Output: `dist-tarballs/*.tgz` at the repo root (gitignored), plus a printed summary of exactly
  * how to reference them from another project's package.json.
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   const onlyShortNames = parseOnlyFlag(process.argv.slice(2));
   const rootNames = onlyShortNames
     ? onlyShortNames.map((short) => {
-        const full = `@jini/${short}`;
+        const full = `@injini/${short}`;
         if (!registry.has(full)) {
           throw new Error(`pack-for-external-use: "${short}" (${full}) is not a real package under packages/*`);
         }
@@ -48,7 +48,7 @@ async function main(): Promise<void> {
     : [...registry.keys()];
 
   if (rootNames.length === 0) {
-    throw new Error('pack-for-external-use: no @jini/* packages found under packages/*');
+    throw new Error('pack-for-external-use: no @injini/* packages found under packages/*');
   }
 
   // Fresh output every run — a stale tarball for a package no longer in this run's closure would
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
   if (existsSync(outDir)) rmSync(outDir, { recursive: true, force: true });
   mkdirSync(outDir, { recursive: true });
 
-  console.log(`Packing ${rootNames.length} root package(s) and their @jini/* closure into ${outDir}...`);
+  console.log(`Packing ${rootNames.length} root package(s) and their @injini/* closure into ${outDir}...`);
   const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, packagesDir, rootNames, outDir);
 
   console.log(`\nPacked ${closure.length} package(s):\n`);
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    '\nTo use these in another project, add to its package.json "dependencies" (only the ones you actually need — file: entries pull in their own @jini/* deps automatically via the rewritten tarballs):\n',
+    '\nTo use these in another project, add to its package.json "dependencies" (only the ones you actually need — file: entries pull in their own @injini/* deps automatically via the rewritten tarballs):\n',
   );
   console.log(`  {\n${usageLines.join(',\n')}\n  }`);
   console.log('\nThen run npm install (or pnpm install / yarn install) in that project. No workspace link, no registry access needed.');

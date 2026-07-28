@@ -5,7 +5,7 @@
  * `source-map.md`. Only the two functions with no CLI-flag-parsing or env-var-reading inside their
  * own bodies are ported here: `parseDaemonCliStartupArgs` (argv/env parsing for a `od <cmd>`-style
  * CLI) and the higher-level `startDaemonRuntime`/`runDaemonCliStartup` wrappers belong to a future
- * `@jini/cli` task, not this one — this module is deliberately CLI-shape-agnostic.
+ * `@injini/cli` task, not this one — this module is deliberately CLI-shape-agnostic.
  */
 import type { Server } from 'node:http';
 

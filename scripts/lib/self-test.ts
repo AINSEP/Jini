@@ -28,7 +28,7 @@ function writePackage(root: string, directory: string): void {
     `packages/${directory}/package.json`,
     JSON.stringify(
       {
-        name: `@jini/${directory}`,
+        name: `@injini/${directory}`,
         jini: {
           domain: 'engine',
           kind: 'self-test-fixture',
@@ -57,7 +57,7 @@ function writePackageWithEntries(
     `packages/${directory}/package.json`,
     JSON.stringify(
       {
-        name: `@jini/${directory}`,
+        name: `@injini/${directory}`,
         exports: exportsMap,
         jini: {
           domain: 'agent',
@@ -90,7 +90,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     for (const packageName of ['core', 'http', 'node-host', 'daemon', 'protocol']) {
       writePackage(root, packageName);
     }
-    write(root, 'packages/missing-metadata/package.json', '{"name":"@jini/missing-metadata"}\n');
+    write(root, 'packages/missing-metadata/package.json', '{"name":"@injini/missing-metadata"}\n');
     write(root, 'packages/missing-metadata/src/index.ts', 'export const missingMetadata = true;\n');
 
     // R8 jini.entries extension: a package whose entries exactly match its exports (good), one
@@ -121,18 +121,18 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // fixture used to be the thing proving UI-heavy (.tsx) package sources get scanned at all;
     // that coverage moves here rather than disappearing along with R7 itself.
     write(root, 'packages/core/src/bad-r1.tsx', `import { x } from '../../../examples/reference-web/foo.js';\nexport { x };\n`);
-    // R2: deep cross-package relative reach, and a deep bare @jini/<name>/<subpath> import.
+    // R2: deep cross-package relative reach, and a deep bare @injini/<name>/<subpath> import.
     write(root, 'packages/core/src/bad-r2-relative.ts', `import { x } from '../../daemon/src/foo.js';\nexport { x };\n`);
-    write(root, 'packages/http/src/bad-r2-deep.ts', `import { x } from '@jini/daemon/dist/foo.js';\nexport { x };\n`);
-    // R2 exemption: @jini/agentic/dom is the one other named-literal exception, alongside
-    // @jini/core/internal — must NOT be flagged. A *different* subpath of the same package
+    write(root, 'packages/http/src/bad-r2-deep.ts', `import { x } from '@injini/daemon/dist/foo.js';\nexport { x };\n`);
+    // R2 exemption: @injini/agentic/dom is the one other named-literal exception, alongside
+    // @injini/core/internal — must NOT be flagged. A *different* subpath of the same package
     // (bad-r2-agentic-other-subpath.ts) proves the exemption is the exact literal, not a pattern
-    // that swallows every @jini/agentic/* import.
-    write(root, 'packages/http/src/ok-r2-agentic-dom.ts', `import { x } from '@jini/agentic/dom';\nexport { x };\n`);
+    // that swallows every @injini/agentic/* import.
+    write(root, 'packages/http/src/ok-r2-agentic-dom.ts', `import { x } from '@injini/agentic/dom';\nexport { x };\n`);
     write(
       root,
       'packages/http/src/bad-r2-agentic-other-subpath.ts',
-      `import { x } from '@jini/agentic/other';\nexport { x };\n`,
+      `import { x } from '@injini/agentic/other';\nexport { x };\n`,
     );
     // R5: product-identity string + OD_ prefix.
     write(root, 'packages/core/src/bad-r5-string.ts', `export const NAME = 'Open Design';\n`);
@@ -141,19 +141,19 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     write(
       root,
       'packages/http/src/bad-r6.ts',
-      `import { getToolRegistration } from '@jini/core/internal';\nexport { getToolRegistration };\n`,
+      `import { getToolRegistration } from '@injini/core/internal';\nexport { getToolRegistration };\n`,
     );
     // R6 exemption: same import, but type-only, from a non-daemon package — must NOT be flagged.
     write(
       root,
       'packages/node-host/src/ok-r6-type-only.ts',
-      `import type { AnyPack } from '@jini/core/internal';\nexport type { AnyPack };\n`,
+      `import type { AnyPack } from '@injini/core/internal';\nexport type { AnyPack };\n`,
     );
     // R6 exemption: value import, but from daemon itself — must NOT be flagged.
     write(
       root,
       'packages/daemon/src/ok-r6-daemon.ts',
-      `import { getToolRegistration } from '@jini/core/internal';\nexport { getToolRegistration };\n`,
+      `import { getToolRegistration } from '@injini/core/internal';\nexport { getToolRegistration };\n`,
     );
     // Known-good: ordinary same-package relative import and bare package import — must NOT be flagged.
     write(root, 'packages/core/src/ok-relative.ts', `export const x = 1;\n`);
@@ -162,7 +162,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       'packages/core/src/ok-same-package.ts',
       `import { x } from './ok-relative.js';\nexport { x };\n`,
     );
-    write(root, 'packages/http/src/ok-bare.ts', `import { createDaemon } from '@jini/core';\nexport { createDaemon };\n`);
+    write(root, 'packages/http/src/ok-bare.ts', `import { createDaemon } from '@injini/core';\nexport { createDaemon };\n`);
     // Known-good: a provenance-citing doc comment (this codebase's real convention) must NOT
     // be parsed as a live import or a live product-identity string — regression test for the
     // false-positive `pnpm guard` actually produced on its first real run against this repo.
@@ -180,8 +180,8 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       ].join('\n'),
     );
 
-    // R3: protocol importing another @jini/* package, and protocol reaching into foundry/.
-    write(root, 'packages/protocol/src/bad-r3-jini-import.ts', `import { x } from '@jini/core';\nexport { x };\n`);
+    // R3: protocol importing another @injini/* package, and protocol reaching into foundry/.
+    write(root, 'packages/protocol/src/bad-r3-jini-import.ts', `import { x } from '@injini/core';\nexport { x };\n`);
     write(
       root,
       'packages/protocol/src/bad-r3-boundary.ts',
@@ -261,14 +261,14 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     const expectations: Array<[boolean, string]> = [
       [has(engineViolations, 'R1-boundary', 'bad-r1.tsx'), 'R1 should catch a relative import escaping into foundry/ (also proves .tsx sources are scanned)'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-relative.ts'), 'R2 should catch a relative import reaching into another package'],
-      [has(engineViolations, 'R2-deep-path', 'bad-r2-deep.ts'), 'R2 should catch a deep bare @jini/<name>/<subpath> import'],
-      [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-dom.ts'), 'R2 must NOT flag the gated @jini/agentic/dom import'],
-      [has(engineViolations, 'R2-deep-path', 'bad-r2-agentic-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini/agentic/<subpath> — the exemption is the exact literal, not a pattern'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-deep.ts'), 'R2 should catch a deep bare @injini/<name>/<subpath> import'],
+      [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-dom.ts'), 'R2 must NOT flag the gated @injini/agentic/dom import'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-agentic-other-subpath.ts'), 'R2 should still catch a DIFFERENT @injini/agentic/<subpath> — the exemption is the exact literal, not a pattern'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-string.ts'), 'R5 should catch a product-identity string'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-prefix.ts'), 'R5 should catch an OD_ prefixed identifier'],
       [has(engineViolations, 'R6-internal-leak', 'bad-r6.ts'), 'R6 should catch a value import of getToolRegistration outside daemon'],
-      [!has(engineViolations, 'R6-internal-leak', 'ok-r6-type-only.ts'), 'R6 must NOT flag a type-only import of @jini/core/internal'],
-      [!has(engineViolations, 'R6-internal-leak', 'ok-r6-daemon.ts'), 'R6 must NOT flag a value import from inside @jini/daemon itself'],
+      [!has(engineViolations, 'R6-internal-leak', 'ok-r6-type-only.ts'), 'R6 must NOT flag a type-only import of @injini/core/internal'],
+      [!has(engineViolations, 'R6-internal-leak', 'ok-r6-daemon.ts'), 'R6 must NOT flag a value import from inside @injini/daemon itself'],
       [has(engineViolations, 'R8-package-metadata', 'packages/missing-metadata/package.json'), 'R8 should catch missing package classification metadata'],
       [
         !engineViolations.some((v) => v.file.endsWith('entries-ok/package.json')),
@@ -299,9 +299,9 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
         'R8 should catch jini.entries["."] disagreeing with the top-level jini.runtime',
       ],
       [!engineViolations.some((v) => v.file.endsWith('ok-same-package.ts')), 'R1/R2 must NOT flag an ordinary same-package relative import'],
-      [!engineViolations.some((v) => v.file.endsWith('ok-bare.ts')), 'R2 must NOT flag an ordinary bare @jini/<name> import'],
+      [!engineViolations.some((v) => v.file.endsWith('ok-bare.ts')), 'R2 must NOT flag an ordinary bare @injini/<name> import'],
       [!engineViolations.some((v) => v.file.endsWith('ok-provenance-comment.ts')), 'R1/R2/R5 must NOT flag a provenance-citing doc comment as a live import or product-identity string'],
-      [has(protocolViolations, 'R3-protocol-purity', 'bad-r3-jini-import.ts'), 'R3 should catch protocol importing another @jini/* package'],
+      [has(protocolViolations, 'R3-protocol-purity', 'bad-r3-jini-import.ts'), 'R3 should catch protocol importing another @injini/* package'],
       [has(protocolViolations, 'R3-protocol-purity', 'bad-r3-boundary.ts'), 'R3 should catch protocol reaching into foundry/'],
       [!protocolViolations.some((v) => v.file.endsWith('ok-protocol.ts')), 'R3 must NOT flag ordinary protocol-local code'],
       [domPurityGood.length === 0, 'R9 must NOT flag a correctly-shaped agentic tsconfig.json/tsconfig.dom.json pair'],

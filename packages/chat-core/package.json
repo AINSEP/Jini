@@ -1,8 +1,12 @@
 {
-  "name": "@jini/chat-core",
+  "name": "@injini/chat-core",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/chat-core" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/chat-core"
+  },
   "jini": {
     "domain": "chat",
     "kind": "state",
@@ -11,16 +15,33 @@
   },
   "type": "module",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "dependencies": { "@jini/agentic": "workspace:*" },
-  "devDependencies": { "@vitest/coverage-v8": "^2.1.9" }
+  "dependencies": {
+    "@injini/agentic": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9"
+  }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "@jini/composio",
+  "name": "@injini/composio",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -21,10 +21,15 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
   ],
   "publishConfig": {
-    "access": "restricted",
+    "access": "public",
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
@@ -36,6 +41,6 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/protocol": "workspace:*"
+    "@injini/protocol": "workspace:*"
   }
 }

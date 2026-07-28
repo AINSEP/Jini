@@ -12,7 +12,7 @@ import { join, relative } from 'node:path';
 export interface ImportRef {
   /** Repo-relative path of the file containing the import, forward-slashed. */
   readonly file: string;
-  /** The raw module specifier as written (e.g. `'../foo.js'`, `'@jini/core/internal'`). */
+  /** The raw module specifier as written (e.g. `'../foo.js'`, `'@injini/core/internal'`). */
   readonly specifier: string;
   /** True for `import type ... from` / `export type ... from`; false for value imports. */
   readonly typeOnly: boolean;

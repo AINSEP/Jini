@@ -14,7 +14,7 @@
  * auth over the secret key, form-encoded body, JSON error envelope). The
  * in-memory reference implementation (`createInMemoryPaymentsProvider`) is a
  * separate, non-production stub that lives under `src/unsafe-reference/`,
- * exported only from the separate `@jini/capability-providers/unsafe-reference`
+ * exported only from the separate `@injini/capability-providers/unsafe-reference`
  * entry point — see that directory's `index.ts` header for the full warning.
  */
 

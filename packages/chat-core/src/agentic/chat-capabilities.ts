@@ -9,11 +9,11 @@
  * hosting this list must not drag a browser component graph into its process.
  *
  * This is a genuine chat product surface, not vocabulary — unlike its former siblings here
- * (capability.ts, page-capabilities.ts, …), which moved to `@jini/agentic` on 2026-07-26 so a
+ * (capability.ts, page-capabilities.ts, …), which moved to `@injini/agentic` on 2026-07-26 so a
  * non-chat consumer could depend on the vocabulary without depending on chat. This file stayed
- * behind on purpose: it's the proof the split is real (see `@jini/agentic`'s source-map.md).
+ * behind on purpose: it's the proof the split is real (see `@injini/agentic`'s source-map.md).
  */
-import type { CapabilityDef } from '@jini/agentic';
+import type { CapabilityDef } from '@injini/agentic';
 
 /** The bounded, explicit set of chat-pane capabilities every transport surface hosts. */
 export const CHAT_CAPABILITIES: readonly CapabilityDef[] = [

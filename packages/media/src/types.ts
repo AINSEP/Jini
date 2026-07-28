@@ -1,5 +1,5 @@
 /**
- * `@jini/media` core type system — the provider/model catalogue shape and the
+ * `@injini/media` core type system — the provider/model catalogue shape and the
  * pure, transport-free request-building types layered on top of it.
  *
  * Ported from OD's `apps/daemon/src/media/models.ts` (catalogue

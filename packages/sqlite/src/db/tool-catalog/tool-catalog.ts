@@ -12,7 +12,7 @@
  * (`capability_definitions`/`capability_executions` were added there 2026-07-24 and removed
  * 2026-07-25 for having zero consumers in every daemon's database). `ensureToolCatalogTables`
  * is called only by a host that actually seeds and queries this table, mirroring
- * `@jini/registry`'s `ensureRegistryTables` precedent — the same discipline, applied this time
+ * `@injini/registry`'s `ensureRegistryTables` precedent — the same discipline, applied this time
  * without reviving the earlier mistake of a table nothing reads.
  *
  * Ranking is **FTS5 + `bm25()`**, not `LIKE` — verified against this repo's own `better-sqlite3`
@@ -31,7 +31,7 @@ import type { SqliteDb } from '../core/types.js';
 export interface ToolCatalogEntry {
   readonly id: string;
   readonly description: string;
-  /** JSON-Schema-shaped, `unknown` for the same reason `@jini/core`'s `ToolDescriptor.inputSchema` is — this table never parses or validates it. */
+  /** JSON-Schema-shaped, `unknown` for the same reason `@injini/core`'s `ToolDescriptor.inputSchema` is — this table never parses or validates it. */
   readonly inputSchema?: unknown;
   /** `first-party | plugin | unverified` — carried into what a model sees, per `PROP` §7.1. Every entry seeded from an in-tree `ToolRegistry` today is `first-party`. */
   readonly source: string;

@@ -12,7 +12,7 @@
  * picker" or "session mode" is.
  */
 import { useRef, type ChangeEvent, type KeyboardEvent } from 'react';
-import { RemixIcon } from '@jini/ui';
+import { RemixIcon } from '@injini/ui';
 import { useT } from '../hooks/context.js';
 import { AttachmentTray } from './AttachmentTray.js';
 import type { UseComposerResult } from '../hooks/useComposer.js';

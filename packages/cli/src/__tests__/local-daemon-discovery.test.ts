@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini/sidecar';
+import { resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@injini/sidecar';
 
 import { resolveDaemonUrl } from '../daemon-url.js';
 import { createLocalDaemonDiscovery } from '../local-daemon-discovery.js';

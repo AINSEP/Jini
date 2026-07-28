@@ -1,6 +1,6 @@
-import type { ArtifactManifest } from '@jini/chat-core';
+import type { ArtifactManifest } from '@injini/chat-core';
 
-export type { ArtifactManifest, ArtifactKind, ArtifactRendererId, ArtifactExportKind, ArtifactStatus } from '@jini/chat-core';
+export type { ArtifactManifest, ArtifactKind, ArtifactRendererId, ArtifactExportKind, ArtifactStatus } from '@injini/chat-core';
 
 export interface SandboxedDocumentOptions {
   /**

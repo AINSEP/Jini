@@ -6,13 +6,13 @@ import {
   type WorkspaceRootResolver,
 } from '../workspace-root.js';
 
-describe('@jini/http — workspace-root — denyAllWorkspaceRoots', () => {
+describe('@injini/http — workspace-root — denyAllWorkspaceRoots', () => {
   it('resolves to null for any request', () => {
     expect(denyAllWorkspaceRoots({ resourceRef: 'anything' })).toBeNull();
   });
 });
 
-describe('@jini/http — workspace-root — resolveWorkspaceRoot', () => {
+describe('@injini/http — workspace-root — resolveWorkspaceRoot', () => {
   it('throws WorkspaceRootDeniedError when no resolver is supplied (the conservative default)', async () => {
     await expect(resolveWorkspaceRoot({ resourceRef: 'proj-1' })).rejects.toBeInstanceOf(WorkspaceRootDeniedError);
   });

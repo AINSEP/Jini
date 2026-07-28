@@ -7,7 +7,7 @@ import {
   resolveSystemProxyEnv,
 } from '../proxy-env.js';
 
-describe('@jini/platform — proxy-env — mergeProxyAwareEnv', () => {
+describe('@injini/platform — proxy-env — mergeProxyAwareEnv', () => {
   it('passes an explicitly-set NODE_USE_ENV_PROXY value through the canonical setter', () => {
     // Targets `setCanonicalProxyEnvValue`'s NODE_USE_ENV_PROXY branch, which
     // only fires when a *source* already carries that key (as opposed to the
@@ -56,7 +56,7 @@ describe('@jini/platform — proxy-env — mergeProxyAwareEnv', () => {
   });
 });
 
-describe('@jini/platform — proxy-env — parseMacosScutilProxyOutput', () => {
+describe('@injini/platform — proxy-env — parseMacosScutilProxyOutput', () => {
   it('returns an empty env when nothing is enabled', () => {
     const env = parseMacosScutilProxyOutput('HTTPEnable : 0\nHTTPSEnable : 0\nSOCKSEnable : 0\n');
     expect(env).toEqual({});
@@ -127,7 +127,7 @@ describe('@jini/platform — proxy-env — parseMacosScutilProxyOutput', () => {
   });
 });
 
-describe('@jini/platform — proxy-env — parseWindowsInternetSettingsProxyOutput', () => {
+describe('@injini/platform — proxy-env — parseWindowsInternetSettingsProxyOutput', () => {
   it('parses the per-protocol http=/https=/socks= segment form, skipping malformed segments, and brackets a bare IPv6 authority', () => {
     const env = parseWindowsInternetSettingsProxyOutput({
       proxyEnable: 'ProxyEnable    REG_DWORD    0x1',
@@ -181,7 +181,7 @@ describe('@jini/platform — proxy-env — parseWindowsInternetSettingsProxyOutp
   });
 });
 
-describe('@jini/platform — proxy-env — resolveSystemProxyEnv', () => {
+describe('@injini/platform — proxy-env — resolveSystemProxyEnv', () => {
   it('exercises the real default command runner (no injected runCommand) — forced to the darwin branch regardless of host OS', () => {
     // No `runCommand` is supplied, so this calls the *real*
     // `defaultSystemProxyCommandRunner` (a real `execFileSync`). On a

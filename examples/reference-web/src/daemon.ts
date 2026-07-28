@@ -3,15 +3,15 @@ import { rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
-import { createAguiEncoder } from '@jini/agentic';
-import { createAgentExecutor } from '@jini/daemon';
-import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini/http';
-import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini/media';
-import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini/memory';
-import { createFrontendControl, createLocalNodeDaemon } from '@jini/node-host';
-import { CHAT_CAPABILITIES } from '@jini/chat-core';
-import { PAGE_CAPABILITIES } from '@jini/agentic';
-import type { RunAgentPayload } from '@jini/protocol';
+import { createAguiEncoder } from '@injini/agentic';
+import { createAgentExecutor } from '@injini/daemon';
+import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@injini/http';
+import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@injini/media';
+import { createExtractionLog, createNoteStore, createVerifyLog } from '@injini/memory';
+import { createFrontendControl, createLocalNodeDaemon } from '@injini/node-host';
+import { CHAT_CAPABILITIES } from '@injini/chat-core';
+import { PAGE_CAPABILITIES } from '@injini/agentic';
+import type { RunAgentPayload } from '@injini/protocol';
 import {
   createPlaygroundRuntimeEnvironment,
   decodePlaygroundRunRequest,
@@ -85,7 +85,7 @@ async function runDemo(
     project === 'bug-hunt'
       ? 'The sample has an intentional cart-total defect and a focused Node test that exposes it. A good first live-agent task is: **“run the tests, explain the failure, and fix only the bug.”**'
       : 'This is a zero-dependency browser project. A good first live-agent task is: **“add a filter for completed items while preserving the existing visual style.”**',
-    '\n\nThis response used a durable run, replayable SSE events, and the shared `@jini/chat-react` renderer.',
+    '\n\nThis response used a durable run, replayable SSE events, and the shared `@injini/chat-react` renderer.',
   ];
 
   for (const chunk of response) {
@@ -112,9 +112,9 @@ function resolvePlaygroundMcpBridge(): JiniMcpBridgeInjection | undefined {
   });
   if (!resolution.ok) {
     console.warn(
-      `[Jini Playground] @jini/mcp is not built (${resolution.missingPath} is missing), so agent runs `
+      `[Jini Playground] @injini/mcp is not built (${resolution.missingPath} is missing), so agent runs `
         + 'start without the jini MCP bridge and no agent can call execute_delegated_tool. '
-        + 'Run `pnpm --filter @jini/mcp build`.',
+        + 'Run `pnpm --filter @injini/mcp build`.',
     );
     return undefined;
   }

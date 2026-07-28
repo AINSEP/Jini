@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { writeDaemonRegistryRecord } from '@jini/sidecar';
+import { writeDaemonRegistryRecord } from '@injini/sidecar';
 import { DEFAULT_CLI_EXIT_CODES } from '../errors.js';
 import { main, type MainDeps } from '../main.js';
 
@@ -91,7 +91,7 @@ describe('main: no-command / help', () => {
 });
 
 describe('main: dispatching to registered commands', () => {
-  it('dispatches "run list" and reaches @jini/http\'s /api/runs route', async () => {
+  it('dispatches "run list" and reaches @injini/http\'s /api/runs route', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async (url: string | URL | Request) => {
       expect(String(url)).toBe('http://d.example/api/runs');
@@ -220,7 +220,7 @@ describe('main: daemon-url resolution', () => {
 
   it('resolves a locally running daemon via --data-dir, backed by a real on-disk registry record', async () => {
     const dataDir = await makeTempDataDir();
-    const { resolveDaemonRegistryPath } = await import('@jini/sidecar');
+    const { resolveDaemonRegistryPath } = await import('@injini/sidecar');
     await writeDaemonRegistryRecord(resolveDaemonRegistryPath(dataDir), {
       url: 'http://127.0.0.1:54213',
       host: '127.0.0.1',

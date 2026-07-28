@@ -2,13 +2,13 @@
  * @module events
  *
  * The generic run-event vocabulary a chat surface renders. This is the
- * *display-layer* event shape — narrower than `@jini/protocol`'s
+ * *display-layer* event shape — narrower than `@injini/protocol`'s
  * `RunAgentPayload` (the wire-level per-chunk protocol), and intentionally
  * decoupled from it: a host's transport adapter is responsible for reducing
  * wire deltas (`text_delta`, `thinking_delta`, `tool_input_delta`, ...) into
  * the persisted/renderable `AgentEvent` items below before handing them to
  * chat-core's pure helpers. See source-map.md for the provenance of this
- * split and why chat-core does not itself depend on `@jini/protocol`.
+ * split and why chat-core does not itself depend on `@injini/protocol`.
  */
 
 /**

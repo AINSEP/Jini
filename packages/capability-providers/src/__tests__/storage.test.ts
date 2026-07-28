@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BlobFileMeta, BlobStorage } from '@jini/platform';
-import { StorageError } from '@jini/platform';
+import type { BlobFileMeta, BlobStorage } from '@injini/platform';
+import { StorageError } from '@injini/platform';
 import { BlobStorageProvider } from '../storage.js';
 
 /**
- * Minimal in-memory fake of `@jini/platform`'s `BlobStorage` port — no real filesystem I/O,
+ * Minimal in-memory fake of `@injini/platform`'s `BlobStorage` port — no real filesystem I/O,
  * matching this package's "inject fakes by default" test convention. Mirrors `BlobStorage`'s
  * real documented behavior closely enough to exercise `BlobStorageProvider`'s mapping logic
  * (namespace scoping, NOT_FOUND → null, idempotent delete, path/mtimeMs → key/updatedAt).
@@ -67,7 +67,7 @@ describe('BlobStorageProvider', () => {
     const meta = await provider.put('a.png', new Uint8Array([1]), { contentType: 'image/png' });
     expect(meta.contentType).toBe('image/png');
 
-    // A later list() cannot recover it — nothing under @jini/platform ever stored it.
+    // A later list() cannot recover it — nothing under @injini/platform ever stored it.
     const listed = await provider.list();
     expect(listed[0]?.contentType).toBeUndefined();
   });

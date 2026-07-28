@@ -4,7 +4,7 @@
  * The central, product-neutral contract for this package: `RuntimeAgentDef`
  * declaratively describes how to detect, authenticate, and spawn a single
  * coding-agent CLI (Claude Code, Codex, Cursor, Aider, AMR, …). Everything
- * else in `@jini/agent-runtime` — the registry, detection, launch, and
+ * else in `@injini/agent-runtime` — the registry, detection, launch, and
  * stream-parsing modules — operates on this type or on `DetectedAgent`, its
  * runtime-probed sibling.
  *
@@ -269,7 +269,7 @@ export type RuntimeExecOptions = ExecFileOptions & {
  *
  * Vendored (minimal, unmodified shape) from OD's
  * `packages/contracts/src/api/registry.ts#AgentFixIntent` — see
- * `source-map.md`. `@jini/agent-runtime` does not depend on OD's
+ * `source-map.md`. `@injini/agent-runtime` does not depend on OD's
  * contracts workspace package.
  */
 export type AgentFixIntent =

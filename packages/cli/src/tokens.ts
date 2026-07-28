@@ -1,5 +1,5 @@
 /**
- * `@jini/core` DI token for this package's one composable service, per
+ * `@injini/core` DI token for this package's one composable service, per
  * extraction-plan §2.2 ("Kernel exports only kernel-service tokens... every
  * other token lives in its owning feature package") and following the
  * `XToken` naming precedent set by `packages/daemon/src/tokens.ts`. A pack's
@@ -7,7 +7,7 @@
  * this token to get the concrete `CommandRegistry` it registers its own
  * subcommands against.
  */
-import { token } from '@jini/core';
+import { token } from '@injini/core';
 import type { CommandRegistry } from './command-registry.js';
 
 export const CommandRegistryToken = token<CommandRegistry>('jini.cli.commandRegistry');

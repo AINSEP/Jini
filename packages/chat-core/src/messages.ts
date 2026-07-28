@@ -6,7 +6,7 @@ export type ChatRole = 'user' | 'assistant';
 /**
  * Terminal/non-terminal lifecycle of the run backing an assistant message.
  *
- * Note: this intentionally shares its name with `@jini/protocol`'s
+ * Note: this intentionally shares its name with `@injini/protocol`'s
  * `RunStatus` (a richer `{ id, state, ... }` record), which is a different
  * shape for a different layer — chat-core's `RunStatus` is the flat string
  * union a chat message stamps on itself. Consumers importing both packages

@@ -3,7 +3,7 @@
 /**
  * Scrubs secrets/PII from a stream tail before it is stored or emitted. The
  * engine provides the tail-collection mechanism but takes no opinion on the
- * scrubbing policy: a consumer injects its own redactor (e.g. `@jini/core`'s
+ * scrubbing policy: a consumer injects its own redactor (e.g. `@injini/core`'s
  * `redactSecrets`). Defaults to identity so a caller that has already scrubbed —
  * or genuinely wants the raw tail — need not pass one.
  */

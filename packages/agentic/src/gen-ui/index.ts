@@ -11,7 +11,7 @@
  * root, apart from this. See `source-map.md` for how the two came to be confused.
  *
  * Nothing here opens a connection or touches a browser global. Transport (SSE, WebSocket) belongs
- * to a host — `@jini/http`'s run-stream route is the shipped consumer.
+ * to a host — `@injini/http`'s run-stream route is the shipped consumer.
  */
 
 export {

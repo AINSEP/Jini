@@ -2,8 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ChatMessage } from '@jini/chat-core';
-import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini/ui';
+import type { ChatMessage } from '@injini/chat-core';
+import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@injini/ui';
 import { createFakeChatTransport } from '../../../react/hooks/testing/fake-transport.js';
 import { ChatPane } from '../react/components/ChatPane.js';
 import type { ChatPaneActivity, ChatPaneAgent } from '../types.js';

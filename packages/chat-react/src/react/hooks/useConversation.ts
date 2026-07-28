@@ -11,8 +11,8 @@
  * this hook never imports `fetch`/`EventSource` itself.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentEvent, ChatAttachment, ChatMessage, RunStatus } from '@jini/chat-core';
-import { isTerminalRunStatus } from '@jini/chat-core';
+import type { AgentEvent, ChatAttachment, ChatMessage, RunStatus } from '@injini/chat-core';
+import { isTerminalRunStatus } from '@injini/chat-core';
 import type { ChatTransport, RunContext } from '../../transport.js';
 import { useRunStream } from './useRunStream.js';
 

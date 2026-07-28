@@ -18,7 +18,7 @@
  * `role-marker-guard.ts`'s contamination detector, and the
  * "one file per vendor's stream-parsing shape" precedent
  * `claude-stream.ts`/`copilot-stream.ts`/`qoder-stream.ts` already
- * establish) rather than duplicating any of that inside `@jini/http` — see
+ * establish) rather than duplicating any of that inside `@injini/http` — see
  * the proposal's "real question: where does provider-specific wire-protocol
  * logic belong?" section for the placement decision this file implements.
  *
@@ -106,7 +106,7 @@ export interface AnthropicToolResult {
   readonly isError?: boolean;
 }
 
-/** Host-owned tool execution. This module only knows how to run the wire-protocol loop — what a tool actually *does* is always the caller's business (matching `@jini/http`'s `RunHttpDeps.onStarted`/`db-ops.ts`'s injected `DaemonDbOperations` "the collaborator is always supplied" convention). */
+/** Host-owned tool execution. This module only knows how to run the wire-protocol loop — what a tool actually *does* is always the caller's business (matching `@injini/http`'s `RunHttpDeps.onStarted`/`db-ops.ts`'s injected `DaemonDbOperations` "the collaborator is always supplied" convention). */
 export type AnthropicToolExecutor = (call: AnthropicToolCall) => Promise<AnthropicToolResult>;
 
 /** Why a `runAnthropicToolTurn` call ended its event stream. */
@@ -375,7 +375,7 @@ async function runSingleAnthropicRequest(
  * Runs a full Anthropic Messages API turn, including the tool-execution
  * loop when `options.executeTool` is supplied and the model requests tool
  * use. Emits a generic event stream via `options.onEvent` — a caller (e.g.
- * `@jini/http`'s `model-proxy.ts`) adapts those events onto an outbound SSE
+ * `@injini/http`'s `model-proxy.ts`) adapts those events onto an outbound SSE
  * channel; this module has no knowledge of HTTP/Express.
  *
  * Guarantees exactly one `{type: 'end'}` event per call, regardless of which

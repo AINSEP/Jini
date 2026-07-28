@@ -1,8 +1,12 @@
 {
-  "name": "@jini/daemon",
+  "name": "@injini/daemon",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/daemon" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/daemon"
+  },
   "jini": {
     "domain": "server",
     "kind": "runtime",
@@ -10,9 +14,24 @@
     "admission": "locked"
   },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -20,11 +39,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/agent-runtime": "workspace:*",
-    "@jini/core": "workspace:*",
-    "@jini/platform": "workspace:*",
-    "@jini/protocol": "workspace:*",
+    "@injini/agent-runtime": "workspace:*",
+    "@injini/core": "workspace:*",
+    "@injini/platform": "workspace:*",
+    "@injini/protocol": "workspace:*",
     "node-pty": "^1.1.0"
   },
-  "devDependencies": { "@vitest/coverage-v8": "^2.1.9" }
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9"
+  }
 }

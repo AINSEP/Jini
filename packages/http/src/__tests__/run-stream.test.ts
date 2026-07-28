@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle, type StreamSubscribeResult } from '@jini/daemon';
+import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle, type StreamSubscribeResult } from '@injini/daemon';
 import {
   handleRunStreamRequest,
   registerRunStreamRoute,

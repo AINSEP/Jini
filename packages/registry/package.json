@@ -1,8 +1,12 @@
 {
-  "name": "@jini/registry",
+  "name": "@injini/registry",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/registry" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/registry"
+  },
   "jini": {
     "domain": "capability",
     "kind": "registry",
@@ -10,12 +14,32 @@
     "admission": "incubating"
   },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
-  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "vitest run", "test:coverage": "vitest run --coverage" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
   "dependencies": {
-    "@jini/protocol": "workspace:*",
+    "@injini/protocol": "workspace:*",
     "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {

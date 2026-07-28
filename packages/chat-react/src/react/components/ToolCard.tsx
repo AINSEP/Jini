@@ -15,13 +15,13 @@
  * card and its `op-generic`-shaped answer-recovery parsing are intentionally
  * NOT ported: that mechanism only exists in OD's persisted chat history
  * pre-dating the `<question-form>` flow, which is out of scope for a fresh
- * `@jini/chat-react` consumer — an unrecognized tool name (including
+ * `@injini/chat-react` consumer — an unrecognized tool name (including
  * `AskUserQuestion`) falls through to `GenericCard`, which is a correct,
  * generic rendering for it.
  */
 import { useState } from 'react';
-import type { AgentEvent } from '@jini/chat-core';
-import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '@jini/chat-core';
+import type { AgentEvent } from '@injini/chat-core';
+import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '@injini/chat-core';
 import { useT } from '../hooks/context.js';
 import { getToolRenderer } from '../../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
@@ -64,7 +64,7 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
     }
   }
 
-  // `execute_delegated_tool` is a transport wrapper: `@jini/daemon`'s `delegated-tool-bridge.ts`
+  // `execute_delegated_tool` is a transport wrapper: `@injini/daemon`'s `delegated-tool-bridge.ts`
   // always emits a second, canonical `tool_use` named after the real Jini tool id (`page.fill`,
   // not `execute_delegated_tool`) alongside it — before calling `ToolExecutor`, so it exists even
   // when the call fails at the tool-execution layer. Showing both floods the pane with the same

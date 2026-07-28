@@ -4,7 +4,7 @@
  * `ApiError` for validation failures.
  */
 import type { Request } from 'express';
-import { createApiError, type ApiError, type ApiValidationIssue } from '@jini/protocol';
+import { createApiError, type ApiError, type ApiValidationIssue } from '@injini/protocol';
 import type { RouteInputContext } from './types.js';
 
 /**

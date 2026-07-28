@@ -29,13 +29,13 @@ importers:
 
   examples/minimal-host:
     dependencies:
-      '@jini/agent-runtime':
+      '@injini/agent-runtime':
         specifier: workspace:*
         version: link:../../packages/agent-runtime
-      '@jini/daemon':
+      '@injini/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
-      '@jini/node-host':
+      '@injini/node-host':
         specifier: workspace:*
         version: link:../../packages/node-host
 
@@ -56,7 +56,7 @@ importers:
 
   examples/reference-desktop:
     dependencies:
-      '@jini/desktop-host':
+      '@injini/desktop-host':
         specifier: workspace:*
         version: link:../../packages/desktop-host
     devDependencies:
@@ -72,34 +72,34 @@ importers:
 
   examples/reference-web:
     dependencies:
-      '@jini/agentic':
+      '@injini/agentic':
         specifier: workspace:*
         version: link:../../packages/agentic
-      '@jini/chat-core':
+      '@injini/chat-core':
         specifier: workspace:*
         version: link:../../packages/chat-core
-      '@jini/chat-react':
+      '@injini/chat-react':
         specifier: workspace:*
         version: link:../../packages/chat-react
-      '@jini/daemon':
+      '@injini/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
-      '@jini/http':
+      '@injini/http':
         specifier: workspace:*
         version: link:../../packages/http
-      '@jini/mcp':
+      '@injini/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
-      '@jini/media':
+      '@injini/media':
         specifier: workspace:*
         version: link:../../packages/media
-      '@jini/memory':
+      '@injini/memory':
         specifier: workspace:*
         version: link:../../packages/memory
-      '@jini/node-host':
+      '@injini/node-host':
         specifier: workspace:*
         version: link:../../packages/node-host
-      '@jini/protocol':
+      '@injini/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
       react:
@@ -138,7 +138,7 @@ importers:
 
   packages/agent-runtime:
     dependencies:
-      '@jini/platform':
+      '@injini/platform':
         specifier: workspace:*
         version: link:../platform
     devDependencies:
@@ -148,7 +148,7 @@ importers:
 
   packages/agentic:
     dependencies:
-      '@jini/protocol':
+      '@injini/protocol':
         specifier: workspace:*
         version: link:../protocol
     devDependencies:
@@ -161,7 +161,7 @@ importers:
 
   packages/artifacts:
     dependencies:
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -171,10 +171,10 @@ importers:
 
   packages/capability-providers:
     dependencies:
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
-      '@jini/platform':
+      '@injini/platform':
         specifier: workspace:*
         version: link:../platform
       better-sqlite3:
@@ -196,7 +196,7 @@ importers:
 
   packages/chat-core:
     dependencies:
-      '@jini/agentic':
+      '@injini/agentic':
         specifier: workspace:*
         version: link:../agentic
     devDependencies:
@@ -206,16 +206,16 @@ importers:
 
   packages/chat-react:
     dependencies:
-      '@jini/agent-runtime':
+      '@injini/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
-      '@jini/agentic':
+      '@injini/agentic':
         specifier: workspace:*
         version: link:../agentic
-      '@jini/chat-core':
+      '@injini/chat-core':
         specifier: workspace:*
         version: link:../chat-core
-      '@jini/ui':
+      '@injini/ui':
         specifier: workspace:*
         version: link:../ui
     devDependencies:
@@ -249,16 +249,16 @@ importers:
 
   packages/cli:
     dependencies:
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
-      '@jini/sidecar':
+      '@injini/sidecar':
         specifier: workspace:*
         version: link:../sidecar
 
   packages/composio:
     dependencies:
-      '@jini/protocol':
+      '@injini/protocol':
         specifier: workspace:*
         version: link:../protocol
 
@@ -270,16 +270,16 @@ importers:
 
   packages/daemon:
     dependencies:
-      '@jini/agent-runtime':
+      '@injini/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
-      '@jini/platform':
+      '@injini/platform':
         specifier: workspace:*
         version: link:../platform
-      '@jini/protocol':
+      '@injini/protocol':
         specifier: workspace:*
         version: link:../protocol
       node-pty:
@@ -292,17 +292,17 @@ importers:
 
   packages/deploy:
     dependencies:
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
-      '@jini/platform':
+      '@injini/platform':
         specifier: workspace:*
         version: link:../platform
       undici:
         specifier: ^7.25.0
         version: 7.28.0
     devDependencies:
-      '@jini/daemon':
+      '@injini/daemon':
         specifier: workspace:*
         version: link:../daemon
       '@vitest/coverage-v8':
@@ -311,7 +311,7 @@ importers:
 
   packages/desktop-host:
     dependencies:
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -331,19 +331,19 @@ importers:
 
   packages/http:
     dependencies:
-      '@jini/agent-runtime':
+      '@injini/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
-      '@jini/daemon':
+      '@injini/daemon':
         specifier: workspace:*
         version: link:../daemon
-      '@jini/platform':
+      '@injini/platform':
         specifier: workspace:*
         version: link:../platform
-      '@jini/protocol':
+      '@injini/protocol':
         specifier: workspace:*
         version: link:../protocol
       express:
@@ -359,10 +359,10 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@jini/cli':
+      '@injini/cli':
         specifier: workspace:*
         version: link:../cli
-      '@jini/platform':
+      '@injini/platform':
         specifier: workspace:*
         version: link:../platform
       '@modelcontextprotocol/sdk':
@@ -374,7 +374,7 @@ importers:
 
   packages/media:
     dependencies:
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
       better-sqlite3:
@@ -396,22 +396,22 @@ importers:
 
   packages/node-host:
     dependencies:
-      '@jini/agent-runtime':
+      '@injini/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
-      '@jini/daemon':
+      '@injini/daemon':
         specifier: workspace:*
         version: link:../daemon
-      '@jini/http':
+      '@injini/http':
         specifier: workspace:*
         version: link:../http
-      '@jini/sidecar':
+      '@injini/sidecar':
         specifier: workspace:*
         version: link:../sidecar
-      '@jini/sqlite':
+      '@injini/sqlite':
         specifier: workspace:*
         version: link:../sqlite
       better-sqlite3:
@@ -453,7 +453,7 @@ importers:
 
   packages/registry:
     dependencies:
-      '@jini/protocol':
+      '@injini/protocol':
         specifier: workspace:*
         version: link:../protocol
       better-sqlite3:
@@ -466,7 +466,7 @@ importers:
 
   packages/renderers-react:
     dependencies:
-      '@jini/chat-core':
+      '@injini/chat-core':
         specifier: workspace:*
         version: link:../chat-core
       micromark:
@@ -509,7 +509,7 @@ importers:
 
   packages/sidecar:
     dependencies:
-      '@jini/core':
+      '@injini/core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -519,7 +519,7 @@ importers:
 
   packages/sqlite:
     dependencies:
-      '@jini/daemon':
+      '@injini/daemon':
         specifier: workspace:*
         version: link:../daemon
       better-sqlite3:
@@ -538,10 +538,10 @@ importers:
       '@excalidraw/excalidraw':
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
-      '@jini/agentic':
+      '@injini/agentic':
         specifier: workspace:*
         version: link:../agentic
-      '@jini/renderers-react':
+      '@injini/renderers-react':
         specifier: workspace:*
         version: link:../renderers-react
       '@lexical/react':

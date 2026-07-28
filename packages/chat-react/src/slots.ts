@@ -18,7 +18,7 @@
  * `react/`.
  */
 import type { ReactNode } from 'react';
-import type { ChatAttachment } from '@jini/chat-core';
+import type { ChatAttachment } from '@injini/chat-core';
 import type { ArtifactFile } from './artifact-types.js';
 import type { FeedbackChange, OnFeedback } from './transport.js';
 

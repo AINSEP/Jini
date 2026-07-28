@@ -1,5 +1,5 @@
 /**
- * @module @jini/diagnostics
+ * @module @injini/diagnostics
  *
  * Diagnostics-bundle tooling shared by any host application's HTTP and desktop
  * export surfaces: endpoint constants, JSON/text secret redaction, log-source

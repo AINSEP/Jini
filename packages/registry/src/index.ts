@@ -1,11 +1,11 @@
 /**
- * @module @jini/registry
+ * @module @injini/registry
  *
  * Root barrel for pluggable content-registry backend implementations
  * (`static`/`github`/`database`) plus the shared version-resolution helpers
  * they build on. Wire types (`RegistryEntry`, `RegistryManifest`,
- * `RegistryBackend`, ...) live in `@jini/protocol`; this package only adds
- * concrete backend logic, matching `@jini/sqlite`'s split (protocol defines
+ * `RegistryBackend`, ...) live in `@injini/protocol`; this package only adds
+ * concrete backend logic, matching `@injini/sqlite`'s split (protocol defines
  * the port, a leaf package implements adapters against it).
  */
 export type { ParsedRegistrySpecifier, ResolvedRegistryEntryVersion } from './versioning.js';

@@ -1,8 +1,12 @@
 {
-  "name": "@jini/desktop-host",
+  "name": "@injini/desktop-host",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/desktop-host" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/desktop-host"
+  },
   "jini": {
     "domain": "platform",
     "kind": "host",
@@ -11,11 +15,27 @@
   },
   "type": "module",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./bridge-testing": { "types": "./dist/bridge-testing.d.ts", "import": "./dist/bridge-testing.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./bridge-testing": {
+      "types": "./dist/bridge-testing.d.ts",
+      "import": "./dist/bridge-testing.js"
+    }
   },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -23,7 +43,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/core": "workspace:*"
+    "@injini/core": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

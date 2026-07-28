@@ -16,7 +16,7 @@ import { retrieve, type ScoredItem } from './retrieve.js';
 /**
  * Optional natural-language summary step.
  *
- * Absent by default. `@jini/memory`'s `llm-provider` is the primitive that would back this in a
+ * Absent by default. `@injini/memory`'s `llm-provider` is the primitive that would back this in a
  * real deployment — a multi-vendor "call an LLM, get strict JSON back" call that already exists.
  */
 export type Summarizer = (question: string, items: readonly SchemaOrgItem[]) => Promise<string>;

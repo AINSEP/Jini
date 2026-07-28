@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createFrontendSessionRegistry, type FrontendSessionRegistry } from '@jini/daemon';
+import { createFrontendSessionRegistry, type FrontendSessionRegistry } from '@injini/daemon';
 import type { Request, Response } from 'express';
 
 import {

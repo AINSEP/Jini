@@ -4,7 +4,7 @@
  * HTTP-client-mode transport plumbing, ported from OD's
  * `apps/daemon/src/cli.ts` `surfaceFetchError`/`postJsonToDaemon` (see
  * `source-map.md`). This is the "HTTP-client mode default" half of
- * extraction-plan §3's `@jini/cli` spec: fetch a daemon route, translate a
+ * extraction-plan §3's `@injini/cli` spec: fetch a daemon route, translate a
  * network failure or a daemon error envelope into the structured exit-code
  * contract from `errors.ts`.
  */
@@ -259,7 +259,7 @@ export async function postJsonToDaemon(
 /**
  * `GET` `<base><route>` and return the parsed JSON response. Same transport contract as
  * {@link postJsonToDaemon} (timeout, response-size cap, structured-error mapping, redaction) with
- * no request body — for read-only daemon routes such as `@jini/http`'s `GET /api/runs` and
+ * no request body — for read-only daemon routes such as `@injini/http`'s `GET /api/runs` and
  * `GET /api/runs/:runId`.
  */
 export async function getJsonFromDaemon(

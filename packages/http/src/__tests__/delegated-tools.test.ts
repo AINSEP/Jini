@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createToolRegistry, type Principal } from '@jini/core';
+import { createToolRegistry, type Principal } from '@injini/core';
 import {
   createInMemoryEventLog,
   createRunLifecycle,
   createToolExecutor,
   type RunLifecycle,
   type ToolExecutor,
-} from '@jini/daemon';
+} from '@injini/daemon';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   delegatedToolExecuteRoute,

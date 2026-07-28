@@ -4,9 +4,9 @@ import * as NodeHostBarrel from '../index.js';
 /**
  * A barrel-only smoke test: every other test in this package imports its target module directly,
  * so the root barrel itself was never actually exercised. Proves the public surface a real host
- * actually imports (`from '@jini/node-host'`) really re-exports what this package's docs promise.
+ * actually imports (`from '@injini/node-host'`) really re-exports what this package's docs promise.
  */
-describe('@jini/node-host barrel', () => {
+describe('@injini/node-host barrel', () => {
   it('re-exports createLocalNodeDaemon', () => {
     expect(typeof NodeHostBarrel.createLocalNodeDaemon).toBe('function');
   });

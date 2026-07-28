@@ -6,7 +6,7 @@
  * `DbProvider` (defined in `../db.ts`) is implementable and unit-testable.
  * Never wire this into anything that handles real user data.
  *
- * A real adapter (`@jini/sqlite`, Supabase Postgres) implements the same
+ * A real adapter (`@injini/sqlite`, Supabase Postgres) implements the same
  * `DbProvider` interface without importing this file — this is
  * deliberately not that adapter (see the scope note in `source-map.md`).
  */

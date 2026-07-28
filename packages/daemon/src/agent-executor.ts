@@ -3,15 +3,15 @@
  * missing piece: *"It does not spawn or signal a subprocess... A driver...
  * calls `emit()` for agent/stdout/stderr/error events, observes cancellation
  * via `onCancelRequested`, and calls `finish()` once it knows the real
- * outcome."* This module is that driver — it wires `@jini/agent-runtime`'s
+ * outcome."* This module is that driver — it wires `@injini/agent-runtime`'s
  * registry/launch-resolution/stream-parsers (previously a complete but
  * disconnected library, zero callers anywhere outside its own package) into
  * a real `node:child_process` spawn, feeding both `RunLifecycle.emit()` and
- * this package's own `@jini/protocol` event envelope.
+ * this package's own `@injini/protocol` event envelope.
  *
  * ## v1 scope: 23 of 24 registered agent defs
  *
- * `@jini/agent-runtime`'s registry ships 24 built-in defs across four
+ * `@injini/agent-runtime`'s registry ships 24 built-in defs across four
  * `streamFormat` families. The JSON-stream-parser family — the four
  * `createXStreamHandler`-shaped parsers (`claude-stream-json`,
  * `json-event-stream`, `copilot-stream-json`, `qoder-stream-json`), covering
@@ -70,9 +70,9 @@
  * byte-identical to pre-gap-4 behavior — every `'failed'` outcome
  * resumable:false). OD's ~20-vendor-CLI text-matching failure classifier was
  * deliberately never ported (see `run/core/failure-taxonomy.ts`'s own doc and
- * `source-map.md`). The real zero-config classifier lives in `@jini/daemon`'s
+ * `source-map.md`). The real zero-config classifier lives in `@injini/daemon`'s
  * `run/core/retry.ts` (`resumableFromProcessExit`/`classifyProcessExitFailure`)
- * and is wired in by `@jini/node-host`'s `createLocalNodeDaemon` — see that
+ * and is wired in by `@injini/node-host`'s `createLocalNodeDaemon` — see that
  * package's own source-map.md, and `run/core/retry.ts`'s own doc for the
  * classification policy and its 2026-07-22 merge-time reconciliation against
  * a second, independently-built (and rejected) classifier that once lived in
@@ -81,9 +81,9 @@
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { promises as fsPromises } from 'node:fs';
 import { join } from 'node:path';
-import { redactSecrets } from '@jini/core';
-import type { Principal, RunRef } from '@jini/core';
-import type { JournalEntry, RunAgentPayload, RunErrorPayload } from '@jini/protocol';
+import { redactSecrets } from '@injini/core';
+import type { Principal, RunRef } from '@injini/core';
+import type { JournalEntry, RunAgentPayload, RunErrorPayload } from '@injini/protocol';
 import {
   applyAgentLaunchEnv,
   createClaudeStreamHandler,
@@ -105,7 +105,7 @@ import {
   type PreparedPromptFile,
   type RuntimeAgentDef,
   type RuntimeContext,
-} from '@jini/agent-runtime';
+} from '@injini/agent-runtime';
 import {
   collectProcessTreePids,
   createCommandInvocation,
@@ -113,7 +113,7 @@ import {
   stopProcesses,
   type ProcessSnapshot,
   type StopProcessesResult,
-} from '@jini/platform';
+} from '@injini/platform';
 import { classifyRunCloseStatus } from './close-status.js';
 import { resolveContinuationTransport } from './continuation/continuation-transport.js';
 import type { RunByteJournal } from './continuation/journal.js';
@@ -123,7 +123,7 @@ import type { ToolExecutor } from './tool-executor.js';
 import type { RunLifecycle } from './run-lifecycle.js';
 
 /**
- * A parsed, loosely-typed event as produced by one of `@jini/agent-runtime`'s
+ * A parsed, loosely-typed event as produced by one of `@injini/agent-runtime`'s
  * four stream-parser factories — each parser's `onEvent` callback receives
  * `Record<string, unknown>` with a `type` discriminant, not a typed union.
  */
@@ -211,7 +211,7 @@ function createStreamHandlerForDef(
  * produce plus defensively malformed/non-record input.
  *
  * `'agent'`'s optional `sessionId` (gap 5, session resume — see
- * `RunEndPayload.sessionRef`'s doc in `@jini/protocol`) is a daemon-internal
+ * `RunEndPayload.sessionRef`'s doc in `@injini/protocol`) is a daemon-internal
  * side channel, not part of the `RunAgentPayload` wire payload itself:
  * OpenCode's `sessionID`/Codex's `thread_id`/Qoder's and Claude's
  * `session_id` all arrive on a `'status'` event alongside fields
@@ -469,7 +469,7 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
 
 /**
  * Resolves once `child` emits `'spawn'`, or rejects on `'error'`. Replicates
- * `@jini/platform`'s own internal (non-exported) `waitForChildSpawn` race
+ * `@injini/platform`'s own internal (non-exported) `waitForChildSpawn` race
  * idiom inline — see that module's `spawnLoggedProcess`/`spawnBackgroundProcess`.
  * @param child - The just-spawned `ChildProcess` to race.
  * @returns A promise settling on the first of `'spawn'`/`'error'` to fire.
@@ -492,7 +492,7 @@ interface TerminateChildTreeDeps {
 /**
  * Enumerates `child`'s full descendant process tree and stops it (SIGTERM →
  * SIGKILL escalation, via the injected `stopProcesses` port).
- * @param deps - The process-snapshot/tree-collection/stop ports (real `@jini/platform` implementations by default — see {@link CreateAgentExecutorOptions}).
+ * @param deps - The process-snapshot/tree-collection/stop ports (real `@injini/platform` implementations by default — see {@link CreateAgentExecutorOptions}).
  * @param child - The child whose descendant tree should be terminated.
  * @returns Resolves once escalation completes (or immediately, as a no-op, if `child.pid` was never assigned — spawn never actually started).
  * @complexity O(p) in the number of live OS processes (`listProcessSnapshots`'s own cost) plus O(1) escalation rounds.
@@ -519,7 +519,7 @@ export interface AgentCleanupFailureContext {
 function defaultCleanupFailureSink(context: AgentCleanupFailureContext): void {
   // eslint-disable-next-line no-console
   console.error(
-    `[@jini/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})`,
+    `[@injini/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})`,
     redactSecrets(errorMessage(context.error)),
   );
 }
@@ -575,7 +575,7 @@ function sentJournalEntry(content: string): JournalEntry {
 /**
  * Gap 1's byte-journal record for bytes a child agent process produced on `channel` — always
  * `trust: 'untrusted'`, since this is attacker-influenceable agent output the kernel does not
- * control (see `@jini/protocol`'s `JournalEntry` doc on why `trust` exists).
+ * control (see `@injini/protocol`'s `JournalEntry` doc on why `trust` exists).
  */
 function receivedJournalEntry(channel: 'stdout' | 'stderr', content: string): JournalEntry {
   return { content, provenance: { source: 'agent', channel }, trust: 'untrusted' };
@@ -617,10 +617,10 @@ export interface ContinuationOptions {
  * commit message named as undone: "Item 4 ... NOT done yet"). `resolveContinuationTransport`
  * already resolves `'mcp-callback'` for every def with `externalMcpInjection !== undefined`, but
  * nothing in this file ever *acted* on that resolution — `execute_delegated_tool`
- * (`@jini/mcp`'s `../server/tools/delegated-tool.ts`) only does anything useful once the spawned
+ * (`@injini/mcp`'s `../server/tools/delegated-tool.ts`) only does anything useful once the spawned
  * CLI's own client actually launches `jini-mcp` as its MCP server subprocess, and the only
  * `externalMcpInjection` strategy that mechanism is wired for here is `'claude-mcp-json'`
- * (`claude`/`codebuddy` — see `@jini/agent-runtime`'s `types.ts` doc on the other three
+ * (`claude`/`codebuddy` — see `@injini/agent-runtime`'s `types.ts` doc on the other three
  * strategies: `'acp-merge'` delivers `mcpServers` through the ACP `session/new` params
  * `wireAcpLifecycle`/`attachAcpSession` already carry, and `'opencode-env-content'`/
  * `'mimo-env-content'` deliver through spawn-env content, neither of which needs or wants a
@@ -708,7 +708,7 @@ function defaultWriteMcpJsonFile(path: string, content: string): Promise<void> {
 
 /**
  * Writes (merging, never clobbering — see {@link mergeMcpJsonContent}) `.mcp.json` into `cwd`
- * before spawn, so Claude Code's own spawn-time config load (confirmed in `@jini/agent-runtime`'s
+ * before spawn, so Claude Code's own spawn-time config load (confirmed in `@injini/agent-runtime`'s
  * `defs/claude.ts` doc: "Claude Code auto-loads `.mcp.json` from the project cwd at spawn")
  * discovers the `jini-mcp` bridge server without this driver needing to pass any CLI flag at all.
  * A no-op when `mcpJsonInjection` is `undefined` (opt-in, see `CreateAgentExecutorOptions`'s doc)
@@ -763,7 +763,7 @@ async function writeMcpJsonForRun(
  * status already routes to `'cancelled'` before `classifyFailure` is ever
  * consulted — see each `wire*Lifecycle` close handler); `artifactWriteSeen`/
  * `liveArtifactSeen` have no real signal to derive them from at all —
- * `@jini/protocol`'s `RunAgentEventPayload` union (`events.ts`) has no
+ * `@injini/protocol`'s `RunAgentEventPayload` union (`events.ts`) has no
  * `'artifact'`/`'live_artifact'` event kind yet (Jini's own generalized
  * GenUI/artifact surface isn't built — see this repo's "A2UI full protocol
  * deferred" scope note), unlike OD, which `RunRetrySideEffectState`'s shape
@@ -1368,17 +1368,17 @@ function writePromptToStdin(def: RuntimeAgentDef, child: ChildProcess, prompt: s
 
 export interface CreateAgentExecutorOptions {
   readonly lifecycle: RunLifecycle;
-  /** @default the real `@jini/agent-runtime` registry lookup */
+  /** @default the real `@injini/agent-runtime` registry lookup */
   readonly getAgentDef?: typeof getAgentDef;
-  /** @default the real `@jini/agent-runtime` launch resolver */
+  /** @default the real `@injini/agent-runtime` launch resolver */
   readonly resolveAgentLaunch?: typeof resolveAgentLaunch;
-  /** @default the real `@jini/agent-runtime` PATH-env composer */
+  /** @default the real `@injini/agent-runtime` PATH-env composer */
   readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
-  /** @default the real `@jini/platform` cross-platform invocation builder */
+  /** @default the real `@injini/platform` cross-platform invocation builder */
   readonly createCommandInvocation?: typeof createCommandInvocation;
   /** @default `node:child_process`'s `spawn` */
   readonly spawn?: typeof nodeSpawn;
-  /** @default the real `@jini/agent-runtime` ACP session transport */
+  /** @default the real `@injini/agent-runtime` ACP session transport */
   readonly attachAcpSession?: typeof attachAcpSession;
   /**
    * Host-owned policy for ACP agents' native tool calls. The ACP agent still
@@ -1386,7 +1386,7 @@ export interface CreateAgentExecutorOptions {
    * to `createDelegatedToolBridge`, not this permission callback.
    */
   readonly acpPermissionHandler?: AcpPermissionHandler;
-  /** @default the real `@jini/agent-runtime` pi-rpc session transport */
+  /** @default the real `@injini/agent-runtime` pi-rpc session transport */
   readonly attachPiRpcSession?: typeof attachPiRpcSession;
   /**
    * Stages a `promptViaFile` def's (grok-build) composed prompt to a temp
@@ -1394,14 +1394,14 @@ export interface CreateAgentExecutorOptions {
    * (`fs.mkdtemp`/`fs.writeFile`/`fs.rm`) — injectable so tests can drive
    * it without real disk I/O, matching this factory's "no real subprocess,
    * filesystem, or PATH lookup by default in tests" convention.
-   * @default the real `@jini/agent-runtime` prompt-file stager
+   * @default the real `@injini/agent-runtime` prompt-file stager
    */
   readonly preparePromptFileForAgent?: typeof preparePromptFileForAgent;
-  /** @default the real `@jini/platform` process-snapshot enumerator */
+  /** @default the real `@injini/platform` process-snapshot enumerator */
   readonly listProcessSnapshots?: typeof listProcessSnapshots;
-  /** @default the real `@jini/platform` descendant-PID collector */
+  /** @default the real `@injini/platform` descendant-PID collector */
   readonly collectProcessTreePids?: typeof collectProcessTreePids;
-  /** @default the real `@jini/platform` SIGTERM→SIGKILL escalator */
+  /** @default the real `@injini/platform` SIGTERM→SIGKILL escalator */
   readonly stopProcesses?: typeof stopProcesses;
   /** Host-owned sink for a process-tree cleanup failure (SEC-007) — e.g. EPERM stopping descendants. @default logs a redacted diagnostic via `console.error` */
   readonly onCleanupFailure?: (context: AgentCleanupFailureContext) => void;
@@ -1447,7 +1447,7 @@ export interface CreateAgentExecutorOptions {
 
 /**
  * Creates the `AgentExecutor` reference implementation: an in-process
- * `RunLifecycle` driver over real (by default) `@jini/agent-runtime`
+ * `RunLifecycle` driver over real (by default) `@injini/agent-runtime`
  * registry lookup, launch resolution, and stream parsing, plus a real
  * `node:child_process.spawn`. Every collaborator is an injectable seam
  * (matching this package's established convention — see

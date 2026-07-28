@@ -20,7 +20,7 @@
  * caller rather than read from a global store).
  */
 import type { Express } from 'express';
-import { createApiError } from '@jini/protocol';
+import { createApiError } from '@injini/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { err, ok, type Result } from './types.js';
 

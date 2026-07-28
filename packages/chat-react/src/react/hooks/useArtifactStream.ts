@@ -2,7 +2,7 @@
  * @module useArtifactStream
  *
  * Streaming artifact buffer + resolved renderer + partial-vs-complete state,
- * built purely over a message's text content via `@jini/chat-core`'s
+ * built purely over a message's text content via `@injini/chat-core`'s
  * `parseArtifacts` (completed `<artifact>` blocks) and `splitStreamingArtifact`
  * (the currently in-flight one, if any) plus an injected `RendererRegistry`.
  * Per `foundry/docs/jini-port/recon/r4b-webui-design.md` §4.
@@ -10,10 +10,10 @@
  * `ArtifactFile`/`ArtifactRenderer`/`RendererRegistry` are the local
  * placeholder shapes from `../../artifact-types.js` — see that file's
  * TODO(renderers-react) header for the follow-up to re-point this hook at
- * `@jini/renderers-react`'s real exports.
+ * `@injini/renderers-react`'s real exports.
  */
 import { useMemo } from 'react';
-import { parseArtifacts, splitStreamingArtifact } from '@jini/chat-core';
+import { parseArtifacts, splitStreamingArtifact } from '@injini/chat-core';
 import type { ArtifactFile, ArtifactRenderMatch, RendererRegistry } from '../../artifact-types.js';
 
 export interface ArtifactStreamItem {

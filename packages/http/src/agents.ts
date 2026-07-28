@@ -7,9 +7,9 @@
  * and probe again.
  *
  * `listAgents` is injected (matching `daemon-status.ts`/`active-context.ts`'s
- * DI convention) rather than this module importing `@jini/agent-runtime`
+ * DI convention) rather than this module importing `@injini/agent-runtime`
  * directly — a host typically already has that package's `AGENT_DEFS` array
- * in scope and just needs to project it, and this keeps `@jini/http` from
+ * in scope and just needs to project it, and this keeps `@injini/http` from
  * taking on a dependency on subprocess discovery. The host owns probing,
  * timeouts, caching, PATH/env policy, and the projection of spawn-only
  * metadata; this transport only serializes the safe summary.

@@ -1,7 +1,7 @@
 /**
- * Test-only narrow barrel used by `@jini/chat-react`'s Vitest resolver.
+ * Test-only narrow barrel used by `@injini/chat-react`'s Vitest resolver.
  *
- * Production consumers import the public `@jini/ui` barrel. This entry keeps
+ * Production consumers import the public `@injini/ui` barrel. This entry keeps
  * the real chat-facing components testable without evaluating unrelated
  * browser-only editor dependencies in Node.
  */

@@ -13,7 +13,7 @@
  * Deliberately **not** re-exported from `index.ts`. `index.ts` is this package's library
  * barrel — importing it must be side-effect-free. This file's whole purpose is a
  * process.argv-parsing, stdout/stderr-writing, potentially process.exit-calling side effect;
- * bundling that into the library barrel would mean simply `import`ing `@jini/cli` as a
+ * bundling that into the library barrel would mean simply `import`ing `@injini/cli` as a
  * dependency could start acting like a CLI invocation. The guarded top-level block at the
  * bottom of this file (only runs `main()` for real when this module is the actual process
  * entrypoint, not merely imported) exists for the same reason, one level down: importing the
@@ -22,12 +22,12 @@
  *
  * **Daemon-URL resolution.** `resolveDaemonUrl` (`daemon-url.ts`) has no baked-in default —
  * this package has never had a locked default daemon port to fall back to (see
- * `source-map.md`: `@jini/node-host`'s `createLocalNodeDaemon` binds an ephemeral port, not a
+ * `source-map.md`: `@injini/node-host`'s `createLocalNodeDaemon` binds an ephemeral port, not a
  * fixed one). This binary wires the three real, already-built pieces together instead of
  * inventing a new one: an explicit `--daemon-url <url>` flag (highest precedence), a
  * `JINI_DAEMON_URL` env var, and — when `--data-dir <path>` or `--registry-path <path>` is
  * given — `local-daemon-discovery.ts`'s `createLocalDaemonDiscovery`, the CLI-side reader for
- * a `@jini/node-host`-written on-disk daemon registry record. That discovery module's own doc
+ * a `@injini/node-host`-written on-disk daemon registry record. That discovery module's own doc
  * already flagged it as built-but-unconsumed ("no pack has registered against
  * `CommandRegistry` yet"); this is that consumer. If none of the three resolve, there is still
  * no silent fallback — `resolveDaemonUrl` throws, and this file's own catch boundary (below)
@@ -113,7 +113,7 @@ const ROOT_USAGE = renderUsage({
   description: 'CLI transport for a Jini daemon over HTTP. Commands: run, daemon, version.',
   options: [
     { flag: '--daemon-url <url>', description: 'Explicit daemon base URL. Takes precedence over JINI_DAEMON_URL and local discovery.' },
-    { flag: '--data-dir <path>', description: "Resolve a locally running daemon's URL from this data directory's on-disk registry (see @jini/node-host's createLocalNodeDaemon)." },
+    { flag: '--data-dir <path>', description: "Resolve a locally running daemon's URL from this data directory's on-disk registry (see @injini/node-host's createLocalNodeDaemon)." },
     { flag: '--registry-path <path>', description: "Exact registry file path, overriding --data-dir's derived default." },
     { flag: '--help, -h', description: 'Show this help.' },
     { flag: '--version, -v', description: 'Print the running daemon\'s version (alias for "jini version"; recognized only as the first argument).' },

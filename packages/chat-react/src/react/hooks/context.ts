@@ -10,8 +10,8 @@
  *
  * Every context defaults to a safe no-op/passthrough so a component can be
  * unit-tested standalone (no `<JiniChatProvider>` mounted) — mirrors
- * `@jini/ui`'s `useI18n`/`useT` passthrough convention, reimplemented
- * locally here since `@jini/chat-react` cannot depend on `@jini/ui` (not an
+ * `@injini/ui`'s `useI18n`/`useT` passthrough convention, reimplemented
+ * locally here since `@injini/chat-react` cannot depend on `@injini/ui` (not an
  * allowed dependency per `foundry/docs/jini-port/recon/r4b-webui-design.md` §1).
  */
 import { createContext, useContext } from 'react';

@@ -13,7 +13,7 @@
  * Realtime). The in-memory reference implementation
  * (`createInMemoryRealtimeProvider`) is a separate, non-production stub that
  * lives under `src/unsafe-reference/`, exported only from the separate
- * `@jini/capability-providers/unsafe-reference` entry point — see that
+ * `@injini/capability-providers/unsafe-reference` entry point — see that
  * directory's `index.ts` header for the full warning.
  */
 import { WebSocketServer, type ServerOptions } from 'ws';

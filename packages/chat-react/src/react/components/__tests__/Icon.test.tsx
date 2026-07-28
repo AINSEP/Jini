@@ -5,7 +5,7 @@ import { Icon } from '../Icon.js';
 describe('Icon', () => {
   it('renders the attach glyph', () => {
     // No current chat-react component wires up name="attach" (Composer's
-    // attach button uses @jini/ui's RemixIcon instead), but it is part of
+    // attach button uses @injini/ui's RemixIcon instead), but it is part of
     // the exported IconName union other consumers of this component may
     // still pass, so it gets a direct render test rather than being cut.
     const { container } = render(<Icon name="attach" />);

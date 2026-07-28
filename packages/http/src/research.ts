@@ -47,13 +47,13 @@
  *
  * **Credential resolution**: `resolveCredentials` defaults to this transport's narrow
  * `TAVILY_API_KEY` environment seam. A host with its own secrets layer supplies its own resolver
- * instead; `@jini/http` deliberately does not depend on the incubating media implementation
+ * instead; `@injini/http` deliberately does not depend on the incubating media implementation
  * package. Note OD's real env-var precedence is
  * `['OD_TAVILY_API_KEY', 'TAVILY_API_KEY']` (checked live via `apps/daemon/tests/research.test.ts`'s
- * `TAVILY_ENV_KEYS`) — this package's own `@jini/media#PROVIDER_CREDENTIAL_ENV_VARS.tavily` only
+ * `TAVILY_ENV_KEYS`) — this package's own `@injini/media#PROVIDER_CREDENTIAL_ENV_VARS.tavily` only
  * lists `['TAVILY_API_KEY']`, deliberately dropping the `OD_`-prefixed variant: this repo's own
  * `AGENTS.md` boundary rule bans product-identity strings (including the `OD_` prefix) inside
- * `packages/@jini/**`, so that omission is a hard constraint, not a port gap.
+ * `packages/@injini/**`, so that omission is a hard constraint, not a port gap.
  *
  * **Missing credentials is a clean `NOT_CONFIGURED` (503), not an `INTERNAL_ERROR`.** No API key
  * configured is an expected, non-exceptional state (matching `connectors.ts`'s "capability exists,
@@ -88,16 +88,16 @@
  * through `onInternalError` (defaults to `console.error`, matching every other route pack), and
  * surfaced to the caller as a generic `INTERNAL_ERROR` — the raw error message (which can echo
  * request details) is never sent to the HTTP caller directly. `redactSecrets` (reused from
- * `@jini/agent-runtime`'s `connection-guard.ts`, already reachable via this package's existing
- * `@jini/agent-runtime` dependency — the same "shared primitive, one implementation" reuse this
+ * `@injini/agent-runtime`'s `connection-guard.ts`, already reachable via this package's existing
+ * `@injini/agent-runtime` dependency — the same "shared primitive, one implementation" reuse this
  * task's agent-runtime work applied to `sse-decode.ts`/`turn-end-guard.ts`) strips the bearer
  * token out of any upstream error text before it is even logged, belt-and-braces alongside the
  * generic-message substitution.
  */
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import { redactSecrets, validateBaseUrl } from '@jini/agent-runtime';
-import { createApiError } from '@jini/protocol';
+import { redactSecrets, validateBaseUrl } from '@injini/agent-runtime';
+import { createApiError } from '@injini/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -149,7 +149,7 @@ export interface ResearchHttpDeps {
 
 function defaultInternalErrorSink(context: ResearchInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini/http] internal error (research/search, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@injini/http] internal error (research/search, correlationId=${context.correlationId})`, context.error);
 }
 
 async function defaultResolveCredentials(providerId: string): Promise<ResearchProviderCredentials> {

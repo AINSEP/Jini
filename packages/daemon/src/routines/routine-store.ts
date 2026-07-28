@@ -1,10 +1,10 @@
 /**
- * `RoutineStore` — the CRUD + run-history persistence port for `@jini/http`'s routine routes.
+ * `RoutineStore` — the CRUD + run-history persistence port for `@injini/http`'s routine routes.
  * Designed the same way `../event-log.js`'s `EventLog` is designed (that module's own doc
  * comment is the explicit template named by the porting proposal,
  * `ADS-memory/reports/proposals/PROP-http-route-packs-automation-routines-2026-07-21.md`): a
  * storage-agnostic interface plus an in-memory reference implementation, async-only from day one
- * (extraction-plan §2.6) so a durable `@jini/sqlite` adapter is a drop-in swap later without an
+ * (extraction-plan §2.6) so a durable `@injini/sqlite` adapter is a drop-in swap later without an
  * API break.
  *
  * No such port existed anywhere in this repo before this file — OD's own `routine.ts` route file
@@ -21,7 +21,7 @@
  * mirrors that same split: `RoutineStore` owns Routine CRUD and *read-only* run history
  * (`listRuns`/`getLatestRun`); it does not write run records — that stays the scheduler's job via
  * its own separately-injected `RoutinePersistence`. A host wiring both together against one real
- * durable table (a future `@jini/sqlite` adapter) is host-level integration wiring, the same way
+ * durable table (a future `@injini/sqlite` adapter) is host-level integration wiring, the same way
  * `runs.ts`'s `onStarted` driver is host-supplied rather than built into `RunLifecycle` itself —
  * not attempted here, out of this port's scope.
  */
@@ -52,9 +52,9 @@ export interface RoutineUpdateInput {
 }
 
 /**
- * Storage-agnostic CRUD + read-only run-history port for routines. `@jini/daemon` ships
+ * Storage-agnostic CRUD + read-only run-history port for routines. `@injini/daemon` ships
  * {@link createInMemoryRoutineStore} as the reference implementation; a durable adapter
- * (`@jini/sqlite`, future work) implements the same interface.
+ * (`@injini/sqlite`, future work) implements the same interface.
  */
 export interface RoutineStore {
   list(): Promise<readonly Routine[]>;
@@ -134,7 +134,7 @@ function cloneRoutine(routine: Routine): Routine {
 /**
  * Reference `RoutineStore` implementation: an in-process `Map` of routines plus a flat array of
  * runs, no durable copy — matching `createInMemoryEventLog`'s own scope (a real persistent
- * adapter is `@jini/sqlite`'s job).
+ * adapter is `@injini/sqlite`'s job).
  *
  * @complexity `get`/`create`/`update`/`delete` are O(1). `list` is O(n log n) (stable id-sort for
  * deterministic ordering). `listRuns`/`getLatestRun` are O(m log m) in the number of runs

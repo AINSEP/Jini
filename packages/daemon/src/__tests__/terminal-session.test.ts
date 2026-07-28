@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini/core';
+import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@injini/core';
 import type {
   ensureSpawnHelperExecutable as EnsureSpawnHelperExecutableFn,
   spawnHelperCandidatePaths as SpawnHelperCandidatePathsFn,
@@ -7,7 +7,7 @@ import type {
   PtySpawn,
   PtySpawnOptions,
   TerminalSseSink,
-} from '@jini/platform';
+} from '@injini/platform';
 import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
 import {
   createTerminalSessionManager,
@@ -26,8 +26,8 @@ import {
 // filesystem by default in tests" convention (see `agent-executor.ts`'s injectable `spawn`).
 const spawnHelperCandidatePathsMock = vi.fn<typeof SpawnHelperCandidatePathsFn>(() => ['/fake/candidate/spawn-helper']);
 const ensureSpawnHelperExecutableMock = vi.fn<typeof EnsureSpawnHelperExecutableFn>();
-vi.mock('@jini/platform', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini/platform')>();
+vi.mock('@injini/platform', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@injini/platform')>();
   return {
     ...actual,
     spawnHelperCandidatePaths: (...args: Parameters<typeof actual.spawnHelperCandidatePaths>) =>
@@ -89,8 +89,8 @@ describe('loadRealSpawnPty', () => {
     const [candidatesCallOptions] = spawnHelperCandidatePathsMock.mock.calls[0]!;
     expect(typeof candidatesCallOptions?.resolve).toBe('function');
     // The injected resolver must actually resolve something (this module's own `node-pty`
-    // dependency), not silently no-op — proving it is anchored at `@jini/daemon`, which declares
-    // `node-pty`, rather than `@jini/platform`'s own default resolver, which would throw since
+    // dependency), not silently no-op — proving it is anchored at `@injini/daemon`, which declares
+    // `node-pty`, rather than `@injini/platform`'s own default resolver, which would throw since
     // that package deliberately does not depend on `node-pty`.
     expect(candidatesCallOptions!.resolve!('node-pty')).toEqual(expect.stringContaining('node-pty'));
 
@@ -145,7 +145,7 @@ describe('denyAllTerminalCreatePolicy', () => {
   });
 });
 
-// --- createTerminalSessionManager: built on the REAL @jini/platform TerminalService (its own
+// --- createTerminalSessionManager: built on the REAL @injini/platform TerminalService (its own
 // ring-buffer/coalescing/TTL logic is already covered by that package's own test suite — not
 // re-tested here) with an injected fake PtySpawn, so every test below exercises this module's
 // actual new behavior (ownership gating, the kill/write/resize lock, resourceRef bookkeeping)
@@ -394,7 +394,7 @@ describe('createTerminalSessionManager — write/resize/kill ownership + the kil
       // session present — the lock body itself is only scheduled, not yet run.
       const writePromise = manager.write(alice, session.id, 'queued');
       lastPty(ptys).emitExit(0, undefined);
-      // Advancing past the TTL reaps the session from @jini/platform's own registry — still
+      // Advancing past the TTL reaps the session from @injini/platform's own registry — still
       // entirely within this synchronous stretch of the test, so it lands before the queued lock
       // body below gets its turn.
       vi.advanceTimersByTime(6);
@@ -419,7 +419,7 @@ describe('createTerminalSessionManager — attach/detach', () => {
     const sink: TerminalSseSink = { send: vi.fn(), end: vi.fn() };
     expect(manager.attach(alice, session.id, 0, sink)).toBe('attached');
     lastPty(ptys).emitData('hello');
-    // Data is coalesced onto a frame timer by the underlying @jini/platform engine — flush it.
+    // Data is coalesced onto a frame timer by the underlying @injini/platform engine — flush it.
     await vi.waitFor(() => expect(sink.send).toHaveBeenCalledWith('data', { data: 'hello' }, expect.any(Number)));
   });
 

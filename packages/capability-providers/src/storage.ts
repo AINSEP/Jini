@@ -9,11 +9,11 @@
  * `source-map.md`'s dated section). The in-memory reference implementation
  * (`createInMemoryStorageProvider`) is a separate, non-production stub that
  * lives under `src/unsafe-reference/`, exported only from the separate
- * `@jini/capability-providers/unsafe-reference` entry point — see that
+ * `@injini/capability-providers/unsafe-reference` entry point — see that
  * directory's `index.ts` header for the full warning.
  */
-import type { BlobFileMeta, BlobStorage } from '@jini/platform';
-import { StorageError as BlobStorageError } from '@jini/platform';
+import type { BlobFileMeta, BlobStorage } from '@injini/platform';
+import { StorageError as BlobStorageError } from '@injini/platform';
 
 export interface StorageObjectMeta {
   readonly key: string;
@@ -51,7 +51,7 @@ export interface BlobStorageProviderOptions {
 
 /**
  * `StorageProvider` adapter that delegates to an injected `BlobStorage` instance
- * (`@jini/platform`'s real, tested port — `LocalBlobStorage` or `S3BlobStorage`). A thin
+ * (`@injini/platform`'s real, tested port — `LocalBlobStorage` or `S3BlobStorage`). A thin
  * method-shape mapping, not a reimplementation: every operation is one `BlobStorage` call plus
  * field renaming (`path`→`key`, `mtimeMs`→`updatedAt`).
  *

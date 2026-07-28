@@ -9,13 +9,13 @@
  * This file defines the port's stable interface/type surface, plus one real,
  * production-quality adapter (`SqliteDbProvider`, added 2026-07-21 — see
  * `source-map.md`'s dated section) backed directly by `better-sqlite3` — the
- * same driver `@jini/sqlite`'s `createSqliteEventLog` uses, following that
+ * same driver `@injini/sqlite`'s `createSqliteEventLog` uses, following that
  * module's DI/schema conventions (an injected, already-open `Database`
  * handle; idempotent `CREATE TABLE IF NOT EXISTS`; multi-statement writes
  * wrapped in `db.transaction()`). The in-memory reference implementation
  * (`createInMemoryDbProvider`) is a separate, non-production stub that lives
  * under `src/unsafe-reference/`, exported only from the separate
- * `@jini/capability-providers/unsafe-reference` entry point — see that
+ * `@injini/capability-providers/unsafe-reference` entry point — see that
  * directory's `index.ts` header for the full warning.
  */
 import type Database from 'better-sqlite3';
@@ -43,7 +43,7 @@ export interface DbProvider {
   query(collection: string, query?: DbQuery): Promise<DbRecord[]>;
 }
 
-/** Alias for a `better-sqlite3` `Database` handle, matching `@jini/sqlite`'s own `SqliteDb` alias (`packages/sqlite/src/db/core/types.ts`). */
+/** Alias for a `better-sqlite3` `Database` handle, matching `@injini/sqlite`'s own `SqliteDb` alias (`packages/sqlite/src/db/core/types.ts`). */
 type SqliteDatabase = Database.Database;
 
 interface DbRecordRow {

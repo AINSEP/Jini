@@ -3,7 +3,7 @@
  *
  * Product-neutral catalog and safety contracts used by the Composio adapter.
  */
-import type { JsonValue } from '@jini/protocol';
+import type { JsonValue } from '@injini/protocol';
 
 import { getConnectorSchemaSupportError } from './json-schema.js';
 

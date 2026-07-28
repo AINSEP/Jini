@@ -1,8 +1,12 @@
 {
-  "name": "@jini/node-host",
+  "name": "@injini/node-host",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/node-host" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/node-host"
+  },
   "jini": {
     "domain": "server",
     "kind": "host",
@@ -17,9 +21,17 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
   ],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -27,12 +39,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/agent-runtime": "workspace:*",
-    "@jini/core": "workspace:*",
-    "@jini/daemon": "workspace:*",
-    "@jini/http": "workspace:*",
-    "@jini/sidecar": "workspace:*",
-    "@jini/sqlite": "workspace:*",
+    "@injini/agent-runtime": "workspace:*",
+    "@injini/core": "workspace:*",
+    "@injini/daemon": "workspace:*",
+    "@injini/http": "workspace:*",
+    "@injini/sidecar": "workspace:*",
+    "@injini/sqlite": "workspace:*",
     "better-sqlite3": "^11.10.0",
     "express": "^4.21.0"
   },

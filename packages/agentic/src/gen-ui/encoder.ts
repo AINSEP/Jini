@@ -1,20 +1,20 @@
 /**
  * @module agui/encoder
  *
- * Encodes `@jini/protocol`'s `RunProtocolEvent` stream into AG-UI wire events (see
- * `./events.ts`'s module doc). Rewritten from scratch against `@jini/protocol`'s actual
+ * Encodes `@injini/protocol`'s `RunProtocolEvent` stream into AG-UI wire events (see
+ * `./events.ts`'s module doc). Rewritten from scratch against `@injini/protocol`'s actual
  * current shape — the ported adapter's original encoder targeted a different, product-specific
  * event union with no direct correspondence to `RunProtocolEvent`/`RunAgentPayload`; only the
  * *shape* of the job (a big per-event-kind switch, unrecognized events silently dropped) carried
  * over. See `source-map.md` for the full old→new field-mapping table and the generalization
  * writeup for the six event kinds that had no generic equivalent before this task.
  *
- * Folded in 2026-07-26 from the standalone `@jini/agui` package (plan §3a) into this `src/gen-ui/`
+ * Folded in 2026-07-26 from the standalone `@injini/agui` package (plan §3a) into this `src/gen-ui/`
  * subdirectory — kept out of the flat `ag-ui.ts` namespace because that file is a different
  * projection ({@link CapabilityDef} → an AG-UI *frontend tool*); this one turns a run's event
  * stream into AG-UI *wire* events. Same protocol, two unrelated halves of it.
  */
-import type { RunAgentPayload, RunProtocolEvent } from '@jini/protocol';
+import type { RunAgentPayload, RunProtocolEvent } from '@injini/protocol';
 import type { AGUIEvent } from './events.js';
 
 export interface AguiEncodeContext {

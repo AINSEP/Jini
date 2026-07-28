@@ -10,8 +10,8 @@
  * `schema/migrate.ts` projects table was pre-trimmed to match; see that file and `source-map.md`'s
  * Design Decisions for the same drop list. The kernel-noun exclusion in `extraction-plan.md` §2.1
  * ("projects... conversations" are not kernel nouns) does not block this module for the same reason
- * it didn't block `conversations`: `@jini/sqlite` is a generic *optional* storage adapter any
- * consumer may use, not the kernel itself (`@jini/core`/`@jini/daemon` know nothing about this
+ * it didn't block `conversations`: `@injini/sqlite` is a generic *optional* storage adapter any
+ * consumer may use, not the kernel itself (`@injini/core`/`@injini/daemon` know nothing about this
  * table) — so "project" here is a de-branded generic workspace/container concept, not OD's model.
  */
 import type { SqliteDb, DbRow } from '../core/index.js';

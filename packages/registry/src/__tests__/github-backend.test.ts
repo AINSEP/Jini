@@ -1,5 +1,5 @@
 import { sign } from 'node:crypto';
-import type { RegistryManifest } from '@jini/protocol';
+import type { RegistryManifest } from '@injini/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { GithubRegistryBackend, type GithubRegistryClient } from '../github-backend.js';

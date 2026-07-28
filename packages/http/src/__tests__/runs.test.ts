@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '@jini/daemon';
-import { RUN_PROTOCOL_VERSION, type RunProtocolEvent } from '@jini/protocol';
+import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '@injini/daemon';
+import { RUN_PROTOCOL_VERSION, type RunProtocolEvent } from '@injini/protocol';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   handleRunEventStreamRequest,

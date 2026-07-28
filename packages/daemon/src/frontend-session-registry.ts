@@ -10,7 +10,7 @@
  *
  * Deliberately generic. This module knows nothing about `page.*`, the DOM, or chat — it routes an
  * opaque `capabilityId` plus an opaque input to whichever surface claimed that capability. The
- * vocabulary of what can be executed is the host's to define (see `@jini/agentic`), which is what
+ * vocabulary of what can be executed is the host's to define (see `@injini/agentic`), which is what
  * keeps a browser concept out of a server package.
  *
  * It also introduces **no second execution path**. The registry is only reachable from inside a
@@ -22,7 +22,7 @@
  * does exist elsewhere: a frontend may register the same capabilities with the browser's in-page
  * WebMCP surface, where a caller has no run and no principal and therefore never reaches
  * `ToolExecutor` at all. Nothing in this package can gate that — it happens entirely in the page —
- * so it is off unless a host opts in (`@jini/chat-react`'s `agentControl.webmcp`). A reader who
+ * so it is off unless a host opts in (`@injini/chat-react`'s `agentControl.webmcp`). A reader who
  * takes "no second execution path" as a whole-system guarantee would be wrong; it is a guarantee
  * about everything that arrives here.
  *

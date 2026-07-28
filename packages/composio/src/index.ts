@@ -1,5 +1,5 @@
 /**
- * @module @jini/composio
+ * @module @injini/composio
  *
  * Public surface for the headless Composio integration package.
  */

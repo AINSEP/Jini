@@ -21,7 +21,7 @@
  * invented-from-scratch design.
  */
 import type { ServerResponse } from 'node:http';
-import { createApiErrorResponse, type ApiError } from '@jini/protocol';
+import { createApiErrorResponse, type ApiError } from '@injini/protocol';
 
 /** The minimal shape any event needs to flow through an `SseChannel`: an id for `Last-Event-ID` reconnect bookkeeping and a `kind` used as the wire `event:` field. */
 export interface SseEvent {

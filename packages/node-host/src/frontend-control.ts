@@ -4,8 +4,8 @@
  * Assembles the three halves of agent-driven frontend control into one thing a host can hand to
  * `createLocalNodeDaemon`, so wiring it up is a config entry rather than a checklist.
  *
- * The parts already existed and none of them composed: `@jini/daemon`'s `FrontendSessionRegistry`
- * addresses a run to a surface, `@jini/http`'s frontend-session routes carry invocations to a
+ * The parts already existed and none of them composed: `@injini/daemon`'s `FrontendSessionRegistry`
+ * addresses a run to a surface, `@injini/http`'s frontend-session routes carry invocations to a
  * browser and answers back, and `createFrontendCapabilityRegistrations` projects a manifest into
  * gated tools. A host had to construct all three, keep them consistent, and remember to bind a run
  * when it started. Every one of those is a chance to get it subtly wrong, and one of them —
@@ -27,18 +27,18 @@
  * their own metadata in it. The engine stays neutral and the host keeps one place to look.
  */
 import type { Express } from 'express';
-import type { ToolPolicy, ToolRegistration } from '@jini/core';
+import type { ToolPolicy, ToolRegistration } from '@injini/core';
 import {
   createFrontendCapabilityRegistrations,
   createFrontendSessionRegistry,
   type FrontendCapabilitySpec,
-} from '@jini/daemon';
+} from '@injini/daemon';
 import {
   registerFrontendSessionRoutes,
   type RunCreateRequest,
   type RunStartContext,
   type RunStartHandler,
-} from '@jini/http';
+} from '@injini/http';
 
 import type { LocalNodeHttpExtension } from './create-local-node-daemon.js';
 
@@ -49,7 +49,7 @@ export interface FrontendBindErrorContext {
 
 export interface CreateFrontendControlOptions {
   /**
-   * The capabilities to expose. `@jini/agentic`'s `PAGE_CAPABILITIES` and `@jini/chat-core`'s
+   * The capabilities to expose. `@injini/agentic`'s `PAGE_CAPABILITIES` and `@injini/chat-core`'s
    * `CHAT_CAPABILITIES` satisfy this structurally — the engine never imports that vocabulary
    * (see `frontend-capability-tools.ts`'s module doc for why the edge points one way).
    */
@@ -67,9 +67,9 @@ export interface CreateFrontendControlOptions {
    * capabilities whose `surface` is `'server'` do not need one.
    */
   readonly resolveBindToken: (request: RunCreateRequest) => string | undefined;
-  /** @default `@jini/daemon`'s `denyAllFrontendCapabilityPolicy` — a host grants access explicitly. */
+  /** @default `@injini/daemon`'s `denyAllFrontendCapabilityPolicy` — a host grants access explicitly. */
   readonly policy?: ToolPolicy;
-  /** @default `@jini/daemon`'s `DEFAULT_FRONTEND_CAPABILITY_TIMEOUT_MS`. */
+  /** @default `@injini/daemon`'s `DEFAULT_FRONTEND_CAPABILITY_TIMEOUT_MS`. */
   readonly timeoutMs?: number;
   /** Applied to every registration. Frontend output is untrusted page text; bound it. */
   readonly maxOutputBytes?: number;
@@ -107,7 +107,7 @@ export interface FrontendControl {
 
 function defaultBindErrorSink(context: FrontendBindErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini/node-host] could not bind run "${context.runId}" to a frontend surface`, context.error);
+  console.error(`[@injini/node-host] could not bind run "${context.runId}" to a frontend surface`, context.error);
 }
 
 /**

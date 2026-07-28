@@ -24,7 +24,7 @@ import {
   type RegistrySearchResult,
   type RegistryTrust,
   type ResolvedRegistryEntry,
-} from '@jini/protocol';
+} from '@injini/protocol';
 import { parseRegistrySpecifier, resolveRegistryEntryVersion } from './versioning.js';
 import { verifyRegistryEntrySignatures, type RegistryTrustRoot } from './trust.js';
 
@@ -39,7 +39,7 @@ export interface StaticRegistryBackendOptions {
    * `resolve()` reports `verified: false` for every entry without attempting
    * any verification. Configuring it turns on real cryptographic
    * verification of `entry.signatures[]`, additive alongside `trust` (see
-   * `ResolvedRegistryEntrySchema.verified`'s doc comment in `@jini/protocol`).
+   * `ResolvedRegistryEntrySchema.verified`'s doc comment in `@injini/protocol`).
    */
   trustRoot?: RegistryTrustRoot | undefined;
 }

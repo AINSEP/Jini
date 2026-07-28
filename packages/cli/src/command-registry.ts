@@ -5,7 +5,7 @@
  * `source-map.md`): look at the first non-flag `argv` token, dispatch to a
  * registered handler, or report that nothing matched so the caller can fall
  * back to root help. OD's actual map (33 product command names) was not
- * ported — only the registrar pattern, which is what `@jini/core`'s
+ * ported — only the registrar pattern, which is what `@injini/core`'s
  * `Pack['cli']` hook (`cli?: (reg: unknown, services: Services) => void`)
  * needs a concrete `reg` type for.
  */

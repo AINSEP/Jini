@@ -2,15 +2,15 @@
  * @module useToolTimeline
  *
  * Per-tool lifecycle rows for a message's events: pairs each `tool_use` with
- * its `tool_result` (deduped by id via `@jini/chat-core`'s
+ * its `tool_result` (deduped by id via `@injini/chat-core`'s
  * `dedupeToolUsesById`), derives a four-state status via
  * `deriveToolStatus`, and tracks per-row expand/collapse UI state. Pure over
  * `AgentEvent[]` — zero I/O. Per
  * `foundry/docs/jini-port/recon/r4b-webui-design.md` §4.
  */
 import { useCallback, useMemo, useState } from 'react';
-import type { AgentEvent, ToolRenderProps, ToolStatus } from '@jini/chat-core';
-import { dedupeToolUsesById, deriveToolStatus } from '@jini/chat-core';
+import type { AgentEvent, ToolRenderProps, ToolStatus } from '@injini/chat-core';
+import { dedupeToolUsesById, deriveToolStatus } from '@injini/chat-core';
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
 type ToolResultEvent = Extract<AgentEvent, { kind: 'tool_result' }>;

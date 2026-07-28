@@ -1,12 +1,12 @@
 /**
  * R3: packages/protocol/** must not import any OD DTO / prompts / analytics / design-systems /
  * anything under foundry/**, examples/**, or AI-Dev-Shop/**.
- * Enforces the downward-only edge @od/* -> @jini/protocol. Additionally: `@jini/protocol` is
+ * Enforces the downward-only edge @od/* -> @injini/protocol. Additionally: `@injini/protocol` is
  * extraction-plan.md §3's foundational leaf ("pure wire types") — it must not import ANY other
- * `@jini/*` package either, or it stops being a dependency-free base for the rest of the graph.
+ * `@injini/*` package either, or it stops being a dependency-free base for the rest of the graph.
  * Kept separate from the engine-boundary check (as OD splits its guards) even though it shares
  * the same forbidden-directory list as `check-engine-boundaries.ts`'s R1, because protocol's
- * zero-`@jini/*`-imports rule is stricter than and distinct from R1/R2.
+ * zero-`@injini/*`-imports rule is stricter than and distinct from R1/R2.
  */
 import { dirname, join, relative, resolve } from 'node:path';
 import type { Violation } from './check-engine-boundaries.js';
@@ -36,11 +36,11 @@ export async function checkProtocolPurity(
     for (const ref of extractImports(absFile)) {
       const spec = ref.specifier;
 
-      if (spec.startsWith('@jini/')) {
+      if (spec.startsWith('@injini/')) {
         violations.push({
           rule: 'R3-protocol-purity',
           file,
-          reason: `imports "${spec}" — @jini/protocol must have zero @jini/* dependencies (it is the foundational leaf)`,
+          reason: `imports "${spec}" — @injini/protocol must have zero @injini/* dependencies (it is the foundational leaf)`,
         });
         continue;
       }

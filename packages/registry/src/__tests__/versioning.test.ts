@@ -1,4 +1,4 @@
-import type { RegistryEntry } from '@jini/protocol';
+import type { RegistryEntry } from '@injini/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { parseRegistrySpecifier, resolveRegistryEntryVersion } from '../versioning.js';

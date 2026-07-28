@@ -3,7 +3,7 @@
  *
  * Routine CRUD + run-history HTTP routes: `GET/POST /api/routines`, `GET/PATCH/DELETE
  * /api/routines/:id`, `POST /api/routines/:id/run`, `GET /api/routines/:id/runs`. Calls into the
- * `RoutineStore`/`RoutineService`-shaped ports `@jini/daemon` ships (see that package's
+ * `RoutineStore`/`RoutineService`-shaped ports `@injini/daemon` ships (see that package's
  * `routines/` module — `routine-store.ts` for the CRUD+history port, `scheduler.ts` for the
  * scheduling engine) the same way `runs.ts` calls into `RunLifecycle` — no business logic lives
  * in this file itself.
@@ -12,9 +12,9 @@
  * branch) per the decisions in `ADS-memory/reports/proposals/
  * PROP-http-route-packs-automation-routines-2026-07-21.md` (Finding 2). That proposal identified
  * two separable gaps blocking this route pack: (1) no scheduler existed anywhere in this repo —
- * closed by porting `routines.ts` into `@jini/daemon/src/routines/scheduler.ts` this same pass;
+ * closed by porting `routines.ts` into `@injini/daemon/src/routines/scheduler.ts` this same pass;
  * (2) no `RoutineStore` persistence port existed for the CRUD side — closed by
- * `@jini/daemon/src/routines/routine-store.ts`, designed the same way `EventLog` is designed.
+ * `@injini/daemon/src/routines/routine-store.ts`, designed the same way `EventLog` is designed.
  * This file is the third piece: the actual HTTP routes, now that both ports exist.
  *
  * **Confirmed bug fixed while porting** (per the proposal's own finding, not carried forward):
@@ -33,11 +33,11 @@
  *   run-history routes below need it to function.
  * - `POST /api/routines/:id/runs/:runId/crystallize` — depends on `ingestAutomationSource`
  *   (`automation-ingestions.ts`), explicitly scoped by the proposal as "a dedicated follow-up
- *   task the same size and shape as `@jini/memory`'s own original port," not attempted here.
+ *   task the same size and shape as `@injini/memory`'s own original port," not attempted here.
  * - `automation-templates.ts` itself, including its CRUD-adjacent lookup machinery: the decision
  *   already made for this pass is to ship **zero built-in automation templates** (matching this
- *   repo's established precedent of keeping product-authored content host-owned — `@jini/memory`'s
- *   prompt-composition, `@jini/deploy`'s config-path resolution, etc.) and, since no route in this
+ *   repo's established precedent of keeping product-authored content host-owned — `@injini/memory`'s
+ *   prompt-composition, `@injini/deploy`'s config-path resolution, etc.) and, since no route in this
  *   file needs any part of that module to function, none of it — content or generic shape — is
  *   ported this pass.
  * - `automation-proposals.ts` / `automation-ingestions.ts` — untouched, per the proposal's Finding
@@ -76,8 +76,8 @@ import {
   type RoutineService,
   type RoutineStore,
   type RoutineUpdateInput,
-} from '@jini/daemon';
-import { createApiError, type ApiError } from '@jini/protocol';
+} from '@injini/daemon';
+import { createApiError, type ApiError } from '@injini/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';

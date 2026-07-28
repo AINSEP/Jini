@@ -8,7 +8,7 @@ import {
   XAI_OAUTH_PROVIDER_CONFIG,
   type OAuthCallbackListener,
   type OAuthCallbackOutcome,
-} from '@jini/agent-runtime';
+} from '@injini/agent-runtime';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   registerXaiRoutes,

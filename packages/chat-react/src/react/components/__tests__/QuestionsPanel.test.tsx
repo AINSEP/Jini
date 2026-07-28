@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { QuestionForm as QuestionFormType } from '@jini/chat-core';
+import type { QuestionForm as QuestionFormType } from '@injini/chat-core';
 import { QuestionsPanel } from '../QuestionsPanel.js';
 
 const form: QuestionFormType = {

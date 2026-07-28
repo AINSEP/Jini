@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   createElectronDesktopHost,
   type ElectronDesktopHostSurfaces,
-} from '@jini/desktop-host';
+} from '@injini/desktop-host';
 import {
   grantNativeWorkingDirectory,
   isTrustedRendererFrame,

@@ -113,7 +113,7 @@ export type RunRetryPolicyDecision =
 /**
  * Classifies a terminated child process's raw `code`/`signal` into the `process_exit` category
  * this module's own policy understands — the only signal cheaply available to
- * `@jini/daemon`'s `ClassifyFailure` port (see `agent-executor.ts`'s `FailureClassificationContext`
+ * `@injini/daemon`'s `ClassifyFailure` port (see `agent-executor.ts`'s `FailureClassificationContext`
  * doc for why richer signal, like a detected 429 or protocol error, isn't available there without
  * new stderr/stdout buffering machinery this pass deliberately does not add).
  * @param code - The child process's exit code, or `null` if it was terminated by a signal.
@@ -132,7 +132,7 @@ export function classifyProcessExitFailure(code: number | null, signal: string |
 }
 
 /**
- * `@jini/daemon`'s `ClassifyFailure` port needs a plain `boolean`, not a full
+ * `@injini/daemon`'s `ClassifyFailure` port needs a plain `boolean`, not a full
  * {@link RunRetryPolicyDecision} — gap 4 only sets a failed run's `resumable` flag (informational
  * metadata a host reads for its own later follow-up run, see `RunEndPayload.sessionRef`'s own doc),
  * it does not schedule an automatic in-process retry the way {@link decideSafeRunRetry}'s full

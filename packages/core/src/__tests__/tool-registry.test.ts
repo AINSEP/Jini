@@ -12,7 +12,7 @@ function makeRegistration(id: string): ToolRegistration {
   };
 }
 
-describe('@jini/core — tool-registry', () => {
+describe('@injini/core — tool-registry', () => {
   it('starts empty', () => {
     const registry = createToolRegistry();
     expect(registry.list()).toEqual([]);

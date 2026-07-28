@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as barrel from '../index.js';
 
-describe('@jini/media barrel completeness', () => {
+describe('@injini/media barrel completeness', () => {
   it('re-exports the capability-registry surface', () => {
     expect(barrel.createCapabilityRegistry).toBeTypeOf('function');
     expect(barrel.normalizeModelId).toBeTypeOf('function');

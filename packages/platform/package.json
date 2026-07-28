@@ -1,8 +1,12 @@
 {
-  "name": "@jini/platform",
+  "name": "@injini/platform",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/platform" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/platform"
+  },
   "jini": {
     "domain": "platform",
     "kind": "abstraction",
@@ -10,15 +14,34 @@
     "admission": "locked"
   },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "dependencies": { "undici": "^7.25.0" },
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "dependencies": {
+    "undici": "^7.25.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "devDependencies": { "@vitest/coverage-v8": "^2.1.9" }
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9"
+  }
 }

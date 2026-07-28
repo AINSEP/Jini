@@ -42,7 +42,7 @@ export interface CapabilityDef {
   readonly surface: CapabilitySurface;
   /**
    * Destructive or otherwise irreversible — the caller must acknowledge before it runs. A host
-   * with a real confirmation gate (`@jini/daemon`'s `ToolExecutor` has a resumable one) should
+   * with a real confirmation gate (`@injini/daemon`'s `ToolExecutor` has a resumable one) should
    * enforce it there; surfaces without one enforce it in-band by requiring `confirm: true`, so
    * no transport can execute it by accident.
    */

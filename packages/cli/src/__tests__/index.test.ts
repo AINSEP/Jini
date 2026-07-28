@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as jiniCli from '../index.js';
 
-describe('@jini/cli barrel', () => {
+describe('@injini/cli barrel', () => {
   it('re-exports every module surface', () => {
     expect(typeof jiniCli.parseFlags).toBe('function');
     expect(typeof jiniCli.positionalArgs).toBe('function');

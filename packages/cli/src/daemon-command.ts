@@ -1,10 +1,10 @@
 /**
  * @module daemon-command
  *
- * `daemon status` / `daemon stop` — concrete commands over `@jini/http`'s
+ * `daemon status` / `daemon stop` — concrete commands over `@injini/http`'s
  * `daemonStatusRoute`/`daemonShutdownRoute` (`packages/http/src/daemon-status.ts`).
  * `packages/cli/source-map.md`'s original UNCLEAR verdict on these two
- * blocked on `@jini/http` being a stub with no `/status`/`/shutdown` route to
+ * blocked on `@injini/http` being a stub with no `/status`/`/shutdown` route to
  * call; that blocker no longer holds (both routes exist and are tested), and
  * `run-command.ts` is now a real, established "first concrete command"
  * precedent this file follows rather than pioneers.

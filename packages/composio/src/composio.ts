@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { JsonValue } from '@jini/protocol';
+import type { JsonValue } from '@injini/protocol';
 import {
   BoundedDataError,
   COMPOSIO_MAX_CACHE_BYTES,
@@ -44,7 +44,7 @@ const DEFAULT_COMPOSIO_TIMEOUT_MS = 30_000;
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000;
 const DISCOVERY_CACHE_TTL_MS = 60_000;
 const PERSISTED_CATALOG_REFRESH_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_USER_AGENT = '@jini/composio/0.1';
+const DEFAULT_USER_AGENT = '@injini/composio/0.1';
 const COMPOSIO_MAX_LIST_ITEMS = 1_000;
 
 const COMPOSIO_READ_ONLY_TOOL_SAFETY_OVERRIDES = new Set([

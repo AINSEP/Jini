@@ -1,5 +1,5 @@
 /**
- * R9: `@jini/agentic`'s DOM-free guarantee is compile-time, not conventional — see
+ * R9: `@injini/agentic`'s DOM-free guarantee is compile-time, not conventional — see
  * `packages/agentic/source-map.md`'s "The DOM split". `packages/agentic/tsconfig.json` (the root
  * entry, `.`) excludes `src/dom` and resolves to a DOM-free `lib`; only
  * `packages/agentic/tsconfig.dom.json` (the `./dom` entry) resolves a DOM `lib`, and it is scoped
@@ -91,7 +91,7 @@ function hasDomLibEntry(lib: readonly string[]): boolean {
 export interface CheckAgenticDomPurityOptions {
   /** Treat this directory as the repo root for path classification. */
   readonly repoRoot?: string;
-  /** Treat this directory as `@jini/agentic`'s package root. Defaults to `<repoRoot>/packages/agentic`. */
+  /** Treat this directory as `@injini/agentic`'s package root. Defaults to `<repoRoot>/packages/agentic`. */
   readonly agenticDir?: string;
 }
 

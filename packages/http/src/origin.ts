@@ -3,7 +3,7 @@
  * the Adapter can treat an origin failure the same as a parse/handle failure.
  */
 import type { Request } from 'express';
-import { createApiError } from '@jini/protocol';
+import { createApiError } from '@injini/protocol';
 import { isLocalSameOrigin } from './origin-validation.js';
 import { err, ok, type Result } from './types.js';
 

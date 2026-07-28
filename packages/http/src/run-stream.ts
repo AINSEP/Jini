@@ -1,7 +1,7 @@
 /**
  * @module run-stream
  *
- * An encoder-driven SSE run-stream route: subscribes to a run via `@jini/daemon`'s
+ * An encoder-driven SSE run-stream route: subscribes to a run via `@injini/daemon`'s
  * `RunLifecycle.stream`, pipes every event through a composition-root-supplied protocol encoder,
  * and writes each non-null event to the SSE response opened by `createSseResponse`.
  * `handleRunStreamRequest` is the core
@@ -11,8 +11,8 @@
  * `req.params.runId` and handing the request/response straight through is the whole job).
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { RunLifecycle, StreamSubscribeResult } from '@jini/daemon';
-import type { RunProtocolEvent } from '@jini/protocol';
+import type { RunLifecycle, StreamSubscribeResult } from '@injini/daemon';
+import type { RunProtocolEvent } from '@injini/protocol';
 import type { Express, Request, Response } from 'express';
 import { createSseResponse } from './raw-sse.js';
 
@@ -49,13 +49,13 @@ function reportRunStreamInternalError(
       deps.onInternalError(context);
     } else {
       // eslint-disable-next-line no-console
-      console.error(`[@jini/http] internal error (run-stream:${source}, runId=${runId})`, error);
+      console.error(`[@injini/http] internal error (run-stream:${source}, runId=${runId})`, error);
     }
   } catch (sinkError) {
     // A diagnostic sink must never turn an already-contained stream failure into an unhandled
     // rejection of its own.
     // eslint-disable-next-line no-console
-    console.error(`[@jini/http] internal error sink failed (run-stream:${source}, runId=${runId})`, sinkError);
+    console.error(`[@injini/http] internal error sink failed (run-stream:${source}, runId=${runId})`, sinkError);
   }
 }
 

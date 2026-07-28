@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/client/client
+ * @module @injini/mcp/client/client
  * Product-neutral runtime primitives for a stdio MCP server: an idle-exit
  * controller that auto-closes an idle server process, a relative-reference
  * extractor that walks HTML/CSS/JS text to find sibling files to bundle, and a

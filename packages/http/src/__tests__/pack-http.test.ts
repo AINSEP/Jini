@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import express, { type Express } from 'express';
-import { bindings, createDaemon, definePack, token } from '@jini/core';
+import { bindings, createDaemon, definePack, token } from '@injini/core';
 import { mountPackHttp } from '../pack-http.js';
 
 interface Greeter {

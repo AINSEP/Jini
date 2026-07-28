@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { WorkingDirPicker } from '@jini/ui';
+import { WorkingDirPicker } from '@injini/ui';
 
 import { Composer } from '../../../../react/components/Composer.js';
 import { MessageList } from '../../../../react/components/MessageList.js';
@@ -302,7 +302,7 @@ function ChatPaneComposerArea({
 
 /**
  * Renders the self-contained chat-pane composition, including runtime and
- * working-directory orchestration owned by `@jini/chat-react`.
+ * working-directory orchestration owned by `@injini/chat-react`.
  *
  * @complexity Time/space: O(n) in rendered messages, agents, and suggestions.
  * @overallScore 100/100

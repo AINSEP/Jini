@@ -16,7 +16,7 @@
  * ported:
  *
  * - `mergeProxyAwareEnv` / `resolveSystemProxyEnv` now come from
- *   `@jini/platform` (the same functions, already verbatim-lifted there).
+ *   `@injini/platform` (the same functions, already verbatim-lifted there).
  * - AMR/vela-specific env injection and OD's app-config-driven analytics
  *   identity env are replaced by an optional `perAgentEnv` hook — a plain
  *   `(agentId, env) => NodeJS.ProcessEnv | void` the host can supply to add
@@ -33,7 +33,7 @@
  * See `source-map.md` for the full accounting.
  */
 import os from 'node:os';
-import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@jini/platform';
+import { mergeProxyAwareEnv, resolveSystemProxyEnv } from '@injini/platform';
 import { expandConfiguredEnv } from './paths.js';
 import { resolveAmrOpenCodeExecutable } from './executables.js';
 

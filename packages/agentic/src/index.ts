@@ -1,11 +1,11 @@
 /**
- * @jini/agentic — the framework-free half of agent control.
+ * @injini/agentic — the framework-free half of agent control.
  *
  * Everything an outside caller needs to drive a Jini frontend, with no React, no DOM, and no
  * transport: the capability vocabulary, the two shipped manifests, the `data-agent-*` markup
  * convention, and the refusals that must hold everywhere.
  *
- * Framework bindings (`@jini/chat-react`, via `@jini/agentic/dom`'s `createDomPageDriver`, and
+ * Framework bindings (`@injini/chat-react`, via `@injini/agentic/dom`'s `createDomPageDriver`, and
  * any Vue/Svelte sibling) import from here and add only the wiring their framework needs.
  * Server-side hosts (an HTTP route table, an MCP stdio server) import the same manifests, so the
  * two can never drift apart.
@@ -13,7 +13,7 @@
  * What is deliberately NOT here: how an action reaches a page. That is a transport concern —
  * same-document in a real site like a CMS, `postMessage` when a host embeds an untrusted
  * preview in a sandboxed frame. The verbs are identical either way. Also not here: any product's
- * OWN capabilities (`@jini/chat-core`'s `chat.*` verbs stay in chat-core, which depends on this
+ * OWN capabilities (`@injini/chat-core`'s `chat.*` verbs stay in chat-core, which depends on this
  * package for the vocabulary rather than the other way around) — see this package's
  * source-map.md for why the split is real rather than a wholesale relocation.
  */
@@ -108,7 +108,7 @@ export {
 
 /**
  * Jini's **own** run-stream surface protocol, from `./gen-ui/` — six event kinds and the encoder
- * that produces them (folded in 2026-07-26 from the standalone `@jini/agui` package, plan §3a).
+ * that produces them (folded in 2026-07-26 from the standalone `@injini/agui` package, plan §3a).
  *
  * Renamed from `./agui/` on 2026-07-27, because this is NOT AG-UI. The real Agent-User Interaction
  * Protocol (https://github.com/ag-ui-protocol/ag-ui) carries a 33-member `SCREAMING_SNAKE` event
@@ -122,8 +122,8 @@ export {
  * inversion of the truth.
  *
  * The exported symbols below still carry `Agui`/`AGUI` prefixes: renaming those crosses into
- * `@jini/http` (whose `RUN_STREAM_ROUTE_PATH` is `/api/runs/:runId/agui-stream`) and
- * `@jini/protocol`, so it is deliberately not bundled with this directory move.
+ * `@injini/http` (whose `RUN_STREAM_ROUTE_PATH` is `/api/runs/:runId/agui-stream`) and
+ * `@injini/protocol`, so it is deliberately not bundled with this directory move.
  */
 export {
   createAguiEncoder,

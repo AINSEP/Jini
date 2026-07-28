@@ -14,11 +14,11 @@
  * would either leak raw, potentially untrusted agent bytes into the public
  * run-event stream or force widening `RunProtocolEvent` itself. A caller
  * supplies its own `EventLog` instance here — reusing the exact same port
- * type and, for a durable deployment, the exact same `@jini/sqlite` adapter
+ * type and, for a durable deployment, the exact same `@injini/sqlite` adapter
  * — so the journal gets the identical durability/replay guarantees without
  * touching the run-protocol vocabulary at all.
  */
-import type { JournalEntry } from '@jini/protocol';
+import type { JournalEntry } from '@injini/protocol';
 import type { EventLog } from '../event-log.js';
 
 /** The one event name every journal entry is appended under — never a `RunProtocolEvent` kind, so a shared-instance mistake would be immediately obvious in a replay. */

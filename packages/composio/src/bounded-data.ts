@@ -5,7 +5,7 @@
  */
 import fs from 'node:fs';
 
-import type { JsonValue } from '@jini/protocol';
+import type { JsonValue } from '@injini/protocol';
 
 export const COMPOSIO_MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 export const COMPOSIO_MAX_ERROR_RESPONSE_BYTES = 64 * 1024;

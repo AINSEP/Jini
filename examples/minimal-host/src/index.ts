@@ -2,19 +2,19 @@
  * @module minimal-host entry point
  *
  * The neutrality-proof entry point (README.md; foundry/docs/jini-port/extraction-plan.md §2.4/§7):
- * imports ONLY `@jini/*` packages, boots a real `createLocalNodeDaemon` daemon (the "host
+ * imports ONLY `@injini/*` packages, boots a real `createLocalNodeDaemon` daemon (the "host
  * preset" — zero product concepts, zero interfaces implemented) with no feature packs, then
  * exercises its complete run vertical slice over real HTTP: create, stream, reconnect with a
  * cursor, cancel, restart and replay. `scripts/health-boot.ts` runs this file from a scratch copy
- * of this package installed from packed `@jini/*` tarballs (never a workspace link) as the actual
+ * of this package installed from packed `@injini/*` tarballs (never a workspace link) as the actual
  * proof that the engine works outside this monorepo's source tree.
  */
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createAgentExecutor } from '@jini/daemon';
-import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini/agent-runtime';
-import { createLocalNodeDaemon } from '@jini/node-host';
+import { createAgentExecutor } from '@injini/daemon';
+import type { AgentLaunchResolution, RuntimeAgentDef } from '@injini/agent-runtime';
+import { createLocalNodeDaemon } from '@injini/node-host';
 
 interface DaemonStatusBody {
   ok?: boolean;

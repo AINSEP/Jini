@@ -13,12 +13,12 @@
 // rather than leaving a real, tested branch looking untested.
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@jini/renderers-react', async () => {
-  const actual = await vi.importActual<typeof import('@jini/renderers-react')>('@jini/renderers-react');
+vi.mock('@injini/renderers-react', async () => {
+  const actual = await vi.importActual<typeof import('@injini/renderers-react')>('@injini/renderers-react');
   return { ...actual, openSandboxedPreviewInNewTab: vi.fn() };
 });
 
-import { openSandboxedPreviewInNewTab } from '@jini/renderers-react';
+import { openSandboxedPreviewInNewTab } from '@injini/renderers-react';
 import {
   createBrowserFullscreenPort,
   createBrowserNewTabPreviewPort,
@@ -106,7 +106,7 @@ describe('createBrowserFullscreenPort', () => {
 });
 
 describe('createBrowserNewTabPreviewPort', () => {
-  it('delegates to @jini/renderers-react openSandboxedPreviewInNewTab', () => {
+  it('delegates to @injini/renderers-react openSandboxedPreviewInNewTab', () => {
     createBrowserNewTabPreviewPort().openInNewTab('<p>hi</p>', 'My Title');
     expect(openSandboxedPreviewInNewTab).toHaveBeenCalledWith('<p>hi</p>', 'My Title');
   });

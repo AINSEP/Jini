@@ -1,8 +1,12 @@
 {
-  "name": "@jini/ui",
+  "name": "@injini/ui",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/ui" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/ui"
+  },
   "jini": {
     "domain": "ui",
     "kind": "react-library",
@@ -17,9 +21,17 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
   ],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "sideEffects": false,
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -29,8 +41,8 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.1",
-    "@jini/agentic": "workspace:*",
-    "@jini/renderers-react": "workspace:*",
+    "@injini/agentic": "workspace:*",
+    "@injini/renderers-react": "workspace:*",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",
     "lexical": "0.36.2",

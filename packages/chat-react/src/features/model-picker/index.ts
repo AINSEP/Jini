@@ -4,7 +4,7 @@
  * Public barrel — the only entry point other code (inside or outside this
  * package) should import from; internal files are reached only through
  * this file. See `source-map.md` for provenance and `types.ts`'s header for
- * the `@jini/agent-runtime`-only dependency boundary.
+ * the `@injini/agent-runtime`-only dependency boundary.
  */
 export * from './types.js';
 export * from './constants.js';

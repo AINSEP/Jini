@@ -1,5 +1,5 @@
 /**
- * @module @jini/platform
+ * @module @injini/platform
  *
  * Root barrel for generic OS/platform primitives. This file adds no behavior —
  * it only re-exports the public surface from the cohesive sibling modules:

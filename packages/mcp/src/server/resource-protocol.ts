@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/server/resource-protocol
+ * @module @injini/mcp/server/resource-protocol
  *
  * The pure, SDK-connection-free half of the MCP *resource* surface —
  * mirrors `./tool-protocol.js` for `resources/list` and `resources/read`.
@@ -9,7 +9,7 @@
  * `ReadResourceRequestSchema` handlers, exactly as `tool-protocol.js` is
  * wired to `ListToolsRequestSchema`/`CallToolRequestSchema`.
  */
-import { sanitizeUntrustedText } from '@jini/cli';
+import { sanitizeUntrustedText } from '@injini/cli';
 import type { ReadResourceResult, Resource } from '@modelcontextprotocol/sdk/types.js';
 import type { McpToolContext } from './tool-protocol.js';
 

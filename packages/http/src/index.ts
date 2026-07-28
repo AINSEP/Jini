@@ -1,12 +1,12 @@
 /**
- * @module @jini/http
+ * @module @injini/http
  *
- * JSON-route transport for a `@jini/core` daemon composition: the `Result`/route-spec types,
+ * JSON-route transport for a `@injini/core` daemon composition: the `Result`/route-spec types,
  * request parsing, response serialization, the same-origin guard, the Express-mounting Adapter,
  * legacy-shaped compat error helpers, a route-pack registrar, generic daemon status/shutdown
  * routes, and every route pack this package ships (runs, agents, host-tools, memory, routines,
  * db-ops, terminals, model-proxy, active-context, delegated-tools) — all exported flat at this
- * root, the load-bearing surface every consumer (including `@jini/node-host`'s
+ * root, the load-bearing surface every consumer (including `@injini/node-host`'s
  * `createLocalNodeDaemon`) imports from directly.
  *
  * This package supported a switchable `express`/`fastify` HTTP transport from 2026-07-19 through

@@ -2,7 +2,7 @@
  * @module useQuestionForms
  *
  * Parses `<question-form>` artifacts out of each assistant message via
- * `@jini/chat-core`'s `findFirstQuestionForm`, tracks which one (if any) is
+ * `@injini/chat-core`'s `findFirstQuestionForm`, tracks which one (if any) is
  * still the active/answerable one, and recovers already-submitted answers by
  * reading the next user message's `[form answers — ...]` payload. Pure parse
  * — `submit` only builds the next-user-message text; the host posts it via
@@ -16,8 +16,8 @@
  * (`formatFormAnswers`).
  */
 import { useCallback, useMemo } from 'react';
-import type { ChatMessage, FormQuestion, QuestionForm } from '@jini/chat-core';
-import { findFirstQuestionForm, formOptionValueForLabel, formatFormAnswers } from '@jini/chat-core';
+import type { ChatMessage, FormQuestion, QuestionForm } from '@injini/chat-core';
+import { findFirstQuestionForm, formOptionValueForLabel, formatFormAnswers } from '@injini/chat-core';
 
 export type QuestionFormAnswers = Record<string, string | string[]>;
 

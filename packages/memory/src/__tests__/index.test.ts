@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { createExtractionLog, createNoteStore, createVerifyLog, enforceVerify, parseEntryFrontmatter, renderEntryFrontmatter } from '../index.js';
 
-describe('@jini/memory — barrel', () => {
+describe('@injini/memory — barrel', () => {
   it('re-exports every module’s public surface', () => {
     expect(parseEntryFrontmatter).toBeTypeOf('function');
     expect(renderEntryFrontmatter).toBeTypeOf('function');

@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/server/tool-server
+ * @module @injini/mcp/server/tool-server
  *
  * `createMcpToolServer` — the generic stdio MCP server hosting mechanism.
  * Ported from the *mechanism* of OD's `apps/daemon/src/mcp.ts` `runMcpStdio`
@@ -86,7 +86,7 @@ export interface McpToolServerOptions {
   readonly tools: readonly McpToolDef[];
   /** The bounded, explicit read-only resource list this server hosts. Duplicate uris throw at construction time. Omit (or pass an empty array) for a tools-only server — `capabilities.resources` is only advertised when this is non-empty. */
   readonly resources?: readonly McpResourceDef[];
-  /** Resolves the daemon HTTP base URL once, at the start of {@link McpToolServerHandle.run}. May be sync or async (e.g. wraps `@jini/cli`'s `resolveDaemonUrl`). */
+  /** Resolves the daemon HTTP base URL once, at the start of {@link McpToolServerHandle.run}. May be sync or async (e.g. wraps `@injini/cli`'s `resolveDaemonUrl`). */
   readonly resolveBaseUrl: () => Promise<string> | string;
   /** Free-text guidance surfaced to the MCP client alongside the tool list. Optional — omit for a caller with nothing to add beyond each tool's own `description`. */
   readonly instructions?: string;

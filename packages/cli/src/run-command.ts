@@ -5,7 +5,7 @@
  * first concrete commands registered against this package's
  * `CommandRegistry` (`command-registry.ts`'s own docblock notes none existed
  * yet because no HTTP-client-mode pack had landed to call). Built directly
- * against `@jini/http`'s real run transport (`packages/http/src/runs.ts`:
+ * against `@injini/http`'s real run transport (`packages/http/src/runs.ts`:
  * `POST /api/runs`, `GET /api/runs`, `GET /api/runs/:runId`,
  * `POST /api/runs/:runId/cancel`, `GET /api/runs/:runId/events` SSE) — a
  * thin HTTP-transport-mode CLI over the kernel's own `Run` noun, with no

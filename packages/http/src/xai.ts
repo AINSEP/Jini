@@ -12,7 +12,7 @@
  * azure/google/ollama/connectors/health/research route-parity pass pending a product decision on
  * whether to build xAI OAuth support at all — approved after that pass landed; this is that build.
  *
- * **Reused `@jini/agent-runtime`'s existing generic OAuth+PKCE machinery instead of building a
+ * **Reused `@injini/agent-runtime`'s existing generic OAuth+PKCE machinery instead of building a
  * second OAuth stack.** `packages/agent-runtime/src/providers/{pkce,oauth-provider,oauth-callback-
  * server,oauth-tokens,oauth-credentials}.ts` (all ported 2026-07-18, see that package's
  * `source-map.md` "providers/ — LLM-provider integrations" section) already generalized this exact
@@ -30,7 +30,7 @@
  * host-port-path defaults (still overridable — see `XaiHttpDeps`), the HTTP wire shapes
  * (`RouteInputContext` parsing, `Result`/`ApiError` responses, `requireSameOrigin`), and the
  * `x_search` Responses-API call itself (genuinely xAI-specific, no existing home in
- * `@jini/agent-runtime`).
+ * `@injini/agent-runtime`).
  *
  * **The one genuinely xAI-specific quirk carried over verbatim: the fixed loopback port.** xAI's
  * PoC `client_id` (`XAI_OAUTH_PROVIDER_CONFIG.clientId`, reused from NousResearch/hermes-agent —
@@ -38,7 +38,7 @@
  * `http://127.0.0.1:56121/callback` server-side; a daemon can't register its own. `oauth-callback-
  * server.ts` already made `host`/`port`/`path` generic parameters rather than hardcoded constants,
  * so this file just supplies xAI's fixed values as `XaiHttpDeps`' (overridable, for tests) default
- * (`XAI_OAUTH_REDIRECT_HOST`/`_PORT`/`_PATH`, all from `@jini/agent-runtime`) — no new
+ * (`XAI_OAUTH_REDIRECT_HOST`/`_PORT`/`_PATH`, all from `@injini/agent-runtime`) — no new
  * listener-mechanics code needed.
  *
  * **Dropped: OD's "SuperGrok subscription" gate.** The origin's `POST /api/xai/search` resolved
@@ -47,7 +47,7 @@
  * `XAI_API_KEY` env var) and returned a 401 with product-specific copy
  * ("sign in with your SuperGrok subscription...") when nothing resolved. Both are OD product/billing
  * decisions, not generic engine concerns — a SuperGrok subscription is an OD-specific entitlement
- * concept `@jini/http` has no business modeling. This port checks only "is an xAI OAuth account
+ * concept `@injini/http` has no business modeling. This port checks only "is an xAI OAuth account
  * connected" (via `resolveOAuthBearer` against this file's own token store) and returns a clean
  * `NOT_CONFIGURED` (503) when it isn't; if a connected account isn't actually entitled to
  * `x_search`, xAI's own `/responses` endpoint returns its own real error, which this route surfaces
@@ -85,7 +85,7 @@
  * never carries the raw error regardless of source. For the two paths that actually touch an
  * untrusted upstream response body — token exchange/refresh (`handleListenerCallback`/
  * `xaiOauthCompleteRoute`) and `callXaiSearch` (which sends this file's own just-issued bearer
- * token as a header, the highest-risk path) — `redactSecrets` (reused from `@jini/agent-runtime`'s
+ * token as a header, the highest-risk path) — `redactSecrets` (reused from `@injini/agent-runtime`'s
  * `connection-guard.ts`, already this package's `research.ts` precedent) additionally strips any
  * Bearer/api-key-shaped text out of the message before it is even logged to the host's own sink
  * (`redactError`/`callXaiSearch`'s own inline redaction), belt-and-braces beyond the generic-message
@@ -106,14 +106,14 @@
  *    for callers) consistent with this package's established camelCase/typed-shape departures from
  *    OD elsewhere in this same file; not changed to avoid weakening the typed response contract.
  * 2. The "state not found or expired" / "state mismatch" `BAD_REQUEST` text
- *    (`@jini/agent-runtime`'s `oauth-provider.ts`) reads `xai OAuth state ...` (lowercase, from the
+ *    (`@injini/agent-runtime`'s `oauth-provider.ts`) reads `xai OAuth state ...` (lowercase, from the
  *    generic `providerId: 'xai'` config field shared across providers), where OD's real, hardcoded
  *    string (`integrations/xai-oauth.ts:131,134-136`) reads `xAI OAuth state ...` (mixed-case, a
  *    literal specific to that one file). Confirmed live (`{"error":"xAI OAuth state not found or
  *    expired"}` from the real daemon). Purely cosmetic — same meaning, same `BAD_REQUEST` classifi-
  *    cation either way (`xaiOauthCompleteRoute`'s own prefix check uses the same `providerId` for
  *    both generation and matching, so it's internally self-consistent) — and the casing lives in
- *    `@jini/agent-runtime`'s already-shipped generic module, outside this file's own scope to alter
+ *    `@injini/agent-runtime`'s already-shipped generic module, outside this file's own scope to alter
  *    without special-casing one provider's capitalization inside otherwise-generic code.
  */
 import { randomUUID } from 'node:crypto';
@@ -139,8 +139,8 @@ import {
   type OAuthTokenResponse,
   type ResolvedOAuthCredential,
   type StoredOAuthToken,
-} from '@jini/agent-runtime';
-import { createApiError } from '@jini/protocol';
+} from '@injini/agent-runtime';
+import { createApiError } from '@injini/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -164,7 +164,7 @@ export interface XaiHttpDeps {
   readonly dataDir?: string;
   /** On-disk file name for the stored token, scoped under `dataDir`. Defaults to `xai-oauth-token.json`. */
   readonly tokenFileName?: string;
-  /** The OAuth+PKCE provider config to drive the dance against. Defaults to `@jini/agent-runtime`'s real `XAI_OAUTH_PROVIDER_CONFIG` preset — override only to point at a different client_id/issuer (e.g. once a non-PoC xAI client_id is provisioned). */
+  /** The OAuth+PKCE provider config to drive the dance against. Defaults to `@injini/agent-runtime`'s real `XAI_OAUTH_PROVIDER_CONFIG` preset — override only to point at a different client_id/issuer (e.g. once a non-PoC xAI client_id is provisioned). */
   readonly providerConfig?: OAuthPkceProviderConfig;
   /** Loopback callback host `providerConfig.clientId` is registered against. Defaults to `XAI_OAUTH_REDIRECT_HOST` (`127.0.0.1`) — see module doc on why this is fixed for xAI's PoC client_id. */
   readonly callbackHost?: string;
@@ -176,7 +176,7 @@ export interface XaiHttpDeps {
   readonly pending?: PendingAuthCache;
   /** Mutable slot holding the in-flight loopback listener, if any (only one OAuth dance can be in flight at a time — the port is a singleton). Shared the same way `pending` is. Defaults to `{ current: null }`. */
   readonly listenerRef?: { current: OAuthCallbackListener | null };
-  /** Opens the loopback callback listener. Defaults to `@jini/agent-runtime`'s `startOAuthCallbackListener`. Overridable so tests never bind a real socket. */
+  /** Opens the loopback callback listener. Defaults to `@injini/agent-runtime`'s `startOAuthCallbackListener`. Overridable so tests never bind a real socket. */
   readonly startCallbackListener?: typeof startOAuthCallbackListener;
   /** Base URL for xAI's Responses API (`POST {searchBaseUrl}/responses`). Defaults to `https://api.x.ai/v1`. */
   readonly searchBaseUrl?: string;
@@ -205,7 +205,7 @@ interface ResolvedXaiHttpDeps {
 
 function defaultInternalErrorSink(context: XaiInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini/http] internal error (xai/${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@injini/http] internal error (xai/${context.source}, correlationId=${context.correlationId})`, context.error);
 }
 
 /** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `registerXaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */

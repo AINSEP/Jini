@@ -1,5 +1,5 @@
 /**
- * `@jini/capability-providers/unsafe-reference` — UNSAFE, NON-PRODUCTION
+ * `@injini/capability-providers/unsafe-reference` — UNSAFE, NON-PRODUCTION
  * reference implementations. Read this before importing anything from this
  * directory.
  *
@@ -8,7 +8,7 @@
  * `createInMemoryDbProvider`, `createInMemoryRealtimeProvider`) is a
  * minimal, non-cryptographic, in-memory reference stub whose only purpose
  * is to prove that the corresponding port interface in the package's normal
- * entry point (`@jini/capability-providers`) is genuinely implementable and
+ * entry point (`@injini/capability-providers`) is genuinely implementable and
  * unit-testable. None of them is, or is intended to become, a production
  * adapter:
  *
@@ -32,8 +32,8 @@
  * store, etc.) instead.
  *
  * This is why these implementations live at the separate
- * `@jini/capability-providers/unsafe-reference` import path rather than the
- * package's normal `@jini/capability-providers` barrel: importing them
+ * `@injini/capability-providers/unsafe-reference` import path rather than the
+ * package's normal `@injini/capability-providers` barrel: importing them
  * requires opting in to this path by name, so they can't be pulled in by
  * accident alongside the port interfaces/types and typed DI tokens (which
  * *are* stable, safe-to-depend-on exports of the normal entry point). See

@@ -143,7 +143,7 @@ export class RoutineService {
         })
         .catch((error) => {
           console.error(
-            `[@jini/daemon] routine ${routine.id} scheduled run failed:`,
+            `[@injini/daemon] routine ${routine.id} scheduled run failed:`,
             error instanceof ScheduledRunPersistenceError
               ? error.originalError instanceof Error
                 ? error.originalError.message
@@ -276,7 +276,7 @@ export class RoutineService {
         }
         if (discardError != null) {
           console.error(
-            `[@jini/daemon] routine ${routine.id} prepare cleanup failed:`,
+            `[@injini/daemon] routine ${routine.id} prepare cleanup failed:`,
             discardError instanceof Error ? discardError.message : discardError,
           );
         }

@@ -18,7 +18,7 @@ function options(overrides: Partial<Parameters<typeof resolveJiniMcpBridge>[0]> 
 }
 
 describe('resolveJiniMcpBridge', () => {
-  it('probes the @jini/mcp build output under the repo root', () => {
+  it('probes the @injini/mcp build output under the repo root', () => {
     const probed: string[] = [];
     resolveJiniMcpBridge(
       options({
@@ -48,7 +48,7 @@ describe('resolveJiniMcpBridge', () => {
     expect(resolution.ok && resolution.injection.daemonUrl).toBe('http://127.0.0.1:9999');
   });
 
-  it('reports the exact missing path when @jini/mcp has not been built', () => {
+  it('reports the exact missing path when @injini/mcp has not been built', () => {
     const resolution = resolveJiniMcpBridge(options({ fileExists: () => false }));
     expect(resolution).toEqual({ ok: false, missingPath: BIN_PATH });
   });

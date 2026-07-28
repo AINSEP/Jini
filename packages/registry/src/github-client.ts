@@ -12,17 +12,17 @@
  * Built directly against GitHub's published REST API docs (Contents API,
  * Git Data API, Pulls API — see each function's doc comment for the exact
  * endpoint/behavior it was verified against), following the same "raw
- * `fetch`, no SDK dependency" convention `@jini/deploy`'s `netlify.ts`/
- * `github-pages.ts` already establish (this package has no `@jini/deploy`
+ * `fetch`, no SDK dependency" convention `@injini/deploy`'s `netlify.ts`/
+ * `github-pages.ts` already establish (this package has no `@injini/deploy`
  * dependency and does not gain one — the blob/tree/commit/ref mechanics
  * below are written fresh for this package, not shared cross-package, since
  * there is no existing shared low-level GitHub REST helper package).
  */
-import type { RegistryManifest } from '@jini/protocol';
+import type { RegistryManifest } from '@injini/protocol';
 import type { GithubPublishMutation, GithubRegistryClient } from './github-backend.js';
 
 const GITHUB_API = 'https://api.github.com';
-/** Pinned per GitHub's own recommendation (`X-GitHub-Api-Version` header), matching `@jini/deploy`'s `github-pages.ts` — see that file's doc comment for the sourcing rationale. */
+/** Pinned per GitHub's own recommendation (`X-GitHub-Api-Version` header), matching `@injini/deploy`'s `github-pages.ts` — see that file's doc comment for the sourcing rationale. */
 const GITHUB_API_VERSION = '2026-03-10';
 
 type JsonObject = Record<string, unknown>;
@@ -118,7 +118,7 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * `request.baseRef`) via the Git Data API — create a blob per file, a tree
    * layered on the base commit's tree, a commit, and a branch ref — then
    * opens a pull request via `POST /repos/{owner}/{repo}/pulls`. Mirrors the
-   * blob→tree→commit→ref mechanics `@jini/deploy`'s `github-pages.ts` already
+   * blob→tree→commit→ref mechanics `@injini/deploy`'s `github-pages.ts` already
    * verified against GitHub's Git Data API docs, extended with an actual
    * Pulls API call (that file force-pushes a branch directly; this one opens
    * a PR against `baseRef` instead, matching `GithubPublishMutation`'s shape).
@@ -218,7 +218,7 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * against GitHub's Git Data Refs API docs: create returns `409 Conflict`
    * when the ref already exists; update accepts `force: true` to bypass the
    * fast-forward-only default — same "last publish wins" reasoning
-   * `@jini/deploy`'s `github-pages.ts` already documents for its own ref update.
+   * `@injini/deploy`'s `github-pages.ts` already documents for its own ref update.
    */
   private async ensureBranch(owner: string, repo: string, branch: string, sha: string): Promise<void> {
     const createResp = await fetch(`${this.apiUrl}/repos/${enc(owner)}/${enc(repo)}/git/refs`, {
@@ -245,7 +245,7 @@ export class GithubApiRegistryClient implements GithubRegistryClient {
    * because a pull request for this exact head/base already exists (the
    * documented shape of that failure is a `422` whose `message` says so) —
    * looks up and returns the existing PR's URL instead. Same
-   * try-then-recover-on-conflict shape `@jini/deploy`'s `netlify.ts`
+   * try-then-recover-on-conflict shape `@injini/deploy`'s `netlify.ts`
    * (`ensureNetlifySite`) already establishes for a different provider's
    * analogous "create-or-find" race.
    */

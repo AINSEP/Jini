@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { promises as fs } from 'node:fs';
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@jini/protocol';
+import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@injini/protocol';
 import {
   attachAcpSession,
   attachPiRpcSession,
@@ -11,9 +11,9 @@ import {
   type AgentLaunchResolution,
   type PiRpcSession,
   type RuntimeAgentDef,
-} from '@jini/agent-runtime';
-import type { Principal, RunRef } from '@jini/core';
-import type { JournalEntry } from '@jini/protocol';
+} from '@injini/agent-runtime';
+import type { Principal, RunRef } from '@injini/core';
+import type { JournalEntry } from '@injini/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../run-lifecycle.js';
 import { createRunByteJournal, type RunByteJournal } from '../continuation/journal.js';
@@ -169,7 +169,7 @@ interface HarnessOptions {
   stopProcessesRejects?: unknown;
   /** SEC-007: makes `listProcessSnapshots` reject instead of succeeding. */
   listProcessSnapshotsRejects?: unknown;
-  /** Overrides the real `@jini/agent-runtime` prompt-file stager (default: real — touches real disk under `os.tmpdir()`, a no-op for every def without `promptViaFile: true`). */
+  /** Overrides the real `@injini/agent-runtime` prompt-file stager (default: real — touches real disk under `os.tmpdir()`, a no-op for every def without `promptViaFile: true`). */
   preparePromptFileForAgent?: typeof preparePromptFileForAgent;
   /** Gap 1's byte-journal — omitted by default, matching `CreateAgentExecutorOptions.journal`'s own opt-in default. */
   journal?: RunByteJournal;
@@ -845,7 +845,7 @@ describe('isSupportedStreamFormat', () => {
 });
 
 describe('createAgentExecutor — real default collaborators', () => {
-  it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @jini/agent-runtime / @jini/platform / node:child_process default', () => {
+  it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @injini/agent-runtime / @injini/platform / node:child_process default', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
     const executor = createAgentExecutor({ lifecycle });
     expect(typeof executor.run).toBe('function');
@@ -1162,7 +1162,7 @@ describe('translateAgentRuntimeEvent', () => {
 
 // ---------------------------------------------------------------------------
 // ACP dispatch — a fake `attachAcpSession` (this driver's own injectable seam
-// for `@jini/agent-runtime`'s real ACP transport, matching the `spawn`/
+// for `@injini/agent-runtime`'s real ACP transport, matching the `spawn`/
 // `getAgentDef`/`resolveAgentLaunch` fakes above) drives `wireAcpLifecycle`'s
 // internal branches without a real ACP subprocess. The real handshake is
 // covered separately by agent-executor-acp.integration.test.ts's actual
@@ -1576,7 +1576,7 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
 
 // ---------------------------------------------------------------------------
 // pi-rpc dispatch — a fake `attachPiRpcSession` (this driver's own injectable
-// seam for `@jini/agent-runtime`'s real pi-rpc transport), mirroring the ACP
+// seam for `@injini/agent-runtime`'s real pi-rpc transport), mirroring the ACP
 // harness above. Unlike ACP's `send(event, payload)`, pi-rpc's `send` always
 // uses the `'agent'` channel (confirmed by reading every `mapPiRpcEvent` call
 // site in agent-runtime) — error-ness is signaled via the payload's own
@@ -2060,7 +2060,7 @@ describe('AgentExecutor — plain-format prompt-file delivery (grok-build: promp
   it('stages the composed prompt to a real 0o600 temp file, threads its path into buildArgs, and removes it once the child exits', async () => {
     const def = createGrokBuildDef();
     // preparePromptFileForAgent is left at its real default here (not injected) — this is the one
-    // test in this suite proving the actual @jini/agent-runtime filesystem behavior end to end.
+    // test in this suite proving the actual @injini/agent-runtime filesystem behavior end to end.
     const { lifecycle, executor, child, spawnCalls } = createHarness({ def });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 

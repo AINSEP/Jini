@@ -14,7 +14,7 @@ import type {
   ChatPaneRunContext,
   ChatPaneWorkingDirectoryAccess,
 } from '../../types.js';
-import type { ChatAttachment, ChatMessage } from '@jini/chat-core';
+import type { ChatAttachment, ChatMessage } from '@injini/chat-core';
 import type { ChatTransport } from '../../../../transport.js';
 import { definedProps } from '../../../../util/defined-props.js';
 import { useComposer, type UseComposerResult } from '../../../../react/hooks/useComposer.js';

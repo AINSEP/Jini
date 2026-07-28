@@ -10,7 +10,7 @@ import './styles.css';
  *
  * The playground needs exactly two top-level pages — the app shell and the plain React page the
  * agent verbs are proven against — and a router dependency would be a real dependency in an
- * example whose whole job is to show what depending on `@jini/*` looks like.
+ * example whose whole job is to show what depending on `@injini/*` looks like.
  */
 function currentRoute(): string {
   return globalThis.location.hash.replace(/^#\/?/, '');

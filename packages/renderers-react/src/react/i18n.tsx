@@ -1,9 +1,9 @@
 /**
  * Minimal generic i18n context, local to this package (no dependency on
- * `@jini/ui` — see this package's "Allowed deps" in
+ * `@injini/ui` — see this package's "Allowed deps" in
  * `foundry/docs/jini-port/recon/r4b-webui-design.md` §1, which does not include
- * `@jini/ui`). Same "context + host-injected dictionary, zero-cost
- * passthrough when unconfigured" shape as `@jini/ui`'s
+ * `@injini/ui`). Same "context + host-injected dictionary, zero-cost
+ * passthrough when unconfigured" shape as `@injini/ui`'s
  * `features/i18n`, kept intentionally tiny since this package only has a
  * handful of user-facing strings (fallback/loading text in
  * `ArtifactView`/`SrcDocSandbox`).

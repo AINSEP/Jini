@@ -2,17 +2,17 @@
  * @module db-ops
  *
  * Daemon DB inspect/verify/vacuum operations, wired through the
- * tool-execution boundary (`@jini/core`'s `tool-registry.ts` + `@jini/daemon`'s
+ * tool-execution boundary (`@injini/core`'s `tool-registry.ts` + `@injini/daemon`'s
  * `tool-executor.ts`) rather than called directly from a route handler.
  * Ported from OD's `apps/daemon/src/routes/daemon.ts` `GET /api/daemon/db`,
  * `POST /api/daemon/db/verify`, `POST /api/daemon/db/vacuum` (see
  * `source-map.md`'s routes-classification table, row `#12 daemon.ts`: "generic
  * in shape but depend on a separate `storage/db-inspect.ts` port not built
- * this round" — that port now exists as `@jini/sqlite`'s `db-inspect.ts`).
+ * this round" — that port now exists as `@injini/sqlite`'s `db-inspect.ts`).
  *
- * This module does **not** depend on `@jini/sqlite` or `better-sqlite3` at
+ * This module does **not** depend on `@injini/sqlite` or `better-sqlite3` at
  * all: `DaemonDbOperations` is a plain injected interface (structurally
- * compatible with `@jini/sqlite`'s `inspectSqliteDatabase`/
+ * compatible with `@injini/sqlite`'s `inspectSqliteDatabase`/
  * `verifySqliteIntegrity` return shapes, so a caller can wire those in with
  * zero adapter code) — the same "caller supplies the real collaborator"
  * convention `daemon-status.ts`/`host-tools.ts` already established in this
@@ -38,9 +38,9 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import type { Principal, RunRef, ToolPolicy, ToolRegistration } from '@jini/core';
-import type { ToolExecutionResult, ToolExecutor } from '@jini/daemon';
-import { createApiError } from '@jini/protocol';
+import type { Principal, RunRef, ToolPolicy, ToolRegistration } from '@injini/core';
+import type { ToolExecutionResult, ToolExecutor } from '@injini/daemon';
+import { createApiError } from '@injini/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -57,7 +57,7 @@ export interface DaemonDbTableInfo {
   readonly rowCount: number;
 }
 
-/** Structurally identical to `@jini/sqlite`'s `DaemonDbStatusReport` — defined locally so this package incurs no `better-sqlite3` dependency. */
+/** Structurally identical to `@injini/sqlite`'s `DaemonDbStatusReport` — defined locally so this package incurs no `better-sqlite3` dependency. */
 export interface DaemonDbStatusReport {
   readonly kind: 'sqlite' | 'postgres';
   readonly location: string;
@@ -74,7 +74,7 @@ export interface DbIntegrityIssue {
   readonly message: string;
 }
 
-/** Structurally identical to `@jini/sqlite`'s `DbIntegrityReport`. */
+/** Structurally identical to `@injini/sqlite`'s `DbIntegrityReport`. */
 export interface DbIntegrityReport {
   readonly ok: boolean;
   readonly mode: 'integrity_check' | 'quick_check';
@@ -91,7 +91,7 @@ export interface DaemonDbVacuumResult {
   readonly elapsedMs: number;
 }
 
-/** The real collaborator a host injects — typically backed by `@jini/sqlite`'s `inspectSqliteDatabase`/`verifySqliteIntegrity` plus a small `vacuum` wrapper around `db.exec('VACUUM')`. */
+/** The real collaborator a host injects — typically backed by `@injini/sqlite`'s `inspectSqliteDatabase`/`verifySqliteIntegrity` plus a small `vacuum` wrapper around `db.exec('VACUUM')`. */
 export interface DaemonDbOperations {
   inspect(): Promise<DaemonDbStatusReport> | DaemonDbStatusReport;
   verify(quick: boolean): Promise<DbIntegrityReport> | DbIntegrityReport;
@@ -101,7 +101,7 @@ export interface DaemonDbOperations {
 /**
  * Deny-by-default `ToolPolicy` shared by all three DB tools — every call is
  * denied, unconditionally, regardless of principal. Matching
- * `@jini/deploy`'s `denyAllDeployPublishPolicy` precedent: a host must
+ * `@injini/deploy`'s `denyAllDeployPublishPolicy` precedent: a host must
  * explicitly opt in with its own policy (e.g. role-gated, or "same principal
  * that owns the daemon process") rather than getting a working DB inspector
  * for free merely by registering the tools. `inspect`/`verify` disclose
@@ -133,7 +133,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Builds the three `{descriptor, handler, policy}` triples a host registers
- * against `@jini/core`'s `ToolRegistry` so the DB operations become
+ * against `@injini/core`'s `ToolRegistry` so the DB operations become
  * reachable only via `ToolExecutor.execute(principal, run, toolId, input)` —
  * never by a route calling `operations.inspect()`/`verify()`/`vacuum()`
  * directly, which would bypass authorization and the audit trail entirely.
@@ -193,7 +193,7 @@ export interface DaemonDbInternalErrorContext {
 
 function defaultDaemonDbInternalErrorSink(context: DaemonDbInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@injini/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
 }
 
 export interface DaemonDbHttpDeps {

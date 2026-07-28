@@ -99,7 +99,7 @@ async function makeTempDir(prefix: string): Promise<string> {
   return dir;
 }
 
-describe("@jini/platform — command", () => {
+describe("@injini/platform — command", () => {
   it("passes non-Windows-shim commands straight through", () => {
     const invocation = createCommandInvocation({ args: ["--version"], command: "node" });
     expect(invocation).toEqual({ args: ["--version"], command: "node" });
@@ -112,7 +112,7 @@ describe("@jini/platform — command", () => {
   });
 });
 
-describe("@jini/platform — process stamps", () => {
+describe("@injini/platform — process stamps", () => {
   const stamp: FakeStamp = { app: "ui", namespace: "alpha" };
 
   it("round-trips a stamp through args, flag reads, and decode", () => {
@@ -158,7 +158,7 @@ describe("@jini/platform — process stamps", () => {
   });
 });
 
-describe("@jini/platform — fs", () => {
+describe("@injini/platform — fs", () => {
   it("containment: descendants pass, sibling/parent escapes fail, root itself passes", () => {
     expect(pathContains("/repo/root", "/repo/root/child")).toBe(true);
     expect(pathContains("/repo/root", "/repo/root")).toBe(true);
@@ -367,7 +367,7 @@ describe("@jini/platform — fs", () => {
   });
 });
 
-describe("@jini/platform — http", () => {
+describe("@injini/platform — http", () => {
   it("resolves once the URL answers OK, retrying through initial failures", async () => {
     let requestCount = 0;
     const server = createServer((_req, res) => {
@@ -395,7 +395,7 @@ describe("@jini/platform — http", () => {
   });
 });
 
-describe("@jini/platform — proxy-env", () => {
+describe("@injini/platform — proxy-env", () => {
   it("merges layered sources, canonicalizing proxy variable spellings", () => {
     const merged = mergeProxyAwareEnv(
       "darwin",
@@ -448,7 +448,7 @@ describe("@jini/platform — proxy-env", () => {
   });
 });
 
-describe("@jini/platform — toolchain", () => {
+describe("@injini/platform — toolchain", () => {
   it("assembles an ordered, home-relative bin list honoring explicit prefixes and env overrides", () => {
     const dirs = wellKnownUserToolchainBins({
       env: { NPM_CONFIG_PREFIX: "/custom/npm-prefix" },

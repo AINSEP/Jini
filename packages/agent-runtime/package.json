@@ -1,8 +1,12 @@
 {
-  "name": "@jini/agent-runtime",
+  "name": "@injini/agent-runtime",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/agent-runtime" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/agent-runtime"
+  },
   "jini": {
     "domain": "agent",
     "kind": "runtime",
@@ -10,9 +14,24 @@
     "admission": "locked"
   },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -20,7 +39,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/platform": "workspace:*"
+    "@injini/platform": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

@@ -7,7 +7,7 @@
  * accepting an under-bound daemon), `tsc` fails on an unused `@ts-expect-error` directive, which
  * fails `pnpm typecheck`. Mirrors `packages/core/src/compose.typecheck.ts`'s own pattern.
  */
-import { definePack, token } from '@jini/core';
+import { definePack, token } from '@injini/core';
 import { createLocalNodeDaemon } from './create-local-node-daemon.js';
 
 interface Greeter {

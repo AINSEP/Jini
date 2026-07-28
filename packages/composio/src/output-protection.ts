@@ -3,7 +3,7 @@
  *
  * Centralized size and secret redaction boundary for provider output.
  */
-import type { JsonValue } from '@jini/protocol';
+import type { JsonValue } from '@injini/protocol';
 
 import {
   toStructurallyBoundedJsonValue,

@@ -3,7 +3,7 @@ import {
   type DragEvent,
   type DragEventHandler,
 } from 'react';
-import { useFileDropTarget } from '@jini/ui';
+import { useFileDropTarget } from '@injini/ui';
 
 export interface UseChatPaneFileDropOptions {
   enabled: boolean;

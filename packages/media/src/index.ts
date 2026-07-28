@@ -1,5 +1,5 @@
 /**
- * `@jini/media` — multi-provider image/video/audio generation gateway:
+ * `@injini/media` — multi-provider image/video/audio generation gateway:
  * provider/model types, the real vendor catalogue as reference data, an
  * injection-style capability registry, a pure video-request builder, an
  * async task-tracking port, a host-injected policy port, a generic

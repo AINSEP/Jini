@@ -8,7 +8,7 @@
  * package (`static`/`github`/`database`) so version-resolution semantics
  * stay identical across backend kind.
  */
-import type { RegistryEntry } from '@jini/protocol';
+import type { RegistryEntry } from '@injini/protocol';
 
 export interface ParsedRegistrySpecifier {
   name: string;

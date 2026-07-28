@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RunProtocolEvent } from '@jini/protocol';
+import type { RunProtocolEvent } from '@injini/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import type { EventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
@@ -453,7 +453,7 @@ describe('RunLifecycle — cancel', () => {
 
     expect(listener).toHaveBeenCalledWith({ runId: run.id, reason: 'user requested' });
     // The kernel does not own subprocess signaling (extraction-plan task 7,
-    // @jini/agent-runtime); it is the driver's job to observe the signal and
+    // @injini/agent-runtime); it is the driver's job to observe the signal and
     // call finish() once it knows the real outcome.
     expect(status.state).toBe('running');
 

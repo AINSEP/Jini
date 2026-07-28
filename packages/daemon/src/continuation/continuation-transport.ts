@@ -7,7 +7,7 @@
  * after the first write for ~22/24 registered defs (see the consensus
  * report's DP3).
  *
- * Resolution order (2026-07-22 research, `@jini/agent-runtime`'s 24 defs
+ * Resolution order (2026-07-22 research, `@injini/agent-runtime`'s 24 defs
  * enumerated directly): `externalMcpInjection` set → `'mcp-callback'`;
  * else `promptInputFormat === 'stream-json' && promptViaStdin` →
  * `'stdin-injection'`; else `'none'`. `externalMcpInjection` is checked
@@ -25,7 +25,7 @@
  * comment states it deliberately stays plain-text stdin. Keying off
  * `streamFormat` would misroute it into `'stdin-injection'`.
  */
-import type { RuntimeAgentDef } from '@jini/agent-runtime';
+import type { RuntimeAgentDef } from '@injini/agent-runtime';
 
 export type ContinuationTransport = 'mcp-callback' | 'stdin-injection' | 'none';
 

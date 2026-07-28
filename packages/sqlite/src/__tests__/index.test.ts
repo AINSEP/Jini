@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as barrel from '../index.js';
 
-describe('@jini/sqlite barrel', () => {
+describe('@injini/sqlite barrel', () => {
   it('re-exports the event-log, backend-config, and db-inspect public surfaces', () => {
     expect(typeof barrel.createSqliteEventLog).toBe('function');
     expect(typeof barrel.resolveSqliteBackendConfig).toBe('function');

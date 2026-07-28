@@ -19,7 +19,7 @@ import {
   apiTokenFromEnv,
   isApiTokenMiddlewareEnabled,
   type ApiTokenAuthEnvConfig,
-} from '@jini/core';
+} from '@injini/core';
 import { isLoopbackPeerAddress } from './local-daemon-request.js';
 import { allowedBrowserPorts, isAllowedBrowserOrigin } from './origin-validation.js';
 

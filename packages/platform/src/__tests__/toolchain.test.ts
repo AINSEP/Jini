@@ -32,14 +32,14 @@ async function makeTempDir(prefix: string): Promise<string> {
   return dir;
 }
 
-describe('@jini/platform — toolchain — option defaults', () => {
+describe('@injini/platform — toolchain — option defaults', () => {
   it('defaults home to os.homedir() and env to process.env when both are omitted', () => {
     const dirs = wellKnownUserToolchainBins();
     expect(dirs).toContain(join(homedir(), '.local', 'bin'));
   });
 });
 
-describe('@jini/platform — toolchain — ~-prefixed env overrides', () => {
+describe('@injini/platform — toolchain — ~-prefixed env overrides', () => {
   it('expands a bare "~" VP_HOME to the home dir itself', () => {
     const dirs = wellKnownUserToolchainBins({ env: { VP_HOME: '~' }, home: '/home/fakeuser' });
     expect(dirs[0]).toBe(join('/home/fakeuser', 'bin'));
@@ -87,7 +87,7 @@ describe('@jini/platform — toolchain — ~-prefixed env overrides', () => {
   });
 });
 
-describe('@jini/platform — toolchain — npm prefix handling', () => {
+describe('@injini/platform — toolchain — npm prefix handling', () => {
   it('ignores a whitespace-only NPM_CONFIG_PREFIX without throwing', () => {
     expect(() =>
       wellKnownUserToolchainBins({ env: { NPM_CONFIG_PREFIX: '   ' }, home: '/home/fakeuser' }),
@@ -117,7 +117,7 @@ describe('@jini/platform — toolchain — npm prefix handling', () => {
   });
 });
 
-describe('@jini/platform — toolchain — Windows-only scoop/appdata and fnm roots', () => {
+describe('@injini/platform — toolchain — Windows-only scoop/appdata and fnm roots', () => {
   it('adds scoop shims and %APPDATA%\\npm when APPDATA is set', () => {
     withPlatform('win32', () => {
       const dirs = wellKnownUserToolchainBins({ env: { APPDATA: 'C:\\Users\\fake\\AppData\\Roaming' }, home: 'C:\\Users\\fake' });
@@ -166,7 +166,7 @@ describe('@jini/platform — toolchain — Windows-only scoop/appdata and fnm ro
   });
 });
 
-describe('@jini/platform — toolchain — per-version Node install root discovery', () => {
+describe('@injini/platform — toolchain — per-version Node install root discovery', () => {
   it('surfaces installed version bin dirs sorted newest-first, handling semver, "v"-prefixes, symlinks, non-semver names, missing bin dirs, and non-directory entries', async () => {
     const home = await makeTempDir('jini-toolchain-nvm-');
     const nodeVersionsRoot = join(home, '.nvm', 'versions', 'node');

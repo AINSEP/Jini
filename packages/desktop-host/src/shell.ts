@@ -12,7 +12,7 @@
  * `/api/recent-dirs`, and `/api/dialog/open-folder` as HTTP routes, but
  * those are host-process bridge capabilities (a directory picker, a
  * recent-locations list, a filesystem existence check against the local
- * machine the desktop shell is running on) — `@jini/http` has no
+ * machine the desktop shell is running on) — `@injini/http` has no
  * desktop/Electron-bridge concept and never will, so this is where the
  * capability actually belongs: the same `ShellPort` a chat UI's
  * `window.__jini__` bridge already reaches for `openExternal`/`openPath`.

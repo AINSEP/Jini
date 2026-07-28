@@ -6,7 +6,7 @@
  * mirrored layout (`apps/daemon/...` -> `foundry/integrations/open-design/daemon/...`), and is the
  * mechanical piece a future CI gate can build on top of: run this against an incoming upstream
  * patch, and cross-check every touched path against `sync-ownership.manifest.json` to fail CI
- * on any `delegated-to-jini` path whose `@jini/*` counterpart hasn't also been fixed.
+ * on any `delegated-to-jini` path whose `@injini/*` counterpart hasn't also been fixed.
  *
  * Two surfaces:
  *   1. `transformUpstreamPath(path)` — a pure function, importable by tests/tooling.

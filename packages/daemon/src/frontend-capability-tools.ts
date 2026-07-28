@@ -15,10 +15,10 @@
  * prevent. There is no reason to add one: anything that can execute a tool can execute these.
  *
  * **Typed structurally, not against the frontend packages.** A capability spec here is anything
- * with an `id` and a `description` — `@jini/agentic`'s `CapabilityDef` satisfies it without
+ * with an `id` and a `description` — `@injini/agentic`'s `CapabilityDef` satisfies it without
  * knowing this module exists. Importing that type would point a server package at the browser
  * vocabulary and invert the one-way edge the engine's layering depends on; the same reasoning as
- * `@jini/core`'s `RunRef`.
+ * `@injini/core`'s `RunRef`.
  *
  * **Every registration carries a timeout by default.** A surface that never answers — a
  * backgrounded tab, a closed laptop, a tab killed between the call and the reply — is the normal
@@ -26,7 +26,7 @@
  * caller's signal aborts. Without a `timeoutMs` on the descriptor that signal never fires and the
  * run waits forever, so the default is applied rather than left to each host to remember.
  */
-import type { ToolPolicy, ToolRegistration } from '@jini/core';
+import type { ToolPolicy, ToolRegistration } from '@injini/core';
 import type { FrontendSessionRegistry } from './frontend-session-registry.js';
 
 /**
@@ -51,7 +51,7 @@ export const DEFAULT_FRONTEND_CAPABILITY_TIMEOUT_MS = 30_000;
 /**
  * The minimum a manifest entry must describe. Structural on purpose — see the module doc.
  *
- * Every field here exists on `@jini/agentic`'s `CapabilityDef`, so a manifest satisfies this
+ * Every field here exists on `@injini/agentic`'s `CapabilityDef`, so a manifest satisfies this
  * without conversion. The first version of this type accepted only `id`, `description`, and
  * `requiresConfirmation` and silently dropped the rest, which made the projection **lossy**: a
  * registered capability could no longer say what arguments it took or how dangerous it was, so
@@ -118,7 +118,7 @@ function toCapabilityInput(capabilityId: string, input: unknown): Record<string,
  *
  * @param options - The registry to route through, the manifest to expose, and the gate to apply.
  * @returns Registrations in manifest order, ready to hand to a `ToolRegistry` (or to
- * `@jini/node-host`'s `toolRegistrations` config option).
+ * `@injini/node-host`'s `toolRegistrations` config option).
  * @throws Never. A duplicate id is reported by `ToolRegistry.register` at registration time,
  * naming the id — this function does not pre-empt that with a second, differently-worded error.
  *

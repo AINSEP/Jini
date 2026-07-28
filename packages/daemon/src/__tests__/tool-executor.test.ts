@@ -5,7 +5,7 @@ import {
   type RunRef,
   type ToolRegistration,
   type ToolRegistry,
-} from '@jini/core';
+} from '@injini/core';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -33,7 +33,7 @@ function allowAll(): ToolRegistration['policy'] {
   return { authorize: () => 'allow' };
 }
 
-describe('@jini/daemon — ToolExecutor — authorization', () => {
+describe('@injini/daemon — ToolExecutor — authorization', () => {
   it('throws for an unregistered tool id', async () => {
     const executor = createToolExecutor({ registry: createToolRegistry() });
     await expect(executor.execute(principal, run, 'missing', {})).rejects.toThrow(/unknown tool "missing"/);
@@ -117,7 +117,7 @@ describe('@jini/daemon — ToolExecutor — authorization', () => {
   });
 });
 
-describe('@jini/daemon — ToolExecutor — confirmation', () => {
+describe('@injini/daemon — ToolExecutor — confirmation', () => {
   it('proceeds when the delegate confirms synchronously', async () => {
     const registry = registryWith({
       descriptor: { id: 'confirm-me', requiresConfirmation: true },
@@ -252,7 +252,7 @@ describe('@jini/daemon — ToolExecutor — confirmation', () => {
   });
 });
 
-describe('@jini/daemon — ToolExecutor — timeout, cancellation, output truncation', () => {
+describe('@injini/daemon — ToolExecutor — timeout, cancellation, output truncation', () => {
   function abortAwareHandler() {
     return (ctx: { signal: AbortSignal }) =>
       new Promise((_resolve, reject) => {

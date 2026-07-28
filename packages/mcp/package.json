@@ -1,8 +1,12 @@
 {
-  "name": "@jini/mcp",
+  "name": "@injini/mcp",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/mcp" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/mcp"
+  },
   "jini": {
     "domain": "integration",
     "kind": "protocol-adapter",
@@ -10,10 +14,27 @@
     "admission": "incubating"
   },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "bin": { "jini-mcp": "./dist/bin/serve.js" },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "jini-mcp": "./dist/bin/serve.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json && chmod +x dist/bin/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -21,8 +42,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/cli": "workspace:*",
-    "@jini/platform": "workspace:*",
+    "@injini/cli": "workspace:*",
+    "@injini/platform": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "undici": "^7.25.0"
   }

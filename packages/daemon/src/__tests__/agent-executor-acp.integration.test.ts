@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
 import { createAgentExecutor } from '../agent-executor.js';
-import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini/agent-runtime';
-import type { RunAgentPayload, RunProtocolEvent } from '@jini/protocol';
+import type { AgentLaunchResolution, RuntimeAgentDef } from '@injini/agent-runtime';
+import type { RunAgentPayload, RunProtocolEvent } from '@injini/protocol';
 
 /**
  * A real Node subprocess speaking the smallest useful ACP conversation. It

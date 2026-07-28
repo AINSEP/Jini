@@ -3,7 +3,7 @@
  *
  * `POST /api/proxy/{anthropic,openai,azure,google,ollama}/stream`, plus a
  * generic `POST /api/proxy/:provider/stream` catch-all — thin SSE route
- * wrappers over `@jini/agent-runtime`'s `run{Anthropic,OpenAi,Azure,Google,
+ * wrappers over `@injini/agent-runtime`'s `run{Anthropic,OpenAi,Azure,Google,
  * Ollama}ToolTurn` wire-adapter/turn-runners. Implements the placement
  * decision in `ADS-memory/reports/proposals/
  * PROP-http-route-packs-chat-model-proxy-2026-07-21.md`: OD's
@@ -12,10 +12,10 @@
  * found, but its provider-specific wire-protocol knowledge (Anthropic
  * Messages API / OpenAI Chat Completions SSE parsing, tool-call-fragment
  * accumulation, the role-marker-guard contamination loop) does not belong
- * in `@jini/http` — this package has zero AI-provider knowledge anywhere
+ * in `@injini/http` — this package has zero AI-provider knowledge anywhere
  * else in its surface, and that proposal recommended keeping it that way by
- * extending `@jini/agent-runtime`'s existing `providers/` pattern instead.
- * This module is the `@jini/http` half of that split: request parsing,
+ * extending `@injini/agent-runtime`'s existing `providers/` pattern instead.
+ * This module is the `@injini/http` half of that split: request parsing,
  * same-origin enforcement, and SSE transport (`sse.ts`, the same primitive
  * `runs.ts`/`memory.ts` already consume) — no knowledge of what an
  * Anthropic `content_block_delta`, an OpenAI `tool_calls[].function.
@@ -29,7 +29,7 @@
  * **2026-07-22 pass (this addition)**: picks up exactly that deferred item
  * — Azure, Google, and Ollama proxy routes are now built, each a thin
  * sibling `registerProxyStreamRoute` call following the identical request-
- * parsing/SSE-wiring shape, once `@jini/agent-runtime` grew the matching
+ * parsing/SSE-wiring shape, once `@injini/agent-runtime` grew the matching
  * per-vendor turn-runner (see that package's `source-map.md`'s own
  * 2026-07-22 dated section). Also adds the generic `POST
  * /api/proxy/:provider/stream` catch-all described below.
@@ -47,14 +47,14 @@
  *
  * **BYOK, not server-held credentials.** Every request carries its own
  * `apiKey` (and optional `baseUrl`/`extraHeaders`) in the POST body, exactly
- * like `@jini/agent-runtime`'s existing `providers/model-catalog.ts` BYOK
+ * like `@injini/agent-runtime`'s existing `providers/model-catalog.ts` BYOK
  * surface — this route never stores or reads a server-side credential.
  * `apiKey` is required for all five providers, including Ollama — an earlier
  * version of this module made it optional for Ollama on a "local install
  * needs no auth" rationale that a live comparison against a running Open
  * Design daemon proved doesn't match OD's real behavior (OD's default
  * Ollama target is Ollama Cloud, which does require a key; see
- * `@jini/agent-runtime`'s `ollama-chat.ts` module doc for the full
+ * `@injini/agent-runtime`'s `ollama-chat.ts` module doc for the full
  * corrected design).
  *
  * **Tool execution is out of scope for this pass.** `ModelProxyHttpDeps`'s
@@ -120,8 +120,8 @@ import {
   type OpenAiToolExecutor,
   type OpenAiToolResult,
   type OpenAiTurnEvent,
-} from '@jini/agent-runtime';
-import { createApiError } from '@jini/protocol';
+} from '@injini/agent-runtime';
+import { createApiError } from '@injini/protocol';
 import type { AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { sendApiError } from './response.js';
@@ -141,7 +141,7 @@ export interface ModelProxyInternalErrorContext {
 
 function defaultInternalErrorSink(context: ModelProxyInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini/http] internal error (model-proxy/${context.provider}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@injini/http] internal error (model-proxy/${context.provider}, correlationId=${context.correlationId})`, context.error);
 }
 
 export interface ModelProxyHttpDeps {
@@ -284,7 +284,7 @@ function parseOpenAiProxyRequest(body: unknown): Result<ParsedOpenAiProxyRequest
 }
 
 interface ParsedAzureProxyRequest extends ParsedProxyCommon {
-  /** Required for Azure, unlike the other four providers — every Azure OpenAI resource has its own endpoint (see `@jini/agent-runtime`'s `azure-chat.ts`). */
+  /** Required for Azure, unlike the other four providers — every Azure OpenAI resource has its own endpoint (see `@injini/agent-runtime`'s `azure-chat.ts`). */
   readonly baseUrl: string;
   /** Required for Azure — no sane global default exists at the HTTP-request-shape level either (the turn-runner itself does have a `'2024-10-21'` fallback, but this route requires the caller be explicit). */
   readonly apiVersion: string;

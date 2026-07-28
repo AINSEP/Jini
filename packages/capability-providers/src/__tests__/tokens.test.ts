@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AuthProviderToken, DbProviderToken, PaymentsProviderToken, RealtimeProviderToken, StorageProviderToken } from '../tokens.js';
 
-describe('@jini/capability-providers tokens', () => {
+describe('@injini/capability-providers tokens', () => {
   const tokens = [AuthProviderToken, StorageProviderToken, PaymentsProviderToken, DbProviderToken, RealtimeProviderToken];
 
   it('are one-cardinality tokens with the jini.capabilityProviders.* namespace and version 1', () => {

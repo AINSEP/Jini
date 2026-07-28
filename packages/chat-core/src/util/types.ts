@@ -29,7 +29,7 @@ export type ArtifactStatus = 'streaming' | 'complete' | 'error';
  * generated file, describing how to render/export it. Generic across
  * artifact kinds — a host's own artifact-file type carries this manifest,
  * not the other way around (see `ArtifactFile` in r4b §2, owned by
- * `@jini/artifacts-react`, not this package).
+ * `@injini/artifacts-react`, not this package).
  */
 export interface ArtifactManifest {
   version: 1;

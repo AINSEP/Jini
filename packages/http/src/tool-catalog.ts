@@ -4,11 +4,11 @@
  * `GET /api/tools/search` / `GET /api/tools/:id` — the discovery half of
  * `ai-control-plane.md` §29 / `PROP-tool-catalog-discovery-2026-07-26.md` §6.1's staged verbs
  * (`search_tools`/`describe_tool`), v0 scope: no principal scoping, no versioning, no schema
- * narrowing. `@jini/mcp`'s `search_tools`/`describe_tool` tool defs proxy these two routes,
+ * narrowing. `@injini/mcp`'s `search_tools`/`describe_tool` tool defs proxy these two routes,
  * exactly mirroring how `run-tools.ts`'s tools proxy `runs.ts`.
  *
- * This module does not depend on `@jini/sqlite` or `better-sqlite3` — `ToolCatalogQuery` is a
- * plain injected interface, structurally compatible with `@jini/sqlite`'s
+ * This module does not depend on `@injini/sqlite` or `better-sqlite3` — `ToolCatalogQuery` is a
+ * plain injected interface, structurally compatible with `@injini/sqlite`'s
  * `searchToolCatalog`/`getToolCatalogEntry` so a caller wires those in with zero adapter code,
  * matching `db-ops.ts`'s established convention.
  *
@@ -37,7 +37,7 @@ export interface ToolCatalogEntry {
   readonly source: string;
 }
 
-/** Structurally identical to `@jini/sqlite`'s `searchToolCatalog`/`getToolCatalogEntry` — defined locally so this package incurs no `better-sqlite3` dependency. */
+/** Structurally identical to `@injini/sqlite`'s `searchToolCatalog`/`getToolCatalogEntry` — defined locally so this package incurs no `better-sqlite3` dependency. */
 export interface ToolCatalogQuery {
   readonly search: (query: string, limit?: number) => readonly ToolCatalogSearchHit[];
   readonly describe: (id: string) => ToolCatalogEntry | null;
