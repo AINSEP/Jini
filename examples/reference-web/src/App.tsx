@@ -102,6 +102,11 @@ export function App() {
           <span>LOCAL WORKSPACE</span>
           <code>examples/sample-projects/</code>
         </div>
+
+        <a className="rail-note" href="#/a2ui-lab" style={{ textDecoration: 'none' }}>
+          <span>PROTOCOL LAB</span>
+          <code>A2UI surface →</code>
+        </a>
       </aside>
 
       <section className="workspace-pane">

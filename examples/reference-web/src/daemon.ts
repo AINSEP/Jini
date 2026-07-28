@@ -1,8 +1,16 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
+import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, resolve } from 'node:path';
+import {
+  createLabCatalog,
+  parseAgentToRendererMessage,
+  parseRendererToAgentMessage,
+  type AgentToRendererMessage,
+  type RendererToAgentMessage,
+} from '@jini-ai/a2ui';
 import { createAguiEncoder } from '@jini-ai/agentic';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini-ai/http';
@@ -32,6 +40,12 @@ import { resolveJiniMcpBridge, type JiniMcpBridgeInjection } from './mcp-bridge.
 
 const PLAYGROUND_PREFIX = 'playground:';
 const PLAYGROUND_PORT = 4317;
+/**
+ * The A2UI Lab action relay's own port — deliberately a second, dedicated `node:http` server, not
+ * a route bolted onto the daemon's own Express app. See `startA2uiActionRelay`'s doc for why.
+ */
+const A2UI_ACTION_PORT = 4318;
+const A2UI_DEMO_AGENT_ID = 'a2ui-demo';
 const PROJECTS = new Set(['starter-site', 'bug-hunt']);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const dataDir = resolve(repoRoot, '.jini/playground');
@@ -119,6 +133,212 @@ function resolvePlaygroundMcpBridge(): JiniMcpBridgeInjection | undefined {
     return undefined;
   }
   return resolution.injection;
+}
+
+// ---------------------------------------------------------------------------------------------
+// A2UI Lab demo: a real agent-driven surface (createSurface -> updateComponents -> updateDataModel)
+// streamed through the same RunLifecycle every other playground demo uses, plus a real renderer ->
+// agent `action` round trip when the fixture's button is clicked. See `A2uiLab.tsx` for the
+// browser-side interpreter/renderer this drives, and `../../../packages/a2ui/source-map.md` for
+// what this port of the spec does and does not implement.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * One resolver queue per in-flight A2UI run, fed by `startA2uiActionRelay` below and drained by
+ * `waitForA2uiAction`. A queue (not a single slot) so more than one click queued up faster than
+ * the demo consumes them is never silently dropped — `deliverA2uiAction` always hands the message
+ * to the *oldest* still-waiting call.
+ */
+const a2uiActionQueues = new Map<string, Array<(message: RendererToAgentMessage) => void>>();
+
+function registerA2uiActionWaiter(runId: string, resolve: (message: RendererToAgentMessage) => void): void {
+  const queue = a2uiActionQueues.get(runId) ?? [];
+  queue.push(resolve);
+  a2uiActionQueues.set(runId, queue);
+}
+
+/** @returns `true` if a waiting call actually received this message, `false` if nothing was waiting (e.g. a stray/late POST after the demo already finished). */
+function deliverA2uiAction(runId: string, message: RendererToAgentMessage): boolean {
+  const queue = a2uiActionQueues.get(runId);
+  const resolveNext = queue?.shift();
+  if (!resolveNext) return false;
+  resolveNext(message);
+  return true;
+}
+
+function clearA2uiActionWaiters(runId: string): void {
+  a2uiActionQueues.delete(runId);
+}
+
+/**
+ * Waits for the next renderer -> agent action on `runId`, or `null` if `isCanceled` flips true
+ * first. Polls the cancellation flag on a short interval rather than a proper cancelable-promise
+ * primitive — a deliberate, documented simplification for a lab demo, not production run-control
+ * code (`@jini-ai/daemon`'s own `RunLifecycle` has no "cancel a pending await" primitive to hook into
+ * here; building one was out of scope for this task).
+ */
+function waitForA2uiAction(runId: string, isCanceled: () => boolean): Promise<RendererToAgentMessage | null> {
+  return new Promise((settle) => {
+    let done = false;
+    const pollTimer = setInterval(() => {
+      if (!done && isCanceled()) {
+        done = true;
+        clearInterval(pollTimer);
+        settle(null);
+      }
+    }, 200);
+    registerA2uiActionWaiter(runId, (message) => {
+      if (done) return;
+      done = true;
+      clearInterval(pollTimer);
+      settle(message);
+    });
+  });
+}
+
+async function runA2uiDemo(
+  runId: string,
+  lifecycle: Parameters<NonNullable<Parameters<typeof createLocalNodeDaemon>[0]['onRunStarted']>>[0]['lifecycle'],
+): Promise<void> {
+  let canceled = false;
+  lifecycle.onCancelRequested(runId, () => {
+    canceled = true;
+  });
+  const emitAgent = (data: RunAgentPayload) => lifecycle.emit(runId, { event: 'agent', data });
+  /**
+   * Validates every outgoing message against `@jini-ai/a2ui`'s own `parseAgentToRendererMessage`
+   * before it goes out over the wire — this demo dogfoods the same schema the browser-side
+   * interpreter enforces, so a typo in one of the literal messages below fails loudly here
+   * instead of silently reaching the renderer as a message it then has to reject.
+   */
+  const emitA2ui = (message: AgentToRendererMessage) => {
+    const validated = parseAgentToRendererMessage(message);
+    if (!validated.ok) {
+      throw new Error(`[A2UI Lab] refusing to emit a message that fails its own schema: ${validated.message}`);
+    }
+    emitAgent({ type: 'a2ui', message: validated.message });
+  };
+
+  const catalog = createLabCatalog();
+  const surfaceId = `${runId}-surface`;
+
+  await emitAgent({ type: 'status', label: 'Building an A2UI surface', detail: catalog.catalogId });
+  await delay(200);
+  if (canceled) {
+    await lifecycle.finish({ runId, status: 'cancelled', code: null, signal: null, resumable: false });
+    return;
+  }
+
+  emitA2ui({
+    version: 'v1.0',
+    createSurface: {
+      surfaceId,
+      catalogId: catalog.catalogId,
+      dataModel: { message: 'Click the button below — the click really round-trips through the daemon.', clicks: 0 },
+    },
+  });
+  await delay(150);
+
+  emitA2ui({
+    version: 'v1.0',
+    updateComponents: {
+      surfaceId,
+      components: [
+        { id: 'root', component: 'Column', children: ['title', 'status', 'greetButton'] },
+        { id: 'title', component: 'Text', text: 'A2UI Lab', variant: 'body' },
+        { id: 'status', component: 'Text', text: { path: '/message' } },
+        {
+          id: 'greetButton',
+          component: 'Button',
+          child: 'greetLabel',
+          variant: 'primary',
+          action: { event: { name: 'sayHello', context: { source: 'a2ui-lab-button' } } },
+        },
+        { id: 'greetLabel', component: 'Text', text: 'Say hello' },
+      ],
+    },
+  });
+
+  const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+  let clicks = 0;
+  const startedAt = Date.now();
+  for (;;) {
+    if (canceled || Date.now() - startedAt > IDLE_TIMEOUT_MS) break;
+    const received = await waitForA2uiAction(runId, () => canceled);
+    if (!received || canceled) break;
+    if (!('action' in received) || received.action.name !== 'sayHello') continue;
+
+    clicks += 1;
+    emitA2ui({
+      version: 'v1.0',
+      updateDataModel: {
+        surfaceId,
+        path: '/message',
+        value: `Hello! This is click #${clicks}, acknowledged by the real daemon at ${received.action.timestamp}.`,
+      },
+    });
+    await delay(60);
+    emitA2ui({ version: 'v1.0', updateDataModel: { surfaceId, path: '/clicks', value: clicks } });
+  }
+
+  clearA2uiActionWaiters(runId);
+  await lifecycle.finish({
+    runId,
+    status: canceled ? 'cancelled' : 'succeeded',
+    code: canceled ? null : 0,
+    signal: null,
+    resumable: false,
+  });
+}
+
+/**
+ * A small, dedicated `POST /a2ui-action` relay for the A2UI Lab's browser -> daemon round trip —
+ * deliberately its own `node:http` server on its own port, not a second route added to the
+ * daemon's already-listening Express `Server`. Node's `http.Server` fires *every* registered
+ * 'request' listener for *every* request (unlike a DOM event, there is no stopPropagation), so
+ * adding a second listener to intercept just this one path would still leave Express's own
+ * listener trying to handle (and 404, after this listener already wrote a response) the exact
+ * same request — `ERR_HTTP_HEADERS_SENT` territory. A separate server sidesteps that entirely;
+ * `vite.config.ts` proxies `/a2ui-action` to it so the browser still only ever talks to one origin.
+ */
+function startA2uiActionRelay(port: number): HttpServer {
+  const server = createHttpServer((req, res) => {
+    if (req.method !== 'POST' || req.url !== '/a2ui-action') {
+      res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'not found' }));
+      return;
+    }
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => {
+      let body: { runId?: unknown; message?: unknown };
+      try {
+        body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { runId?: unknown; message?: unknown };
+      } catch {
+        res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'malformed JSON body' }));
+        return;
+      }
+      if (typeof body.runId !== 'string' || body.runId.length === 0) {
+        res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'runId is required' }));
+        return;
+      }
+      // Real spec-conformance enforcement, not a rubber stamp: an envelope that fails
+      // `@jini-ai/a2ui`'s own renderer -> agent schema (missing version, malformed action shape, ...)
+      // is refused here at the network boundary, before it can ever reach `runA2uiDemo`.
+      const parsed = parseRendererToAgentMessage(body.message);
+      if (!parsed.ok) {
+        res.writeHead(400, { 'content-type': 'application/json' }).end(JSON.stringify({ error: parsed.reason }));
+        return;
+      }
+      const delivered = deliverA2uiAction(body.runId, parsed.message);
+      if (!delivered) {
+        res.writeHead(404, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'no A2UI run is currently waiting for an action on this runId' }));
+        return;
+      }
+      res.writeHead(202, { 'content-type': 'application/json' }).end(JSON.stringify({ ok: true }));
+    });
+  });
+  server.listen(port, '127.0.0.1');
+  return server;
 }
 
 async function main(): Promise<void> {
@@ -303,6 +523,15 @@ async function main(): Promise<void> {
         // Bind first: the run must be reachable from its own tab before the agent starts asking.
         frontendControl.bindOnStarted(context);
         const { request, run, lifecycle } = context;
+        // Checked before decodePlaygroundRunRequest: the A2UI Lab's contextRef is not shaped like a
+        // playground sample-project request (no prompt/project — it is a standalone UI demo, not a
+        // workspace inspection), so it must never reach that playground-specific decoder.
+        if (request.agentId === A2UI_DEMO_AGENT_ID) {
+          void runA2uiDemo(run.id, lifecycle).catch((error: unknown) => {
+            console.error('[A2UI Lab] demo run failed', error);
+          });
+          return;
+        }
         void (async () => {
           try {
             const decoded = decodePlaygroundRunRequest({
@@ -382,11 +611,15 @@ async function main(): Promise<void> {
     throw error;
   }
 
+  const a2uiActionRelay = startA2uiActionRelay(A2UI_ACTION_PORT);
+
   console.log(`[Jini Playground] daemon ready at ${daemon.url}`);
+  console.log(`[A2UI Lab] action relay ready at http://127.0.0.1:${A2UI_ACTION_PORT}`);
   let stopping = false;
   const stop = () => {
     if (stopping) return;
     stopping = true;
+    a2uiActionRelay.close();
     void daemon.stop().finally(() => process.exit(0));
   };
   process.once('SIGINT', stop);
