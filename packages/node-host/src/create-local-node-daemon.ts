@@ -52,7 +52,11 @@ import {
 } from '@jini/daemon';
 import {
   createSqliteEventLog,
+  ensureToolCatalogTables,
+  getToolCatalogEntry,
   inspectSqliteDatabase,
+  reseedToolCatalog,
+  searchToolCatalog,
   verifySqliteIntegrity,
 } from '@jini/sqlite';
 import {
@@ -75,6 +79,7 @@ import {
   registerResearchRoutes,
   registerRunRoutes,
   registerTerminalRoutes,
+  registerToolCatalogRoutes,
   registerXaiRoutes,
   type AdapterContext,
   type AgentSummary,
@@ -618,6 +623,31 @@ export async function createLocalNodeDaemon(
     throw error;
   }
 
+  // A durable, searchable snapshot of every descriptor `zeroConfigToolRegistry` now holds — the
+  // preset's own tools plus everything `config.toolRegistrations` just added — v0 of
+  // `ai-control-plane.md` §29 / `PROP-tool-catalog-discovery-2026-07-26.md`. Seeded here, after
+  // both registration passes above, so the snapshot is never partial. Reuses `dbOpsConnection`
+  // (already open against `eventsDbPath`) rather than a second file handle. Descriptors only —
+  // the same public, non-secret surface `ToolRegistry.list()` always exposed; no handler or
+  // policy ever reaches this table (`@jini/sqlite/db/tool-catalog`'s own module doc, §2 of the
+  // proposal: "no executable ever comes out of the database").
+  ensureToolCatalogTables(dbOpsConnection);
+  reseedToolCatalog(
+    dbOpsConnection,
+    zeroConfigToolRegistry.list().map((descriptor) => ({
+      id: descriptor.id,
+      description: descriptor.description ?? descriptor.id,
+      source: 'first-party',
+      ...(descriptor.inputSchema === undefined ? {} : { inputSchema: descriptor.inputSchema }),
+    })),
+  );
+  const toolCatalogRoutesDeps = {
+    catalog: {
+      search: (query: string, limit?: number) => searchToolCatalog(dbOpsConnection, query, limit),
+      describe: (id: string) => getToolCatalogEntry(dbOpsConnection, id),
+    },
+  };
+
   // Owned here (rather than left to xai.ts's internal default) so stop() can close an in-flight
   // OAuth loopback listener — otherwise the 127.0.0.1:56121 socket outlives the daemon by up to
   // its 30-minute self-close timeout, keeping the process alive and the fixed port occupied.
@@ -730,6 +760,7 @@ export async function createLocalNodeDaemon(
   registerActiveContextRoutes(app, activeContextRoutesDeps, { resolvedPortRef });
   registerTerminalRoutes(app, terminalRoutesDeps, { resolvedPortRef });
   registerDaemonDbRoutes(app, daemonDbRoutesDeps, { resolvedPortRef });
+  registerToolCatalogRoutes(app, toolCatalogRoutesDeps, { resolvedPortRef });
   // The agent-facing door onto `zeroConfigToolRegistry` — same registry, same `ToolExecutor`, and
   // therefore the same authorization/confirmation/timeout/truncation/audit as every route above.
   // Mounted unconditionally so a host that supplied `toolRegistrations` does not also have to

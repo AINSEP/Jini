@@ -46,3 +46,5 @@ export {
 export type { SqliteDb, DbRow, JsonObject, ChatSessionMode } from './core/index.js';
 export { parseJsonOrUndef, row, rows } from './core/index.js';
 export { migrate } from './schema/index.js';
+export type { ToolCatalogEntry, ToolCatalogSearchHit } from './tool-catalog/index.js';
+export { ensureToolCatalogTables, reseedToolCatalog, getToolCatalogEntry, searchToolCatalog } from './tool-catalog/index.js';

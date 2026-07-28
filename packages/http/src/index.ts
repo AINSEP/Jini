@@ -240,6 +240,18 @@ export {
 } from './db-ops.js';
 
 export type {
+  ToolCatalogEntry,
+  ToolCatalogHttpDeps,
+  ToolCatalogQuery,
+  ToolCatalogSearchHit,
+} from './tool-catalog.js';
+export {
+  registerToolCatalogRoutes,
+  toolCatalogDescribeRoute,
+  toolCatalogSearchRoute,
+} from './tool-catalog.js';
+
+export type {
   DelegatedToolExecuteRequest,
   DelegatedToolExecuteResponse,
   DelegatedToolsHttpDeps,

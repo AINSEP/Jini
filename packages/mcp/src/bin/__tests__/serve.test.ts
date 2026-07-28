@@ -53,7 +53,7 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
     expect(createMcpToolServer).not.toHaveBeenCalled();
   });
 
-  it('builds a tool list of RUN_TOOLS plus one execute_delegated_tool def, resources, name/version/instructions', async () => {
+  it('builds a tool list of RUN_TOOLS plus TOOL_CATALOG_TOOLS plus one execute_delegated_tool def, resources, name/version/instructions', async () => {
     let seenOptions: McpToolServerOptions | undefined;
     const fakeHandle: McpToolServerHandle = { run: async () => {} };
     const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
@@ -73,6 +73,8 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
       'cancel_run',
       'get_active_context',
       'list_agents',
+      'search_tools',
+      'describe_tool',
       'execute_delegated_tool',
     ]);
     expect(seenOptions?.resources).toEqual(
