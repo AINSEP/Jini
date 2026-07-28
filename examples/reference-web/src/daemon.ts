@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { readFile, rm } from 'node:fs/promises';
 import { createServer as createHttpServer, type Server as HttpServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +13,7 @@ import {
 } from '@jini-ai/a2ui';
 import { createAguiEncoder } from '@jini-ai/agentic';
 import { createAgentExecutor } from '@jini-ai/daemon';
+import type { ToolRegistration } from '@jini-ai/core';
 import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini-ai/http';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/media';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
@@ -57,6 +58,69 @@ const MAX_CONCURRENT_UPLOADS = 4;
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
+
+const MCPUI_LAB_RESOURCE_URI = 'ui://mcpui-lab/counter-widget';
+const MCPUI_LAB_RESOURCE_MIME_TYPE = 'text/html;profile=mcp-app';
+const MCPUI_LAB_VIEW_ROUTE = '/mcpui-lab/view';
+/**
+ * Built by `vite build --config vite.mcpui-view.config.ts` (`pnpm build`/`pnpm build:mcpui-view`)
+ * from `mcpui-view-src/mcp-app.ts` — the real `@modelcontextprotocol/ext-apps` `App` SDK, not a
+ * hand-rolled reimplementation (see that file's module doc). `vite-plugin-singlefile` inlines the
+ * View's JS/CSS into one HTML document; the path below is where that plugin actually places it
+ * (it preserves the entry's relative path under `outDir`, verified against a real build rather
+ * than assumed).
+ */
+const MCPUI_LAB_VIEW_BUILD_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../dist-mcpui-view/mcpui-view-src/mcp-app.html',
+);
+/** No-store: this is a live fixture edited during the stress-test session, not a cacheable asset. */
+const MCPUI_LAB_VIEW_CSP =
+  "default-src 'none'; base-uri 'none'; form-action 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'";
+
+/**
+ * `show_mcpui_widget` — a real Jini-registered tool, automatically seeded into the searchable
+ * tool catalog `createLocalNodeDaemon` builds from every `toolRegistrations` entry (see
+ * `packages/node-host/src/create-local-node-daemon.ts`'s `reseedToolCatalog` call), so a spawned
+ * CLI agent can find it via `search_tools`/`describe_tool` and invoke it via
+ * `execute_delegated_tool` — the exact same `ToolExecutor`-gated path `AgentLab`'s page.* verbs
+ * already prove end-to-end, no new authorization mechanism.
+ *
+ * Its result carries a `ui://` resource id (the MCP Apps naming convention — see
+ * `apps.mdx`'s "UI Resource Format") that `McpUiLabHost.tsx`'s `registerToolRenderer` card
+ * resolves directly to this daemon's own `/mcpui-lab/view` endpoint, rather than through a real
+ * `resources/read` round-trip against an MCP server. That is this fixture's one deliberate
+ * simplification of the spec: the handshake, the message envelope, and the teardown
+ * request/response are all real; server-side resource discovery/resolution is not reimplemented.
+ */
+const showMcpUiWidgetTool: ToolRegistration = {
+  descriptor: {
+    id: 'show_mcpui_widget',
+    description:
+      'Open an interactive MCP Apps demo widget (a small counter) for the user, rendered in a real '
+      + 'sandboxed cross-origin iframe using the MCP-UI/MCP-Apps JSON-RPC handshake (ui/initialize, '
+      + 'ui/notifications/initialized, ui/resource-teardown). Use this when the user asks to see, open, '
+      + 'show, launch, or demo the MCP UI / MCP Apps widget, panel, or sandboxed iframe.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', description: 'Optional display title for the widget panel.' },
+      },
+      additionalProperties: false,
+    },
+  },
+  policy: { authorize: () => 'allow' },
+  handler: async (ctx) => {
+    const input = (ctx.input ?? {}) as { title?: unknown };
+    const title =
+      typeof input.title === 'string' && input.title.trim().length > 0 ? input.title.trim() : 'MCP Apps demo widget';
+    return {
+      uri: MCPUI_LAB_RESOURCE_URI,
+      mimeType: MCPUI_LAB_RESOURCE_MIME_TYPE,
+      title,
+    };
+  },
+};
 
 async function runDemo(
   runId: string,
@@ -407,9 +471,38 @@ async function main(): Promise<void> {
       env,
       resolveWorkspaceRoot: ({ resourceRef }) =>
         PROJECTS.has(resourceRef) ? resolve(repoRoot, 'examples/sample-projects', resourceRef) : undefined,
-      toolRegistrations: frontendControl.toolRegistrations,
+      toolRegistrations: [...frontendControl.toolRegistrations, showMcpUiWidgetTool],
       httpExtensions: [
         frontendControl.httpExtension,
+        (app) => {
+          // Served from THIS daemon's own origin — a genuinely different port than the Vite dev
+          // server hosting `McpUiLab.tsx` — because the MCP Apps spec requires the View to be a
+          // different origin from the Host, and that's what makes
+          // `sandbox="allow-scripts allow-same-origin"` safe to use on the embedding iframe
+          // (`MCP_UI_SANDBOX_NOTE`). Deliberately NOT added to `vite.config.ts`'s `/api` proxy —
+          // proxying it would put it on the Vite origin instead, defeating the whole point.
+          app.get(MCPUI_LAB_VIEW_ROUTE, (_request, response) => {
+            // Read fresh per-request (not cached at startup) so rebuilding the View during a
+            // live session — `pnpm build:mcpui-view` — shows up on the next iframe load without
+            // restarting the daemon, matching `vite.config.ts`'s starter-preview precedent.
+            readFile(MCPUI_LAB_VIEW_BUILD_PATH, 'utf8')
+              .then((html) => {
+                response.status(200);
+                response.setHeader('Content-Type', 'text/html; charset=utf-8');
+                response.setHeader('Content-Security-Policy', MCPUI_LAB_VIEW_CSP);
+                response.setHeader('X-Content-Type-Options', 'nosniff');
+                response.setHeader('Cache-Control', 'no-store');
+                response.end(html);
+              })
+              .catch(() => {
+                response.status(503).json({
+                  message:
+                    `${MCPUI_LAB_VIEW_BUILD_PATH} is missing — run `
+                    + '`pnpm --filter @jini-app/reference-web run build:mcpui-view` to build the MCP Apps View.',
+                });
+              });
+          });
+        },
         (app) => {
           app.post('/api/playground/working-directory-grants', async (request, response) => {
             if (!isLoopbackAddress(request.socket.remoteAddress)) {
