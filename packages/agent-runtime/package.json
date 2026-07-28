@@ -2,7 +2,7 @@
   "name": "@jini/agent-runtime",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/agent-runtime" },
+  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/agent-runtime" },
   "jini": {
     "domain": "agent",
     "kind": "runtime",

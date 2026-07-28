@@ -2,7 +2,7 @@
   "name": "@jini/renderers-react",
   "version": "0.1.0",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/renderers-react" },
+  "repository": { "type": "git", "url": "https://github.com/AINSEP/Jini.git", "directory": "packages/renderers-react" },
   "jini": {
     "domain": "chat",
     "kind": "react-renderer",
