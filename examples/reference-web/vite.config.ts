@@ -82,6 +82,13 @@ function resolveStarterPage(url: string | undefined): string | undefined {
 /** Captured in `configureServer` so the fallback path can log through Vite. */
 let viteLogger: { warn: (message: string) => void } | undefined;
 
+// A2UI Lab's action round-trip (browser -> daemon) rides a small, dedicated relay server, not the
+// main daemon's own Express app — see daemon.ts's `startA2uiActionRelay` doc for why (adding a
+// second route to an already-listening Express `Server` via a second 'request' listener is
+// fragile: both listeners fire for every request, and Express would try to 404 a path it already
+// got a response written for). One more proxy entry keeps the browser on a single origin either way.
+const a2uiActionTarget = process.env.JINI_PLAYGROUND_A2UI_ACTION_URL ?? 'http://127.0.0.1:4318';
+
 export default defineConfig({
   plugins: [{
     name: 'jini-starter-preview',
@@ -128,6 +135,10 @@ export default defineConfig({
       },
       '/ready': {
         target: daemonTarget,
+        changeOrigin: true,
+      },
+      '/a2ui-action': {
+        target: a2uiActionTarget,
         changeOrigin: true,
       },
     },
