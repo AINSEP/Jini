@@ -153,6 +153,69 @@ describe('createFrontendSessionRegistry', () => {
     });
   });
 
+  // Regression coverage for a real defect found 2026-07-28 by an end-to-end run (live browser,
+  // live daemon, real coding agent) that a unit test in this file alone never would have: a
+  // surface claiming a trailing-dot PREFIX (`@jini-ai/chat-react`'s `createFrontendSessionBridge`,
+  // `executors: { 'webmcp.': handler }`) is meant to serve every id under it, per that option's
+  // own doc — but `resolveTarget` used to check `capabilities.includes(capabilityId)`, which a
+  // prefix claim can never satisfy (`'webmcp.'.includes('webmcp.add_note')` is false either way
+  // round). Every call to an `executors`-backed capability failed 100% of the time until fixed.
+  describe('prefix claims (a trailing-dot capability claims everything under it)', () => {
+    it('routes a call to a surface that claimed the matching prefix, not the exact id', async () => {
+      const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
+      const surface = attachAndBind(registry, 'session-1', 'run-1', ['chat.send_message', 'webmcp.']);
+
+      const pending = registry.invoke('run-1', 'webmcp.add_note', { text: 'buy oat milk' });
+      expect(surface.delivered).toEqual([
+        { invocationId: 'inv-1', capabilityId: 'webmcp.add_note', input: { text: 'buy oat milk' } },
+      ]);
+      registry.settle('session-1', 'inv-1', { ok: true, output: { added: 'buy oat milk' } });
+      await expect(pending).resolves.toEqual({ added: 'buy oat milk' });
+    });
+
+    it('routes every id under a claimed prefix, not just one', async () => {
+      let next = 0;
+      const registry = createFrontendSessionRegistry({ newInvocationId: () => `inv-${++next}` });
+      const surface = attachAndBind(registry, 'session-1', 'run-1', ['webmcp.']);
+
+      const first = registry.invoke('run-1', 'webmcp.add_note', {});
+      const second = registry.invoke('run-1', 'webmcp.list_notes', {});
+      registry.settle('session-1', 'inv-1', { ok: true, output: 'a' });
+      registry.settle('session-1', 'inv-2', { ok: true, output: 'b' });
+
+      await expect(first).resolves.toBe('a');
+      await expect(second).resolves.toBe('b');
+    });
+
+    it('still refuses an id that does not fall under any claimed prefix', async () => {
+      const registry = createFrontendSessionRegistry();
+      attachAndBind(registry, 'session-1', 'run-1', ['webmcp.']);
+
+      await expect(registry.invoke('run-1', 'chat.send_message', {})).rejects.toThrow(
+        'the frontend bound to run "run-1" does not offer "chat.send_message" (it offers: webmcp.)',
+      );
+    });
+
+    it('does not treat a claim without a trailing dot as a prefix', async () => {
+      const registry = createFrontendSessionRegistry();
+      // "webmcp" (no dot) must not silently match "webmcp.add_note" — only an exact id or a
+      // genuine trailing-dot prefix claim may.
+      attachAndBind(registry, 'session-1', 'run-1', ['webmcp']);
+
+      await expect(registry.invoke('run-1', 'webmcp.add_note', {})).rejects.toThrow(/does not offer/);
+    });
+
+    it('an exact claim still matches exactly, even when a prefix claim is also present', async () => {
+      const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
+      const surface = attachAndBind(registry, 'session-1', 'run-1', ['page.click', 'webmcp.']);
+
+      const pending = registry.invoke('run-1', 'page.click', { element: 'x' });
+      registry.settle('session-1', 'inv-1', { ok: true, output: { clicked: 'x' } });
+      await expect(pending).resolves.toEqual({ clicked: 'x' });
+      expect(surface.delivered).toEqual([{ invocationId: 'inv-1', capabilityId: 'page.click', input: { element: 'x' } }]);
+    });
+  });
+
   describe('bindings', () => {
     it('replaces the association when a run is bound to a different surface', async () => {
       const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });

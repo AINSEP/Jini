@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { A2uiLab } from './A2uiLab.js';
 import { AgentLab } from './AgentLab.js';
 import { App } from './App.js';
+import { WebMcpLab } from './WebMcpLab.js';
 import './remixicon.css';
 import './styles.css';
 
@@ -29,6 +30,7 @@ function Playground() {
 
   if (route === 'agent-lab') return <AgentLab />;
   if (route === 'a2ui-lab') return <A2uiLab />;
+  if (route === 'webmcp-lab') return <WebMcpLab />;
   return <App />;
 }
 

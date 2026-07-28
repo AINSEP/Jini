@@ -20,6 +20,7 @@ import { createFrontendControl, createLocalNodeDaemon } from '@jini-ai/node-host
 import { CHAT_CAPABILITIES } from '@jini-ai/chat-core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
+import { WEBMCP_LAB_CAPABILITIES } from './webmcp-lab-capabilities.js';
 import {
   createPlaygroundRuntimeEnvironment,
   decodePlaygroundRunRequest,
@@ -380,7 +381,7 @@ async function main(): Promise<void> {
    * demo on loopback; a real product supplies a policy that consults its own roles.
    */
   const frontendControl = createFrontendControl({
-    capabilities: [...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES],
+    capabilities: [...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES, ...WEBMCP_LAB_CAPABILITIES],
     policy: { authorize: () => 'allow' },
     resolveBindToken: (request) => {
       try {

@@ -19,13 +19,25 @@
  * that "that detection is deliberately NOT here: it touches browser globals, and this package
  * holds none," which is exactly the DOM-free guarantee `src/dom/` exists to carve an exception
  * for. See `dom/index.ts`'s re-export of this module.
+ *
+ * `AgentModelContextToolRegistration` gained `title`/`annotations` 2026-07-28, matching the same
+ * `ModelContextTool` dict fields `../webmcp.ts`'s `WebMcpToolRegistration` closed the same day —
+ * this file models the identical spec dictionary independently (no shared import; see the module
+ * doc above for why the DOM/DOM-free split keeps them separate files), so the two had drifted out
+ * of sync on the exact same gap. Found while wiring `examples/reference-web`'s WebMCP stress-test
+ * fixture: a raw (non-`toWebMcpTool`) registration carrying a `title` failed TypeScript's
+ * excess-property check against the un-widened type here.
  */
 
 export interface AgentModelContextToolRegistration {
   readonly name: string;
+  /** `ModelContextTool.title` — optional human-readable label, distinct from `name` and `description`. */
+  readonly title?: string;
   readonly description: string;
   readonly inputSchema: unknown;
   readonly execute: (args: Record<string, unknown>) => Promise<unknown>;
+  /** `ModelContextTool.annotations` — `{ readOnlyHint?, untrustedContentHint? }` behavior hints. */
+  readonly annotations?: { readonly readOnlyHint?: boolean; readonly untrustedContentHint?: boolean };
 }
 
 /**
