@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatMessage } from '@jini/chat-core';
-import { ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini/chat-react';
+import type { ChatMessage } from '@jini-ai/chat-core';
+import { ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat-react';
 import {
   findCapabilityInputError,
   toWebMcpTool,
   toWebMcpTools,
   type CapabilityDef,
   type WebMcpUserInteraction,
-} from '@jini/agentic';
-import { getAgentModelContext } from '@jini/agentic/dom';
+} from '@jini-ai/agentic';
+import { getAgentModelContext } from '@jini-ai/agentic/dom';
 import { uploadChatAttachments } from './attachments.js';
 import { ChatFab } from './ChatFab.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
@@ -17,7 +17,7 @@ import { installWebMcpLabPolyfill } from './webmcp-lab-polyfill.js';
 import { WEBMCP_LAB_CAPABILITIES } from './webmcp-lab-capabilities.js';
 
 /**
- * `#/webmcp-lab` — a real-browser stress-test fixture for `@jini/agentic`'s `webmcp.ts`, proven
+ * `#/webmcp-lab` — a real-browser stress-test fixture for `@jini-ai/agentic`'s `webmcp.ts`, proven
  * against the REAL imperative `document.modelContext.registerTool()` API (via
  * `webmcp-lab-polyfill.ts`, since this Chromium build has no native WebMCP), not the
  * `data-agent-*` declarative convention `AgentLab.tsx` proves `page.*` against.
@@ -95,7 +95,7 @@ const WEBMCP_LAB_INITIAL_MESSAGES: ChatMessage[] = [
     role: 'assistant',
     content:
       'This page registers its tools imperatively on `document.modelContext` — the real WebMCP '
-      + 'API — via `@jini/agentic`\'s `toWebMcpTool`, polyfilled for this browser. Ask me to list, '
+      + 'API — via `@jini-ai/agentic`\'s `toWebMcpTool`, polyfilled for this browser. Ask me to list, '
       + 'add, or clear notes.',
     runStatus: 'succeeded',
     createdAt: Date.now(),
@@ -348,7 +348,7 @@ export function WebMcpLab() {
           <p>
             Tools here are registered with the real, imperative <code>document.modelContext.registerTool()</code>{' '}
             API (polyfilled — this Chromium build has none natively), projected through{' '}
-            <code>@jini/agentic</code>'s <code>toWebMcpTool</code>. They are also reachable through Jini's own
+            <code>@jini-ai/agentic</code>'s <code>toWebMcpTool</code>. They are also reachable through Jini's own
             daemon relay, the same path a real agent run uses.
           </p>
           <nav>

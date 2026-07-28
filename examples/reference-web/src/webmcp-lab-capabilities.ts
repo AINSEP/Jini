@@ -1,4 +1,4 @@
-import type { CapabilityDef } from '@jini/agentic';
+import type { CapabilityDef } from '@jini-ai/agentic';
 
 /**
  * @module webmcp-lab-capabilities
@@ -7,7 +7,7 @@ import type { CapabilityDef } from '@jini/agentic';
  * surface. See `WebMcpLab.tsx`'s module doc for the full picture; the short version is that each
  * of these ids is reachable through TWO independent paths at once:
  *
- * 1. **Real WebMCP.** `WebMcpLab.tsx` projects each entry through `@jini/agentic`'s `toWebMcpTool`
+ * 1. **Real WebMCP.** `WebMcpLab.tsx` projects each entry through `@jini-ai/agentic`'s `toWebMcpTool`
  *    and registers the result on `document.modelContext` (via the `@mcp-b/webmcp-polyfill`
  *    polyfill this Chromium build does not natively expose) — the browser-native, no-daemon,
  *    no-principal path the real spec defines.

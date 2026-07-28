@@ -212,7 +212,7 @@ export function createFrontendSessionRegistry(
    * `chat.*` — is `word.word`), so that trailing dot is an unambiguous, self-describing signal
    * rather than a second field this descriptor would need to carry.
    *
-   * This existed only as a doc-comment promise until found broken 2026-07-28: `@jini/chat-react`'s
+   * This existed only as a doc-comment promise until found broken 2026-07-28: `@jini-ai/chat-react`'s
    * `createFrontendSessionBridge({ executors })` claims a bare prefix precisely so "a consumer
    * exposes verbs the engine has never heard of" (its own module doc), but this function used to
    * do a plain `.includes(capabilityId)` — which a prefix can never satisfy, since the claimed

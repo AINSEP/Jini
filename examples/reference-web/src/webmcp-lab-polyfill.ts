@@ -2,13 +2,13 @@
  * @module webmcp-lab-polyfill
  *
  * Test/demo scaffolding for `#/webmcp-lab` only — NOT a product dependency and NOT imported by
- * anything under `packages/@jini/**`.
+ * anything under `packages/@jini-ai/**`.
  *
- * `#/webmcp-lab` exists to stress-test `@jini/agentic`'s `webmcp.ts` against a spec-conformant
+ * `#/webmcp-lab` exists to stress-test `@jini-ai/agentic`'s `webmcp.ts` against a spec-conformant
  * `document.modelContext`, but the Playwright-driven Chromium this repo's tooling runs has
  * neither `document.modelContext` nor `navigator.modelContext` — WebMCP is origin-trial gated in
  * real Chrome (Chrome 149–156), not on by default, and this environment has no way to opt in. A
- * real product page must NOT depend on this module: `@jini/agentic`'s `webmcp.ts` deliberately
+ * real product page must NOT depend on this module: `@jini-ai/agentic`'s `webmcp.ts` deliberately
  * ships no polyfill and no feature-detection of its own (see its module doc — "that detection is
  * deliberately NOT here... a framework binding owns host access"), and loading a polyfill is a
  * page's own decision to make, not the engine's.
@@ -37,7 +37,7 @@
  *   cannot be verified through any same-document polyfill regardless, native or not.
  * - `execute()` is always invoked with a second `client: { requestUserInteraction(callback) }`
  *   argument — a non-standard "MCPB extension", not present in the primary spec's
- *   `ToolExecuteCallback` IDL (`Promise<any> (object input)`, one argument). `@jini/agentic`'s
+ *   `ToolExecuteCallback` IDL (`Promise<any> (object input)`, one argument). `@jini-ai/agentic`'s
  *   `toWebMcpTool` returns an `execute` that takes one argument, so the extra argument is simply
  *   ignored — harmless, and further confirmation that Jini's own, separate confirmation gate
  *   (`RequestUserInteraction` in `webmcp.ts`) was the right design, not a gap.

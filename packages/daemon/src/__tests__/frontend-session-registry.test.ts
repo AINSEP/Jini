@@ -155,7 +155,7 @@ describe('createFrontendSessionRegistry', () => {
 
   // Regression coverage for a real defect found 2026-07-28 by an end-to-end run (live browser,
   // live daemon, real coding agent) that a unit test in this file alone never would have: a
-  // surface claiming a trailing-dot PREFIX (`@jini/chat-react`'s `createFrontendSessionBridge`,
+  // surface claiming a trailing-dot PREFIX (`@jini-ai/chat-react`'s `createFrontendSessionBridge`,
   // `executors: { 'webmcp.': handler }`) is meant to serve every id under it, per that option's
   // own doc — but `resolveTarget` used to check `capabilities.includes(capabilityId)`, which a
   // prefix claim can never satisfy (`'webmcp.'.includes('webmcp.add_note')` is false either way
