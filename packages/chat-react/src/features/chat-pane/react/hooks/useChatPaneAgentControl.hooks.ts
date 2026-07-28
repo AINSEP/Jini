@@ -29,6 +29,7 @@ export interface UseChatPaneAgentControlOptions {
 
 /** The minimal WebMCP surface this hook needs — matches the draft `document.modelContext`/`navigator.modelContext` shape (see `agent-tools.ts`'s module doc); no `@mcp-b/*` dependency, feature-detected like this package's other host bridges. */
 interface ModelContextLike {
+  /** Draft IDL returns `Promise<undefined>` — async. Never let a rejection escape the effect. */
   registerTool(
     tool: {
       name: string;
@@ -36,8 +37,9 @@ interface ModelContextLike {
       inputSchema: unknown;
       execute: (args: Record<string, unknown>) => Promise<unknown>;
     },
-    options?: { signal?: AbortSignal },
-  ): void;
+    options?: { signal?: AbortSignal; exposedTo?: readonly string[] },
+  ): Promise<void>;
+  /** NOT in the spec — aborting the `signal` is the real cleanup path. Optional, for polyfills only. */
   unregisterTool?(name: string): void;
 }
 
@@ -289,7 +291,10 @@ export function useChatPaneAgentControl(
     if (modelContext) {
       const controller = new AbortController();
       for (const tool of CHAT_PANE_AGENT_TOOLS) {
-        modelContext.registerTool(
+        // `registerTool` is async per the draft IDL, and a polyfill may return undefined instead.
+        // Normalize both, then swallow: registration is best-effort, and a rejected one must not
+        // surface as an unhandled rejection from a React effect.
+        const registered = modelContext.registerTool(
           {
             name: tool.id,
             description: tool.description,
@@ -298,6 +303,7 @@ export function useChatPaneAgentControl(
           },
           { signal: controller.signal },
         );
+        void Promise.resolve(registered).catch(() => undefined);
       }
       cleanups.push(() => {
         controller.abort();

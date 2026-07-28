@@ -9,7 +9,7 @@
  * over. See `source-map.md` for the full old→new field-mapping table and the generalization
  * writeup for the six event kinds that had no generic equivalent before this task.
  *
- * Folded in 2026-07-26 from the standalone `@jini/agui` package (plan §3a) into this `src/agui/`
+ * Folded in 2026-07-26 from the standalone `@jini/agui` package (plan §3a) into this `src/gen-ui/`
  * subdirectory — kept out of the flat `ag-ui.ts` namespace because that file is a different
  * projection ({@link CapabilityDef} → an AG-UI *frontend tool*); this one turns a run's event
  * stream into AG-UI *wire* events. Same protocol, two unrelated halves of it.

@@ -16,7 +16,7 @@
  * Transport is not here — AG-UI runs over SSE or WebSocket, and this package opens no
  * connections. This is the vocabulary translation only.
  */
-import type { CapabilityDef, CapabilityInputSchema } from '../capability.js';
+import type { CapabilityDef, CapabilityInputSchema } from './capability.js';
 
 /** An AG-UI tool as passed in `RunAgentInput.tools`. */
 export interface AgUiTool {

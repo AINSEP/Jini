@@ -19,8 +19,8 @@ of unwarranted coupling.
 
 | Jini file | Moved from | Transform |
 |---|---|---|
-| `src/agui/events.ts` | `@jini/agui`'s `src/types.ts` | `git mv` + renamed, into a new `src/agui/` subdirectory. See "Folded from `@jini/agui`" below. |
-| `src/agui/encoder.ts` | `@jini/agui`'s `src/encode.ts` | `git mv` + renamed, into a new `src/agui/` subdirectory. See "Folded from `@jini/agui`" below. |
+| `src/gen-ui/events.ts` | `@jini/agui`'s `src/types.ts` | `git mv` + renamed, into a new `src/gen-ui/` subdirectory. See "Folded from `@jini/agui`" below. |
+| `src/gen-ui/encoder.ts` | `@jini/agui`'s `src/encode.ts` | `git mv` + renamed, into a new `src/gen-ui/` subdirectory. See "Folded from `@jini/agui`" below. |
 | `src/capability.ts` | `chat-core/src/agentic/capability.ts` | Verbatim `git mv`. |
 | `src/guards.ts` | `chat-core/src/agentic/guards.ts` | Verbatim `git mv`. |
 | `src/element-handles.ts` | `chat-core/src/agentic/element-handles.ts` | Verbatim `git mv`. |
@@ -99,6 +99,57 @@ The two halves remain genuinely unrelated in function — one projects a `Capabi
 frontend *tool* declaration, the other encodes a run stream into *wire* events — but they are the
 same external protocol, and "where does AG-UI live" should have exactly one answer.
 
+### Correction, 2026-07-27: `src/agui/` → `src/gen-ui/`, because it was never AG-UI
+
+The premise of both entries above — that this directory holds "the same external protocol" — was
+wrong, and the name asserted a conformance the code does not have.
+
+AG-UI, the real Agent-User Interaction Protocol (`ag-ui-protocol/ag-ui`), defines a ~30-member
+`SCREAMING_SNAKE` `EventType` enum: `RUN_STARTED`, `RUN_FINISHED`, `RUN_ERROR`, `STEP_STARTED`,
+`STEP_FINISHED`, `TEXT_MESSAGE_START`/`_CONTENT`/`_END`/`_CHUNK`, `TOOL_CALL_START`/`_ARGS`/`_END`/
+`_CHUNK`/`_RESULT`, `STATE_SNAPSHOT`, `STATE_DELTA`, `MESSAGES_SNAPSHOT`, `ACTIVITY_SNAPSHOT`,
+`REASONING_*`, `RAW`, `CUSTOM`. Verified against
+`/Users/la/Programming/OSS-Repos/ag-ui/sdks/typescript/packages/core/src/events.ts:12`.
+
+`gen-ui/events.ts` defines six dotted-lowercase kinds: `agent.message`, `tool_call`, `state_update`,
+`ui.surface_requested`, `ui.surface_responded`, `run.lifecycle`. **The two sets share zero names.**
+As that file's own doc always said, these are a de-branded port of one product's internal run-event
+adapter — i.e. Open Design's GenUI surface-request events, generalized. That is a legitimate thing
+for Jini to have; it is just not AG-UI, and a reader who saw `agui/` had no way to know.
+
+Renamed to `gen-ui/` for what it actually is. A genuine AG-UI adapter, if Jini wants one, is a
+separate one-way projection beside this one — and `@open-design/agui-adapter`
+(`/Users/la/Programming/Open-Marketing/packages/agui-adapter`, v0.5.0) is prior art for exactly that
+mapping, having already done OD-events ⇄ AG-UI canonical events.
+
+**And the same-day "correction" above was itself backwards.** It merged `ag-ui.ts` into the
+directory on the premise that both halves were "one protocol." They are two protocols, and the file
+it moved in is the one that is *genuinely* AG-UI: `ag-ui.ts` emits the protocol's own `parameters`
+field name (not `inputSchema`) and its canonical `TOOL_CALL_START` / `TOOL_CALL_ARGS` /
+`TOOL_CALL_END` names — all three present in AG-UI's published `EventType` enum. So it has moved
+back out to `src/ag-ui.ts`, where it started, and its test back to `src/__tests__/ag-ui.test.ts`.
+
+Net structure, and the reason it is right:
+
+| path | protocol | conformance |
+|---|---|---|
+| `src/ag-ui.ts` | AG-UI | real — canonical field and event names |
+| `src/gen-ui/{events,encoder}.ts` | Jini's own surface protocol | none, and none claimed |
+
+**Not done in this move, deliberately:** the exported symbols still read `createAguiEncoder`,
+`AGUIEvent`, `AguiEncoder`, and `@jini/http`'s public route path is still
+`/api/runs/:runId/agui-stream` (`http/src/run-stream.ts:20`) — that one is wire-visible. The
+`toAgUiTool` / `AG_UI_TOOL_CALL_EVENTS` names are *correct* and stay; it is the `Agui`-prefixed
+GenUI symbols that are misnamed. Renaming those crosses three packages and one URL, so it is its
+own change.
+
+**Also still misnamed, outside this repo:** `@open-design/agui-adapter`
+(`/Users/la/Programming/Open-Marketing/packages/agui-adapter`) declares itself a "bidirectional
+adapter … to the AG-UI canonical event protocol." It is neither: `src/` holds only `types.ts` and
+`encode.ts`, there is no decoder, and `types.ts:18-23` carries the identical six non-canonical
+event names. That package is the upstream this directory's `events.ts` was ported from, so the
+misnomer has two homes and Open-Marketing's is the origin.
+
 `webmcp.ts` and `mcp-ui.ts` deliberately stay flat at `src/` root. Each is a single file; a
 directory per protocol would be ceremony where a filename already suffices. The rule this settles:
 a protocol gets a directory when it has more than one module, not on principle.
@@ -116,11 +167,11 @@ with TS2307.
 | `ag-ui.ts` (pre-existing, package root) | Projects a {@link CapabilityDef} into an AG-UI **frontend tool** declaration (`RunAgentInput.tools`) — the vocabulary translation for capabilities a frontend exposes to an agent. |
 | `agui/events.ts` / `agui/encoder.ts` (folded in) | Encodes a run's `RunProtocolEvent` **wire event stream** into AG-UI's SSE event shapes (`agent.message`, `tool_call`, `run.lifecycle`, …) — the opposite direction: an agent's run, projected outward for a UI to render. |
 
-Test files moved alongside: `src/__tests__/encode.test.ts` → `src/agui/__tests__/encoder.test.ts`
+Test files moved alongside: `src/__tests__/encode.test.ts` → `src/gen-ui/__tests__/encoder.test.ts`
 (26 tests, unit tests of the encoder itself — only its `../encode.js` import path changed, to
 `../encoder.js`), and `src/__tests__/index.test.ts` → `src/__tests__/agui-barrel.test.ts` (2 tests
 — exercises `createAguiEncoder`'s presence and one end-to-end encode through this package's own
-top-level public barrel, so it stayed at `src/__tests__/` rather than moving into `src/agui/`,
+top-level public barrel, so it stayed at `src/__tests__/` rather than moving into `src/gen-ui/`,
 since its subject is the *package's* barrel, not the `agui/` module in isolation; needed no
 import-path change since it already imported its subject via `../index.js`, which is this
 package's barrel now instead of `@jini/agui`'s). agui's own `src/index.ts` (a two-line re-export

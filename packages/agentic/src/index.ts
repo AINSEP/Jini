@@ -81,22 +81,52 @@ export {
  * being neutral. None of them opens a connection or touches a browser global; a framework
  * binding owns transport and host access.
  */
-export { toWebMcpTool, toWebMcpTools, type WebMcpToolRegistration } from './webmcp.js';
+export {
+  toWebMcpTool,
+  toWebMcpTools,
+  WebMcpConfirmationRequiredError,
+  type WebMcpToolRegistration,
+  type WebMcpUserInteraction,
+  type RequestUserInteraction,
+  type ToWebMcpToolOptions,
+} from './webmcp.js';
 
 /**
- * Both halves of AG-UI, from `./agui/` — the capability→frontend-tool projection and the
- * run-stream→wire-event encoder (the latter folded in 2026-07-26 from the standalone
- * `@jini/agui` package, plan §3a). They live in one directory because they are one protocol; see
- * that directory's module doc for why they were briefly, and confusingly, apart.
+ * Genuine AG-UI: the {@link CapabilityDef} → AG-UI *frontend tool* projection. Real conformance —
+ * it emits the protocol's own `parameters` field name (not `inputSchema`) and its canonical
+ * `TOOL_CALL_START`/`TOOL_CALL_ARGS`/`TOOL_CALL_END` event names, all three of which appear in
+ * AG-UI's published `EventType` enum.
  */
 export {
   toAgUiTool,
   toAgUiTools,
   createAgUiToolResult,
   AG_UI_TOOL_CALL_EVENTS,
-  createAguiEncoder,
   type AgUiTool,
   type AgUiToolResultMessage,
+} from './ag-ui.js';
+
+/**
+ * Jini's **own** run-stream surface protocol, from `./gen-ui/` — six event kinds and the encoder
+ * that produces them (folded in 2026-07-26 from the standalone `@jini/agui` package, plan §3a).
+ *
+ * Renamed from `./agui/` on 2026-07-27, because this is NOT AG-UI. The real Agent-User Interaction
+ * Protocol (https://github.com/ag-ui-protocol/ag-ui) carries a 33-member `SCREAMING_SNAKE` event
+ * enum — `RUN_STARTED`, `TEXT_MESSAGE_CONTENT`, `STATE_DELTA`, `STEP_STARTED`, `REASONING_*` — and
+ * shares **zero** event names with the six dotted-lowercase kinds in `./gen-ui/events.ts`, which
+ * are a de-branded port of one product's internal run-event adapter. Carrying the AG-UI name on
+ * them asserted a conformance that does not exist.
+ *
+ * `./ag-ui.ts` above was wrongly folded in with them on 2026-07-26 and moved back out on the 27th:
+ * it is the one file here that really does speak AG-UI, so merging it with these six was the exact
+ * inversion of the truth.
+ *
+ * The exported symbols below still carry `Agui`/`AGUI` prefixes: renaming those crosses into
+ * `@jini/http` (whose `RUN_STREAM_ROUTE_PATH` is `/api/runs/:runId/agui-stream`) and
+ * `@jini/protocol`, so it is deliberately not bundled with this directory move.
+ */
+export {
+  createAguiEncoder,
   type AguiEncodeContext,
   type AguiEncoder,
   type AGUIAgentMessageEvent,
@@ -108,7 +138,7 @@ export {
   type AGUISurfaceRequestedEvent,
   type AGUISurfaceRespondedEvent,
   type AGUIToolCallEvent,
-} from './agui/index.js';
+} from './gen-ui/index.js';
 
 export {
   MCP_UI_VIEW_METHODS,
@@ -128,4 +158,4 @@ export {
   type JsonRpcNotification,
   type JsonRpcResponse,
   type JsonRpcError,
-} from './mcp-ui.js';
+} from './mcp-ui-apps.js';

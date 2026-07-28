@@ -32,6 +32,7 @@
  * `ts.resolveModuleName` AST pass — per the debate's own convergence that this is sufficient
  * for v0. See foundry/docs/jini-port/extraction-plan.md §7 (guardrails) and §12 C-series.
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { extractImports, listSourceFiles, REPO_ROOT, stripComments } from './lib/walk-imports.js';
@@ -172,6 +173,39 @@ function resolveJiniEntries(
   return entries;
 }
 
+/**
+ * Which of `candidates` (directory names directly under `packages/`) git ignores.
+ *
+ * R8 must skip these. Tool output occasionally lands inside `packages/` — a `graphify update` run
+ * launched without `GRAPHIFY_OUT` writes a whole `packages/graphify-out/` tree (observed
+ * 2026-07-27; its `.graphify_root` marker read `.` instead of the repo path). That directory is
+ * build output, is matched by the `graphify-out/` rule in `.gitignore`, and is not a package — but
+ * R8 saw a directory with no `package.json` and failed the whole guard run.
+ *
+ * Delegates to `git check-ignore` rather than parsing `.gitignore`, so the answer matches git
+ * exactly — negations, nested ignore files, `core.excludesFile`, all of it.
+ *
+ * **Fails open by design.** No git binary, not a repo, or any unexpected error yields an empty set,
+ * which means every directory is checked exactly as before. The dangerous direction here is
+ * skipping a real package, so an unreadable ignore state must never silence a check.
+ */
+function gitIgnoredDirectories(packagesDir: string, candidates: readonly string[]): Set<string> {
+  if (candidates.length === 0) return new Set();
+  try {
+    const stdout = execFileSync('git', ['check-ignore', '--stdin'], {
+      cwd: packagesDir,
+      input: candidates.join('\n'),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    return new Set(stdout.split('\n').map((line) => line.trim()).filter(Boolean));
+  } catch {
+    // `git check-ignore` exits 1 to mean "none of these are ignored" — a real answer, and one whose
+    // correct result is the same empty set every other failure mode produces.
+    return new Set();
+  }
+}
+
 function loadPackageRecords(
   root: string,
   packagesDir: string,
@@ -180,10 +214,14 @@ function loadPackageRecords(
 ): Map<string, PackageRecord> {
   const records = new Map<string, PackageRecord>();
 
-  for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
+  const directories = readdirSync(packagesDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+  const ignored = gitIgnoredDirectories(packagesDir, directories);
 
-    const directory = entry.name;
+  for (const directory of directories) {
+    if (ignored.has(directory)) continue;
+
     const manifestPath = join(packagesDir, directory, 'package.json');
     const file = relative(root, manifestPath).split('\\').join('/');
     const packageName = `@jini/${directory}`;

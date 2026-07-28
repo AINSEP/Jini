@@ -28,8 +28,28 @@ export interface AgentModelContextToolRegistration {
   readonly execute: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
+/**
+ * Options `registerTool` accepts. Matches the draft's
+ * `ModelContextRegisterToolOptions`: an `AbortSignal` that unregisters the tool when aborted, and
+ * `exposedTo` to scope which consumers may see it.
+ */
+export interface AgentModelContextRegisterToolOptions {
+  readonly signal?: AbortSignal;
+  readonly exposedTo?: readonly string[];
+}
+
 export interface AgentModelContextLike {
-  registerTool(tool: AgentModelContextToolRegistration, options?: { signal?: AbortSignal }): void;
+  /**
+   * Draft IDL: `Promise<undefined> registerTool(ModelContextTool tool, optional
+   * ModelContextRegisterToolOptions options = {})` — it is **async**. Callers must not assume it
+   * has taken effect synchronously, and must not let a rejection escape.
+   */
+  registerTool(tool: AgentModelContextToolRegistration, options?: AgentModelContextRegisterToolOptions): Promise<void>;
+  /**
+   * NOT in the spec — the draft's only unregistration mechanism is aborting the `signal` passed to
+   * `registerTool`. Kept optional purely so a polyfill that happens to expose one can be used;
+   * never rely on its presence, and always pass a `signal` as the real cleanup path.
+   */
   unregisterTool?(name: string): void;
 }
 
