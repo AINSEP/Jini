@@ -1,0 +1,55 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="color-scheme" content="light dark" />
+<title>MCP Apps demo View</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    font: 13px/1.5 ui-sans-serif, system-ui, sans-serif;
+    margin: 0;
+    padding: 12px 14px 16px;
+    background: canvas;
+    color: canvastext;
+  }
+  h1 { font-size: 13px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .04em; opacity: .6; }
+  .counter { display: flex; align-items: center; gap: 10px; margin: 8px 0 14px; }
+  .counter button { font-size: 16px; width: 30px; height: 30px; cursor: pointer; }
+  .counter output { font-size: 20px; font-variant-numeric: tabular-nums; min-width: 2ch; text-align: center; }
+  .adversarial { border-top: 1px solid color-mix(in srgb, canvastext 20%, transparent); margin-top: 12px; padding-top: 10px; }
+  .adversarial h2 { font-size: 11px; margin: 0 0 6px; opacity: .6; }
+  .adversarial button { display: block; width: 100%; margin: 4px 0; font-size: 11px; text-align: left; cursor: pointer; padding: 4px 6px; }
+  #log { list-style: none; margin: 10px 0 0; padding: 0; font-family: ui-monospace, monospace; font-size: 10.5px; max-height: 160px; overflow: auto; border-top: 1px dashed color-mix(in srgb, canvastext 20%, transparent); padding-top: 6px; }
+  #log li { padding: 1px 0; white-space: pre-wrap; word-break: break-word; }
+  #log li[data-dir="out"] { color: #2563eb; }
+  #log li[data-dir="in"] { color: #16a34a; }
+  #log li[data-dir="error"] { color: #dc2626; }
+  #resize-filler { height: 0; background: repeating-linear-gradient(45deg, color-mix(in srgb, canvastext 8%, transparent) 0 6px, transparent 6px 12px); transition: height .12s ease; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1 id="status">booting…</h1>
+
+<div class="counter">
+  <button type="button" id="dec" aria-label="Decrement">&minus;</button>
+  <output id="count">0</output>
+  <button type="button" id="inc" aria-label="Increment">+</button>
+  <button type="button" id="grow" aria-label="Toggle a taller panel to trigger a real size-changed notification via the SDK's autoResize">Toggle tall panel</button>
+</div>
+<div id="resize-filler"></div>
+
+<div class="adversarial">
+  <h2>Adversarial controls (drive these directly, not through natural language)</h2>
+  <button type="button" id="btn-malformed-no-jsonrpc">Post malformed: missing "jsonrpc" field</button>
+  <button type="button" id="btn-malformed-bad-id">Post malformed: object-typed "id"</button>
+  <button type="button" id="btn-unknown-method">Post well-formed request, unknown method</button>
+  <button type="button" id="btn-spam-resize">Spam 50x ui/notifications/size-changed synchronously</button>
+  <button type="button" id="btn-request-teardown">app.requestTeardown() (View-initiated)</button>
+</div>
+
+<ul id="log" aria-label="View-side protocol log"></ul>
+
+<script type="module" src="./mcp-app.ts"></script>
+</body>
+</html>

@@ -84,6 +84,20 @@ let viteLogger: { warn: (message: string) => void } | undefined;
 
 export default defineConfig({
   plugins: [{
+    name: 'jini-mcpui-lab-csp',
+    // `index.html`'s CSP meta tag ships `frame-src 'self'` — deliberately restrictive for a page
+    // that otherwise embeds no cross-origin frames. The MCP Apps demo needs exactly one
+    // exception: the View, which the whole design requires to be a genuinely different origin
+    // than this page (see `McpUiLabHost.tsx`'s module doc). Rather than widen the static HTML's
+    // CSP permanently (which would allow framing an origin that becomes stale the moment
+    // `JINI_PLAYGROUND_DAEMON_URL` changes), this rewrites it at serve/build time from the same
+    // env var the `/api` proxy below already reads — so dev, a built artifact, and this
+    // worktree's own scratch port all get a CSP that matches whatever daemon they actually talk
+    // to, never a wider grant than that.
+    transformIndexHtml(html) {
+      return html.replace("frame-src 'self';", `frame-src 'self' ${daemonTarget};`);
+    },
+  }, {
     name: 'jini-starter-preview',
     configureServer(server) {
       viteLogger = server.config.logger;
@@ -115,6 +129,15 @@ export default defineConfig({
       }
     },
   }],
+  // `__JINI_DAEMON_ORIGIN__`: the ONE thing client code needs that the `/api` proxy above
+  // deliberately does not cover. The MCP Apps demo (`McpUiLab.tsx`) needs its View served from a
+  // genuinely different origin than the Host page — proxying it under `/api` would put it on
+  // THIS origin instead, defeating the whole point. So the iframe's `src` points directly at the
+  // daemon's real origin, and this is how the browser bundle learns what that origin is (same
+  // env var the proxy target above already reads, so one env var configures both).
+  define: {
+    __JINI_DAEMON_ORIGIN__: JSON.stringify(daemonTarget),
+  },
   server: {
     strictPort: true,
     proxy: {

@@ -1105,3 +1105,215 @@ button {
  * file now, which benefits every `@jini/chat-react` consumer, not just this one — duplicating an
  * app-local copy here would only reintroduce the drift risk that caused the original bug.
  */
+
+/*
+ * MCP Apps lab (`#/mcpui-lab`) — the MCP-UI/MCP-Apps stress-test fixture. Same shell shape as
+ * `.agent-lab-shell` (content + inline chat pane, reflow not overlay) with its own class prefix
+ * so nothing here can accidentally leak agent-lab styling or vice versa.
+ */
+.mcpui-lab-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.mcpui-lab-shell > .mcpui-lab-page {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mcpui-lab-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.mcpui-lab-page h1 {
+  margin: 4px 0 8px;
+  font-size: 28px;
+}
+
+.mcpui-lab-page p {
+  margin: 0;
+  color: var(--muted, #6b7280);
+  line-height: 1.5;
+}
+
+.mcpui-lab-harness-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mcpui-lab-harness-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mcpui-lab-harness-controls select,
+.mcpui-lab-harness-controls button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.mcpui-lab-harness-controls select {
+  border: 1px solid var(--border, #d4d4d8);
+}
+
+.mcpui-lab-harness-controls button {
+  border: 0;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  cursor: pointer;
+}
+
+.mcpui-lab-frame {
+  border: 1px solid var(--border, #e4e4e7);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcpui-lab-frame-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.mcpui-lab-state {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-muted, #f4f4f5);
+  color: var(--muted, #6b7280);
+}
+
+.mcpui-lab-state-ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mcpui-lab-state-timed-out {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.mcpui-lab-size {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+}
+
+.mcpui-lab-iframe {
+  width: 100%;
+  min-height: 260px;
+  border: 1px solid var(--border, #d4d4d8);
+  border-radius: 8px;
+}
+
+.mcpui-lab-frame-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.mcpui-lab-frame-controls button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mcpui-lab-frame-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mcpui-lab-teardown-note {
+  color: var(--muted, #6b7280);
+}
+
+.mcpui-lab-frame-log {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  max-height: 180px;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  border: 1px dashed var(--border, #d4d4d8);
+  border-radius: 8px;
+  background: var(--surface-muted, #fafafa);
+}
+
+.mcpui-lab-frame-log li {
+  padding: 1px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mcpui-lab-frame-log li[data-dir='out'] { color: #2563eb; }
+.mcpui-lab-frame-log li[data-dir='in'] { color: #16a34a; }
+.mcpui-lab-frame-log li[data-dir='rejected'],
+.mcpui-lab-frame-log li[data-dir='refused'] { color: #dc2626; }
+.mcpui-lab-frame-log li[data-dir='timeout'] { color: #d97706; }
+
+.mcpui-lab-tool-error {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.mcpui-lab-chat {
+  flex: 0 0 var(--agent-lab-chat-width, 400px);
+  max-width: 100%;
+  border-left: 1px solid var(--border, #e4e4e7);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  background: var(--surface, #fff);
+}
+
+.mcpui-lab-chat > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 860px) {
+  .mcpui-lab-shell {
+    display: block;
+  }
+
+  .mcpui-lab-chat {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border-left: 0;
+  }
+
+  .mcpui-lab-shell-open > .mcpui-lab-page {
+    display: none;
+  }
+}

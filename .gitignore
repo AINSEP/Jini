@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-tarballs/
+dist-mcpui-view/
 *.tsbuildinfo
 .tmp/
 coverage/
