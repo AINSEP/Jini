@@ -8,11 +8,11 @@
 > Skipping step 1 is a blocker: the pipeline, personas, and skills that do the work live there.
 
 > **⚠️ PORT STATUS — how much is actually left (read before trusting "done"):**
-> Jini is **early, not near-complete.** The `@jini/*` list below is real, tested
+> Jini is **early, not near-complete.** The `@jini-ai/*` list below is real, tested
 > code — but it is a set of *fragments*, and **there is no runnable daemon.** The
 > entire backend service spine (`server.ts`, `cli.ts` bootstrap, `routes/`,
 > `mcp.ts`, `start-chat-run.ts`, `db.ts` schema, `plugins/` host) — **~49K lines** —
-> is **absent**. `@jini/node-host`'s `createLocalNodeDaemon` assembly now **does
+> is **absent**. `@jini-ai/node-host`'s `createLocalNodeDaemon` assembly now **does
 > exist** (`packages/node-host/src/create-local-node-daemon.ts`, ~840 lines) — it
 > assembles the daemon's pieces, but the backend service spine above is still the
 > load-bearing gap it would sit in front of. Measured 2026-07-18: **~73.5K lines ported** (of which ~15K frontend is
@@ -110,26 +110,26 @@ The first two are deterministic (AST-derived — they cannot fabricate). `unders
 
 ## What Jini is
 
-A general-purpose, reusable, headless, agent-drivable engine extracted from Open Design (OD). OD is one consumer of many; the engine core has **no OD tilt**. Consumers (OD, Open-Marketing, Tovu-Runner, Zana) live in their own repos and consume published `@jini/*` packages.
+A general-purpose, reusable, headless, agent-drivable engine extracted from Open Design (OD). OD is one consumer of many; the engine core has **no OD tilt**. Consumers (OD, Open-Marketing, Tovu-Runner, Zana) live in their own repos and consume published `@jini-ai/*` packages.
 
 ## Layout
 
-- `packages/*` — **the engine** (`@jini/*`), product-neutral. Current: `protocol, core, daemon, agent-runtime, sqlite, http, cli, platform, sidecar, node-host, chat-core, chat-react, renderers-react, ui, artifacts, deploy, registry, memory, media, capability-providers, desktop-host, diagnostics, mcp, metatool, agui`. The physical layout stays flat; each `package.json` carries canonical `jini` domain/kind/runtime metadata documented in `packages/README.md` and enforced by `pnpm guard`. `protocol, core, daemon, agent-runtime, platform, sidecar, chat-core, deploy, registry, memory, media, capability-providers, desktop-host` have real implementations (`daemon`: `RunLifecycle`/`EventLog`/`ToolExecutor`; `agent-runtime`: both the `agent-protocol/` ACP+pi-rpc transport AND the `runtimes/` registry/detection/defs/stream-parsers are now ported — see `packages/agent-runtime/source-map.md`'s "Barrel merge" section); the rest are stubs pending extraction. `ui` (renamed from `components` 2026-07-16 — see `packages/ui/README.md`) holds generic, non-chat, non-OD-branded UI: primitives, feature-shaped domains, and their hooks/providers/ports — not just flat components. There is no locked/incubating package-admission gate anymore — removed 2026-07-28; `UNLOCKED.md` is a historical record only. See each package's `source-map.md` for what it implements and what's deferred/skipped.
+- `packages/*` — **the engine** (`@jini-ai/*`), product-neutral. Current: `protocol, core, daemon, agent-runtime, sqlite, http, cli, platform, sidecar, node-host, chat-core, chat-react, renderers-react, ui, artifacts, deploy, registry, memory, media, capability-providers, desktop-host, diagnostics, mcp, agentic, composio`. The physical layout stays flat; each `package.json` carries canonical `jini` domain/kind/runtime metadata documented in `packages/README.md` and enforced by `pnpm guard`. `protocol, core, daemon, agent-runtime, platform, sidecar, chat-core, deploy, registry, memory, media, capability-providers, desktop-host` have real implementations (`daemon`: `RunLifecycle`/`EventLog`/`ToolExecutor`; `agent-runtime`: both the `agent-protocol/` ACP+pi-rpc transport AND the `runtimes/` registry/detection/defs/stream-parsers are now ported — see `packages/agent-runtime/source-map.md`'s "Barrel merge" section); the rest are stubs pending extraction. `ui` (renamed from `components` 2026-07-16 — see `packages/ui/README.md`) holds generic, non-chat, non-OD-branded UI: primitives, feature-shaped domains, and their hooks/providers/ports — not just flat components. There is no locked/incubating package-admission gate anymore — removed 2026-07-28; `UNLOCKED.md` is a historical record only. See each package's `source-map.md` for what it implements and what's deferred/skipped.
 - `foundry/` — internal supporting material around the engine: automation, architecture docs, and product integrations. It is deliberately separate from the publishable `packages/*` engine.
 - `foundry/integrations/open-design/` — the OD adapter (strangler daemon lands here; keeps OD's file tree so upstream fixes `format-patch` in). `reference/od-web-src.orig/` is the real OD web tree for later frontend extraction. **For any question about OD's real current structure, read `/Users/la/Desktop/Programming/OSS-Repos/open-design` instead** — a real, full clone (both `origin=nexu-io/open-design` and `fork=leonaburime-ucla/open-design` remotes) — not this repo's `reference/**` snapshot (see the caveat in `foundry/integrations/open-design/README.md`). That clone already has `AI-Dev-Shop/integrations/graphify/`'s output computed against it (`graphify-out/GRAPH_REPORT.md`, `graph.json`) and is indexed in `AI-Dev-Shop/integrations/codebase-memory-mcp/` — query those before re-deriving structure from scratch.
-- `examples/` — the public place to browse and run Jini consumers: `reference-web/` is the Vite host, `reference-desktop/` is its Electron shell, `sample-projects/` contains disposable workspaces, and `minimal-host/` imports ONLY `@jini/*` as the neutrality CI gate.
+- `examples/` — the public place to browse and run Jini consumers: `reference-web/` is the Vite host, `reference-desktop/` is its Electron shell, `sample-projects/` contains disposable workspaces, and `minimal-host/` imports ONLY `@jini-ai/*` as the neutrality CI gate.
 - `AI-Dev-Shop/` — the declarative pipeline toolkit (vendored, agents/skills/routing), read-only during normal feature work.
 - `ADS-memory/` — durable decisions/specs/reports (project-owned workspace, sibling to `AI-Dev-Shop/`).
-- `foundry/automation/` — the AI dev control-plane's executable half (separate concern from the engine; never imported by `@jini/*`). `project-runner/` (the execution runtime to build — minimal SQLite ledger first) lives here.
+- `foundry/automation/` — the AI dev control-plane's executable half (separate concern from the engine; never imported by `@jini-ai/*`). `project-runner/` (the execution runtime to build — minimal SQLite ledger first) lives here.
 - `foundry/docs/jini-port/` — all architecture docs, recon, and debate transcripts from the 2026-07-16 design session.
 - `scripts/` — `guard.ts`, `check-engine-boundaries.ts`, `check-protocol-purity.ts`.
 
 ## Hard boundaries (enforced by scripts/guard.ts)
 
-- `packages/@jini/**` MUST NOT import `foundry/**`, `examples/**`, or `AI-Dev-Shop/**`.
-- `@jini/protocol` MUST NOT import any OD DTO (downward-only edge).
-- No product-identity strings (`Open Design`, `OD_`, `--od-stamp`, `/tmp/open-design`) in `packages/@jini/**`.
-- `foundry/automation/**` MUST NOT share domain types with the engine (vocabulary firewall: engine {Run, Agent, Tool} vs automation {PipelineRun, WorkItem, JobAttempt, Persona}). It MAY consume `@jini/agent-runtime` only as a pinned leaf subprocess library.
+- `packages/@jini-ai/**` MUST NOT import `foundry/**`, `examples/**`, or `AI-Dev-Shop/**`.
+- `@jini-ai/protocol` MUST NOT import any OD DTO (downward-only edge).
+- No product-identity strings (`Open Design`, `OD_`, `--od-stamp`, `/tmp/open-design`) in `packages/@jini-ai/**`.
+- `foundry/automation/**` MUST NOT share domain types with the engine (vocabulary firewall: engine {Run, Agent, Tool} vs automation {PipelineRun, WorkItem, JobAttempt, Persona}). It MAY consume `@jini-ai/agent-runtime` only as a pinned leaf subprocess library.
 
 ## Commands
 
