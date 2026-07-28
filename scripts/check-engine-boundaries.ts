@@ -12,12 +12,16 @@
  *     leak found in the 2026-07-19 swarm-consensus debate (Codex GPT-5.6-sol, confirmed by
  *     Gemini/Opus). Type-only imports of that subpath (e.g. `node-host`'s `AnyPack`) are
  *     unrestricted — they carry no runtime capability.
- * R7: a locked package (extraction-plan.md §3's fourteen) may not import a package listed in
- *     `UNLOCKED.md` unless that entry's `status` is `"stable"` — contains package-sprawl found
- *     in the same debate (23 packages vs. the locked 14).
+ * R7: removed 2026-07-28 at the user's explicit direction — it blocked a locked package from
+ *     importing a package listed in `UNLOCKED.md` unless that entry's `status` was `"stable"`.
+ *     The tiered locked/incubating/admitted admission gate this enforced (and the "23 packages
+ *     vs. the locked 14" framing behind it, from the 2026-07-19 swarm-consensus debate) is gone;
+ *     `UNLOCKED.md` is now a historical record, not an enforced manifest. See that file's own
+ *     header for the removal note.
  * R8: every workspace package must declare canonical `jini` classification metadata in its
- *     package.json, and its admission state must agree with `UNLOCKED.md`. This keeps packages
- *     physically flat while making the conceptual domain/runtime grouping machine-readable.
+ *     package.json. This keeps packages physically flat while making the conceptual domain/
+ *     runtime grouping machine-readable. `jini.admission` is no longer required or validated —
+ *     removed alongside R7 above.
  *     Extension (2026-07-26, `@jini/agentic`'s two-entry-point split): an optional
  *     `jini.entries` map gives a per-export-subpath `runtime` override for the rare package
  *     whose single top-level `runtime` can't describe every subpath — e.g.
@@ -63,13 +67,11 @@ const PACKAGE_DOMAINS = new Set([
   'tooling',
 ]);
 const PACKAGE_RUNTIMES = new Set(['universal', 'node', 'browser', 'desktop']);
-const PACKAGE_ADMISSIONS = new Set(['locked', 'incubating', 'admitted']);
 
 interface JiniPackageMetadata {
   readonly domain: string;
   readonly kind: string;
   readonly runtime: string;
-  readonly admission: string;
   /**
    * Optional per-entry-point runtime override, e.g. `{".": "universal", "./dom": "browser"}` —
    * for the rare package (currently only `@jini/agentic`) whose single top-level `runtime`
@@ -89,17 +91,6 @@ interface PackageRecord {
 function packageNameOf(repoRelPath: string): string | null {
   const m = /^packages\/([^/]+)\//.exec(repoRelPath);
   return m ? m[1]! : null;
-}
-
-function loadUnlockedManifest(root: string): Record<string, { status: string }> {
-  try {
-    const raw = readFileSync(join(root, 'UNLOCKED.md'), 'utf8');
-    const fenced = /```json\s*([\s\S]*?)```/.exec(raw);
-    if (!fenced) return {};
-    return JSON.parse(fenced[1]!);
-  } catch {
-    return {};
-  }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -209,7 +200,6 @@ function gitIgnoredDirectories(packagesDir: string, candidates: readonly string[
 function loadPackageRecords(
   root: string,
   packagesDir: string,
-  unlocked: Record<string, { status: string }>,
   violations: Violation[],
 ): Map<string, PackageRecord> {
   const records = new Map<string, PackageRecord>();
@@ -264,7 +254,7 @@ function loadPackageRecords(
       violations.push({
         rule: 'R8-package-metadata',
         file,
-        reason: 'missing canonical jini metadata (domain, kind, runtime, admission)',
+        reason: 'missing canonical jini metadata (domain, kind, runtime)',
       });
       records.set(directory, { directory, packageName, metadata: null });
       continue;
@@ -277,7 +267,6 @@ function loadPackageRecords(
       domain: typeof rawMetadata.domain === 'string' ? rawMetadata.domain : '',
       kind: typeof rawMetadata.kind === 'string' ? rawMetadata.kind : '',
       runtime,
-      admission: typeof rawMetadata.admission === 'string' ? rawMetadata.admission : '',
       entries,
     };
 
@@ -302,37 +291,8 @@ function loadPackageRecords(
         reason: `invalid jini.runtime ${JSON.stringify(rawMetadata.runtime)}`,
       });
     }
-    if (!PACKAGE_ADMISSIONS.has(metadata.admission)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `invalid jini.admission ${JSON.stringify(rawMetadata.admission)}`,
-      });
-    }
-
-    const unlockedStatus = unlocked[packageName]?.status;
-    const expectedAdmission =
-      unlockedStatus === 'incubating' ? 'incubating' : unlockedStatus === 'stable' ? 'admitted' : 'locked';
-    if (metadata.admission !== expectedAdmission) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file,
-        reason: `jini.admission "${metadata.admission}" disagrees with UNLOCKED.md (expected "${expectedAdmission}")`,
-      });
-    }
 
     records.set(directory, { directory, packageName, metadata });
-  }
-
-  for (const packageName of Object.keys(unlocked)) {
-    const directory = packageName.startsWith('@jini/') ? packageName.slice('@jini/'.length) : '';
-    if (!directory || !records.has(directory)) {
-      violations.push({
-        rule: 'R8-package-metadata',
-        file: 'UNLOCKED.md',
-        reason: `admission entry "${packageName}" does not resolve to a workspace package`,
-      });
-    }
   }
 
   return records;
@@ -358,8 +318,7 @@ export async function checkEngineBoundaries(
   const violations: Violation[] = [];
   const packagesDir = options.packagesDir ?? join(root, 'packages');
   const files = listSourceFiles(packagesDir);
-  const unlocked = loadUnlockedManifest(root);
-  const packageRecords = loadPackageRecords(root, packagesDir, unlocked, violations);
+  const packageRecords = loadPackageRecords(root, packagesDir, violations);
 
   for (const absFile of files) {
     const file = relative(root, absFile).split('\\').join('/');
@@ -444,23 +403,6 @@ export async function checkEngineBoundaries(
           }
         }
 
-        // R7: an admitted/locked package may not point down into an incubating package.
-        // Package admission now comes from package.json rather than a duplicated hard-coded set.
-        const sourceAdmission = ownPackage
-          ? packageRecords.get(ownPackage)?.metadata?.admission
-          : undefined;
-        const targetAdmission = packageRecords.get(targetPackage)?.metadata?.admission;
-        if (
-          sourceAdmission !== undefined &&
-          sourceAdmission !== 'incubating' &&
-          targetAdmission === 'incubating'
-        ) {
-            violations.push({
-              rule: 'R7-sprawl',
-              file,
-              reason: `${sourceAdmission} package "@jini/${ownPackage}" imports incubating package "${targetPackageName}"`,
-            });
-        }
       }
     }
   }

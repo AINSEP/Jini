@@ -1,19 +1,21 @@
-# Unlocked package admission manifest
+# Unlocked package admission manifest (historical — no longer enforced)
 
-Every `packages/*` directory NOT in `foundry/docs/jini-port/extraction-plan.md` §3's locked 14-package
-set must have an entry here. This is the package-admission manifest the 2026-07-19 swarm-consensus
-architecture debate recommended (`ADS-memory/reports/swarm-consensus/runs/2026-07-19T1632-consensus-report.md`)
+**Removed 2026-07-28, at the user's explicit direction ("get rid of that locked 14 thing").** This
+file used to be a live, enforced gate: `scripts/check-engine-boundaries.ts`'s R7 rule rejected any
+import from a "locked" package into an "incubating" one, and every `packages/*/package.json`
+carried a `jini.admission` field that had to agree with the manifest below. Both the rule and the
+`admission` field are gone — see `packages/README.md` and `check-engine-boundaries.ts`'s own header
+comment for where that's now documented. Nothing reads this file anymore; the JSON below is kept
+only as a record of what was flagged and why, in case that reasoning is useful later.
+
+Originally: every `packages/*` directory NOT in `foundry/docs/jini-port/extraction-plan.md` §3's
+locked 14-package set needed an entry here. This was the package-admission manifest the 2026-07-19
+swarm-consensus architecture debate recommended (`ADS-memory/reports/swarm-consensus/runs/2026-07-19T1632-consensus-report.md`)
 after finding 9 packages had been added ad hoc, without the Coordinator/Software-Architect
 sign-off `AGENTS.md` says is required, and at least 2 (`capability-providers`, `metatool`)
 admitting zero consumers in their own `source-map.md` files.
 
-**Enforcement:** every `packages/*/package.json` carries canonical `jini` domain/kind/runtime/
-admission metadata. `scripts/check-engine-boundaries.ts` reconciles `jini.admission` with the
-fenced JSON below and rejects dependencies from locked/admitted packages into incubating ones.
-This admission field is architectural governance, not a claim about API maturity. Sign-off is
-still `PENDING` for every entry; see the "Promotion" section below for what changes that.
-
-## Manifest
+## Manifest (historical snapshot, not enforced)
 
 ```json
 {
@@ -109,12 +111,11 @@ still `PENDING` for every entry; see the "Promotion" section below for what chan
   (commit `7773af01e` and earlier) for the package's own provenance, preserved rather than
   re-derived.
 
-## Promotion requirements (per the 2026-07-19 debate's convergence)
+## Promotion requirements (historical — per the 2026-07-19 debate's convergence, no longer enforced)
 
-An entry graduates from `"incubating"` to `"stable"` only when ALL of the following are true,
-matching the same two-consumer-rule discipline `extraction-plan.md` §7 already applies to new
-kernel tokens/protocol event families (this manifest exists because that rule was never extended
-to whole new *packages* — see the debate report's Divergence/Agreement sections):
+An entry used to graduate from `"incubating"` to `"stable"` only when ALL of the following were
+true, matching the same two-consumer-rule discipline `extraction-plan.md` §7 already applies to new
+kernel tokens/protocol event families:
 
 1. At least one real, named consumer (an actual external repo, not an aspirational one) depends
    on the package via a packed tarball, not a workspace link.
@@ -124,7 +125,6 @@ to whole new *packages* — see the debate report's Divergence/Agreement section
 4. Coordinator + Software-Architect sign-off is recorded in this file (`signOff` field updated
    from `PENDING` to a date + reviewer).
 
-Until then, each entry's `"status": "incubating"` and the matching package admission metadata are
-enforced by `scripts/check-engine-boundaries.ts`: locked/admitted packages may not import any
-incubating package. `lockedPackagesMayImport: false` records that same policy for human and tooling
-consumers of this manifest; it is not a separate override switch.
+None of this is enforced anymore — see the top of this file. `scripts/health-boot.ts` (item 3) is
+still worth having on its own merits (proving `@jini/*` actually installs from real tarballs), and
+is being built independent of this now-removed gate.

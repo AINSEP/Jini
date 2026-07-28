@@ -12,8 +12,7 @@ Every package declares a canonical `jini` block in `package.json`:
   "jini": {
     "domain": "chat",
     "kind": "react-adapter",
-    "runtime": "browser",
-    "admission": "locked"
+    "runtime": "browser"
   }
 }
 ```
@@ -22,14 +21,11 @@ Every package declares a canonical `jini` block in `package.json`:
   `capability`, `integration`, or `tooling`.
 - `kind` describes the package's role inside that domain.
 - `runtime` is `universal`, `node`, `browser`, or `desktop`.
-- `admission` is architectural governance, not an API-stability claim:
-  - `locked` — part of the architecture's locked package set.
-  - `incubating` — tracked in `UNLOCKED.md` and cannot be imported by locked/admitted packages.
-  - `admitted` — promoted from `UNLOCKED.md` after its recorded promotion requirements are met.
 
-`pnpm guard` validates the metadata, reconciles it with `UNLOCKED.md`, and rejects downward
-dependencies into incubating packages. Product/example composition roots may consume incubating
-packages while their boundaries are being proven.
+`pnpm guard` validates this metadata. There is no `admission` tier and no import restriction
+between packages based on one — the locked/incubating/admitted gate (and the "23 packages vs. the
+locked 14" framing behind it) was removed 2026-07-28 at the user's explicit direction. `UNLOCKED.md`
+is a historical record of that removed mechanism, not something `pnpm guard` enforces.
 
 ### `entries` — when one `runtime` can't describe every export subpath
 
