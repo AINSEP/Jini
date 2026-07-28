@@ -7,7 +7,7 @@ import { createDomPageDriver, currentAgentPage } from '../dom-page-driver.js';
 /**
  * The mechanical half of page control, against a real (jsdom) DOM.
  *
- * Policy lives in `@injini/agentic`'s `executePageCapability` and is tested there without a
+ * Policy lives in `@jini-ai/agentic`'s `executePageCapability` and is tested there without a
  * browser. What has to be proven *here* is the part that can only be wrong against real nodes:
  * that a handle on a wrapper reaches the control inside it, that a fill React will actually
  * notice, that reading state back does not invent values, and that settling is bounded.

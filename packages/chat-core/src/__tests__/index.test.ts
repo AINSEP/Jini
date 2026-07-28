@@ -13,7 +13,7 @@ import {
   type RunStatus,
 } from '../index.js';
 
-describe('@injini/chat-core barrel', () => {
+describe('@jini-ai/chat-core barrel', () => {
   it('re-exports the full public surface from a single entry point', () => {
     expect(typeof stripArtifact).toBe('function');
     expect(typeof dedupeToolUsesById).toBe('function');

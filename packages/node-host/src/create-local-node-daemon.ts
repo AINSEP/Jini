@@ -2,20 +2,20 @@
  * @module create-local-node-daemon
  *
  * The "host preset" (extraction-plan.md §2.4) that lets a brand-new product boot a running daemon
- * process by implementing zero interfaces: assembles `@injini/sqlite`'s durable `EventLog`,
- * `@injini/daemon`'s `RunLifecycle` and `AgentExecutor` (the driver that actually spawns an agent
- * CLI subprocess for 23 of the 24 registered defs — see `@injini/daemon`'s own source-map.md), an HTTP
- * app wrapped in `@injini/http`'s route-registration guard and security middleware, a caller's own
- * `@injini/core` packs, and the generic daemon-status routes, then listens and returns `{url, server,
+ * process by implementing zero interfaces: assembles `@jini-ai/sqlite`'s durable `EventLog`,
+ * `@jini-ai/daemon`'s `RunLifecycle` and `AgentExecutor` (the driver that actually spawns an agent
+ * CLI subprocess for 23 of the 24 registered defs — see `@jini-ai/daemon`'s own source-map.md), an HTTP
+ * app wrapped in `@jini-ai/http`'s route-registration guard and security middleware, a caller's own
+ * `@jini-ai/core` packs, and the generic daemon-status routes, then listens and returns `{url, server,
  * stop}`. Generalized from OD's `startServer()` — see `source-map.md` for the exact line-by-line
  * provenance and drop-list (every plugin/design-system/connector/routine/media/marketplace/
  * telemetry/project route `startServer` also wires is explicitly out of scope; this is the generic
  * assembly skeleton only).
  *
- * Also writes (2026-07-21) a `@injini/sidecar`-backed local daemon-registry record — see
+ * Also writes (2026-07-21) a `@jini-ai/sidecar`-backed local daemon-registry record — see
  * `resolveDaemonRegistryPath`'s own doc and this file's `CreateLocalNodeDaemonConfig.discoveryFile`
  * — once the real bound port is known, and removes it during `stop()`. This is the missing daemon
- * side of `@injini/cli`'s `resolveDaemonUrl({ discover })` injection point (see that package's
+ * side of `@jini-ai/cli`'s `resolveDaemonUrl({ discover })` injection point (see that package's
  * `local-daemon-discovery.ts` and its own `source-map.md`'s 2026-07-21 investigation, which found
  * no such record existed anywhere a separate CLI process could read).
  *
@@ -31,9 +31,9 @@ import { join } from 'node:path';
 import type { Server } from 'node:http';
 
 import express, { type Express } from 'express';
-import { detectAgents, type DetectedAgent, type OAuthCallbackListener } from '@injini/agent-runtime';
-import { bindings, createDaemon, createToolRegistry, type Bindings, type Daemon, type Principal, type ToolRegistration } from '@injini/core';
-import type { AnyPack, MissingTokenIds } from '@injini/core/internal';
+import { detectAgents, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import { bindings, createDaemon, createToolRegistry, type Bindings, type Daemon, type Principal, type ToolRegistration } from '@jini-ai/core';
+import type { AnyPack, MissingTokenIds } from '@jini-ai/core/internal';
 import {
   AgentExecutorToken,
   createAgentExecutor,
@@ -49,7 +49,7 @@ import {
   type ResolveRunInput,
   type RunLifecycle,
   type RunRetrySideEffectState,
-} from '@injini/daemon';
+} from '@jini-ai/daemon';
 import {
   createSqliteEventLog,
   ensureToolCatalogTables,
@@ -58,7 +58,7 @@ import {
   reseedToolCatalog,
   searchToolCatalog,
   verifySqliteIntegrity,
-} from '@injini/sqlite';
+} from '@jini-ai/sqlite';
 import {
   configuredAllowedOrigins,
   createDaemonDbToolRegistrations,
@@ -88,8 +88,8 @@ import {
   type DelegatedToolExecuteRequest,
   type RunStartHandler,
   type WorkspaceRootResolver,
-} from '@injini/http';
-import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@injini/sidecar';
+} from '@jini-ai/http';
+import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
 import { closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js';
 
@@ -119,12 +119,12 @@ const LOCAL_DAEMON_PRINCIPAL: Principal = { id: 'local-daemon' };
  * The identity a delegated tool call runs as when the host has not supplied
  * {@link CreateLocalNodeDaemonConfig.resolveDelegatedPrincipal}.
  *
- * Carries **no roles**, deliberately. `@injini/http`'s `delegated-tools.ts` documents
+ * Carries **no roles**, deliberately. `@jini-ai/http`'s `delegated-tools.ts` documents
  * `resolvePrincipal` as mandatory because "there is no safe default identity this package could
  * assume on a host's behalf" — and that stays true. What makes a default acceptable *here* is that
  * this preset's inertness never depended on identity in the first place: every tool it registers
  * is guarded by a deny-by-default `ToolPolicy` (`denyAllTerminalCreatePolicy`,
- * `denyAllDaemonDbPolicy`, `@injini/daemon`'s `denyAllFrontendCapabilityPolicy`), so an anonymous
+ * `denyAllDaemonDbPolicy`, `@jini-ai/daemon`'s `denyAllFrontendCapabilityPolicy`), so an anonymous
  * caller is refused by the policy rather than by the absence of a route. A host that grants access
  * does so by supplying a permissive policy through `toolRegistrations` — an explicit act — and a
  * host that wants real identities to branch on supplies `resolveDelegatedPrincipal`.
@@ -137,12 +137,12 @@ const LOCAL_DAEMON_PRINCIPAL: Principal = { id: 'local-daemon' };
 const ANONYMOUS_DELEGATED_PRINCIPAL: Principal = { id: 'anonymous-delegated' };
 
 /**
- * Builds a `DaemonDbOperations` (see `@injini/http`'s `db-ops.ts`) against `db` — a *second*
+ * Builds a `DaemonDbOperations` (see `@jini-ai/http`'s `db-ops.ts`) against `db` — a *second*
  * `better-sqlite3` connection to the same `events.db` this preset already owns (safe: both
  * connections run in WAL mode, which permits multiple concurrently open handles on one file
  * within a single process — the same fact `create-local-node-daemon.test.ts`'s own
  * `stop() releases the sqlite file handle` test already relies on empirically). `inspect`/`verify`
- * are thin wrappers over `@injini/sqlite`'s own `inspectSqliteDatabase`/`verifySqliteIntegrity`;
+ * are thin wrappers over `@jini-ai/sqlite`'s own `inspectSqliteDatabase`/`verifySqliteIntegrity`;
  * `vacuum` is the "small wrapper around `db.exec('VACUUM')`" `db-ops.ts`'s own `DaemonDbOperations`
  * doc names as the missing piece — measuring the primary file's on-disk size before/after (not the
  * `-wal`/`-shm` sum `inspectSqliteDatabase` reports, since a fresh `VACUUM` checkpoints and shrinks
@@ -183,9 +183,9 @@ export function buildDaemonDbOperations(db: Database.Database, file: string): Da
  * integration test (that would need either a real, predictably-failing agent CLI installed in
  * every dev/CI environment, or new test-only spawn-injection hooks — both a worse trade than making
  * the wiring itself directly unit-testable, matching this file's own established convention for
- * exactly this reachability shape). Delegates entirely to `@injini/daemon`'s
+ * exactly this reachability shape). Delegates entirely to `@jini-ai/daemon`'s
  * `resumableFromProcessExit` — see that function's own doc for the classification policy and the
- * real `sideEffects` this now threads through (forwarded verbatim from `@injini/daemon`'s own
+ * real `sideEffects` this now threads through (forwarded verbatim from `@jini-ai/daemon`'s own
  * `FailureClassificationContext`, which every real close handler populates).
  */
 export function classifyRunFailureForRetry(context: {
@@ -270,7 +270,7 @@ export interface CreateLocalNodeDaemonConfig<
   env?: NodeJS.ProcessEnv;
   /**
    * Optional detector override for a host with custom PATH/env policy or a
-   * deterministic test fixture. Defaults to `@injini/agent-runtime`'s real
+   * deterministic test fixture. Defaults to `@jini-ai/agent-runtime`'s real
    * concurrent CLI/version/auth/model probe.
    */
   agentDetector?: () => Promise<readonly DetectedAgent[]>;
@@ -286,7 +286,7 @@ export interface CreateLocalNodeDaemonConfig<
    * swarm-consensus Final Recommendation — see
    * `ADS-memory/reports/swarm-consensus/runs/20260722T023000Z-consensus-report.md`). When
    * supplied and `onRunStarted` is not, this daemon builds a default `RunStartHandler` via
-   * `@injini/daemon`'s `createDefaultRunStartHandler` that resolves each run's input through this
+   * `@jini-ai/daemon`'s `createDefaultRunStartHandler` that resolves each run's input through this
    * seam and drives it straight to the zero-config `AgentExecutor` this preset already
    * constructs. Ignored when `onRunStarted` is supplied — see that option's own doc. Omit both to
    * durably start runs with no driver attached at all (unchanged prior behavior).
@@ -294,7 +294,7 @@ export interface CreateLocalNodeDaemonConfig<
   resolveRunInput?: ResolveRunInput;
   /**
    * Resolves a `resourceRef` (an opaque, host-defined identifier — this preset has no `Project`/
-   * `Workspace` noun of its own) to a filesystem working directory for `@injini/http`'s
+   * `Workspace` noun of its own) to a filesystem working directory for `@jini-ai/http`'s
    * `POST /api/resources/:resourceRef/open-in` route (always mounted — see below). Defaults to
    * `denyAllWorkspaceRoots`: with no resolver supplied, the route exists and is reachable but
    * denies every call with `404`, never fabricating or guessing a path. A host that wants the
@@ -316,7 +316,7 @@ export interface CreateLocalNodeDaemonConfig<
    * This exists because that registry is otherwise private: a host had no way to contribute to it,
    * which is precisely the pressure that produces a second, weaker execution path alongside the
    * gated one. The motivating case is a capability the daemon cannot implement itself because it
-   * has to run somewhere else — an attached browser surface reached through `@injini/daemon`'s
+   * has to run somewhere else — an attached browser surface reached through `@jini-ai/daemon`'s
    * `FrontendSessionRegistry`, where the handler's job is to route the call and await an answer
    * rather than to do the work.
    *
@@ -338,7 +338,7 @@ export interface CreateLocalNodeDaemonConfig<
    * correct and nothing can call it.
    *
    * @default {@link ANONYMOUS_DELEGATED_PRINCIPAL} — see its doc for why a default is safe here
-   * when `@injini/http` refuses to define one: inertness comes from deny-by-default policies, not
+   * when `@jini-ai/http` refuses to define one: inertness comes from deny-by-default policies, not
    * from the identity.
    */
   resolveDelegatedPrincipal?: (
@@ -347,7 +347,7 @@ export interface CreateLocalNodeDaemonConfig<
   /**
    * Where this daemon's local discovery record (URL/host/port/pid) is written once it starts
    * listening, so a separate CLI process on the same machine can find it via
-   * `@injini/cli`'s `createLocalDaemonDiscovery`. Defaults to `resolveDaemonRegistryPath(dataDir)`
+   * `@jini-ai/cli`'s `createLocalDaemonDiscovery`. Defaults to `resolveDaemonRegistryPath(dataDir)`
    * (`<dataDir>/daemon.json`) — the same conservative, host-overridable-default pattern
    * `resolveDaemonUrl` itself already uses, and scoped to `dataDir` so two daemons on one machine
    * (already required to use two different `dataDir`s for two independent sqlite files) never
@@ -374,15 +374,15 @@ export interface LocalNodeDaemon {
 }
 
 /**
- * Boots a complete, runnable `@injini/core` daemon process: an `EventLog` + `RunLifecycle` are
- * created and bound automatically, an Express app is assembled behind `@injini/http`'s route guard
+ * Boots a complete, runnable `@jini-ai/core` daemon process: an `EventLog` + `RunLifecycle` are
+ * created and bound automatically, an Express app is assembled behind `@jini-ai/http`'s route guard
  * and security middleware, the caller's own `packs` are composed and mounted, and the generic
  * daemon-status routes are registered — then the app starts listening and this resolves once the
  * real port is known.
  *
  * Preserves `createDaemon`'s compile-time "missing binding" error through this wrapper: the same
  * `MissingTokenIds<Packs, BoundIds>` conditional gate `createDaemon` itself uses (re-derived here
- * via `@injini/core/internal`, not duplicated) forces a call site with an unbound pack dependency to
+ * via `@jini-ai/core/internal`, not duplicated) forces a call site with an unbound pack dependency to
  * fail to typecheck with the missing token id(s) visible in the error, exactly as it would calling
  * `createDaemon` directly. See `packages/node-host/src/create-local-node-daemon.typecheck.ts` for
  * the compile-time proof.
@@ -410,7 +410,7 @@ export interface LocalNodeDaemon {
  * port. On any of these the durable `EventLog` this call already opened is closed before
  * rejecting, so a failed boot never leaks an open sqlite file handle.
  * @complexity O(1) beyond the packs' own `services()`/`http()` costs — `createDaemon` composition
- * is O(p) in pack count (see `@injini/core`'s own complexity note).
+ * is O(p) in pack count (see `@jini-ai/core`'s own complexity note).
  * @overallScore 100/100
  */
 export async function createLocalNodeDaemon<const Packs extends readonly AnyPack[]>(
@@ -435,19 +435,19 @@ export async function createLocalNodeDaemon(
   const requestedPort = config.port ?? 0;
   const registryPath = config.discoveryFile === false ? null : (config.discoveryFile ?? resolveDaemonRegistryPath(config.dataDir));
 
-  // @injini/http's own `guardSameOrigin` (used by the daemon-status shutdown route below) resolves
+  // @jini-ai/http's own `guardSameOrigin` (used by the daemon-status shutdown route below) resolves
   // `bindHost` purely from real `process.env.JINI_BIND_HOST` — it has no parameter path for an
   // injected env, unlike most of that module's other functions. Setting it here, before any
   // request can possibly be served, keeps that route's same-origin decision in sync with the host
   // this daemon actually bound to instead of silently comparing against whatever
   // `JINI_BIND_HOST` happened to already be set to. (When `config.env` is a caller-injected object
   // distinct from `process.env`, this line cannot fix `guardSameOrigin`'s behavior — that gap is a
-  // pre-existing `@injini/http` limitation, not something this call can reach around; see this
+  // pre-existing `@jini-ai/http` limitation, not something this call can reach around; see this
   // package's source-map.md.)
   env[DEFAULT_BIND_HOST_ENV_VAR] = host;
 
   const eventLog = createSqliteEventLog(join(config.dataDir, 'events.db'));
-  // Gap 1's byte-journal (see `@injini/daemon`'s `continuation/journal.ts`) gets its own durable
+  // Gap 1's byte-journal (see `@jini-ai/daemon`'s `continuation/journal.ts`) gets its own durable
   // sqlite file, deliberately separate from `eventLog` above — that log's `stream()` replays
   // every entry it holds to SSE subscribers as a `RunProtocolEvent`, and a journal entry has no
   // corresponding protocol-event kind. Always constructed, unconditionally wired into
@@ -469,7 +469,7 @@ export async function createLocalNodeDaemon(
   // ToolRegistry and is therefore NOT auto-bound here — see this file's own
   // KernelBoundIds doc and packages/daemon/source-map.md's AgentExecutor
   // section): createAgentExecutor's own defaults already resolve the real
-  // @injini/agent-runtime registry, launch resolution, and node:child_process
+  // @jini-ai/agent-runtime registry, launch resolution, and node:child_process
   // spawn, so every caller gets a working AgentExecutor with no additional
   // wiring. ACP agents intentionally still require a host-injected permission
   // policy before any native tool request can proceed; that fail-closed
@@ -581,7 +581,7 @@ export async function createLocalNodeDaemon(
 
   // `terminals.ts` + `daemon-db.ts` share one internal, zero-config `ToolRegistry`/`ToolExecutor`
   // pair — both are gated tools this preset registers with a **deny-by-default** `ToolPolicy`
-  // (`denyAllTerminalCreatePolicy`/`denyAllDaemonDbPolicy`, both `@injini/daemon`/`@injini/http`'s own
+  // (`denyAllTerminalCreatePolicy`/`denyAllDaemonDbPolicy`, both `@jini-ai/daemon`/`@jini-ai/http`'s own
   // established precedent, mirroring `host-tools.ts`'s `denyAllWorkspaceRoots`): the route exists
   // and is reachable, but every real call is denied with no fabricated access, until a host
   // supplies its own permissive policy. This is what makes spawning a real, `node-pty`-backed
@@ -629,7 +629,7 @@ export async function createLocalNodeDaemon(
   // both registration passes above, so the snapshot is never partial. Reuses `dbOpsConnection`
   // (already open against `eventsDbPath`) rather than a second file handle. Descriptors only —
   // the same public, non-secret surface `ToolRegistry.list()` always exposed; no handler or
-  // policy ever reaches this table (`@injini/sqlite/db/tool-catalog`'s own module doc, §2 of the
+  // policy ever reaches this table (`@jini-ai/sqlite/db/tool-catalog`'s own module doc, §2 of the
   // proposal: "no executable ever comes out of the database").
   ensureToolCatalogTables(dbOpsConnection);
   reseedToolCatalog(
@@ -740,7 +740,7 @@ export async function createLocalNodeDaemon(
     },
   };
 
-  // Assembles the concrete Express app and wires @injini/http's route-registration guard, `/api`
+  // Assembles the concrete Express app and wires @jini-ai/http's route-registration guard, `/api`
   // security middleware, and daemon-status routes — `mountPackHttp` above is already
   // framework-agnostic (it only ever forwards `app` straight through to a pack's own
   // `http(app, services)`).
@@ -835,7 +835,7 @@ export async function createLocalNodeDaemon(
         const boundPort = resolveBoundPort(server.address());
         if (!boundPort) {
           failToBind(
-            new Error(`@injini/node-host: daemon failed to resolve listening port (address=${JSON.stringify(server.address())})`),
+            new Error(`@jini-ai/node-host: daemon failed to resolve listening port (address=${JSON.stringify(server.address())})`),
           );
           return;
         }

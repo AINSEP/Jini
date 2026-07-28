@@ -5,13 +5,13 @@
  * synchronous CRUD module keyed on `projectId` (an OD domain noun) with a
  * hardcoded SQL schema. Per extraction-plan.md §2.6 ("ports are async-only
  * from day one") and the pattern already established by
- * `@injini/daemon`'s `EventLog` (see `packages/daemon/src/event-log.ts`), this
+ * `@jini-ai/daemon`'s `EventLog` (see `packages/daemon/src/event-log.ts`), this
  * is a from-scratch storage-agnostic port + in-memory reference
  * implementation — not a lift — reproducing the same lifecycle semantics
  * (queued → running → done|failed|interrupted, boot-time reconciliation of
  * orphaned in-flight tasks, TTL-based terminal-task pruning) without a SQL
  * schema or an OD project reference. A durable adapter (a future
- * `@injini/sqlite` addition) implements the same interface — see
+ * `@jini-ai/sqlite` addition) implements the same interface — see
  * `source-map.md`.
  */
 
@@ -114,7 +114,7 @@ export interface MediaTaskReconcileResult {
 
 /**
  * A replayable, ownerRef-scoped store for async media-generation tasks.
- * `@injini/media` ships `createInMemoryMediaTaskStore` as the reference
+ * `@jini-ai/media` ships `createInMemoryMediaTaskStore` as the reference
  * implementation; a durable adapter implements the same interface.
  */
 export interface MediaTaskStore {

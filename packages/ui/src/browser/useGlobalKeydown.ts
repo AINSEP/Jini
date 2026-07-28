@@ -1,6 +1,6 @@
 // Shared "run this keydown handler for as long as the feature is active"
 // plumbing. useAssetGridKeyboardShortcuts (asset-grid) and
-// useAnnotationKeyboardShortcuts (annotation-canvas, `@injini/renderers-react`)
+// useAnnotationKeyboardShortcuts (annotation-canvas, `@jini-ai/renderers-react`)
 // both wrote the identical shape: bail out of the effect while an `active`
 // flag is false, otherwise attach one `window` keydown listener and remove it
 // on cleanup/deactivation. useSketchDomEnhancements (sketch-editor) wrote the
@@ -19,7 +19,7 @@ import { useEffect, useRef } from 'react';
 // hook's own effect ever runs, making that branch unreachable via a
 // rendered test (see packages/ui/source-map.md's 2026-07-22 dated entry;
 // same "extract into a directly-testable pure function" precedent as
-// `@injini/mcp`'s `oauth.ts` readCappedText).
+// `@jini-ai/mcp`'s `oauth.ts` readCappedText).
 export function resolveGlobalKeydownTarget(target: 'window' | 'document'): EventTarget | undefined {
   return target === 'document' ? globalThis.document : globalThis.window;
 }

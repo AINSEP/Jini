@@ -44,7 +44,7 @@ export interface MediaExecutionPolicy {
 export const DEFAULT_MEDIA_EXECUTION_POLICY: MediaExecutionPolicy = { mode: 'disabled' };
 
 /**
- * Host-injected policy port. `@injini/media` never calls this itself — a
+ * Host-injected policy port. `@jini-ai/media` never calls this itself — a
  * caller (a pack's app-service, a tool handler) evaluates a target before
  * dispatching generation and honors a non-null denial.
  */

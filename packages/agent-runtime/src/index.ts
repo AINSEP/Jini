@@ -1,5 +1,5 @@
 /**
- * @module @injini/agent-runtime
+ * @module @jini-ai/agent-runtime
  *
  * Public barrel. See `foundry/docs/jini-port/extraction-plan.md` for the target
  * architecture and `source-map.md` for full provenance.
@@ -93,7 +93,7 @@ export * from './telemetry-sink.js';
 // LLM-provider integrations (BYOK model catalogs, OAuth+PKCE, gateway helpers).
 export * from './providers/index.js';
 
-/** @injini/agent-runtime — public barrel (agent-protocol/ half).
+/** @jini-ai/agent-runtime — public barrel (agent-protocol/ half).
  * Re-exports the agent-protocol/ capability barrel's public surface (ACP +
  * pi-rpc subprocess protocol adapters over a shared JSON-line-stream core).
  * See src/agent-protocol/README.md and source-map.md for provenance.

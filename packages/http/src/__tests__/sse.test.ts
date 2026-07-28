@@ -37,7 +37,7 @@ function asResponse(res: ReturnType<typeof makeRes>): ServerResponse {
 const event = (opaqueCursor: string, kind = 'data', payload?: string): TestEvent =>
   payload === undefined ? { opaqueCursor, kind } : { opaqueCursor, kind, payload };
 
-describe('@injini/http — sse — createSseChannel', () => {
+describe('@jini-ai/http — sse — createSseChannel', () => {
   it('buffers enqueued events until open() is called, then flushes them in order', () => {
     const res = makeRes();
     const channel = createSseChannel<TestEvent>(asResponse(res));
@@ -282,7 +282,7 @@ describe('@injini/http — sse — createSseChannel', () => {
   });
 });
 
-describe('@injini/http — sse — requestedAfterCursor', () => {
+describe('@jini-ai/http — sse — requestedAfterCursor', () => {
   it('prefers the Last-Event-ID header over the afterCursor query parameter', () => {
     const req = { get: (name: string) => (name === 'last-event-id' ? 'cursor-header' : undefined), query: { afterCursor: 'cursor-query' } };
     expect(requestedAfterCursor(req)).toBe('cursor-header');

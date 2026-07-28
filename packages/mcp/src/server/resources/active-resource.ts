@@ -1,5 +1,5 @@
 /**
- * @module @injini/mcp/server/resources/active-resource
+ * @module @jini-ai/mcp/server/resources/active-resource
  *
  * The one MCP *resource* this package ships: a read-only pointer to
  * `GET /api/active` (`packages/http/src/active-context.ts`'s `getActiveRoute`)
@@ -18,7 +18,7 @@
  * same way (both require a Skill/DesignSystem noun this kernel doesn't have).
  *
  * Security posture matches every other tool/resource in this package: no
- * separate authorization mechanism here — whatever `@injini/http`'s
+ * separate authorization mechanism here — whatever `@jini-ai/http`'s
  * same-origin guard / bearer-auth middleware already enforces on
  * `GET /api/active` is the only gate a read of this resource passes
  * through.

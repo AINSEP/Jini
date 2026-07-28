@@ -1,14 +1,14 @@
 /**
- * R1: packages/@injini/** must not import foundry/**, examples/**, or AI-Dev-Shop/**.
+ * R1: packages/@jini-ai/** must not import foundry/**, examples/**, or AI-Dev-Shop/**.
  * R2: engine packages import each other only by package name (no deep paths) — a relative
- *     import must not escape its own package's `src/`, and a bare `@injini/<name>/<subpath>`
- *     import is forbidden except two specifically-gated subpaths: `@injini/core/internal` and
- *     `@injini/agentic/dom` (the browser half of `@injini/agentic`'s deliberate two-entry-point
+ *     import must not escape its own package's `src/`, and a bare `@jini-ai/<name>/<subpath>`
+ *     import is forbidden except two specifically-gated subpaths: `@jini-ai/core/internal` and
+ *     `@jini-ai/agentic/dom` (the browser half of `@jini-ai/agentic`'s deliberate two-entry-point
  *     split — see `packages/agentic/source-map.md`). Both are exact-literal exceptions, not a
  *     pattern; a third package wanting a second entry point needs its own named exception here.
- * R5: no product-identity strings in packages/@injini/**.
+ * R5: no product-identity strings in packages/@jini-ai/**.
  * R6: `getToolRegistration` (a runtime *value*, not `import type`) may only be imported from
- *     `@injini/core/internal` inside `packages/daemon/**` — closes the tool-handler-authz-bypass
+ *     `@jini-ai/core/internal` inside `packages/daemon/**` — closes the tool-handler-authz-bypass
  *     leak found in the 2026-07-19 swarm-consensus debate (Codex GPT-5.6-sol, confirmed by
  *     Gemini/Opus). Type-only imports of that subpath (e.g. `node-host`'s `AnyPack`) are
  *     unrestricted — they carry no runtime capability.
@@ -22,7 +22,7 @@
  *     package.json. This keeps packages physically flat while making the conceptual domain/
  *     runtime grouping machine-readable. `jini.admission` is no longer required or validated —
  *     removed alongside R7 above.
- *     Extension (2026-07-26, `@injini/agentic`'s two-entry-point split): an optional
+ *     Extension (2026-07-26, `@jini-ai/agentic`'s two-entry-point split): an optional
  *     `jini.entries` map gives a per-export-subpath `runtime` override for the rare package
  *     whose single top-level `runtime` can't describe every subpath — e.g.
  *     `{".": "universal", "./dom": "browser"}`. When present, every key must name a real
@@ -74,7 +74,7 @@ interface JiniPackageMetadata {
   readonly runtime: string;
   /**
    * Optional per-entry-point runtime override, e.g. `{".": "universal", "./dom": "browser"}` —
-   * for the rare package (currently only `@injini/agentic`) whose single top-level `runtime`
+   * for the rare package (currently only `@jini-ai/agentic`) whose single top-level `runtime`
    * cannot describe every subpath in its `exports` map. `null` when the package doesn't set it,
    * which is the overwhelming majority — `entries` is opt-in precisely so no existing package
    * needs to be touched to keep validating cleanly (see `packages/README.md`).
@@ -214,7 +214,7 @@ function loadPackageRecords(
 
     const manifestPath = join(packagesDir, directory, 'package.json');
     const file = relative(root, manifestPath).split('\\').join('/');
-    const packageName = `@injini/${directory}`;
+    const packageName = `@jini-ai/${directory}`;
 
     if (!existsSync(manifestPath)) {
       violations.push({
@@ -368,29 +368,29 @@ export async function checkEngineBoundaries(
         continue;
       }
 
-      if (spec.startsWith('@injini/')) {
-        const withoutScope = spec.slice('@injini/'.length);
+      if (spec.startsWith('@jini-ai/')) {
+        const withoutScope = spec.slice('@jini-ai/'.length);
         const slashIdx = withoutScope.indexOf('/');
         const targetPackage = slashIdx === -1 ? withoutScope : withoutScope.slice(0, slashIdx);
-        const targetPackageName = `@injini/${targetPackage}`;
+        const targetPackageName = `@jini-ai/${targetPackage}`;
         const subpath = slashIdx === -1 ? null : withoutScope.slice(slashIdx + 1);
 
         if (subpath !== null) {
-          if (spec === '@injini/core/internal') {
-            // R6: only a VALUE import of getToolRegistration from outside @injini/daemon is a leak.
+          if (spec === '@jini-ai/core/internal') {
+            // R6: only a VALUE import of getToolRegistration from outside @jini-ai/daemon is a leak.
             // Type-only imports (node-host's AnyPack/MissingTokenIds) are unrestricted.
             if (!ref.typeOnly && ownPackage !== 'daemon') {
               violations.push({
                 rule: 'R6-internal-leak',
                 file,
-                reason: 'value import of @injini/core/internal outside packages/daemon — bypasses the ToolExecutor authz gate',
+                reason: 'value import of @jini-ai/core/internal outside packages/daemon — bypasses the ToolExecutor authz gate',
               });
             }
-          } else if (spec === '@injini/agentic/dom') {
-            // R2 exception #2 (2026-07-26 extraction): @injini/agentic ships two entry points on
+          } else if (spec === '@jini-ai/agentic/dom') {
+            // R2 exception #2 (2026-07-26 extraction): @jini-ai/agentic ships two entry points on
             // purpose — a DOM-free root and a browser-only "./dom" half, split across two
             // tsconfigs so the root's DOM-free guarantee stays compile-time (see
-            // packages/agentic/source-map.md's "The DOM split"). @injini/chat-react genuinely needs
+            // packages/agentic/source-map.md's "The DOM split"). @jini-ai/chat-react genuinely needs
             // the DOM half (createDomPageDriver) and there is no third package for it to live in
             // without adding to the sprawl this rule exists to bound. Gated to this exact literal,
             // not a pattern — no other package's subpath is exempted by this branch.
@@ -398,7 +398,7 @@ export async function checkEngineBoundaries(
             violations.push({
               rule: 'R2-deep-path',
               file,
-              reason: `deep-path import "${spec}" — only bare "@injini/${targetPackage}" (or the gated @injini/core/internal / @injini/agentic/dom) is allowed`,
+              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom) is allowed`,
             });
           }
         }

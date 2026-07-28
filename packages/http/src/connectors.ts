@@ -3,8 +3,8 @@
  *
  * `POST/GET /api/connectors/{auth,storage,payments,db,realtime}/...` — JSON transport over five
  * narrow provider ports. The ports live here because they are the exact behavior this transport
- * consumes; concrete adapters such as `@injini/capability-providers` satisfy them structurally at a
- * product composition root. That dependency direction is deliberate: locked `@injini/http` must not
+ * consumes; concrete adapters such as `@jini-ai/capability-providers` satisfy them structurally at a
+ * product composition root. That dependency direction is deliberate: locked `@jini-ai/http` must not
  * point down into an incubating implementation package.
  *
  * **SEC-005 throughout**: every provider call is wrapped so a raw Stripe/SQL/JWT/WebSocket error
@@ -15,7 +15,7 @@
  * **`NOT_CONFIGURED` (503)**: every route's very first check is whether its one required
  * capability slot (`deps.auth`/`deps.storage`/`deps.payments`/`deps.db`/`deps.realtime`) is even
  * supplied — all five are independently optional on {@link ConnectorsHttpDeps}, and
- * `@injini/node-host`'s zero-config default (see that package's `create-local-node-daemon.ts` wiring)
+ * `@jini-ai/node-host`'s zero-config default (see that package's `create-local-node-daemon.ts` wiring)
  * leaves every slot unconfigured. A request against an unconfigured capability gets a clean 503
  * before touching anything else, never a crash or a fabricated result — the same "capability exists
  * and is reachable but inert until a host configures it" shape `host-tools.ts#denyAllWorkspaceRoots`/
@@ -36,7 +36,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import { createApiError } from '@injini/protocol';
+import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -148,7 +148,7 @@ export interface ConnectorsHttpDeps {
 
 function defaultInternalErrorSink(context: ConnectorsInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@injini/http] internal error (connectors/${context.source}.${context.operation}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http] internal error (connectors/${context.source}.${context.operation}, correlationId=${context.correlationId})`, context.error);
 }
 
 function notConfiguredError(capability: string): ReturnType<typeof createApiError> {

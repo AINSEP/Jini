@@ -1,8 +1,8 @@
 /**
- * @module @injini/mcp/server/tools/tool-catalog-tools
+ * @module @jini-ai/mcp/server/tools/tool-catalog-tools
  *
  * `search_tools` / `describe_tool` — the discovery half of `ai-control-plane.md` §29 /
- * `PROP-tool-catalog-discovery-2026-07-26.md` §6.1, proxying `@injini/http`'s
+ * `PROP-tool-catalog-discovery-2026-07-26.md` §6.1, proxying `@jini-ai/http`'s
  * `GET /api/tools/search` / `GET /api/tools/:id` exactly as `run-tools.ts`'s tools proxy
  * `runs.ts` — no separate authorization mechanism, no caching, no state.
  *

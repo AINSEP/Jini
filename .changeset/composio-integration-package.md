@@ -1,5 +1,5 @@
 ---
-"@jini/composio": minor
+"@jini-ai/composio": minor
 ---
 
 Add an incubating, headless Composio integration package with static and live

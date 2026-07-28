@@ -3,7 +3,7 @@
  * (`JsonRouteSpec`, `InputParser`, `Handler`, `HttpMethod`, `RouteInputContext`) every other
  * module in this package depends on.
  */
-import type { ApiError } from '@injini/protocol';
+import type { ApiError } from '@jini-ai/protocol';
 
 /**
  * A discriminated success/failure envelope used throughout the module in place of throwing.

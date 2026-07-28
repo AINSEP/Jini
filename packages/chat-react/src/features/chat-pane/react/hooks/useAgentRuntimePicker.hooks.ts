@@ -4,14 +4,14 @@
  * What lives here is popover mechanics — open/close, dismissal, viewport-bounded positioning,
  * focus restoration, and roving/trapped keyboard focus — plus the two derived labels the view
  * shows. None of it is chat-specific; the only reason it is scoped to this feature rather than
- * promoted to `@injini/ui` is noted at the bottom of this comment.
+ * promoted to `@jini-ai/ui` is noted at the bottom of this comment.
  *
  * The pure functions below are separated from the hook deliberately: geometry and key-to-index
  * resolution have real input/output contracts and edge cases (viewport clamping, `currentIndex`
  * of `-1`, Tab-at-an-edge) that are far cheaper to test directly than to drive through a rendered
  * popover with a mocked `getBoundingClientRect`. The hook itself owns only React lifecycle.
  *
- * **Not yet using `@injini/ui`'s `useDismissOnOutsideOrEscape`**, which covers the same
+ * **Not yet using `@jini-ai/ui`'s `useDismissOnOutsideOrEscape`**, which covers the same
  * outside-click/Escape ground and whose own doc notes six features had hand-rolled it before this
  * one. Two concrete mismatches block a drop-in: it takes a single `containerRef`, whereas here
  * "inside" means the trigger *or* the portaled popover (two disjoint subtrees, since the popover

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as pkgBarrel from '../index.js';
 
-describe('@injini/agent-runtime root barrel', () => {
+describe('@jini-ai/agent-runtime root barrel', () => {
   it('re-exports the agent-protocol public surface', () => {
     expect(typeof pkgBarrel.createJsonLineStream).toBe('function');
     expect(typeof pkgBarrel.attachAcpSession).toBe('function');

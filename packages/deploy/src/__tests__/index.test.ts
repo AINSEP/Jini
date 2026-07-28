@@ -12,7 +12,7 @@ import {
   type DeployTarget,
 } from '../index.js';
 
-describe('@injini/deploy barrel', () => {
+describe('@jini-ai/deploy barrel', () => {
   it('re-exports the full public surface from a single entry point', () => {
     expect(typeof safeProjectLabel).toBe('function');
     expect(typeof safeDnsLabel).toBe('function');

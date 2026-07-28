@@ -16,7 +16,7 @@
  * — is a distinct, separately-scoped MCP-server-OAuth-discovery subsystem
  * that `xai-oauth.ts` never calls (xAI's OAuth server is hardcoded, no MCP
  * discovery involved) and is not part of this task's 13-file scope; not
- * ported, mirroring the same reasoning `@injini/agent-runtime`'s
+ * ported, mirroring the same reasoning `@jini-ai/agent-runtime`'s
  * `acp-model-probe.ts` used to exclude the ACP transport (a distinct
  * subsystem named as its own future extraction target). No product-identity
  * strings in the vendored subset — ported verbatim apart from doc-comment

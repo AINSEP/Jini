@@ -3,7 +3,7 @@
  *
  * A minimal inline-SVG icon set covering only the glyphs this package's own
  * components use. Kept private so low-level chat leaves remain small; the
- * higher-level ChatPane composition also reuses `@injini/ui`'s generic
+ * higher-level ChatPane composition also reuses `@jini-ai/ui`'s generic
  * AgentIcon and WorkingDirPicker.
  */
 import type { SVGProps } from 'react';

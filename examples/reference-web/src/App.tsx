@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { ChatMessage } from '@injini/chat-core';
-import { ChatPane } from '@injini/chat-react';
+import type { ChatMessage } from '@jini-ai/chat-core';
+import { ChatPane } from '@jini-ai/chat-react';
 import { uploadChatAttachments } from './attachments.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { getDesktopBridge } from './desktop-bridge.js';

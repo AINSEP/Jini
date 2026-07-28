@@ -16,7 +16,7 @@
  * `foundry/docs/jini-port/recon/r4b-webui-design.md` §2 for the target shape this
  * module implements verbatim.
  */
-import type { AgentEvent, ChatAttachment, ChatMessage, RunStatus } from '@injini/chat-core';
+import type { AgentEvent, ChatAttachment, ChatMessage, RunStatus } from '@jini-ai/chat-core';
 
 /**
  * Per-run event handlers a `ChatTransport` invokes as a run streams.

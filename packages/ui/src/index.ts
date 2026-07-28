@@ -1,4 +1,4 @@
-// @injini/ui — generic, product-neutral UI primitives.
+// @jini-ai/ui — generic, product-neutral UI primitives.
 // See packages/ui/README.md for scope and packages/ui/source-map.md for
 // provenance (multiple porting tasks land content here in parallel; see
 // that file's per-section breakdown).

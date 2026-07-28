@@ -21,11 +21,11 @@
  * `contextRef` and filters non-terminal runs client-side via
  * `isTerminalRunState` instead.
  */
-import { isTerminalRunState, type RunCancelRequest, type RunState } from '@injini/protocol';
+import { isTerminalRunState, type RunCancelRequest, type RunState } from '@jini-ai/protocol';
 
 /**
  * The slice of `RunLifecycle` this helper needs. Kept structural (rather than
- * importing `@injini/daemon`'s full `RunLifecycle` type) so it is satisfied by
+ * importing `@jini-ai/daemon`'s full `RunLifecycle` type) so it is satisfied by
  * any run service exposing at least these two methods, and so this package
  * doesn't need a same-shape-as-production test double to unit test it.
  */

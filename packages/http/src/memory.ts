@@ -7,23 +7,23 @@
  * `apps/daemon/src/routes/memory.ts` (690 lines) — see `source-map.md`'s
  * 2026-07-21 memory-routes section for the full per-route classification.
  *
- * **Deliberately does NOT depend on `@injini/memory`.** That package exists in
+ * **Deliberately does NOT depend on `@jini-ai/memory`.** That package exists in
  * this repo (`packages/memory/`, `createNoteStore`/`createExtractionLog`/
  * `createVerifyLog` structurally match every collaborator type below field
  * for field), but it is listed in this repo's root `UNLOCKED.md` with
- * `"lockedPackagesMayImport": false` — `@injini/http` is one of
+ * `"lockedPackagesMayImport": false` — `@jini-ai/http` is one of
  * `scripts/check-engine-boundaries.ts`'s fourteen locked packages, so
- * importing `@injini/memory` directly would fail `pnpm guard`'s R7 check
+ * importing `@jini-ai/memory` directly would fail `pnpm guard`'s R7 check
  * outright (the same constraint `packages/media/src/sqlite-task-store.ts`'s
  * `ADS-memory/reports/proposals/PROP-media-durable-tasks-2026-07-21.md`
- * documents for `@injini/sqlite`/`@injini/media`). The types below
+ * documents for `@jini-ai/sqlite`/`@jini-ai/media`). The types below
  * (`MemoryNoteStore`/`MemoryExtractionLog`/`MemoryVerifyLog`) are local,
- * structural mirrors of `@injini/memory`'s real `NoteStore`/`ExtractionLog`/
- * `VerifyLog` interfaces — a real `@injini/memory` instance satisfies them
+ * structural mirrors of `@jini-ai/memory`'s real `NoteStore`/`ExtractionLog`/
+ * `VerifyLog` interfaces — a real `@jini-ai/memory` instance satisfies them
  * with zero adapter code (this is the same "host supplies the real
  * collaborator" DI convention `daemon-status.ts`/`host-tools.ts`/`db-ops.ts`
  * already established), but this package incurs no dependency on it, locked
- * or not. If/when `@injini/memory` is promoted to `"stable"`, a follow-up can
+ * or not. If/when `@jini-ai/memory` is promoted to `"stable"`, a follow-up can
  * replace these local types with direct imports — a mechanical change, not
  * a redesign, since the shapes already match.
  *
@@ -41,27 +41,27 @@
  * - `POST /api/memory/extract` — the heuristic-regex pre-turn phase and the
  *   BYOK-chat-provider-passthrough LLM post-turn phase are both OD-specific
  *   composition, per this repo's root `AGENTS.md`'s existing note that
- *   `@injini/memory`'s "heuristic-regex... prompt-composition pieces" were
+ *   `@jini-ai/memory`'s "heuristic-regex... prompt-composition pieces" were
  *   "explicitly left un-ported."
  * - `GET /api/memory/system-prompt` — depends on `composeMemoryBody`, which
- *   does not exist anywhere in `@injini/memory` yet (same `AGENTS.md` note).
+ *   does not exist anywhere in `@jini-ai/memory` yet (same `AGENTS.md` note).
  * - The four extra `MemoryConfigPatch` boolean toggles
  *   (`chatExtractionEnabled`/`profileEnabled`/`rewriteEnabled`/
  *   `verifyEnabled`) and the whole `extraction` (LLM-provider) config
- *   sub-object: `@injini/memory`'s `NoteStoreOptions` is `{enabled: boolean}`
+ *   sub-object: `@jini-ai/memory`'s `NoteStoreOptions` is `{enabled: boolean}`
  *   only — a real, documented capability gap in the underlying store, not a
  *   route-level scoping choice. A host needing those toggles today has to
  *   layer its own config storage alongside `NoteStore.writeConfig`.
  */
 import type { Express, Request, Response } from 'express';
-import { createApiError } from '@injini/protocol';
+import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { createSseChannel, type SseEvent } from './sse.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
 
 // ---------------------------------------------------------------------------
-// Local structural mirrors of @injini/memory's NoteStore/ExtractionLog/VerifyLog
+// Local structural mirrors of @jini-ai/memory's NoteStore/ExtractionLog/VerifyLog
 // (see module doc for why these are not imported).
 // ---------------------------------------------------------------------------
 
@@ -505,7 +505,7 @@ interface MemoryStreamEvent extends SseEvent {
  * (matching OD's own reasoning: "so the browser opens one connection instead
  * of two/three"): `connected` (once, on open), `change` (relayed from
  * `deps.notes.events`), `extraction` (relayed from `deps.extractions.events`,
- * whose underlying event name is `'attempt'` — see `@injini/memory`'s
+ * whose underlying event name is `'attempt'` — see `@jini-ai/memory`'s
  * `extraction-log.ts`), and `verify` (relayed from `deps.verifications.events`).
  * Uses `sse.ts`'s generic channel rather than OD's bespoke `createSseResponse`;
  * no Last-Event-ID replay (unlike `runs.ts`) since none of the three

@@ -42,7 +42,7 @@ async function makeTempDir(prefix: string): Promise<string> {
   return dir;
 }
 
-describe('@injini/platform — sandbox-env — isSandboxModeEnabled', () => {
+describe('@jini-ai/platform — sandbox-env — isSandboxModeEnabled', () => {
   it('is false when unset', () => {
     expect(isSandboxModeEnabled(CONFIG, {})).toBe(false);
   });
@@ -63,7 +63,7 @@ describe('@injini/platform — sandbox-env — isSandboxModeEnabled', () => {
   });
 });
 
-describe('@injini/platform — sandbox-env — import allowed roots', () => {
+describe('@jini-ai/platform — sandbox-env — import allowed roots', () => {
   it('is empty when unset or blank', () => {
     expect(sandboxImportAllowedRoots(CONFIG, {})).toEqual([]);
     expect(sandboxImportAllowedRoots(CONFIG, { [CONFIG.importAllowedRootsEnvVar]: '   ' })).toEqual([]);
@@ -86,7 +86,7 @@ describe('@injini/platform — sandbox-env — import allowed roots', () => {
   });
 });
 
-describe('@injini/platform — sandbox-env — imported project root allowed', () => {
+describe('@jini-ai/platform — sandbox-env — imported project root allowed', () => {
   it('allows anything when sandboxing is off', () => {
     expect(isSandboxImportedProjectRootAllowed(CONFIG, '/anywhere', {})).toBe(true);
     expect(sandboxImportedProjectRootUnavailableReason(CONFIG, '/anywhere', {})).toBeNull();
@@ -157,7 +157,7 @@ describe('@injini/platform — sandbox-env — imported project root allowed', (
   });
 });
 
-describe('@injini/platform — sandbox-env — runtime config derivation', () => {
+describe('@jini-ai/platform — sandbox-env — runtime config derivation', () => {
   it('derives the full directory tree from a data dir', () => {
     const runtime = resolveSandboxRuntimeConfig(true, '/data');
     expect(runtime.enabled).toBe(true);
@@ -194,7 +194,7 @@ describe('@injini/platform — sandbox-env — runtime config derivation', () =>
   });
 });
 
-describe('@injini/platform — sandbox-env — dirs and env overlay', () => {
+describe('@jini-ai/platform — sandbox-env — dirs and env overlay', () => {
   it('creates every sandbox directory, idempotently', async () => {
     const dataDir = await makeTempDir('jini-sandbox-dirs-');
     const runtime = resolveSandboxRuntimeConfig(true, dataDir);

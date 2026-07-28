@@ -5,7 +5,7 @@ import {
   type Routine,
   type RoutineRun,
   type RoutineStore,
-} from '@injini/daemon';
+} from '@jini-ai/daemon';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   registerRoutineRoutes,
@@ -24,14 +24,14 @@ vi.mock('../origin-validation.js', () => ({
   isLocalSameOrigin: vi.fn(() => true),
 }));
 
-// `validateSchedule`/`validateTarget` (real @injini/daemon logic, unmocked in every other test in this
+// `validateSchedule`/`validateTarget` (real @jini-ai/daemon logic, unmocked in every other test in this
 // file via the wrapping vi.fn below) always throw genuine `Error` instances in practice — confirmed by
 // reading their source. `parseSchedule`'s `errorMessage` fallback for a non-Error throw is therefore
 // dead through any real input; this mock lets exactly one test prove that defensive branch works
 // without weakening real validation for every other test (the wrapper delegates to the actual
 // implementation by default).
-vi.mock('@injini/daemon', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@injini/daemon')>();
+vi.mock('@jini-ai/daemon', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/daemon')>();
   return { ...actual, validateSchedule: vi.fn(actual.validateSchedule) };
 });
 

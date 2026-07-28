@@ -5,11 +5,11 @@
  * Ported from OD's `components/ToolCard.tsx` (`TodoCard`, verified 0 OD
  * product references) with className/structure kept verbatim (`op-*`
  * classes — this package ships unstyled semantic markup, same convention as
- * `@injini/ui`'s already-ported components; a host supplies CSS) and every
+ * `@jini-ai/ui`'s already-ported components; a host supplies CSS) and every
  * user-facing string wrapped in `useT()`.
  */
 import { useState } from 'react';
-import type { TodoItem } from '@injini/chat-core';
+import type { TodoItem } from '@jini-ai/chat-core';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
 

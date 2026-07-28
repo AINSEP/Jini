@@ -4,9 +4,9 @@
  * `ArtifactStore` — the generic artifact-store kernel port. Ported from OD's
  * `apps/daemon/src/artifacts/create.ts` create/manifest-resolution flow;
  * "artifacts feel like a kernel-adjacent concept tied to runs producing
- * output" per this task's brief — homed in `@injini/daemon` alongside
+ * output" per this task's brief — homed in `@jini-ai/daemon` alongside
  * `EventLog` (same async-port + in-memory-reference-implementation shape as
- * `event-log.ts`), not `@injini/core` (which owns pure registries/DI, not
+ * `event-log.ts`), not `@jini-ai/core` (which owns pure registries/DI, not
  * stateful storage).
  *
  * De-branded: the origin's `createProjectArtifactFile` took OD's own
@@ -94,8 +94,8 @@ export function resolveArtifactManifest(
 
 /**
  * A store of named artifacts with validated manifests. Kernel port —
- * `@injini/daemon` ships `createInMemoryArtifactStore` as the reference
- * implementation; a durable adapter (`@injini/sqlite`) can implement the same
+ * `@jini-ai/daemon` ships `createInMemoryArtifactStore` as the reference
+ * implementation; a durable adapter (`@jini-ai/sqlite`) can implement the same
  * interface against real persistence.
  */
 export interface ArtifactStore {

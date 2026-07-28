@@ -1,5 +1,5 @@
 {
-  "name": "@injini/agent-runtime",
+  "name": "@jini-ai/agent-runtime",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -39,7 +39,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/platform": "workspace:*"
+    "@jini-ai/platform": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

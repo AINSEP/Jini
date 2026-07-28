@@ -2,7 +2,7 @@
  * @module providers/types
  *
  * Vendored subset of OD's upstream contracts-package provider-connectivity
- * shapes needed by this package's own provider modules. `@injini/agent-runtime`
+ * shapes needed by this package's own provider modules. `@jini-ai/agent-runtime`
  * has zero OD workspace-package imports (same policy as `types.ts`'s vendored
  * `AgentDiagnostic`/`AgentFixIntent`) — only the fields this package's own
  * code actually reads/writes are kept; the daemon-only surface (agent

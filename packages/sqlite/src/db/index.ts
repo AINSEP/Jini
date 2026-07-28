@@ -1,5 +1,5 @@
 /**
- * @module @injini/sqlite/db
+ * @module @jini-ai/sqlite/db
  * Neutral SQLite persistence for the daemon: connection lifecycle + schema migration + per-table
  * CRUD, ported from the upstream daemon's decomposed `db/` capability-barrel. Only the generic engine
  * tables (projects, conversations, messages, agent_sessions) are ported; OD-product tables

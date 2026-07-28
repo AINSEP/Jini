@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { JsonValue } from '@injini/protocol';
+import type { JsonValue } from '@jini-ai/protocol';
 
 import {
   assertConnectorInputMatchesSchema,

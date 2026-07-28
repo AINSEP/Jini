@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AGENT_DEFS } from '@injini/agent-runtime';
+import { AGENT_DEFS } from '@jini-ai/agent-runtime';
 import { resolveContinuationTransport } from '../continuation-transport.js';
 
 const MCP_CALLBACK_IDS = [

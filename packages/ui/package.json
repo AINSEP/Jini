@@ -1,5 +1,5 @@
 {
-  "name": "@injini/ui",
+  "name": "@jini-ai/ui",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -41,8 +41,8 @@
   },
   "dependencies": {
     "@excalidraw/excalidraw": "0.18.1",
-    "@injini/agentic": "workspace:*",
-    "@injini/renderers-react": "workspace:*",
+    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/renderers-react": "workspace:*",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",
     "lexical": "0.36.2",

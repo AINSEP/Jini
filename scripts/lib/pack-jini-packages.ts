@@ -2,9 +2,9 @@
  * scripts/lib/pack-jini-packages.ts
  *
  * Shared core behind `scripts/health-boot.ts` and `scripts/pack-for-external-use.ts`: discover
- * every real `@injini/*` workspace package, compute a dependency-first build/pack order for some
+ * every real `@jini-ai/*` workspace package, compute a dependency-first build/pack order for some
  * root set of them, build each, and `pnpm pack` + rewrite each tarball's own `package.json` so its
- * `@injini/*` dependencies point at sibling tarballs by `file:` path instead of the plain resolved
+ * `@jini-ai/*` dependencies point at sibling tarballs by `file:` path instead of the plain resolved
  * semver `pnpm pack` bakes in for a `workspace:*` dependency — unresolvable against the real npm
  * registry, since these packages are never actually published there from a `workspace:*` pin.
  *
@@ -34,15 +34,15 @@ export function readPackageJson(dir: string): PackageJson {
 }
 
 export function jiniDependencyNames(pkg: PackageJson): string[] {
-  return Object.keys(pkg.dependencies ?? {}).filter((name) => name.startsWith('@injini/'));
+  return Object.keys(pkg.dependencies ?? {}).filter((name) => name.startsWith('@jini-ai/'));
 }
 
-/** The exact filename `npm pack`/`pnpm pack` produce for a scoped package: `@injini/core@0.0.0` -> `jini-core-0.0.0.tgz`. */
+/** The exact filename `npm pack`/`pnpm pack` produce for a scoped package: `@jini-ai/core@0.0.0` -> `jini-core-0.0.0.tgz`. */
 export function tarballFileName(name: string, version: string): string {
   return `${name.replace(/^@/, '').replace(/\//g, '-')}-${version}.tgz`;
 }
 
-/** Discovers every real `@injini/*` package in the workspace by scanning `packages/*` — never a hardcoded list. */
+/** Discovers every real `@jini-ai/*` package in the workspace by scanning `packages/*` — never a hardcoded list. */
 export function discoverJiniPackages(packagesDir: string): Map<string, JiniPackageEntry> {
   const registry = new Map<string, JiniPackageEntry>();
   for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
@@ -50,16 +50,16 @@ export function discoverJiniPackages(packagesDir: string): Map<string, JiniPacka
     const dir = join(packagesDir, entry.name);
     if (!existsSync(join(dir, 'package.json'))) continue;
     const pkg = readPackageJson(dir);
-    if (pkg.name?.startsWith('@injini/')) registry.set(pkg.name, { dir, pkg });
+    if (pkg.name?.startsWith('@jini-ai/')) registry.set(pkg.name, { dir, pkg });
   }
   return registry;
 }
 
 /**
- * Walks the transitive `@injini/*` dependency closure starting from `rootNames`, reading each
+ * Walks the transitive `@jini-ai/*` dependency closure starting from `rootNames`, reading each
  * dependency's own `package.json` `"dependencies"` field (never a guessed/hardcoded list). Returns
  * packages in dependency-first (topological) order, since building a dependent's TypeScript
- * project requires its `@injini/*` dependencies' `dist/` to already exist.
+ * project requires its `@jini-ai/*` dependencies' `dist/` to already exist.
  */
 export function computeClosure(registry: Map<string, JiniPackageEntry>, rootNames: readonly string[]): string[] {
   const order: string[] = [];
@@ -68,11 +68,11 @@ export function computeClosure(registry: Map<string, JiniPackageEntry>, rootName
   function visit(name: string, chain: readonly string[]): void {
     if (visited.has(name)) return;
     if (chain.includes(name)) {
-      throw new Error(`pack-jini-packages: cyclic @injini/* dependency detected: ${[...chain, name].join(' -> ')}`);
+      throw new Error(`pack-jini-packages: cyclic @jini-ai/* dependency detected: ${[...chain, name].join(' -> ')}`);
     }
     const entry = registry.get(name);
     if (!entry) {
-      throw new Error(`pack-jini-packages: "${name}" is a @injini/* dependency but no matching packages/* directory was found`);
+      throw new Error(`pack-jini-packages: "${name}" is a @jini-ai/* dependency but no matching packages/* directory was found`);
     }
     for (const dep of jiniDependencyNames(entry.pkg)) visit(dep, [...chain, name]);
     visited.add(name);
@@ -90,9 +90,9 @@ export function buildPackage(name: string, repoRoot: string): void {
 
 /**
  * `pnpm pack`s one package into `destDir`, then rewrites the tarball's own `package.json` so every
- * `@injini/*` dependency points at its sibling tarball's file path (`file:<abs path>.tgz`). This is
+ * `@jini-ai/*` dependency points at its sibling tarball's file path (`file:<abs path>.tgz`). This is
  * what lets `npm install` build a real, self-contained dependency tree entirely from local
- * tarballs, with no workspace link and no dependency on any registry actually hosting `@injini/*`.
+ * tarballs, with no workspace link and no dependency on any registry actually hosting `@jini-ai/*`.
  */
 export function packAndRewrite(
   name: string,
@@ -123,7 +123,7 @@ export function packAndRewrite(
     const packedPkg = JSON.parse(readFileSync(packedPkgJsonPath, 'utf8')) as PackageJson;
     const rewrittenDeps: Record<string, string> = { ...(packedPkg.dependencies ?? {}) };
     for (const depName of Object.keys(rewrittenDeps)) {
-      if (!depName.startsWith('@injini/')) continue;
+      if (!depName.startsWith('@jini-ai/')) continue;
       const depTarball = tarballPathByName.get(depName);
       if (!depTarball) {
         throw new Error(`pack-jini-packages: ${name}'s packed dependency "${depName}" has no known tarball path`);
@@ -142,7 +142,7 @@ export function packAndRewrite(
 }
 
 /**
- * Builds and packs every package in `rootNames`'s transitive `@injini/*` closure into `destDir`,
+ * Builds and packs every package in `rootNames`'s transitive `@jini-ai/*` closure into `destDir`,
  * each tarball's own dependencies rewritten to `file:` sibling paths. Returns the closure (in
  * dependency-first order) alongside each package's real tarball path — callers decide what to do
  * with the tarballs (boot-prove them and delete, as `health-boot.ts` does; or leave them in place

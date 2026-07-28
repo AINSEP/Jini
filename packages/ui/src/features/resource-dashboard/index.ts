@@ -22,7 +22,7 @@ export { DEFAULT_BOARD_VIEW_MODE, DEFAULT_STATUS_TONE, UNMATCHED_STATUS_BUCKET }
 // pending-action-tracking pattern; see this feature's `rules.ts` doc
 // comment), and re-exporting a second copy under the same names would create
 // an ambiguous-export error at `src/index.ts`. A host needing this exact
-// utility already has it via `@injini/ui`'s `source-config-list` re-export.
+// utility already has it via `@jini-ai/ui`'s `source-config-list` re-export.
 export { filterBoardItemsByQuery, groupItemsByStatus, pruneSelectedIds, sortBoardItems, statusToneFor, toggleSelectedId } from './rules.js';
 
 export type {

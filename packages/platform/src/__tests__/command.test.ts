@@ -12,7 +12,7 @@ function withPlatform<T>(platform: NodeJS.Platform, run: () => T): T {
   }
 }
 
-describe('@injini/platform — command — createCommandInvocation', () => {
+describe('@jini-ai/platform — command — createCommandInvocation', () => {
   it('passes a .bat command straight through on non-Windows platforms', () => {
     withPlatform('darwin', () => {
       const invocation = createCommandInvocation({ args: ['--version'], command: 'tool.bat' });
@@ -110,7 +110,7 @@ describe('@injini/platform — command — createCommandInvocation', () => {
   });
 });
 
-describe('@injini/platform — command — createPackageManagerInvocation', () => {
+describe('@jini-ai/platform — command — createPackageManagerInvocation', () => {
   it('routes a Node-loadable npm_execpath through process.execPath, case-insensitively', () => {
     const invocation = createPackageManagerInvocation(['install'], { npm_execpath: '/usr/lib/pnpm/bin/pnpm.CJS' });
     expect(invocation).toEqual({ args: ['/usr/lib/pnpm/bin/pnpm.CJS', 'install'], command: process.execPath });

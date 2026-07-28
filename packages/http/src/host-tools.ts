@@ -19,9 +19,9 @@
  */
 import { spawn as nodeSpawn } from 'node:child_process';
 import { access as fsAccess, constants as fsConstants } from 'node:fs/promises';
-import { createCommandInvocation } from '@injini/platform';
+import { createCommandInvocation } from '@jini-ai/platform';
 import type { Express } from 'express';
-import { createApiError } from '@injini/protocol';
+import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -261,7 +261,7 @@ export type LaunchHostToolResult = { readonly ok: true } | { readonly ok: false;
  * `cmd.exe`, which shell-interprets args — and one of them is a caller-supplied directory path,
  * so a path containing `&`/`|`/`^`/`>` etc. would inject commands. `command` is already resolved
  * to an absolute path (including `.exe`/`.cmd`), so it's routed through `createCommandInvocation`
- * (`@injini/platform`), which runs a `.cmd`/`.bat` via `cmd.exe` with
+ * (`@jini-ai/platform`), which runs a `.cmd`/`.bat` via `cmd.exe` with
  * `CommandLineToArgvW`-safe verbatim args and everything else directly — no shell, no
  * metacharacter interpretation.
  */
@@ -383,7 +383,7 @@ function parseOpenResourceInEditor(input: RouteInputContext): Result<OpenResourc
  * `resourceRef` this package already uses (`active-context.ts`,
  * `cancel-owned-runs.ts`), and `getProject`/`resolveProjectDir` generalize
  * to the injected {@link WorkspaceRootResolver}. `PROJECT_NOT_FOUND` (an
- * OD-product-only code with no `@injini/protocol` equivalent — see
+ * OD-product-only code with no `@jini-ai/protocol` equivalent — see
  * `response.ts`'s file-map note) becomes a generic `NOT_FOUND` when the
  * resolver denies. `EDITOR_NOT_AVAILABLE` (OD's 409 for "installed catalogue
  * entry, but not found on this machine") becomes `CONFLICT`, which already

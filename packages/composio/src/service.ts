@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import type { JsonValue } from '@injini/protocol';
+import type { JsonValue } from '@jini-ai/protocol';
 
 import {
   classifyConnectorToolSafety,

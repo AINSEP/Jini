@@ -6,7 +6,7 @@
  *
  * Reuses this repo's existing durability pattern exactly —
  * `packages/sqlite/src/event-log.ts`'s `createSqliteEventLog`, the durable
- * adapter for `@injini/daemon`'s `EventLog` port — rather than inventing a
+ * adapter for `@jini-ai/daemon`'s `EventLog` port — rather than inventing a
  * parallel one: `new Database(dbPath)`, `db.pragma('journal_mode = WAL')`,
  * `CREATE TABLE IF NOT EXISTS` (idempotent — reopening the same file
  * resumes from whatever was durably committed), `db.transaction()` for
@@ -17,20 +17,20 @@
  * addition beyond the port interface to release the file handle — the same
  * shape `SqliteEventLog extends EventLog` already established.
  *
- * **Why this lives in `@injini/media` itself, not `@injini/sqlite`** (the
+ * **Why this lives in `@jini-ai/media` itself, not `@jini-ai/sqlite`** (the
  * "natural" home per the `EventLog` precedent, where the durable adapter
- * lives in a separate package from the port it implements): `@injini/sqlite`
+ * lives in a separate package from the port it implements): `@jini-ai/sqlite`
  * is one of `scripts/check-engine-boundaries.ts`'s 14 *locked* packages;
- * `@injini/media` is listed in `UNLOCKED.md` with `status: "incubating"`.
+ * `@jini-ai/media` is listed in `UNLOCKED.md` with `status: "incubating"`.
  * `check-engine-boundaries.ts`'s R7 rule forbids a locked package from
- * importing an unlocked, non-`"stable"` one — `@injini/sqlite` depending on
- * `@injini/media` for `MediaTaskStore`'s types would fail `pnpm guard`
- * outright. Implementing the adapter inside `@injini/media` (itself
+ * importing an unlocked, non-`"stable"` one — `@jini-ai/sqlite` depending on
+ * `@jini-ai/media` for `MediaTaskStore`'s types would fail `pnpm guard`
+ * outright. Implementing the adapter inside `@jini-ai/media` (itself
  * unlocked, so unrestricted in what it may depend on) keeps the exact same
  * schema/transaction/WAL/`close()` conventions without a guard violation.
  * See `ADS-memory/reports/proposals/PROP-media-durable-tasks-2026-07-21.md`
- * for the open question of whether this should move to `@injini/sqlite` once
- * `@injini/media` is promoted to `"stable"`.
+ * for the open question of whether this should move to `@jini-ai/sqlite` once
+ * `@jini-ai/media` is promoted to `"stable"`.
  *
  * Implements `task-store.ts`'s `MediaTaskStore` port exactly: same
  * `queued -> running -> done|failed|interrupted` transition legality

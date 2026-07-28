@@ -4,7 +4,7 @@
  * Fail-closed validation for the bounded JSON Schema subset accepted by the
  * Composio execution boundary.
  */
-import type { JsonValue } from '@injini/protocol';
+import type { JsonValue } from '@jini-ai/protocol';
 
 export type ConnectorJsonSchema = { [key: string]: JsonValue };
 

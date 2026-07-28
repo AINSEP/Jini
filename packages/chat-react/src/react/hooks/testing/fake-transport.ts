@@ -5,7 +5,7 @@
  * exported from the package's public barrel; import via the relative test
  * path (`../testing/fake-transport.js`).
  */
-import type { AgentEvent } from '@injini/chat-core';
+import type { AgentEvent } from '@jini-ai/chat-core';
 import type { ChatTransport, RunHandlers, StartRunInput } from '../../../transport.js';
 
 export interface FakeTransportCall {

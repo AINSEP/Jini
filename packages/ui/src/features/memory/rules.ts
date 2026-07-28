@@ -3,7 +3,7 @@
 // transport, no side effects, so they test with zero doubles.
 //
 // Connector-list reconciliation (merge/apply-statuses/status-changed) is NOT
-// re-derived here. `@injini/ui`'s `features/connectors/rules.ts` already ships
+// re-derived here. `@jini-ai/ui`'s `features/connectors/rules.ts` already ships
 // `mergeConnectors`/`applyConnectorStatuses`/`hasConnectorStatusChanges`/
 // `connectorAuthSnapshotChanged` — generified ports of the exact same
 // reconciliation reducers OD's `connectors-state.ts` module has on

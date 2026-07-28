@@ -15,7 +15,7 @@ elsewhere for audits and code review)
 > real schema-on-error gap, rebuilt the chat pane's shipped CSS theme, did real spec research
 > on WebMCP/MCP-UI/MCP-Apps/A2UI (dispatched as three adversarial stress-test subagents in
 > isolated worktrees), transferred the GitHub repo to a new org, removed a stale governance
-> gate, and renamed the npm scope from `@jini` to `@injini` after discovering `@jini` was
+> gate, and renamed the npm scope from `@jini` to `@jini-ai` after discovering `@jini` was
 > already owned by an unrelated third party. **Real npm publish is not done** — blocked by a
 > persistent `EOTP` wall on a brand-new npm account; the user is now deciding whether to delete
 > that account rather than resolve it. None of that blocks anything else in this repo.
@@ -29,8 +29,8 @@ elsewhere for audits and code review)
   uncommitted; investigate or delete).
 - **`pnpm guard`:** clean. **`pnpm typecheck`:** clean repo-wide (verified after a full
   `pnpm -r run build` post-rename).
-- **npm:** package scope is now `@injini/*` everywhere (was `@jini/*`). **Nothing is actually
-  published** — `npm install @injini/core` today returns 404. See "npm publish saga" below.
+- **npm:** package scope is now `@jini-ai/*` everywhere (was `@jini/*`). **Nothing is actually
+  published** — `npm install @jini-ai/core` today returns 404. See "npm publish saga" below.
 - **GitHub:** repo now lives at `AINSEP/Jini` (transferred this session from
   `leonaburime-ucla/Jini`); every package's `repository.url` points there.
 - **Three sibling branches, pushed but unmerged** — real work from three parallel stress-test
@@ -49,7 +49,7 @@ elsewhere for audits and code review)
 | `be135e77b` | Removed the "locked 14 package" admission gate — the R7 boundary rule and `jini.admission` tiering are gone entirely, per explicit user instruction |
 | `a2a71299b` | Repaired dead user-bubble CSS selectors found via a second round of live screenshot review |
 | `f73c289d3` | `scripts/pack-for-external-use.ts` — local tarball-based external-consumption path, **verified end-to-end** with a genuine external `npm install` outside the repo |
-| `eb9104f68` | **`@jini` → `@injini` scope rename**, all 25 packages, `publishConfig.access` → `public`, `files` arrays extended with dist-test-output exclusion globs, `scripts/publish-all.ts` added |
+| `eb9104f68` | **`@jini` → `@jini-ai` scope rename**, all 25 packages, `publishConfig.access` → `public`, `files` arrays extended with dist-test-output exclusion globs, `scripts/publish-all.ts` added |
 
 ## Research Completed (verified against real specs, not memory — partially implemented, see worktrees)
 
@@ -66,7 +66,7 @@ elsewhere for audits and code review)
   whitelisting as the security boundary. Confirmed this session: `packages/agentic/src/gen-ui/`
   is actually a de-branded **AG-UI** port (CopilotKit's protocol), **not A2UI at all** — a real
   naming/scope confusion that predates this session and was only caught now.
-- **OpenAPI audit of `@injini/http`**: no OpenAPI tooling exists today, 78 routes total. Zod
+- **OpenAPI audit of `@jini-ai/http`**: no OpenAPI tooling exists today, 78 routes total. Zod
   adoption recommended *if* OpenAPI is ever pursued; not urgent for an internal engine API.
 
 ## Unmerged Worktree Branches (pushed to origin, NOT reviewed, NOT merged)
@@ -79,18 +79,18 @@ then pushed all three to origin. **None of this has been code-reviewed.**
 
 | branch | contents | known caveat |
 |---|---|---|
-| `worktree-agent-a4940c179c2f8f632` (commit `7d08e4ee6`) | WebMCP: real-polyfill integration, `WebMcpLab.tsx` live imperative-registration fixture, a `frontend-session-registry.ts` prefix-match bugfix | Base commit is on this branch's history before the rename — will need the `@injini` scope rename re-applied on top before it can build |
+| `worktree-agent-a4940c179c2f8f632` (commit `7d08e4ee6`) | WebMCP: real-polyfill integration, `WebMcpLab.tsx` live imperative-registration fixture, a `frontend-session-registry.ts` prefix-match bugfix | Base commit is on this branch's history before the rename — will need the `@jini-ai` scope rename re-applied on top before it can build |
 | `worktree-agent-a5a117c30cd730739` (commit `ffc3e40b7`) | MCP-UI/Apps: message-direction fix + `id`-validation bugfix in `mcp-ui-apps.ts`, `McpUiLab.tsx`/`McpUiLabHost.tsx` live iframe-hosted fixture (separate `mcpui-view` Vite build) | Same rename issue. Also: a second-opinion model flagged `MCP_UI_HOST_NOTIFICATIONS` as possibly listing some notifications in the wrong direction vs the real spec — **unverified**, check against `@modelcontextprotocol/ext-apps` before trusting |
-| `worktree-agent-ae825eb0a6140ca64` (commit `7c71af401`) | New `packages/a2ui/` package (full A2UI implementation: catalog, interpreter, JSON Pointer resolve, agent↔renderer envelopes) + `A2uiLab.tsx` fixture | **Built on a stale base** (`9cb4ffc50`), from *before* the `src/agui` → `src/gen-ui` + `src/ag-ui.ts` split landed on main. Needs real reconciliation, not just a rebase — package naming, import paths, and the gen-ui/ag-ui split all moved out from under it. Also predates the `@injini` rename |
+| `worktree-agent-ae825eb0a6140ca64` (commit `7c71af401`) | New `packages/a2ui/` package (full A2UI implementation: catalog, interpreter, JSON Pointer resolve, agent↔renderer envelopes) + `A2uiLab.tsx` fixture | **Built on a stale base** (`9cb4ffc50`), from *before* the `src/agui` → `src/gen-ui` + `src/ag-ui.ts` split landed on main. Needs real reconciliation, not just a rebase — package naming, import paths, and the gen-ui/ag-ui split all moved out from under it. Also predates the `@jini-ai` rename |
 
 All three need, in order: rebase/reconcile onto current `main`/`feat/agentic-capability-layer`,
-the `@injini` scope rename applied, a real test run, and a code review — before any merge.
+the `@jini-ai` scope rename applied, a real test run, and a code review — before any merge.
 
 ## npm Publish Saga (important context for an auditor reading the chat history)
 
 1. Attempted a real public `npm publish` of all packages under `@jini/*`. First call: `E404`.
 2. Root-caused: **`@jini` was already registered by an unrelated third party** on the public npm
-   registry — not something in our control. Renamed the entire scope to `@injini` (commit
+   registry — not something in our control. Renamed the entire scope to `@jini-ai` (commit
    `eb9104f68`), verified clean (`pnpm guard`, `pnpm typecheck`, full rebuild).
 3. Significant npm-account/org confusion followed: an npm **org name must match the package
    scope** (`injini`), not the personal username or the GitHub org name (`ainsep`/`AINSEP`) —
@@ -121,9 +121,9 @@ the `@injini` scope rename applied, a real test run, and a code review — befor
    `npm install` — this fully satisfies "try Jini in another project" without npm registry
    involvement at all.
 
-**Net effect for an auditor**: `@injini/*` packages exist correctly-named and publish-ready in
+**Net effect for an auditor**: `@jini-ai/*` packages exist correctly-named and publish-ready in
 this repo, but **are not live anywhere on the public npm registry**. Anyone attempting
-`npm install @injini/core` today gets a 404. Import syntax, once published, is `@injini/<name>`
+`npm install @jini-ai/core` today gets a 404. Import syntax, once published, is `@jini-ai/<name>`
 — the org name (`injini`) is what matters, not the personal account username.
 
 ## Decisions And Constraints (carry forward)
@@ -134,9 +134,9 @@ this repo, but **are not live anywhere on the public npm registry**. Anyone atte
   nothing; execution still goes exclusively through `ToolExecutor` via `execute_delegated_tool`.
 - **No "locked 14 package" tier anymore.** Package admission is unrestricted; `UNLOCKED.md` is a
   historical record only.
-- **Package scope is permanently `@injini/*`.** `@jini` is not recoverable (owned by a third
+- **Package scope is permanently `@jini-ai/*`.** `@jini` is not recoverable (owned by a third
   party) and reclaiming it was not pursued.
-- **Repo boundary rules unchanged**: `packages/@injini/**` must not import `foundry/**`,
+- **Repo boundary rules unchanged**: `packages/@jini-ai/**` must not import `foundry/**`,
   `examples/**`, `AI-Dev-Shop/**`; no product-identity strings; enforced by `pnpm guard`
   (`scripts/check-engine-boundaries.ts`).
 
@@ -144,8 +144,8 @@ this repo, but **are not live anywhere on the public npm registry**. Anyone atte
 
 1. **`landing.png`** at repo root — untracked, unexplained, not part of any described task this
    session. Investigate provenance or delete before anyone treats this repo as clean.
-2. **Real npm publish is unresolved** — the `@injini/*` packages don't exist on the registry yet.
-   Anything downstream that assumes `npm install @injini/x` works will fail until this is
+2. **Real npm publish is unresolved** — the `@jini-ai/*` packages don't exist on the registry yet.
+   Anything downstream that assumes `npm install @jini-ai/x` works will fail until this is
    resolved (or the tarball path is used instead).
 3. **Three worktree branches are unreviewed and partly stale** — see table above. The A2UI one
    in particular needs real reconciliation work, not a mechanical rebase.

@@ -18,7 +18,7 @@ export default defineConfig({
         // Node runtime (Readable's 'end'/'error' mutual exclusivity contract); see that file's own
         // inline comment and source-map.md's dated entry for the full re-verification record. No
         // `/* v8 ignore */` suppression — set below the measured real number instead, matching
-        // this repo's established convention (e.g. `@injini/registry`'s `trust.ts`).
+        // this repo's established convention (e.g. `@jini-ai/registry`'s `trust.ts`).
         statements: 100,
         branches: 99,
         functions: 100,

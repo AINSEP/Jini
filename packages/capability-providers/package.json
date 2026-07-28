@@ -1,5 +1,5 @@
 {
-  "name": "@injini/capability-providers",
+  "name": "@jini-ai/capability-providers",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -43,8 +43,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/core": "workspace:*",
-    "@injini/platform": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "better-sqlite3": "^11.10.0",
     "ws": "^8.18.0"
   },

@@ -5,17 +5,17 @@
  * `apps/daemon/src/routes/terminal.ts` (`/api/projects/:id/terminals` +
  * `.../:tid/{stream,stdin,resize,kill}`) generalized under `/api/terminals`.
  * See `ADS-memory/reports/proposals/PROP-http-route-packs-terminal-pty-2026-07-21.md`
- * for the design discussion and `@injini/daemon`'s `terminal-session.ts` module
+ * for the design discussion and `@jini-ai/daemon`'s `terminal-session.ts` module
  * doc for the session-ownership/gating decisions this route pack calls into.
  *
  * This file is deliberately thin — no PTY spawning, no session registry, no
- * ownership logic lives here (that is `@injini/daemon`'s `TerminalSessionManager`,
+ * ownership logic lives here (that is `@jini-ai/daemon`'s `TerminalSessionManager`,
  * injected as `deps.manager`). This package only:
  *
  * - Resolves a `POST /api/terminals` request's `resourceRef` to a spawn `cwd`
  *   via `workspace-root.ts` (the same port `host-tools.ts`'s open-in route
  *   uses), then routes creation through `deps.toolExecutor.execute(...,
- *   'terminal.create', ...)` — the one call `@injini/daemon`'s module gates by
+ *   'terminal.create', ...)` — the one call `@jini-ai/daemon`'s module gates by
  *   policy (matching `db-ops.ts`'s tool-execution-boundary precedent).
  * - Routes `stdin`/`resize`/`kill`/`stream` directly to `deps.manager`'s
  *   lighter, session-ownership-checked methods — deliberately **not** through
@@ -27,16 +27,16 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import type { Principal } from '@injini/core';
+import type { Principal } from '@jini-ai/core';
 import type {
   TerminalSessionActionResult,
   TerminalSessionInfo,
   TerminalSessionManager,
   TerminalSseSink,
-} from '@injini/daemon';
-import { TERMINAL_CREATE_TOOL_ID } from '@injini/daemon';
-import type { ToolExecutionResult, ToolExecutor } from '@injini/daemon';
-import { createApiError } from '@injini/protocol';
+} from '@jini-ai/daemon';
+import { TERMINAL_CREATE_TOOL_ID } from '@jini-ai/daemon';
+import type { ToolExecutionResult, ToolExecutor } from '@jini-ai/daemon';
+import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { sendApiError } from './response.js';
@@ -53,7 +53,7 @@ export interface TerminalsInternalErrorContext {
 
 function defaultTerminalsInternalErrorSink(context: TerminalsInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@injini/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
 }
 
 /** Everything this route pack needs from the host. */
@@ -207,7 +207,7 @@ export interface TerminalActionResponse {
 /**
  * Exported (not just internal) so the `result.session === null` branch — a real race
  * (`write`/`resize`/`kill` finding metadata for an id whose underlying session was concurrently
- * killed between the ownership check and the critical section, per `@injini/daemon`'s
+ * killed between the ownership check and the critical section, per `@jini-ai/daemon`'s
  * `terminal-session.ts` `currentSnapshot`) — is directly unit-testable against a synthetic
  * `TerminalSessionActionResult` rather than requiring a real, hard-to-deterministically-force race
  * through the full `TerminalSessionManager`. Matches this file's own `createDeferredEndGate`
@@ -287,7 +287,7 @@ export const terminalDeleteRoute = defineJsonRoute<string, TerminalActionRespons
   handle: (id, deps) => handleKill(id, deps),
 });
 
-/** The wire shape `sse.ts`'s generic channel streams for a terminal — the underlying `@injini/platform` event's `id`/`event`/`data` triple, reshaped to `SseEvent`'s `opaqueCursor`/`kind` naming. */
+/** The wire shape `sse.ts`'s generic channel streams for a terminal — the underlying `@jini-ai/platform` event's `id`/`event`/`data` triple, reshaped to `SseEvent`'s `opaqueCursor`/`kind` naming. */
 interface TerminalWireEvent extends SseEvent {
   readonly data: unknown;
 }
@@ -306,7 +306,7 @@ interface DeferredEndChannel {
  * **On the `markOpened()`-then-`end()` ordering (opened=true when `end()` runs):** this is the
  * ordering every *currently reachable* production call graph in this repo takes for a live
  * session that exits while already streaming — but it is unreachable through that graph, not
- * unreachable in principle. `@injini/platform`'s `TerminalService.finish()` (`packages/platform/src/
+ * unreachable in principle. `@jini-ai/platform`'s `TerminalService.finish()` (`packages/platform/src/
  * terminal.ts`) calls `sink.send('exit', ...)` immediately before `sink.end()` for every live
  * client; `send()` here forwards straight to `channel.enqueue()`, whose `isEndEvent: (e) => e.kind
  * === 'exit'` match auto-closes the channel *synchronously inside that same `enqueue()` call* —
@@ -315,7 +315,7 @@ interface DeferredEndChannel {
  * `sink.end()` loop ever runs. That loop iterates `session.clients` fresh at call time (not a
  * snapshot taken before `emit()`), so by the time it runs, this sink has already removed itself —
  * `sink.end()` is consequently never invoked while `channelOpened` is `true` via any call graph
- * this repo's own `@injini/platform` + `@injini/http` composition can currently produce (confirmed by
+ * this repo's own `@jini-ai/platform` + `@jini-ai/http` composition can currently produce (confirmed by
  * instrumenting the real call path directly, not inferred from reading the source — a synchronous
  * console probe in `end()` never fired across this file's full "live-exit-while-streaming" test).
  * That is a fact about today's specific `TerminalService`/`SseChannel` wiring, not a proof that no

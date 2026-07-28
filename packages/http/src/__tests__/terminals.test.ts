@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@injini/core';
+import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import {
   createTerminalSessionManager,
   createTerminalToolRegistrations,
@@ -7,8 +7,8 @@ import {
   TERMINAL_CREATE_TOOL_ID,
   type TerminalSessionManager,
   type ToolExecutor,
-} from '@injini/daemon';
-import type { PtyProcess, PtySpawn } from '@injini/platform';
+} from '@jini-ai/daemon';
+import type { PtyProcess, PtySpawn } from '@jini-ai/platform';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   actionResultToApiResult,
@@ -90,7 +90,7 @@ const alice: Principal = { id: 'alice' };
 const bob: Principal = { id: 'bob' };
 
 // A fake PtySpawn/PtyProcess pair — no real node-pty/subprocess anywhere in this test file. This
-// exercises the real `@injini/daemon` `TerminalSessionManager` (ownership + lock) and a real
+// exercises the real `@jini-ai/daemon` `TerminalSessionManager` (ownership + lock) and a real
 // `ToolExecutor`/`ToolRegistry`, matching this codebase's "route tests should exercise the real
 // gate, not a mock of it" convention (see `db-ops.test.ts`).
 class FakePty implements PtyProcess {
@@ -397,7 +397,7 @@ describe('terminalListRoute', () => {
 });
 
 describe('actionResultToApiResult', () => {
-  it("omits `terminal` entirely when the action result's session is null (a real race: the session was killed between the ownership check and the critical section — see @injini/daemon's currentSnapshot)", () => {
+  it("omits `terminal` entirely when the action result's session is null (a real race: the session was killed between the ownership check and the critical section — see @jini-ai/daemon's currentSnapshot)", () => {
     const result = actionResultToApiResult({ status: 'ok', ok: false, session: null }, 'terminal "t1" was not found');
     expect(result).toEqual({ ok: true, value: { ok: false } });
   });

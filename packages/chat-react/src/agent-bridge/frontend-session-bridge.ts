@@ -25,7 +25,7 @@
  *   again. Buttons are not idempotent.
  * - **The bind token never leaves this module except to the host.** It arrives on the `attached`
  *   event and must ride to run-start; it deliberately does not appear in any URL (see
- *   `@injini/daemon`'s `FrontendSessionHandle`).
+ *   `@jini-ai/daemon`'s `FrontendSessionHandle`).
  * - **Read the bind token at send time, not once.** `EventSource` reconnects on its own — after a
  *   daemon restart, a sleeping laptop, or an ordinary network blip — and each reattach mints a new
  *   session and a new token. A host that captured `ready`'s token keeps sending a dead one, every
@@ -34,8 +34,8 @@
  *   {@link FrontendSessionBridge.bindToken} answers "what is valid now", and only the latter
  *   belongs in a run request.
  */
-import { CHAT_CAPABILITIES } from '@injini/chat-core';
-import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@injini/agentic';
+import { CHAT_CAPABILITIES } from '@jini-ai/chat-core';
+import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini-ai/agentic';
 
 import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../features/chat-pane/types.js';
 

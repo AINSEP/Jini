@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RUN_PROTOCOL_VERSION, type RunEventPayload, type RunProtocolEvent } from '@injini/protocol';
+import { RUN_PROTOCOL_VERSION, type RunEventPayload, type RunProtocolEvent } from '@jini-ai/protocol';
 import { createAguiEncoder } from '../encoder.js';
 
 const RUN_ID = 'run-1';

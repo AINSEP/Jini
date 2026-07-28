@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import * as barrel from '../index.js';
 
-describe('@injini/desktop-host root barrel', () => {
+describe('@jini-ai/desktop-host root barrel', () => {
   it('re-exports the public surface from every scope-1/2/3/4 module', () => {
     // One representative named export per source module in the barrel
     // (src/index.ts), proving every `export *` line actually resolves and

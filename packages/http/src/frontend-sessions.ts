@@ -1,7 +1,7 @@
 /**
  * @module frontend-sessions
  *
- * The transport half of `@injini/daemon`'s `FrontendSessionRegistry`: how a browser surface reaches
+ * The transport half of `@jini-ai/daemon`'s `FrontendSessionRegistry`: how a browser surface reaches
  * the daemon, and how the daemon reaches back into it.
  *
  * Two routes, because the connection *is* the session:
@@ -26,12 +26,12 @@
  *
  * Binding a run to a session is NOT exposed here. Which surface owns a run is a decision only the
  * composition root can make (it is the thing that starts runs), so it calls `registry.bindRun`
- * directly — see `@injini/daemon`'s own module doc for why attach and bind are separate.
+ * directly — see `@jini-ai/daemon`'s own module doc for why attach and bind are separate.
  */
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { createApiError } from '@injini/protocol';
-import type { FrontendSessionHandle, FrontendSessionRegistry } from '@injini/daemon';
+import { createApiError } from '@jini-ai/protocol';
+import type { FrontendSessionHandle, FrontendSessionRegistry } from '@jini-ai/daemon';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { createSseResponse } from './raw-sse.js';
 import { validationError } from './request.js';
@@ -50,7 +50,7 @@ export interface FrontendSessionAttachedEvent {
    *
    * Never put this in a URL, a query string, or a log. It is separate from `sessionId` precisely
    * because that id already travels in a request path (`…/:sessionId/responses`) and therefore
-   * leaks into access logs and proxies by design — see `@injini/daemon`'s `FrontendSessionHandle`.
+   * leaks into access logs and proxies by design — see `@jini-ai/daemon`'s `FrontendSessionHandle`.
    */
   readonly bindToken: string;
 }
@@ -117,11 +117,11 @@ function reportInternalError(deps: FrontendSessionsHttpDeps, source: string, err
   try {
     if (deps.onInternalError) deps.onInternalError({ source, error });
     // eslint-disable-next-line no-console
-    else console.error(`[@injini/http] internal error (frontend-sessions:${source})`, error);
+    else console.error(`[@jini-ai/http] internal error (frontend-sessions:${source})`, error);
   } catch (sinkError) {
     // A diagnostic sink must never turn a contained failure into an unhandled rejection of its own.
     // eslint-disable-next-line no-console
-    console.error(`[@injini/http] internal error sink failed (frontend-sessions:${source})`, sinkError);
+    console.error(`[@jini-ai/http] internal error sink failed (frontend-sessions:${source})`, sinkError);
   }
 }
 

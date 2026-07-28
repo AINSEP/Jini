@@ -1,5 +1,5 @@
 {
-  "name": "@injini/node-host",
+  "name": "@jini-ai/node-host",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -39,12 +39,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/agent-runtime": "workspace:*",
-    "@injini/core": "workspace:*",
-    "@injini/daemon": "workspace:*",
-    "@injini/http": "workspace:*",
-    "@injini/sidecar": "workspace:*",
-    "@injini/sqlite": "workspace:*",
+    "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/daemon": "workspace:*",
+    "@jini-ai/http": "workspace:*",
+    "@jini-ai/sidecar": "workspace:*",
+    "@jini-ai/sqlite": "workspace:*",
     "better-sqlite3": "^11.10.0",
     "express": "^4.21.0"
   },

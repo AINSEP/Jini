@@ -1,7 +1,7 @@
 ---
-"@jini/http": minor
-"@jini/node-host": minor
-"@jini/daemon": patch
+"@jini-ai/http": minor
+"@jini-ai/node-host": minor
+"@jini-ai/daemon": patch
 ---
 
 Enforce flat-package domain/runtime/admission metadata, invert optional capability dependencies,

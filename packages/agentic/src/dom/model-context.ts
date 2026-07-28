@@ -7,13 +7,13 @@
  * see the polyfill ecosystem's own back-compat posture). No `@mcp-b/*` or
  * other WebMCP package dependency: this module only needs the shape, the
  * same "typed global + validated getter + graceful unavailable path"
- * pattern `@injini/desktop-host`'s `bridge.ts` and other host-provided-global
+ * pattern `@jini-ai/desktop-host`'s `bridge.ts` and other host-provided-global
  * bridges already use.
  * A page that wants `document.modelContext` to actually exist in a browser
  * without native support must load a real polyfill itself (e.g.
  * `@mcp-b/webmcp-polyfill`) — this module only ever reads what's there.
  *
- * Moved 2026-07-26 from `@injini/ui/src/features/agent-tools/model-context.ts` (plan §4/§8 step 6).
+ * Moved 2026-07-26 from `@jini-ai/ui/src/features/agent-tools/model-context.ts` (plan §4/§8 step 6).
  * Lives under `src/dom/`, not alongside `../webmcp.ts`'s pure `CapabilityDef` → WebMCP-tool
  * projection, because it reads `document`/`navigator` — `webmcp.ts`'s own module doc is explicit
  * that "that detection is deliberately NOT here: it touches browser globals, and this package

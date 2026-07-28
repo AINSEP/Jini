@@ -7,7 +7,7 @@ export default defineConfig({
       // Excalidraw dependency cannot be evaluated in Vitest's Node resolver.
       // Keep production imports on the architecture-required bare package name
       // while exercising the real UI leaves used by this package.
-      '@injini/ui': new URL('../ui/src/vitest-chat-entry.ts', import.meta.url).pathname,
+      '@jini-ai/ui': new URL('../ui/src/vitest-chat-entry.ts', import.meta.url).pathname,
     },
   },
   test: {

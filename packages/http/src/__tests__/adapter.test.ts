@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createApiError } from '@injini/protocol';
+import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
 import { err, ok } from '../types.js';
 import { isLocalSameOrigin } from '../origin-validation.js';

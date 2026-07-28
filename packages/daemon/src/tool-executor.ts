@@ -7,7 +7,7 @@
  * account of why and where this diverges from every other file in this
  * repo.
  *
- * A tool is registered elsewhere (`@injini/core`'s `ToolRegistry`, see
+ * A tool is registered elsewhere (`@jini-ai/core`'s `ToolRegistry`, see
  * `tool-registry.ts` there) as `{descriptor, handler, policy}`. This
  * module is the *only* thing that can ever call `handler` — routes and
  * agents hold a `ToolRegistry` reference (descriptors only) and a
@@ -43,8 +43,8 @@ import type {
   RunRef,
   ToolDescriptor,
   ToolRegistry,
-} from '@injini/core';
-import { getToolRegistration } from '@injini/core/internal';
+} from '@jini-ai/core';
+import { getToolRegistration } from '@jini-ai/core/internal';
 
 export type ConfirmationDecision = 'confirm' | 'deny';
 
@@ -173,7 +173,7 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * `source-map.md`).
  *
  * @param options.registry - The `ToolRegistry` to resolve `{descriptor,
- * handler, policy}` triples from, via `@injini/core/internal`'s
+ * handler, policy}` triples from, via `@jini-ai/core/internal`'s
  * `getToolRegistration` — the one and only caller of that internal export.
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.

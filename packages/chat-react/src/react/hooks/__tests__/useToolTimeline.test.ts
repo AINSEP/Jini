@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@injini/chat-core';
+import type { AgentEvent } from '@jini-ai/chat-core';
 import { useToolTimeline } from '../useToolTimeline.js';
 
 const events: AgentEvent[] = [

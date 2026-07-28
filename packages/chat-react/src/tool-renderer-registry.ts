@@ -5,7 +5,7 @@
  * `foundry/docs/jini-port/recon/r4b-webui-design.md` §2 ("SHIP AS-IS, runtime/tool-renderers.ts").
  * Origin: `apps/web/src/runtime/tool-renderers.ts`'s registration mechanism
  * (verified 0 OD product references — the pure `deriveToolStatus`/
- * `toRenderProps` half of that file already lives in `@injini/chat-core`'s
+ * `toRenderProps` half of that file already lives in `@jini-ai/chat-core`'s
  * `tools.ts`; this module is only the React-typed registry half chat-core
  * deliberately did not port).
  *
@@ -15,7 +15,7 @@
  * override or extend tool rendering without forking the component.
  */
 import type { ReactNode } from 'react';
-import type { ToolRenderProps } from '@injini/chat-core';
+import type { ToolRenderProps } from '@jini-ai/chat-core';
 
 /**
  * Tool render callback. Mirrors AG-UI's `({ status, args, result, ... })`

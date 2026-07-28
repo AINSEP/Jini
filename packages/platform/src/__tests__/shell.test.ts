@@ -4,7 +4,7 @@ import { execCommandViaLoginShell, execFileBuffered } from "../shell.js";
 
 const isWin32 = process.platform === "win32";
 
-describe("@injini/platform — shell", () => {
+describe("@jini-ai/platform — shell", () => {
   describe("execFileBuffered", () => {
     it("resolves ok:true with trimmed stdout on success", async () => {
       const result = await execFileBuffered(process.execPath, ["-e", "process.stdout.write('  hi  \\n')"]);

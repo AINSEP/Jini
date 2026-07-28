@@ -11,8 +11,8 @@
  * "transport-agnostic hooks never touch DOM" contract.
  */
 import { useEffect, useRef } from 'react';
-import type { ChatMessage } from '@injini/chat-core';
-import { isTerminalRunStatus } from '@injini/chat-core';
+import type { ChatMessage } from '@jini-ai/chat-core';
+import { isTerminalRunStatus } from '@jini-ai/chat-core';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
 
 export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment'> {

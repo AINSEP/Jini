@@ -1,20 +1,20 @@
 /**
  * @module terminal-session
  *
- * Interactive-terminal session manager: the `@injini/daemon`-side wiring for
+ * Interactive-terminal session manager: the `@jini-ai/daemon`-side wiring for
  * OD's `apps/daemon/src/terminals.ts` + `apps/daemon/src/routes/terminal.ts`
  * (see `ADS-memory/reports/proposals/PROP-http-route-packs-terminal-pty-2026-07-21.md`
  * for the full design discussion this module implements a specific decision
  * from). The generic ring-buffer/coalescing/SSE-agnostic session engine
- * already exists as `@injini/platform`'s `terminal.ts` (ported 2026-07-18,
+ * already exists as `@jini-ai/platform`'s `terminal.ts` (ported 2026-07-18,
  * before this task) — this module does **not** reimplement that. It adds
  * exactly the three things that engine deliberately left to a caller:
  *
- * 1. **A real `node-pty`-backed `PtySpawn`.** `@injini/platform` intentionally
- *    does not depend on `node-pty` (a native compiled addon); `@injini/daemon`
+ * 1. **A real `node-pty`-backed `PtySpawn`.** `@jini-ai/platform` intentionally
+ *    does not depend on `node-pty` (a native compiled addon); `@jini-ai/daemon`
  *    does (see this package's `package.json` and `source-map.md`'s dated
- *    section for why that dependency now lives here, not in `@injini/http` or
- *    `@injini/platform`). {@link loadRealSpawnPty} is the real, dynamically
+ *    section for why that dependency now lives here, not in `@jini-ai/http` or
+ *    `@jini-ai/platform`). {@link loadRealSpawnPty} is the real, dynamically
  *    imported default the reference session manager below uses.
  *
  * 2. **Session-token gating.** The proposal's blocker was that a
@@ -33,7 +33,7 @@
  *    "the session id is unguessable therefore secure" — it is a real,
  *    per-call identity check, independent of how hard the id is to guess.
  *
- * 3. **The kill/stdin/resize race fix.** OD's origin (and `@injini/platform`'s
+ * 3. **The kill/stdin/resize race fix.** OD's origin (and `@jini-ai/platform`'s
  *    faithful port of it) has no lock between a `kill` and a concurrent
  *    `write`/`resize` on the same session id: `kill()` only *requests* the
  *    real OS process die (sends `SIGTERM`) — the session's `status` does not
@@ -49,7 +49,7 @@
  */
 import { createRequire } from 'node:module';
 import type { IPty } from 'node-pty';
-import type { Principal, ToolPolicy, ToolRegistration } from '@injini/core';
+import type { Principal, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
   createTerminalService,
   ensureSpawnHelperExecutable,
@@ -60,16 +60,16 @@ import {
   type TerminalService,
   type TerminalSession as PlatformTerminalSession,
   type TerminalSseSink,
-} from '@injini/platform';
+} from '@jini-ai/platform';
 
-export type { TerminalSseSink } from '@injini/platform';
+export type { TerminalSseSink } from '@jini-ai/platform';
 
 /** The `ToolRegistry` id `terminal.create` executes through — see module doc §2. */
 export const TERMINAL_CREATE_TOOL_ID = 'terminal.create';
 
 /**
  * Deny-by-default `ToolPolicy` for `terminal.create`. Matching
- * `db-ops.ts`'s `denyAllDaemonDbPolicy` / `@injini/deploy`'s
+ * `db-ops.ts`'s `denyAllDaemonDbPolicy` / `@jini-ai/deploy`'s
  * `denyAllDeployPublishPolicy` precedent: spawning an interactive shell is
  * strictly more dangerous than any of those (it is not one bounded
  * operation but an open-ended session), so a host must explicitly opt in
@@ -82,7 +82,7 @@ export const denyAllTerminalCreatePolicy: ToolPolicy = {
 
 const daemonRequire = createRequire(import.meta.url);
 
-/** Adapts a real `node-pty` `IPty` to `@injini/platform`'s narrower `PtyProcess` port — explicit per-member mapping rather than relying on structural assignability, matching this package's established "explicit adapter, no implicit coercion" convention (e.g. `agent-executor.ts`'s `toStringEnvRecord`). */
+/** Adapts a real `node-pty` `IPty` to `@jini-ai/platform`'s narrower `PtyProcess` port — explicit per-member mapping rather than relying on structural assignability, matching this package's established "explicit adapter, no implicit coercion" convention (e.g. `agent-executor.ts`'s `toStringEnvRecord`). */
 function toPtyProcess(pty: IPty): PtyProcess {
   return {
     onData: (cb) => {
@@ -105,13 +105,13 @@ function toPtyProcess(pty: IPty): PtyProcess {
  * `terminal.create` call fails, cleanly, rather than crashing at
  * module-eval time. Before the first spawn, repairs `node-pty`'s bundled
  * `spawn-helper` binary's executable bit (pnpm unpacks it non-executable —
- * see `@injini/platform`'s `terminal.ts` module doc for the full story) via
+ * see `@jini-ai/platform`'s `terminal.ts` module doc for the full story) via
  * that package's own `spawnHelperCandidatePaths`/`ensureSpawnHelperExecutable`,
  * but with the resolver anchored at **this** module
- * (`createRequire(import.meta.url)` here, not `@injini/platform`'s own
- * default): `@injini/platform` deliberately does not depend on `node-pty`, so
+ * (`createRequire(import.meta.url)` here, not `@jini-ai/platform`'s own
+ * default): `@jini-ai/platform` deliberately does not depend on `node-pty`, so
  * its default `require.resolve('node-pty')` would not find the copy this
- * package (`@injini/daemon`) actually declares — this is exactly the
+ * package (`@jini-ai/daemon`) actually declares — this is exactly the
  * resolver injection seam `spawnHelperCandidatePaths` was built for.
  */
 export async function loadRealSpawnPty(): Promise<PtySpawn> {
@@ -123,7 +123,7 @@ export async function loadRealSpawnPty(): Promise<PtySpawn> {
     toPtyProcess(nodePty.spawn(shell, args, options));
 }
 
-/** The public, principal-neutral session snapshot this module exposes — deliberately its own shape rather than re-exporting `@injini/platform`'s `TerminalSession` verbatim, since that type carries an OD-shaped per-session grouping key (see `@injini/platform`'s `terminal.ts`) this module replaces entirely with the caller-supplied `resourceRef` (see {@link CreateTerminalSessionOptions}), tracked only in this module's own metadata and never forwarded to `@injini/platform` at all — this package's own identifier-neutrality lint (`__tests__/identifier-lint.test.ts`) forbids that origin field's exact name from appearing anywhere in this package's source. */
+/** The public, principal-neutral session snapshot this module exposes — deliberately its own shape rather than re-exporting `@jini-ai/platform`'s `TerminalSession` verbatim, since that type carries an OD-shaped per-session grouping key (see `@jini-ai/platform`'s `terminal.ts`) this module replaces entirely with the caller-supplied `resourceRef` (see {@link CreateTerminalSessionOptions}), tracked only in this module's own metadata and never forwarded to `@jini-ai/platform` at all — this package's own identifier-neutrality lint (`__tests__/identifier-lint.test.ts`) forbids that origin field's exact name from appearing anywhere in this package's source. */
 export interface TerminalSessionInfo {
   readonly id: string;
   readonly resourceRef: string | null;
@@ -155,7 +155,7 @@ function toSessionInfo(session: PlatformTerminalSession, resourceRef: string | n
 }
 
 export interface CreateTerminalSessionOptions {
-  /** Opaque grouping/scoping reference (e.g. what `@injini/http`'s `workspace-root.ts` resolved `cwd` from) — tracked by this module only, never forwarded to `@injini/platform`. */
+  /** Opaque grouping/scoping reference (e.g. what `@jini-ai/http`'s `workspace-root.ts` resolved `cwd` from) — tracked by this module only, never forwarded to `@jini-ai/platform`. */
   readonly resourceRef?: string | null;
   readonly cwd: string;
   readonly cols?: number;
@@ -178,7 +178,7 @@ export type TerminalSessionAccessResult =
  * `'ok'` with `ok: false` covers a session that exists and is owned by the
  * caller but could not actually perform the action (already exited, killed
  * by a racing call, or the underlying pty call itself failed) — mirroring
- * `@injini/platform`'s own `write`/`resize`/`kill` boolean-return contract.
+ * `@jini-ai/platform`'s own `write`/`resize`/`kill` boolean-return contract.
  */
 export type TerminalSessionActionResult =
   | { readonly status: 'not-found' }
@@ -197,13 +197,13 @@ export interface TerminalSessionManager {
   kill(principal: Principal, id: string, signal?: string): Promise<TerminalSessionActionResult>;
   /** Replays scrollback after `lastEventId` and attaches `sink` for live output — ownership-checked the same as `write`/`resize`/`kill`, since reading a session's output is exactly as sensitive as writing to it. */
   attach(principal: Principal, id: string, lastEventId: number, sink: TerminalSseSink): TerminalSessionAttachResult;
-  /** No ownership check: removing a sink that was never attached (e.g. a foreign/unknown id) is already a safe no-op at the `@injini/platform` layer, and detach carries no capability of its own. */
+  /** No ownership check: removing a sink that was never attached (e.g. a foreign/unknown id) is already a safe no-op at the `@jini-ai/platform` layer, and detach carries no capability of its own. */
   detach(id: string, sink: TerminalSseSink): void;
   shutdownActive(options?: { graceMs?: number }): Promise<void>;
 }
 
 export interface CreateTerminalSessionManagerOptions {
-  /** Injected for tests (a fake session manager without a real pty) or an alternate host wiring. @default a fresh `@injini/platform` `TerminalService` backed by {@link loadRealSpawnPty}. */
+  /** Injected for tests (a fake session manager without a real pty) or an alternate host wiring. @default a fresh `@jini-ai/platform` `TerminalService` backed by {@link loadRealSpawnPty}. */
   readonly terminalService?: TerminalService;
   /** @default {@link loadRealSpawnPty} */
   readonly loadSpawnPty?: () => Promise<PtySpawn>;
@@ -243,7 +243,7 @@ async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string,
 
 /**
  * Builds the reference `TerminalSessionManager`: an in-process wrapper
- * around a `@injini/platform` `TerminalService` adding session ownership,
+ * around a `@jini-ai/platform` `TerminalService` adding session ownership,
  * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
  * `ToolExecutor` gating for creation. See module doc for the full design.
  */
@@ -268,7 +268,7 @@ export function createTerminalSessionManager(
 
   /**
    * Looks up `id`, pruning this module's own metadata if the underlying
-   * `@injini/platform` service has already reaped it (past its TTL) — bounds
+   * `@jini-ai/platform` service has already reaped it (past its TTL) — bounds
    * `metadata`'s growth to "until the next access attempt after expiry"
    * rather than tracking every session forever.
    */
@@ -402,7 +402,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Builds the `{descriptor, handler, policy}` triple a host registers
- * against `@injini/core`'s `ToolRegistry` so `terminal.create` becomes
+ * against `@jini-ai/core`'s `ToolRegistry` so `terminal.create` becomes
  * reachable only via `ToolExecutor.execute(principal, run,
  * 'terminal.create', input)` — never by a route calling
  * `manager.create()` directly, which would bypass authorization and the

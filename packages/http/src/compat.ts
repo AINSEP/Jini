@@ -7,7 +7,7 @@
  * package barrel re-exports this one as `sendCompatApiError` to keep both addressable without a
  * collision.
  */
-import type { ApiError, ApiErrorCode, ApiErrorResponse } from '@injini/protocol';
+import type { ApiError, ApiErrorCode, ApiErrorResponse } from '@jini-ai/protocol';
 import type { Response } from 'express';
 
 /** Builds an `ApiError` from separate `code`/`message`/`init` arguments (legacy call shape). */

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import type { RefObject } from 'react';
-import { useSandboxBridge } from '@injini/renderers-react';
+import { useSandboxBridge } from '@jini-ai/renderers-react';
 import { DECK_NAVIGATE_MESSAGE_TYPE, DECK_STATE_MESSAGE_TYPE } from '../../constants.js';
 import { canGoNext, canGoPrev, parseDeckStateMessage, slideCounterLabel } from '../../rules.js';
 import type { DeckNavigateAction, DeckSlideState } from '../../types.js';
@@ -20,7 +20,7 @@ export interface DeckNavigationController {
 }
 
 /**
- * Drives deck/slide navigation over `@injini/renderers-react`'s
+ * Drives deck/slide navigation over `@jini-ai/renderers-react`'s
  * `useSandboxBridge`, speaking the neutral `jini:deck-*` protocol from
  * `constants.ts`. The sandboxed content itself must implement the deck
  * framework that responds to these messages — this hook only sends

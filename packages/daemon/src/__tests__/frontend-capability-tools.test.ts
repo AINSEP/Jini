@@ -9,7 +9,7 @@ import {
   createFrontendSessionRegistry,
   type FrontendSessionRegistry,
 } from '../frontend-session-registry.js';
-import type { ToolExecutionContext } from '@injini/core';
+import type { ToolExecutionContext } from '@jini-ai/core';
 
 const PAGE_CLICK = {
   id: 'page.click',
@@ -133,7 +133,7 @@ describe('createFrontendCapabilityRegistrations', () => {
 
     it('accepts a full CapabilityDef-shaped manifest entry without conversion', () => {
       const { registry } = recordingRegistry();
-      // The shape @injini/agentic's PAGE_CAPABILITIES entries actually have, extra fields and all.
+      // The shape @jini-ai/agentic's PAGE_CAPABILITIES entries actually have, extra fields and all.
       const capabilityDef = {
         id: 'page.fill',
         description: 'Type text into one input field.',

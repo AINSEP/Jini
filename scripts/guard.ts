@@ -9,7 +9,7 @@
  * Two rules from the original TODO list are still genuinely unimplemented, not silently
  * dropped — see the bottom of this file.
  *
- * `checkAgenticDomPurity` (R9, added 2026-07-26 alongside the `@injini/agentic` extraction) is a
+ * `checkAgenticDomPurity` (R9, added 2026-07-26 alongside the `@jini-ai/agentic` extraction) is a
  * third, narrower check: it protects the `packages/agentic` DOM-free/DOM-split *configuration*
  * (tsconfig.json vs. tsconfig.dom.json), not an import-graph or string-content rule like the
  * other two — see its own module doc for why source-scanning would be the wrong tool here.

@@ -5,8 +5,8 @@
  * Deliberately does NOT include the renderer-registry/registration
  * mechanism (`registerToolRenderer`/`getToolRenderer` in OD's
  * `runtime/tool-renderers.ts`) — that is a presentational, React-facing
- * extension point that belongs to `@injini/chat-react` (or
- * `@injini/renderers-react`), not this framework-free package. See
+ * extension point that belongs to `@jini-ai/chat-react` (or
+ * `@jini-ai/renderers-react`), not this framework-free package. See
  * source-map.md.
  */
 import type { ToolResultEvent, ToolUseEvent } from './events.js';

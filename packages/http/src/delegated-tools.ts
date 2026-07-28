@@ -27,9 +27,9 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import { createApiError } from '@injini/protocol';
-import type { Principal } from '@injini/core';
-import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '@injini/daemon';
+import { createApiError } from '@jini-ai/protocol';
+import type { Principal } from '@jini-ai/core';
+import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '@jini-ai/daemon';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -70,7 +70,7 @@ export interface DelegatedToolsHttpDeps {
 /** Logs the real failure server-side and returns the generic, correlation-id-bearing public error (SEC-005: never the raw exception). */
 function defaultInternalErrorSink(context: DelegatedToolsInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@injini/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
 }
 
 function reportInternalError(

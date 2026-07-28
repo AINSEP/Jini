@@ -1,5 +1,5 @@
 /**
- * @module @injini/mcp
+ * @module @jini-ai/mcp
  * Public barrel for the MCP (Model Context Protocol) domain. External code
  * imports MCP capabilities only from here — never from a subdirectory — so the
  * internal split (`core` kernel + `client` / `agent-install` concerns) can move

@@ -1,5 +1,5 @@
 /**
- * @module @injini/mcp/core/oauth
+ * @module @jini-ai/mcp/core/oauth
  * Daemon-side OAuth 2.1 / PKCE client for remote (HTTP / SSE) MCP servers:
  * auth-server discovery, dynamic client registration, the authorize/token/refresh
  * exchanges, and the in-memory `PendingAuthCache`. Part of the MCP `core` kernel;
@@ -32,7 +32,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import type { LookupFunction } from 'node:net';
 import path from 'node:path';
 import { Agent } from 'undici';
-import { assertSafePublicUrl, createValidatingLookup } from '@injini/platform';
+import { assertSafePublicUrl, createValidatingLookup } from '@jini-ai/platform';
 import { writeSecretFileAtomic } from './secure-write.js';
 
 // ───────────────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ export interface PendingAuthState {
 // slow response. `safeOAuthFetch` is the single choke point all of that
 // traffic goes through:
 //   - HTTPS-only (no plaintext downgrade).
-//   - `@injini/platform`'s `assertSafePublicUrl` rejects embedded credentials,
+//   - `@jini-ai/platform`'s `assertSafePublicUrl` rejects embedded credentials,
 //     localhost, and literal private/link-local IPs before any socket opens.
 //   - A `createValidatingLookup`-wrapped dispatcher re-validates the
 //     *actual* resolved address at connection time, closing the

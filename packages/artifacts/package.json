@@ -1,5 +1,5 @@
 {
-  "name": "@injini/artifacts",
+  "name": "@jini-ai/artifacts",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -29,7 +29,7 @@
     "!dist/**/__tests__/**"
   ],
   "dependencies": {
-    "@injini/core": "workspace:*"
+    "@jini-ai/core": "workspace:*"
   },
   "publishConfig": {
     "access": "public",

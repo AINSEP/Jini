@@ -1,5 +1,5 @@
 {
-  "name": "@injini/media",
+  "name": "@jini-ai/media",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -39,7 +39,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/core": "workspace:*",
+    "@jini-ai/core": "workspace:*",
     "better-sqlite3": "^11.10.0",
     "undici": "^7.25.0"
   },

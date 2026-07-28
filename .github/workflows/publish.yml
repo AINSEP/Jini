@@ -2,7 +2,7 @@
 #
 # This workflow is scaffolding: it is wired up but DORMANT until an `NPM_TOKEN`
 # repo secret is added (Settings -> Secrets and variables -> Actions -> New
-# repository secret, generated from an npm account/org that owns the `@jini`
+# repository secret, generated from an npm account/org that owns the `@jini-ai`
 # scope). Until that secret exists:
 #   - If there are no pending changesets, this workflow no-ops (nothing to
 #     version, nothing to publish).
@@ -86,11 +86,11 @@ jobs:
       - name: Mirror newly published packages to GitHub Packages
         if: steps.changesets.outputs.published == 'true'
         run: |
-          echo "@jini:registry=https://npm.pkg.github.com" >> ~/.npmrc
+          echo "@jini-ai:registry=https://npm.pkg.github.com" >> ~/.npmrc
           echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
           echo "$PUBLISHED_PACKAGES" | jq -c '.[]' | while read -r pkg; do
             name=$(echo "$pkg" | jq -r '.name')
-            dir="packages/${name#@jini/}"
+            dir="packages/${name#@jini-ai/}"
             echo "Publishing $name from $dir to GitHub Packages"
             pnpm --dir "$dir" publish --registry https://npm.pkg.github.com --no-git-checks || true
           done

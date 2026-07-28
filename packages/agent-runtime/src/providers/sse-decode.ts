@@ -4,7 +4,7 @@
  * Minimal, tolerant Server-Sent-Events *frame decoder* for an INBOUND
  * provider stream — the response body a call to the Anthropic Messages API
  * or the OpenAI Chat Completions API sends back when `stream: true` is
- * requested. This is deliberately not `@injini/http`'s `sse.ts`: that module
+ * requested. This is deliberately not `@jini-ai/http`'s `sse.ts`: that module
  * is the OUTBOUND channel a route uses to push events to a browser client
  * (bounded queue, backpressure, `Last-Event-ID` replay). This module has
  * none of that — it only turns a raw byte/text stream into `{event, data}`
@@ -18,7 +18,7 @@
  * response body directly with ad hoc inline buffering per call site; this
  * factors that concern into one shared, independently-tested primitive so
  * both provider turn-runners consume the same framing logic (the same
- * "shared mechanism, one implementation" discipline `@injini/http`'s
+ * "shared mechanism, one implementation" discipline `@jini-ai/http`'s
  * `sse.ts`/`origin-validation.ts` already apply to their own domains).
  */
 

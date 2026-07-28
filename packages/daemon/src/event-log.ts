@@ -9,7 +9,7 @@
  * lives outside any port, a non-OD consumer that only wires the in-memory
  * ring silently loses in-flight output on a long-run reload. `EventLog` is
  * the fix: a single, storage-agnostic port that any adapter (this package's
- * in-memory reference implementation, or `@injini/sqlite`'s future durable
+ * in-memory reference implementation, or `@jini-ai/sqlite`'s future durable
  * adapter — task 8) can satisfy. Every method returns a `Promise` even
  * though the in-memory implementation resolves synchronously, so a real
  * persistent adapter is a drop-in swap rather than an API break
@@ -83,9 +83,9 @@ export type EventLogReplayResult<Payload = unknown> =
   | { readonly kind: 'unknown-run' };
 
 /**
- * A replayable, ordered, per-run event log. Kernel port — `@injini/daemon`
+ * A replayable, ordered, per-run event log. Kernel port — `@jini-ai/daemon`
  * ships `createInMemoryEventLog` as the reference implementation; a durable
- * adapter (`@injini/sqlite`, task 8) implements the same interface.
+ * adapter (`@jini-ai/sqlite`, task 8) implements the same interface.
  */
 export interface EventLog {
   /**
@@ -114,7 +114,7 @@ export interface InMemoryEventLogOptions {
   /**
    * Maximum entries retained per run before the oldest are evicted. Eviction is opt-in: if
    * omitted, retention is unbounded and nothing is ever silently dropped. Pass an explicit
-   * value only when bounded memory (or, for `@injini/sqlite`, bounded disk) is a deliberate
+   * value only when bounded memory (or, for `@jini-ai/sqlite`, bounded disk) is a deliberate
    * choice — the caller then owns the tradeoff, rather than inheriting a hidden 2000-entry
    * cap OD's own in-memory ring happened to use.
    */
@@ -132,7 +132,7 @@ interface RunLog {
  * `maxEntriesPerRun` (opt-in — see {@link InMemoryEventLogOptions}), functionally a ring
  * buffer once a cap is set (oldest entries evicted once the cap is exceeded) without needing
  * an actual circular-index structure at this scale. This is the in-memory half only — no
- * durable copy — matching this task's scope (a real persistent adapter is `@injini/sqlite`'s
+ * durable copy — matching this task's scope (a real persistent adapter is `@jini-ai/sqlite`'s
  * job).
  *
  * @param options.maxEntriesPerRun - Retention cap per run, see {@link InMemoryEventLogOptions}.

@@ -1,7 +1,7 @@
 import type { JsonValue } from './common.js';
 
 /**
- * Cross-product error codes meaningful to any @injini/* consumer. Kept small and
+ * Cross-product error codes meaningful to any @jini-ai/* consumer. Kept small and
  * closed to genuinely generic HTTP/tool-boundary failures. Packs and products
  * define their own codes on top; `ApiErrorCode` stays an open string type
  * (not a closed union) so a pack's own codes type-check without a kernel edit.

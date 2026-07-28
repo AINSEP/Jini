@@ -12,7 +12,7 @@
  * `apps/daemon/src/run-failure-classification.ts`, all read at
  * `git show fork/server-endgame:<path>` on the closed/unmerged
  * `arch/server-startserver-endgame` branch — see `source-map.md`). It proves
- * `@injini/daemon` reproduces those cited invariants faithfully:
+ * `@jini-ai/daemon` reproduces those cited invariants faithfully:
  *
  *  1. `'start'` is emitted exactly once, and always first (`start-chat-run.ts`
  *     sets `run.status = 'running'` then emits `'start'` right before spawn —
@@ -31,7 +31,7 @@
  *     (generalized from OD's session-resume-on-failure concept, researched
  *     source §6, `start-chat-run.ts` ~line 1325-1377; OD's own version
  *     resumes the *external CLI session*, not the daemon-side run object —
- *     `@injini/daemon` generalizes this to "the same runId continues," a
+ *     `@jini-ai/daemon` generalizes this to "the same runId continues," a
  *     documented scope decision, not a literal port).
  *
  * This is NOT a claim that OD's exact byte-for-byte SSE wire output was
@@ -39,7 +39,7 @@
  * ordering contract.
  */
 import { describe, expect, it } from 'vitest';
-import { RUN_PROTOCOL_VERSION, type RunProtocolEvent } from '@injini/protocol';
+import { RUN_PROTOCOL_VERSION, type RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
 

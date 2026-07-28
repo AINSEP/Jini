@@ -133,7 +133,7 @@ export function useMemoryEntries(port: MemoryEntriesPort, coord: MemoryEntriesCo
 
   const onCopyPath = useCallback(async () => {
     if (!rootDir) return;
-    // `@injini/ui`'s `copyToClipboard` (unlike the pinned source's) never
+    // `@jini-ai/ui`'s `copyToClipboard` (unlike the pinned source's) never
     // rejects — it already falls back from the Clipboard API to a hidden
     // textarea + `execCommand('copy')` internally and resolves `false` when
     // BOTH paths fail (e.g. a locked-down document). Check the boolean

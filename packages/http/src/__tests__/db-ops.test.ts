@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@injini/core';
-import { createToolExecutor, type ToolExecutor } from '@injini/daemon';
+import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
+import { createToolExecutor, type ToolExecutor } from '@jini-ai/daemon';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   createDaemonDbToolRegistrations,
@@ -304,7 +304,7 @@ describe('daemonDbInspectRoute', () => {
     // `abortAwareHandler`, which is the executor's real, generically-tested timeout mechanism.
     // `db-ops.ts`'s own three handlers don't forward `ctx.signal` into `DaemonDbOperations` at all
     // (that interface has no signal parameter: the real collaborator this module documents itself
-    // as wiring — `@injini/sqlite`'s synchronous `better-sqlite3` calls — cannot be cooperatively
+    // as wiring — `@jini-ai/sqlite`'s synchronous `better-sqlite3` calls — cannot be cooperatively
     // cancelled mid-flight regardless of any signal). Re-deriving that generic race here with a
     // mock that ignores the signal would hang forever rather than proving anything. This test
     // instead isolates what actually is `db-ops.ts`'s own responsibility: given a `timed-out`

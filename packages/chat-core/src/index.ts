@@ -1,5 +1,5 @@
 /**
- * @injini/chat-core — framework-free chat vocabulary + pure parsers.
+ * @jini-ai/chat-core — framework-free chat vocabulary + pure parsers.
  *
  * Zero React, zero DOM/browser globals, zero Node built-ins, zero imports
  * from any product package's scope. See foundry/docs/jini-port/extraction-plan.md
@@ -18,7 +18,7 @@ export * from './transcript.js';
 /**
  * The chat pane's own capability manifest (`CHAT_CAPABILITIES`). The framework-free agent-control
  * vocabulary this used to sit alongside — `CapabilityDef`, `PAGE_CAPABILITIES`, the
- * `data-agent-*` convention, the policy gate, the protocol projections — moved to `@injini/agentic`
+ * `data-agent-*` convention, the policy gate, the protocol projections — moved to `@jini-ai/agentic`
  * on 2026-07-26; import it directly rather than through this package. See
  * `packages/agentic/source-map.md` and this package's own source-map.md for the extraction.
  */

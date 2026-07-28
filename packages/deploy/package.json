@@ -1,5 +1,5 @@
 {
-  "name": "@injini/deploy",
+  "name": "@jini-ai/deploy",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -39,12 +39,12 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/core": "workspace:*",
-    "@injini/platform": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "undici": "^7.25.0"
   },
   "devDependencies": {
-    "@injini/daemon": "workspace:*",
+    "@jini-ai/daemon": "workspace:*",
     "@vitest/coverage-v8": "^2.1.9"
   }
 }

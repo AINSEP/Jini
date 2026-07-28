@@ -1,5 +1,5 @@
 {
-  "name": "@injini/daemon",
+  "name": "@jini-ai/daemon",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -39,10 +39,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/agent-runtime": "workspace:*",
-    "@injini/core": "workspace:*",
-    "@injini/platform": "workspace:*",
-    "@injini/protocol": "workspace:*",
+    "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
+    "@jini-ai/protocol": "workspace:*",
     "node-pty": "^1.1.0"
   },
   "devDependencies": {

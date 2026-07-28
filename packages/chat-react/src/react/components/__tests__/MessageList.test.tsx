@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatMessage } from '@injini/chat-core';
+import type { ChatMessage } from '@jini-ai/chat-core';
 import { MessageList } from '../MessageList.js';
 
 const messages: ChatMessage[] = [

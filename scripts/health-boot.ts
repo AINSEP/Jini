@@ -2,7 +2,7 @@
  * scripts/health-boot.ts — milestone 1 gate N ("Harnesses + sync-ownership manifest";
  * foundry/docs/jini-port/extraction-plan.md §7 + §8 task 1).
  *
- * The neutrality-proof harness: pack every real `@injini/*` package `examples/minimal-host`
+ * The neutrality-proof harness: pack every real `@jini-ai/*` package `examples/minimal-host`
  * transitively depends on into tarballs, install those tarballs (never a workspace link) into a
  * scratch copy of `examples/minimal-host`, boot/run its entry point from there, and report the
  * result as one JSON line on stdout. This is what catches the class of bug where code only works
@@ -30,7 +30,7 @@ const repoRoot = resolve(__dirname, '..');
 const packagesDir = join(repoRoot, 'packages');
 const minimalHostDir = join(repoRoot, 'examples', 'minimal-host');
 
-/** Recursively asserts that nothing under a directory is a symlink — the actual proof that installed `@injini/*` packages are real copies, not workspace links back into this repo. */
+/** Recursively asserts that nothing under a directory is a symlink — the actual proof that installed `@jini-ai/*` packages are real copies, not workspace links back into this repo. */
 function assertNoSymlinks(dir: string): void {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const entryPath = join(dir, entry.name);
@@ -47,8 +47,8 @@ async function main(): Promise<void> {
   const rootDeps = jiniDependencyNames(hostPkg);
   if (rootDeps.length === 0) {
     throw new Error(
-      'health-boot: examples/minimal-host/package.json has no @injini/* dependencies — nothing to pack. ' +
-        'Add at least one @injini/* dependency (e.g. @injini/node-host) first.',
+      'health-boot: examples/minimal-host/package.json has no @jini-ai/* dependencies — nothing to pack. ' +
+        'Add at least one @jini-ai/* dependency (e.g. @jini-ai/node-host) first.',
     );
   }
 
@@ -56,12 +56,12 @@ async function main(): Promise<void> {
   const scratchRoot = mkdtempSync(join(tmpdir(), 'jini-health-boot-host-'));
 
   try {
-    // 1-3: build every package in the closure, dependency-first, pack each, rewrite @injini/* deps
+    // 1-3: build every package in the closure, dependency-first, pack each, rewrite @jini-ai/* deps
     // to file: sibling tarball paths — the shared core both this file and pack-for-external-use.ts use.
     const { closure, tarballPathByName } = buildAndPackClosure(repoRoot, packagesDir, rootDeps, packDestDir);
     const packedTarballs = closure.map((name) => tarballPathByName.get(name)!);
 
-    // 4. Copy examples/minimal-host into a scratch directory and rewrite its own @injini/* deps to
+    // 4. Copy examples/minimal-host into a scratch directory and rewrite its own @jini-ai/* deps to
     //    point at the packed tarballs (never `workspace:*`).
     const scratchHostDir = join(scratchRoot, 'minimal-host');
     mkdirSync(scratchHostDir, { recursive: true });
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
 
     const rewrittenHostDeps: Record<string, string> = { ...(hostPkg.dependencies ?? {}) };
     for (const depName of Object.keys(rewrittenHostDeps)) {
-      if (!depName.startsWith('@injini/')) continue;
+      if (!depName.startsWith('@jini-ai/')) continue;
       const depTarball = tarballPathByName.get(depName);
       if (!depTarball) throw new Error(`health-boot: examples/minimal-host's dependency "${depName}" was not packed`);
       rewrittenHostDeps[depName] = `file:${depTarball}`;

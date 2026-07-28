@@ -1,7 +1,7 @@
 /**
- * @injini/renderers-react — the artifact renderer registry + sandboxed
+ * @jini-ai/renderers-react — the artifact renderer registry + sandboxed
  * srcDoc host. See `foundry/docs/jini-port/extraction-plan.md` §3 and
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §1 ("@injini/artifacts-react —
+ * `foundry/docs/jini-port/recon/r4b-webui-design.md` §1 ("@jini-ai/artifacts-react —
  * RendererRegistry", the pre-lock name for this package) for the design
  * this targets, and `source-map.md` for exact provenance.
  */
@@ -81,7 +81,7 @@ export * from './annotation-canvas/index.js';
  * `html-utils.ts`'s versions are re-exported here under a `StringOnly`
  * suffix — this is the exact set `sandboxed-document.ts` (this package's
  * *other* independently-built sandboxed-iframe core, consumed today by
- * `@injini/ui`'s `features/html-viewer`) relies on internally, unchanged.
+ * `@jini-ai/ui`'s `features/html-viewer`) relies on internally, unchanged.
  */
 export { escapeHtmlAttribute } from './html-utils.js';
 export {

@@ -1,12 +1,12 @@
 /**
- * @module @injini/mcp/server/daemon-client
+ * @module @jini-ai/mcp/server/daemon-client
  *
  * Bounded-I/O JSON GET/POST against a trusted daemon base URL — the transport
  * primitive every proxy tool `createMcpToolServer` hosts is built on
  * (`../client/client.js`'s `createMcpIdleExitController` is the other half of
  * the mechanism; this module is the network half).
  *
- * Deliberately NOT `@injini/cli`'s `getJsonFromDaemon`/`postJsonToDaemon`
+ * Deliberately NOT `@jini-ai/cli`'s `getJsonFromDaemon`/`postJsonToDaemon`
  * (`packages/cli/src/http.ts`): those map a failure onto `process.exit`,
  * which is the right contract for a one-shot CLI invocation but wrong here —
  * a stdio MCP server is a long-lived process serving many tool calls, and one
@@ -23,10 +23,10 @@
  * target is a caller-resolved, typically-loopback daemon the user already
  * trusts enough to run — not an attacker- or server-metadata-controlled
  * remote URL the way a configured external MCP server's OAuth endpoints are.
- * This mirrors `@injini/cli/http.ts`'s own posture for the identical "fetch my
+ * This mirrors `@jini-ai/cli/http.ts`'s own posture for the identical "fetch my
  * own daemon" concern (no `assertSafePublicUrl` there either).
  */
-import { sanitizeUntrustedText } from '@injini/cli';
+import { sanitizeUntrustedText } from '@jini-ai/cli';
 
 /** Request deadline. Generous enough for a slow tool call, short enough that a stalled daemon doesn't hang a stdio server turn forever. */
 const DEFAULT_TIMEOUT_MS = 15_000;

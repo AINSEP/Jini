@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { ChatAttachment, ChatMessage } from '@injini/chat-core';
+import type { ChatAttachment, ChatMessage } from '@jini-ai/chat-core';
 
 import type { ComposerSlots } from '../../slots.js';
 import type { ChatTransport, RunContext } from '../../transport.js';
@@ -12,7 +12,7 @@ export interface ChatPaneAgentOption {
 /**
  * Browser-safe runtime inventory consumed by the chat pane. This is
  * structurally compatible with the daemon's `AgentSummary` DTO without
- * coupling the React package to `@injini/http`.
+ * coupling the React package to `@jini-ai/http`.
  */
 export interface ChatPaneAgent {
   id: string;

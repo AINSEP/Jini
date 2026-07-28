@@ -1,5 +1,5 @@
 {
-  "name": "@injini/chat-react",
+  "name": "@jini-ai/chat-react",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -40,10 +40,10 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/agent-runtime": "workspace:*",
-    "@injini/agentic": "workspace:*",
-    "@injini/chat-core": "workspace:*",
-    "@injini/ui": "workspace:*"
+    "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/chat-core": "workspace:*",
+    "@jini-ai/ui": "workspace:*"
   },
   "peerDependencies": {
     "react": "^19.2.0",

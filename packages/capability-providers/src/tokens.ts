@@ -1,15 +1,15 @@
 /**
  * Typed DI tokens for each capability-provider port, following the exact
- * pattern `@injini/core`'s `token()` establishes (see
- * `packages/core/src/token.ts`) and the naming convention `@injini/daemon`'s
- * `src/tokens.ts` / `@injini/media`'s `src/tokens.ts` already set
+ * pattern `@jini-ai/core`'s `token()` establishes (see
+ * `packages/core/src/token.ts`) and the naming convention `@jini-ai/daemon`'s
+ * `src/tokens.ts` / `@jini-ai/media`'s `src/tokens.ts` already set
  * (bare-interface-name-suffixed-`Token`).
  *
  * These tokens are exported for a future consumer to `bind()` in its own
  * composition — this package itself does not bind them anywhere, and
  * nothing else in this repo imports this package (see `source-map.md`).
  */
-import { token } from '@injini/core';
+import { token } from '@jini-ai/core';
 import type { AuthProvider } from './auth.js';
 import type { DbProvider } from './db.js';
 import type { PaymentsProvider } from './payments.js';

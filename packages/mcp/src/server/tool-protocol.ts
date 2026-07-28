@@ -1,5 +1,5 @@
 /**
- * @module @injini/mcp/server/tool-protocol
+ * @module @jini-ai/mcp/server/tool-protocol
  *
  * The pure, SDK-connection-free half of the MCP tool-hosting mechanism: the
  * `McpToolDef` contract a caller registers tools against, `tools/list`
@@ -11,7 +11,7 @@
  * (wrapped as an `{isError:true}` MCP result). `./tool-server.js` is the thin
  * layer that wires this to a real `Server` + `StdioServerTransport`.
  */
-import { sanitizeUntrustedText } from '@injini/cli';
+import { sanitizeUntrustedText } from '@jini-ai/cli';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 
 /** What every tool handler receives alongside its parsed arguments. */

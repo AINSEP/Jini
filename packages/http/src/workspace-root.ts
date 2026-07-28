@@ -16,7 +16,7 @@
  * unrelated working directory).
  *
  * Follows the same explicit-injection, conservative-default shape this repo
- * already established for `@injini/cli`'s `resolveDaemonUrl`
+ * already established for `@jini-ai/cli`'s `resolveDaemonUrl`
  * (`packages/cli/src/daemon-url.ts`): a host supplies a resolver callback; the
  * built-in default resolves nothing and the resolution function throws
  * rather than guessing. It also mirrors `active-context.ts`'s

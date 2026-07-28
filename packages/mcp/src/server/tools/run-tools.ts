@@ -1,14 +1,14 @@
 /**
- * @module @injini/mcp/server/tools/run-tools
+ * @module @jini-ai/mcp/server/tools/run-tools
  *
  * The first real, concrete `McpToolDef`s hosted by `createMcpToolServer`
- * (`../tool-server.js`) — a proxy over `@injini/http`'s already-gated `Run`
+ * (`../tool-server.js`) — a proxy over `@jini-ai/http`'s already-gated `Run`
  * transport (`packages/http/src/runs.ts`) plus the generic active-resource
  * channel (`packages/http/src/active-context.ts`) and the agent-def listing
  * (`packages/http/src/agents.ts`). Each tool's `handler` does nothing but
  * validate its own arguments and proxy a single HTTP call via
  * `../daemon-client.js` — no separate authorization mechanism, no caching,
- * no state: whatever `@injini/http`'s same-origin guard / bearer-auth
+ * no state: whatever `@jini-ai/http`'s same-origin guard / bearer-auth
  * middleware already enforces on the target route is the only gate a call
  * here passes through (see `source-map.md`'s 2026-07-21 addition for the
  * full origin-mapping and what was deliberately not ported).
@@ -72,7 +72,7 @@ export const startRunTool: McpToolDef = {
 /** `get_run` -> `GET /api/runs/:runId` (`packages/http/src/runs.ts`'s `runStatusRoute`). */
 export const getRunTool: McpToolDef = {
   name: 'get_run',
-  description: 'Poll a run started by start_run. Returns {run} with the run\'s current state (queued|running|succeeded|failed|canceled, per @injini/protocol\'s RunState).',
+  description: 'Poll a run started by start_run. Returns {run} with the run\'s current state (queued|running|succeeded|failed|canceled, per @jini-ai/protocol\'s RunState).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -138,7 +138,7 @@ export const getActiveContextTool: McpToolDef = {
 /** `list_agents` -> `GET /api/agents` (`packages/http/src/agents.ts`'s `agentListRoute`). */
 export const listAgentsTool: McpToolDef = {
   name: 'list_agents',
-  description: 'List every agent def registered with this host\'s @injini/agent-runtime — {id, name} pairs suitable for start_run\'s optional agentId argument. Static registration data only: this does not probe which agent binaries are actually installed on the host machine.',
+  description: 'List every agent def registered with this host\'s @jini-ai/agent-runtime — {id, name} pairs suitable for start_run\'s optional agentId argument. Static registration data only: this does not probe which agent binaries are actually installed on the host machine.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { ...READ_ANNOTATIONS, title: 'List registered agents' },
   handler: async (_args, ctx) => getDaemonJson(ctx.baseUrl, '/api/agents', { fetchImpl: ctx.fetchImpl }),

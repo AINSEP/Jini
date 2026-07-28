@@ -4,7 +4,7 @@ import * as barrel from './index.js';
 /**
  * `src/index.ts` is a pure re-export barrel — no logic of its own. Importing
  * it directly is the only way to execute its own statement under coverage;
- * see `@injini/chat-react`'s `src/index.test.ts` for the same convention.
+ * see `@jini-ai/chat-react`'s `src/index.test.ts` for the same convention.
  */
 describe('index barrel', () => {
   it('re-exports the registry helpers', () => {

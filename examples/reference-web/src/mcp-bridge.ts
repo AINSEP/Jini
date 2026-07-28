@@ -1,6 +1,6 @@
 /**
  * Resolves the `jini-mcp` bridge this playground injects into every MCP-capable agent run
- * (`@injini/daemon`'s `createAgentExecutor({ mcpJsonInjection })`, which writes a merged `.mcp.json`
+ * (`@jini-ai/daemon`'s `createAgentExecutor({ mcpJsonInjection })`, which writes a merged `.mcp.json`
  * into the run's cwd before spawn — see that option's own doc).
  *
  * Without this, an agent run has no agent-native path to `execute_delegated_tool`, so nothing the
@@ -14,14 +14,14 @@
  * not depend on `PATH`, on a bin shim's exec bit, or on which package directory the agent happens to
  * be standing in.
  *
- * **Resolution is a check, not an assumption.** `@injini/mcp` ships its bin as build output
+ * **Resolution is a check, not an assumption.** `@jini-ai/mcp` ships its bin as build output
  * (`"bin": { "jini-mcp": "./dist/bin/serve.js" }`), so a repo that has not been built yet has no
  * file to point at. Reporting that as a resolved-but-missing path lets the caller print something
  * actionable at startup instead of failing later inside a spawn, where the error surfaces as an
  * unexplained dead MCP server in the agent's own logs.
  */
 
-/** The subset of `@injini/daemon`'s `McpJsonInjectionOptions` this host supplies (the rest default). */
+/** The subset of `@jini-ai/daemon`'s `McpJsonInjectionOptions` this host supplies (the rest default). */
 export interface JiniMcpBridgeInjection {
   readonly command: string;
   readonly args: readonly string[];
@@ -33,7 +33,7 @@ export type JiniMcpBridgeResolution =
   | { readonly ok: false; readonly missingPath: string };
 
 export interface ResolveJiniMcpBridgeOptions {
-  /** Absolute path to the repository root the `@injini/mcp` package sits under. */
+  /** Absolute path to the repository root the `@jini-ai/mcp` package sits under. */
   readonly repoRoot: string;
   /** Loopback base URL the spawned `jini-mcp` process calls back into (`JINI_DAEMON_URL`). */
   readonly daemonUrl: string;
@@ -45,7 +45,7 @@ export interface ResolveJiniMcpBridgeOptions {
   readonly join: (...segments: string[]) => string;
 }
 
-/** Build output of `@injini/mcp`, relative to the repo root. */
+/** Build output of `@jini-ai/mcp`, relative to the repo root. */
 const JINI_MCP_BIN_SEGMENTS = ['packages', 'mcp', 'dist', 'bin', 'serve.js'] as const;
 
 /**

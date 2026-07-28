@@ -2,10 +2,10 @@
  * @module types
  *
  * `features/model-picker/` is an independent feature slice: it depends only
- * on `@injini/agent-runtime`'s registry vocabulary for what a model/agent/
+ * on `@jini-ai/agent-runtime`'s registry vocabulary for what a model/agent/
  * provider actually is — never on this package's own conversation/message
  * state (`useConversation`/`useRunStream`/`transport.ts`) — so any consumer
- * of `@injini/chat-react` can use it without pulling in a full chat UI. See
+ * of `@jini-ai/chat-react` can use it without pulling in a full chat UI. See
  * `source-map.md` for the extraction this ports (OD's `InlineModelSwitcher.tsx`
  * + siblings and `NewProjectPanel.tsx`'s `MediaModelCards`).
  *
@@ -17,16 +17,16 @@ import type {
   AgentDefinition,
   AgentDiagnostic,
   CredentialStatus,
-  // `@injini/agent-runtime` exports this vocabulary's model-catalogue-entry
+  // `@jini-ai/agent-runtime` exports this vocabulary's model-catalogue-entry
   // type as `ModelCatalogOption` — its own `ModelOption` name is already
   // taken by a narrower, unrelated ACP model-probe shape (see
   // `packages/agent-runtime/src/model-registry.ts`'s module doc comment).
   // Aliased back to `ModelOption` here so nothing else in this feature
   // (components/hooks/tests, all of which import from this file, never
-  // directly from `@injini/agent-runtime`) needs to know about the rename.
+  // directly from `@jini-ai/agent-runtime`) needs to know about the rename.
   ModelCatalogOption as ModelOption,
   ModelProvider,
-} from '@injini/agent-runtime';
+} from '@jini-ai/agent-runtime';
 
 export type { AgentDefinition, AgentDiagnostic, CredentialStatus, ModelOption, ModelProvider };
 

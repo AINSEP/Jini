@@ -11,7 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@injini/desktop-host": "workspace:*"
+    "@jini-ai/desktop-host": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

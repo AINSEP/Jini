@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { ChatMessage } from '@injini/chat-core';
+import type { ChatMessage } from '@jini-ai/chat-core';
 import { usePinnedTodos } from '../usePinnedTodos.js';
 
 function withTodos(todos: { content: string; status: string }[], overrides: Partial<ChatMessage> = {}): ChatMessage {

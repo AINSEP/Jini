@@ -1,5 +1,5 @@
 {
-  "name": "@injini/mcp",
+  "name": "@jini-ai/mcp",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -42,8 +42,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/cli": "workspace:*",
-    "@injini/platform": "workspace:*",
+    "@jini-ai/cli": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "undici": "^7.25.0"
   }

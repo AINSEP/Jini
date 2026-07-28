@@ -17,7 +17,7 @@ import { createServer as createNetServer } from "node:net";
 import { dirname } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
-import { redactSecrets } from "@injini/core";
+import { redactSecrets } from "@jini-ai/core";
 
 import { isWindowsNamedPipePath } from "./ipc-path.js";
 import { closeServer } from "./net.js";
@@ -357,7 +357,7 @@ export async function createJsonIpcServer({
         // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
         const redactedDetail = redactSecrets(error instanceof Error ? error.message : String(error));
         // eslint-disable-next-line no-console
-        console.error(`[@injini/sidecar] json-ipc handler failed (traceId=${traceId})`, redactedDetail);
+        console.error(`[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})`, redactedDetail);
         traceJsonIpc("server.handler_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           error: redactedDetail,

@@ -1,5 +1,5 @@
 {
-  "name": "@injini/cli",
+  "name": "@jini-ai/cli",
   "version": "0.1.0",
   "license": "Apache-2.0",
   "repository": {
@@ -42,7 +42,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@injini/core": "workspace:*",
-    "@injini/sidecar": "workspace:*"
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/sidecar": "workspace:*"
   }
 }

@@ -1,6 +1,6 @@
 /**
- * @injini/chat-react — headless hooks + presentational components + slots for
- * a chat/artifact frontend, built on `@injini/chat-core`'s framework-free
+ * @jini-ai/chat-react — headless hooks + presentational components + slots for
+ * a chat/artifact frontend, built on `@jini-ai/chat-core`'s framework-free
  * vocabulary. See foundry/docs/jini-port/recon/r4b-webui-design.md §1/§2/§4 for the
  * spec this package implements, and source-map.md for provenance.
  *
@@ -14,7 +14,7 @@ export * from './slots.js';
 export * from './tool-renderer-registry.js';
 
 // `features/model-picker/` is an independent slice (depends only on
-// `@injini/agent-runtime`, not this package's conversation/message state) —
+// `@jini-ai/agent-runtime`, not this package's conversation/message state) —
 // re-exported here for a consumer that wants everything from one barrel.
 export * from './features/model-picker/index.js';
 export * from './features/chat-pane/index.js';
@@ -64,12 +64,12 @@ export type { JiniChatProviderProps, JiniChatSlots } from './react/components/Ji
  * Lives here rather than in an example because a consumer cannot copy-paste its way to a
  * transport: this is the piece that makes `ChatPaneAgentBridgeAccess` satisfiable at all.
  *
- * `createDomPageDriver`/`currentAgentPage` moved to `@injini/agentic/dom` in the 2026-07-26
- * extraction — re-exported here so existing `@injini/chat-react` importers keep working.
+ * `createDomPageDriver`/`currentAgentPage` moved to `@jini-ai/agentic/dom` in the 2026-07-26
+ * extraction — re-exported here so existing `@jini-ai/chat-react` importers keep working.
  */
 export { createFrontendSessionBridge } from './agent-bridge/frontend-session-bridge.js';
 export type {
   FrontendSessionBridge,
   FrontendSessionBridgeOptions,
 } from './agent-bridge/frontend-session-bridge.js';
-export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from '@injini/agentic/dom';
+export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from '@jini-ai/agentic/dom';

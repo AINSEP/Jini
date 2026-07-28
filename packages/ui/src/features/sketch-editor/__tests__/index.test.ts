@@ -2,7 +2,7 @@
 // feature imports its target module directly, per the vertical-slice
 // convention), so it was never actually exercised by the rest of the suite.
 // This is the smoke test proving the public surface a host actually imports
-// (`from '@injini/ui'` → this file) really re-exports what `source-map.md`
+// (`from '@jini-ai/ui'` → this file) really re-exports what `source-map.md`
 // documents, not just that each underlying module compiles on its own.
 import { describe, expect, it } from 'vitest';
 import * as SketchEditorFeature from '../index.js';

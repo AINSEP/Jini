@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { PAGE_CAPABILITIES, findCapability, findCapabilityInputError, type CapabilityDef } from '@injini/agentic';
+import { PAGE_CAPABILITIES, findCapability, findCapabilityInputError, type CapabilityDef } from '@jini-ai/agentic';
 
 import { CHAT_CAPABILITIES } from '../../agentic/chat-capabilities.js';
 
 /**
  * The real combined manifest a host actually builds (see `examples/reference-web/src/daemon.ts`:
- * `[...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES]`). `@injini/agentic`'s own capability.test.ts
+ * `[...PAGE_CAPABILITIES, ...CHAT_CAPABILITIES]`). `@jini-ai/agentic`'s own capability.test.ts
  * exercises the same generic invariants against a synthetic fixture, because that package must
  * not depend on chat-core (see its module doc); this file is the real-data regression check that
  * the generic behavior still holds once the two real manifests are combined — new 2026-07-26,
  * relocated from what was `packages/chat-core/src/__tests__/agentic/capability.test.ts` before
- * the `@injini/agentic` extraction split page-capabilities.ts out from under it. chat-capabilities.ts
+ * the `@jini-ai/agentic` extraction split page-capabilities.ts out from under it. chat-capabilities.ts
  * previously had no dedicated test file (only exercised indirectly via that combined-manifest
  * file) — it has one now, scoped to exactly the assertions that need its real data.
  */

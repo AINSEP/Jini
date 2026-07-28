@@ -3,13 +3,13 @@ import net from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DetectedAgent } from '@injini/agent-runtime';
-import { definePack } from '@injini/core';
-import { AgentExecutorToken } from '@injini/daemon';
-import type { DaemonStatusResponse, RunStartContext } from '@injini/http';
-import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@injini/sidecar';
-import * as SidecarModule from '@injini/sidecar';
-import * as SqliteModule from '@injini/sqlite';
+import type { DetectedAgent } from '@jini-ai/agent-runtime';
+import { definePack } from '@jini-ai/core';
+import { AgentExecutorToken } from '@jini-ai/daemon';
+import type { DaemonStatusResponse, RunStartContext } from '@jini-ai/http';
+import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
+import * as SidecarModule from '@jini-ai/sidecar';
+import * as SqliteModule from '@jini-ai/sqlite';
 import Database from 'better-sqlite3';
 import {
   buildDaemonDbOperations,
@@ -24,7 +24,7 @@ import {
  * Real-socket integration suite for `createLocalNodeDaemon` — mirrors the established pattern in
  * `packages/platform/src/__tests__/index.test.ts` (`createServer(...).listen(0)` + `fetch()`, no
  * `supertest`). Every test here boots an actual daemon on an OS-assigned ephemeral port against a
- * real (tmp-dir) sqlite file; nothing about `@injini/core`/`@injini/daemon`/`@injini/sqlite`/`@injini/http`
+ * real (tmp-dir) sqlite file; nothing about `@jini-ai/core`/`@jini-ai/daemon`/`@jini-ai/sqlite`/`@jini-ai/http`
  * is mocked. `createSqliteEventLog` is the one exception — spied on (not replaced) in a handful of
  * tests specifically to observe that `stop()` really calls the returned `EventLog`'s `close()`,
  * since reopening the same sqlite file afterward succeeds regardless of whether the original
@@ -208,7 +208,7 @@ describe('classifyRunFailureForRetry', () => {
   // Extracted for direct unit testing (see this function's own doc): a real spawned-process
   // failure through createLocalNodeDaemon's full run flow would need a real, predictably-failing
   // agent CLI, which the wiring-site doc explicitly rejects as fragile/non-deterministic. Delegates
-  // entirely to `@injini/daemon`'s `resumableFromProcessExit` — this proves the wiring itself, not a
+  // entirely to `@jini-ai/daemon`'s `resumableFromProcessExit` — this proves the wiring itself, not a
   // reimplementation of that function's own policy (already covered by daemon's own test suite).
   it('delegates to resumableFromProcessExit — a signal-terminated run is presumptively retryable', () => {
     expect(classifyRunFailureForRetry({ code: null, signal: 'SIGKILL' })).toBe(true);
@@ -466,7 +466,7 @@ describe('createLocalNodeDaemon', () => {
     expect(typeof body.pid).toBe('number');
   });
 
-  it('serves GET /api/agents, projecting the real @injini/agent-runtime registry with zero config', async () => {
+  it('serves GET /api/agents, projecting the real @jini-ai/agent-runtime registry with zero config', async () => {
     const dataDir = makeTempDataDir();
     const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
@@ -850,7 +850,7 @@ describe('createLocalNodeDaemon', () => {
     interface Greeter {
       greeting: string;
     }
-    const { token } = await import('@injini/core');
+    const { token } = await import('@jini-ai/core');
     const GreeterToken = token<Greeter>('test.greeter');
     const greetPack = definePack({
       name: 'greet',
@@ -896,9 +896,9 @@ describe('createLocalNodeDaemon', () => {
     //
     // Called through a narrowed function type rather than
     // `createLocalNodeDaemon`'s own overloaded signature: `MissingTokenIds`
-    // (see @injini/core/internal) computes a pack's required token ids from
+    // (see @jini-ai/core/internal) computes a pack's required token ids from
     // `token.id`'s inferred literal type, but every kernel token exported
-    // from a *compiled* `@injini/daemon` — not just AgentExecutorToken added
+    // from a *compiled* `@jini-ai/daemon` — not just AgentExecutorToken added
     // by this task, EventLogToken/RunLifecycleToken have the identical
     // shape — round-trips through that package's emitted `.d.ts` as
     // `Token<T, string>` (widened, not the literal `'jini.agentExecutor'`).
@@ -906,7 +906,7 @@ describe('createLocalNodeDaemon', () => {
     // exercised through this exact zero-bindings-customizer call shape
     // before (the existing typecheck.ts proof only uses a token declared
     // inline in the same compilation unit, which infers the literal
-    // correctly) — a real, pre-existing `@injini/core`/`@injini/daemon`
+    // correctly) — a real, pre-existing `@jini-ai/core`/`@jini-ai/daemon`
     // type-emission gap, out of this task's scope to fix. This call
     // proves the *runtime* wiring (the actual thing this test is for)
     // without being blocked by that unrelated compile-time gap.

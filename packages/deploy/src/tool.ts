@@ -1,9 +1,9 @@
 /**
- * `deploy.publish` wired as a real `@injini/core` `Tool` registration — the
+ * `deploy.publish` wired as a real `@jini-ai/core` `Tool` registration — the
  * bridge between `publishDeploy` (`tokens.ts`, still the plain async
  * function that actually dispatches to a bound `DeployTarget`) and the
- * tool-execution boundary (`@injini/core`'s `ToolRegistry` +
- * `@injini/daemon`'s `ToolExecutor`; see `packages/core/src/tool-registry.ts`
+ * tool-execution boundary (`@jini-ai/core`'s `ToolRegistry` +
+ * `@jini-ai/daemon`'s `ToolExecutor`; see `packages/core/src/tool-registry.ts`
  * and `packages/daemon/src/tool-executor.ts`). This file follows the same
  * `{descriptor, handler, policy}` shape `packages/daemon/src/
  * delegated-tool-bridge.ts` established for wiring an existing capability
@@ -11,13 +11,13 @@
  * for the full design rationale, in particular why the default policy below
  * denies every call rather than allowing one.
  *
- * This package does not depend on `@injini/daemon` — a `ToolRegistration` is
- * just data (`@injini/core`'s public shape); only the host composing a daemon
- * needs `ToolExecutor` to actually run it. That keeps `@injini/deploy`'s
- * dependency graph unchanged (still just `@injini/core` + `@injini/platform` +
+ * This package does not depend on `@jini-ai/daemon` — a `ToolRegistration` is
+ * just data (`@jini-ai/core`'s public shape); only the host composing a daemon
+ * needs `ToolExecutor` to actually run it. That keeps `@jini-ai/deploy`'s
+ * dependency graph unchanged (still just `@jini-ai/core` + `@jini-ai/platform` +
  * `undici`).
  */
-import type { ToolAuthorizationContext, ToolPolicy, ToolRegistration } from '@injini/core';
+import type { ToolAuthorizationContext, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import { publishDeploy, type DeployPublishToolInput } from './tokens.js';
 import type { DeployPublishResult, DeployTarget } from './types.js';
 
@@ -49,7 +49,7 @@ export const DEFAULT_DEPLOY_PUBLISH_ROLE = 'deploy:publish';
  * Cloudflare custom domains) can create real DNS records. Unlike most tool
  * calls, a wrongly-allowed `deploy.publish` is not cheaply reversible and
  * has an externally visible blast radius. That is a strictly stronger case
- * for deny-by-default than `@injini/media`'s `DEFAULT_MEDIA_EXECUTION_POLICY`
+ * for deny-by-default than `@jini-ai/media`'s `DEFAULT_MEDIA_EXECUTION_POLICY`
  * (SEC-RB-010, `packages/media/src/policy.ts`) — media generation is
  * costly but self-contained; a bad deploy is costly AND publicly visible AND
  * (for custom domains) mutates DNS. Matching this branch's established
@@ -64,9 +64,9 @@ export const denyAllDeployPublishPolicy: ToolPolicy = {
  * Convenience `ToolPolicy`: allows a `deploy.publish` call only when the
  * calling `Principal` carries at least one of `allowedRoles` (default: just
  * {@link DEFAULT_DEPLOY_PUBLISH_ROLE}). A `Principal` with no `roles` at all
- * — the default shape per `@injini/core`'s `Principal` (`roles` is optional)
+ * — the default shape per `@jini-ai/core`'s `Principal` (`roles` is optional)
  * — is denied: an absent/empty roles list is never treated as
- * "unrestricted," mirroring the SEC-RB-010 fix in `@injini/media`'s
+ * "unrestricted," mirroring the SEC-RB-010 fix in `@jini-ai/media`'s
  * `createAllowlistMediaPolicy` (an omitted field must not silently bypass
  * an explicit gate).
  *
@@ -102,7 +102,7 @@ export interface CreateDeployPublishToolRegistrationOptions {
 
 /**
  * Builds the `{descriptor, handler, policy}` triple a host registers
- * against `@injini/core`'s `ToolRegistry` so `deploy.publish` becomes
+ * against `@jini-ai/core`'s `ToolRegistry` so `deploy.publish` becomes
  * reachable only via `ToolExecutor.execute(principal, run, 'deploy.publish',
  * input, signal)` — never by a route or agent calling `publishDeploy`
  * directly, which would bypass authorization and the audit trail entirely.

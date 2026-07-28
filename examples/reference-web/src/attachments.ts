@@ -1,5 +1,5 @@
-import type { ChatAttachment } from '@injini/chat-core';
-import type { ChatPaneAttachmentUploadOptions } from '@injini/chat-react';
+import type { ChatAttachment } from '@jini-ai/chat-core';
+import type { ChatPaneAttachmentUploadOptions } from '@jini-ai/chat-react';
 
 interface UploadResponse {
   attachment?: ChatAttachment;

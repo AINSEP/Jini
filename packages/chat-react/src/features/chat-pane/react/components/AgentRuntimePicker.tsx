@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AgentIcon, RemixIcon } from '@injini/ui';
+import { AgentIcon, RemixIcon } from '@jini-ai/ui';
 
 import { useT } from '../../../../react/hooks/context.js';
 import { defaultChatPaneSelection } from '../../rules.js';

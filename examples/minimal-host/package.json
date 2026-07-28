@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": { "test": "vitest run", "start": "node src/index.ts" },
   "dependencies": {
-    "@injini/agent-runtime": "workspace:*",
-    "@injini/daemon": "workspace:*",
-    "@injini/node-host": "workspace:*"
+    "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/daemon": "workspace:*",
+    "@jini-ai/node-host": "workspace:*"
   }
 }

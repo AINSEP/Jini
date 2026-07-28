@@ -4,7 +4,7 @@
  * dependencies — this is the terminal step of the Adapter's error-handling pipeline.
  */
 import type { Response } from 'express';
-import { createApiErrorResponse, type ApiError, type ApiErrorCode } from '@injini/protocol';
+import { createApiErrorResponse, type ApiError, type ApiErrorCode } from '@jini-ai/protocol';
 
 /** Writes `body` as JSON with the given status code. */
 export function sendJson(res: Response, status: number, body: unknown): void {

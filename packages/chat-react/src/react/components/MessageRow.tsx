@@ -21,8 +21,8 @@
  * once that god-component gets its own extraction task).
  */
 import type { ReactNode } from 'react';
-import type { AgentEvent, ChatAttachment, ChatMessage } from '@injini/chat-core';
-import { splitOnQuestionForms, stripArtifact } from '@injini/chat-core';
+import type { AgentEvent, ChatAttachment, ChatMessage } from '@jini-ai/chat-core';
+import { splitOnQuestionForms, stripArtifact } from '@jini-ai/chat-core';
 import { useToolTimeline } from '../hooks/useToolTimeline.js';
 import { useT } from '../hooks/context.js';
 import { Markdown } from './Markdown.js';

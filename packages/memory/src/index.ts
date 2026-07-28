@@ -1,5 +1,5 @@
 /**
- * @module @injini/memory
+ * @module @jini-ai/memory
  *
  * Generic daemon-side memory/notes capability: a frontmatter-backed note
  * store (`note-store.ts`), a bounded extraction-attempt log

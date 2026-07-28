@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { JournalEntry } from '@injini/protocol';
+import type { JournalEntry } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunByteJournal } from '../journal.js';
 

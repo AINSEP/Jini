@@ -1,8 +1,8 @@
 /**
- * @module @injini/node-host
+ * @module @jini-ai/node-host
  *
  * The Node.js host preset (extraction-plan.md §2.4): `createLocalNodeDaemon`, the piece that
- * assembles `@injini/core`/`@injini/daemon`/`@injini/sqlite`/`@injini/http` into an actually-runnable
+ * assembles `@jini-ai/core`/`@jini-ai/daemon`/`@jini-ai/sqlite`/`@jini-ai/http` into an actually-runnable
  * daemon process, plus the generic host-lifecycle primitives it's built on. See `source-map.md`
  * for full provenance and scope-decision notes.
  */

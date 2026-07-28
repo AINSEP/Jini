@@ -9,7 +9,7 @@
  * Scope boundary: this module owns the run *state machine* and its event
  * log — create, transition, emit, replay, cancellation-intent propagation,
  * idempotent start/finish, resume. It does not spawn or signal a subprocess;
- * that is `@injini/agent-runtime`'s job (extraction-plan task 7). A driver
+ * that is `@jini-ai/agent-runtime`'s job (extraction-plan task 7). A driver
  * (today: this package's tests; later: agent-runtime) calls `emit()` for
  * agent/stdout/stderr/error events, observes cancellation via
  * `onCancelRequested`, and calls `finish()` once it knows the real outcome.
@@ -25,8 +25,8 @@ import type {
   RunStartPayload,
   RunState,
   RunStatus,
-} from '@injini/protocol';
-import { RUN_PROTOCOL_VERSION, isTerminalRunState } from '@injini/protocol';
+} from '@jini-ai/protocol';
+import { RUN_PROTOCOL_VERSION, isTerminalRunState } from '@jini-ai/protocol';
 import type { EventLog, EventLogEntry, EventLogReplayResult } from './event-log.js';
 import type { InactivityWatchdog, TerminalRunOutcome } from './close-status.js';
 import { createInactivityWatchdog } from './close-status.js';
@@ -68,7 +68,7 @@ export interface FinishRunInput {
    * the researched source).
    */
   readonly resumable: boolean;
-  /** Gap 5 (session resume) — see `RunEndPayload.sessionRef`'s doc in `@injini/protocol`. Threaded straight through to the durable `'end'` entry; this module has no opinion on what it means. */
+  /** Gap 5 (session resume) — see `RunEndPayload.sessionRef`'s doc in `@jini-ai/protocol`. Threaded straight through to the durable `'end'` entry; this module has no opinion on what it means. */
   readonly sessionRef?: string;
 }
 
@@ -146,7 +146,7 @@ interface RunRecord {
   finishPromise: Promise<RunStatus> | undefined;
 }
 
-/** Vocabulary-firewall bridge: `RunState` uses `'cancelled'` (extraction-plan §12 C5's own cited canary), `RunEndPayload.status` uses `'canceled'`. Both live in `@injini/protocol`, which is out of scope for this task — bridged here rather than fixed upstream. */
+/** Vocabulary-firewall bridge: `RunState` uses `'cancelled'` (extraction-plan §12 C5's own cited canary), `RunEndPayload.status` uses `'canceled'`. Both live in `@jini-ai/protocol`, which is out of scope for this task — bridged here rather than fixed upstream. */
 const TERMINAL_OUTCOME_TO_END_STATUS: Record<TerminalRunOutcome, NonNullable<RunEndPayload['status']>> = {
   succeeded: 'succeeded',
   failed: 'failed',
@@ -167,8 +167,8 @@ function toPublicStatus(record: RunRecord): RunStatus {
 }
 
 /**
- * Bridges `@injini/daemon`'s own `EventLogEntry` (`{id, event, data, recordedAt}`) to
- * `@injini/protocol`'s canonical `RunEvent` envelope. `EventLogEntry` carries no `runId` of its
+ * Bridges `@jini-ai/daemon`'s own `EventLogEntry` (`{id, event, data, recordedAt}`) to
+ * `@jini-ai/protocol`'s canonical `RunEvent` envelope. `EventLogEntry` carries no `runId` of its
  * own (the log is already scoped by the `runId` parameter every `EventLog` method takes), so
  * this is the one place that stamps it onto the outgoing envelope.
  */
@@ -286,13 +286,13 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
           input.onInternalError(context);
         } else {
           // eslint-disable-next-line no-console
-          console.error(`[@injini/daemon] internal error (inactivity-timeout, runId=${runId})`, error);
+          console.error(`[@jini-ai/daemon] internal error (inactivity-timeout, runId=${runId})`, error);
         }
       } catch (sinkError) {
         // A diagnostic sink must not turn a contained timer failure into another unhandled
         // rejection.
         // eslint-disable-next-line no-console
-        console.error(`[@injini/daemon] internal error sink failed (inactivity-timeout, runId=${runId})`, sinkError);
+        console.error(`[@jini-ai/daemon] internal error sink failed (inactivity-timeout, runId=${runId})`, sinkError);
       }
     }
   }

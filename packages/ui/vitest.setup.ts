@@ -25,7 +25,7 @@ afterEach(() => {
 // throws under jsdom's real (unimplemented) `getContext`, crashing the
 // import itself before any test body runs — not just canvas-drawing tests.
 // This stub satisfies that probe with a minimal fake 2D context; it does
-// not, and is not meant to, support real drawing. Every `@injini/ui` test
+// not, and is not meant to, support real drawing. Every `@jini-ai/ui` test
 // that touches `@excalidraw/excalidraw` (directly or via
 // `features/sketch-editor`) always renders against the package's own fake
 // engine (`createFakeSketchEditorEngine`), never the real `<Excalidraw>`

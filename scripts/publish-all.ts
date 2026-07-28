@@ -1,14 +1,14 @@
 /**
  * scripts/publish-all.ts
  *
- * Publishes every real `@injini/*` package to the real npm registry, in dependency-first order,
+ * Publishes every real `@jini-ai/*` package to the real npm registry, in dependency-first order,
  * via `pnpm publish` — which (unlike plain `npm publish`) automatically rewrites each package's
  * `workspace:*` internal dependencies to the real resolved semver version before publishing, so a
  * published package never carries an unresolvable `workspace:*` dependency spec.
  *
  * Usage:
- *   tsx scripts/publish-all.ts             # every @injini/* package
- *   tsx scripts/publish-all.ts --only core,daemon   # just these (their @injini/* deps must already
+ *   tsx scripts/publish-all.ts             # every @jini-ai/* package
+ *   tsx scripts/publish-all.ts --only core,daemon   # just these (their @jini-ai/* deps must already
  *                                                      be published, or resolve from the registry)
  *   tsx scripts/publish-all.ts --dry-run   # pnpm publish --dry-run, no real publish
  *
@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   const onlyShortNames = parseOnlyFlag(process.argv.slice(2));
   const rootNames = onlyShortNames
     ? onlyShortNames.map((short) => {
-        const full = `@injini/${short}`;
+        const full = `@jini-ai/${short}`;
         if (!registry.has(full)) throw new Error(`publish-all: "${short}" (${full}) is not a real package under packages/*`);
         return full;
       })

@@ -1,5 +1,5 @@
 import { sign } from 'node:crypto';
-import type { RegistryManifest } from '@injini/protocol';
+import type { RegistryManifest } from '@jini-ai/protocol';
 import { describe, expect, it } from 'vitest';
 
 import { assertValidPublishRequest, StaticRegistryBackend } from '../static-backend.js';

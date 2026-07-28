@@ -1,5 +1,5 @@
 /**
- * @module @injini/mcp/agent-install/install
+ * @module @jini-ai/mcp/agent-install/install
  * Plans and applies registration of a stdio MCP server into external coding
  * agents' own configs (`<cli> mcp install <agent>`): the agent-slug registry,
  * the CLI/JSON/manual install-plan shapes, and the JSON apply/remove primitives.

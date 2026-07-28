@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createToolRegistry } from '@injini/core';
-import type { RunAgentPayload, RunProtocolEvent } from '@injini/protocol';
+import { createToolRegistry } from '@jini-ai/core';
+import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import { createDelegatedToolBridge, serializeDelegatedToolOutput } from '../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';

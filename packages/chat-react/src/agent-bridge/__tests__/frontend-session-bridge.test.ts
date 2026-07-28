@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createFrontendSessionBridge } from '../frontend-session-bridge.js';
-import type { PageDriver } from '@injini/agentic';
+import type { PageDriver } from '@jini-ai/agentic';
 
 /**
  * The browser half of agent control, against a scripted daemon.

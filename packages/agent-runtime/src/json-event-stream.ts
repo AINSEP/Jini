@@ -66,7 +66,7 @@ function stringifyContent(value: unknown): string {
     // its nested fields. Kept (not deleted) as protection against a future
     // caller that feeds this module data from somewhere other than
     // `JSON.parse`, the same "keep the defensive branch, document it, don't
-    // force a test around impossible data" call `@injini/cli`'s
+    // force a test around impossible data" call `@jini-ai/cli`'s
     // `defaultReadFile`'s `finish()` guard made on 2026-07-22 — see
     // `source-map.md`'s 2026-07-22 entry for the full re-derivation.
     return String(value);

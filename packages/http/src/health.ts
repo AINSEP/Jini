@@ -11,7 +11,7 @@
  * instead of an open gate over nothing.
  *
  * **Mount before `express.json()`/the bearer-auth/origin-guard middleware** (see
- * `@injini/node-host`'s `create-local-node-daemon.ts` wiring): these are simple parameterless GETs
+ * `@jini-ai/node-host`'s `create-local-node-daemon.ts` wiring): these are simple parameterless GETs
  * with no request body, so nothing here needs JSON body-parsing, and a monitoring probe should
  * never need a bearer token or same-origin `Origin` header just to confirm the process is up —
  * the same reasoning `api-security-middleware.ts`'s own doc already gives for exempting these
@@ -48,12 +48,12 @@
  * `/version`. One gap intentionally left open: `/version`'s response here stays a flat `{version:
  * string}` (via the same string-returning `getVersion` convention `daemon-status.ts` already
  * uses) rather than OD's nested `AppVersionInfo` object — the channel/packaged/platform/arch
- * fields aren't wired anywhere in Jini today (`@injini/node-host`'s `create-local-node-daemon.ts`
+ * fields aren't wired anywhere in Jini today (`@jini-ai/node-host`'s `create-local-node-daemon.ts`
  * only ever supplies a plain version string), and inventing that plumbing is a host-level decision
  * out of this file's scope, not something to paper over with an unused type change here.
  */
 import type { Express } from 'express';
-import { createApiError } from '@injini/protocol';
+import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { err, ok } from './types.js';
 

@@ -5,8 +5,8 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { createApiError, type RunProtocolEvent, type RunStatus } from '@injini/protocol';
-import type { RunLifecycle, StartRunInput, Unsubscribe } from '@injini/daemon';
+import { createApiError, type RunProtocolEvent, type RunStatus } from '@jini-ai/protocol';
+import type { RunLifecycle, StartRunInput, Unsubscribe } from '@jini-ai/daemon';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { sendApiError } from './response.js';
@@ -31,7 +31,7 @@ export interface RunInternalErrorContext {
 /** Default sink when a host does not supply `onInternalError`: still observable, never silent. */
 function defaultInternalErrorSink(context: RunInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@injini/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
 }
 
 export interface RunCreateRequest {

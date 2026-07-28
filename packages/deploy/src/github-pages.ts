@@ -107,7 +107,7 @@ export class GitHubPagesDeployTarget implements DeployTarget {
       this.config,
       owner,
       repo,
-      `Deploy ${label} via @injini/deploy`,
+      `Deploy ${label} via @jini-ai/deploy`,
       treeSha,
       parentSha ? [parentSha] : [],
     );

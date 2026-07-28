@@ -4,10 +4,10 @@ import * as HttpBarrel from '../index.js';
 /**
  * A barrel-only smoke test: every other test in this package imports its target
  * module directly, so the root barrel itself was never actually exercised.
- * Proves the public surface a host actually imports (`from '@injini/http'`) really
+ * Proves the public surface a host actually imports (`from '@jini-ai/http'`) really
  * re-exports what `source-map.md` documents.
  */
-describe('@injini/http barrel', () => {
+describe('@jini-ai/http barrel', () => {
   it('re-exports the Result helpers', () => {
     expect(typeof HttpBarrel.ok).toBe('function');
     expect(typeof HttpBarrel.err).toBe('function');

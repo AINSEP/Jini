@@ -11,16 +11,16 @@
  * never publicly retrievable (routes/agents can't bypass authz)." A route
  * or an agent holding a `ToolRegistry` reference can enumerate what's
  * available and check membership, but the only way to actually *run* a
- * tool is through `@injini/daemon`'s `ToolExecutor`, which is the sole
+ * tool is through `@jini-ai/daemon`'s `ToolExecutor`, which is the sole
  * consumer of {@link getToolRegistration} — a function deliberately
  * exported from `./internal.js` (a package-internal entry point, see this
  * package's `package.json` `exports` map and `source-map.md`) rather than
  * from the public `index.ts` barrel. Every other caller of
- * `@injini/core`'s default entry point gets descriptors only.
+ * `@jini-ai/core`'s default entry point gets descriptors only.
  */
 import type { Principal } from './principal.js';
 
-/** A structural run reference — anything with a stable `id` satisfies this (e.g. `@injini/protocol`'s `RunStatus`). No import needed to satisfy it; see the module doc. */
+/** A structural run reference — anything with a stable `id` satisfies this (e.g. `@jini-ai/protocol`'s `RunStatus`). No import needed to satisfy it; see the module doc. */
 export interface RunRef {
   readonly id: string;
 }
@@ -137,9 +137,9 @@ export function createToolRegistry(): ToolRegistry {
 /**
  * Package-internal escape hatch: resolves a tool's full `{descriptor,
  * handler, policy}` registration. Exported only from `./internal.js` (see
- * this package's `package.json` `exports` map) — `@injini/daemon`'s
+ * this package's `package.json` `exports` map) — `@jini-ai/daemon`'s
  * `ToolExecutor` is the one and only intended caller. Not re-exported from
- * `index.ts`, so it never reaches `@injini/core`'s public consumers.
+ * `index.ts`, so it never reaches `@jini-ai/core`'s public consumers.
  *
  * @internal
  */

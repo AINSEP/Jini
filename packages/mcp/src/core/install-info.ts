@@ -1,5 +1,5 @@
 /**
- * @module @injini/mcp/core/install-info
+ * @module @jini-ai/mcp/core/install-info
  * Pure builder for the MCP install-info payload (command/args/env) shared by the
  * daemon route, the settings UI, and its test fixture, so every install surface
  * configures byte-identical bytes. Part of the MCP `core` kernel; intentionally
