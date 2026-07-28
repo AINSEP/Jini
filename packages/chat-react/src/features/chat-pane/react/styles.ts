@@ -85,17 +85,33 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .jini-message-list {
   height: 100%;
   overflow-y: auto;
-  padding: 20px 22px 170px;
+  /*
+   * .jini-chat-pane__controls is an absolutely-positioned overlay (not a flex/grid sibling that
+   * pushes this list up), so its real height has to be reserved here instead. Measured against a
+   * live render: the composer + footer + working-directory row alone is already 179.75px, above
+   * the 170px this used to reserve -- the last message's tail rendered clipped under the overlay as
+   * a direct result. 240px adds real margin above that measurement rather than matching it exactly,
+   * because the composer also grows conditionally (a suggestions row, an attachment tray) that
+   * this measurement did not have present.
+   */
+  padding: 20px 22px 240px;
   scrollbar-width: thin;
 }
-.jini-chat-pane .jini-message-row {
+.jini-chat-pane .jini-message {
   margin-bottom: 20px;
   color: var(--jini-chat-text);
   font-size: 14px;
   line-height: 1.62;
 }
-.jini-chat-pane .jini-message-row[data-role="user"],
-.jini-chat-pane .jini-message-row.user {
+/*
+ * Bubble on the content, not the row: MessageRow.tsx renders attachments as siblings of
+ * .jini-message-content inside .jini-message-user, each with their own chip styling -- bubbling
+ * the whole row would nest one background box inside another. This replaces a dead rule this file
+ * shipped with (.jini-message-row[data-role="user"] / .jini-message-row.user): MessageRow.tsx
+ * has never rendered a jini-message-row class or a data-role attribute, and a user message's
+ * root class is jini-message-user, not bare "user" -- the selector never matched anything real.
+ */
+.jini-chat-pane .jini-message-user .jini-message-content {
   margin-left: auto;
   padding: 10px 13px;
   width: fit-content;
@@ -103,6 +119,31 @@ export const CHAT_PANE_STYLES = `
   background: var(--jini-chat-subtle);
   border-radius: 12px 12px 3px 12px;
 }
+.jini-chat-pane .jini-message-user .jini-message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-bottom: 4px;
+}
+.jini-chat-pane .jini-message-user .jini-message-attachment-chip {
+  font-size: 11px;
+  color: var(--jini-chat-muted);
+  background: var(--jini-chat-subtle);
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.jini-chat-pane .jini-message-agent {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--jini-chat-faint);
+  margin-bottom: 4px;
+}
+.jini-chat-pane .jini-message-error { color: var(--danger); font-size: 13px; }
+.jini-chat-pane .jini-message-pending { color: var(--jini-chat-muted); font-size: 13px; font-style: italic; }
 .jini-chat-pane__controls {
   position: absolute;
   right: 0;
@@ -704,6 +745,90 @@ export const CHAT_PANE_STYLES = `
   border: 1px solid var(--jini-chat-border);
   border-radius: 8px;
 }
+/*
+ * Tool-call cards (ToolCard.tsx) and the per-turn usage summary (MessageRow.tsx) ship no CSS of
+ * their own — see this file's own header note on why the package supplies a default theme at all.
+ * Collapsed by default (.op-card-head is the only always-visible part), so a run with a dozen tool
+ * calls reads as a dozen one-line rows, not a page of raw JSON.
+ */
+.jini-chat-pane .jini-message-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.jini-chat-pane .op-card {
+  border: 1px solid var(--jini-chat-border);
+  border-radius: var(--radius);
+  background: var(--jini-chat-subtle);
+  overflow: hidden;
+  font-size: 13px;
+}
+.jini-chat-pane .op-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+.jini-chat-pane .op-status { display: inline-flex; flex-shrink: 0; }
+.jini-chat-pane .op-status-ok { color: #4e875f; }
+.jini-chat-pane .op-status-error { color: var(--danger); }
+.jini-chat-pane .op-status-running { color: var(--jini-chat-accent); }
+.jini-chat-pane .op-title { font-weight: 600; flex-shrink: 0; }
+.jini-chat-pane .shimmer-text { opacity: .6; }
+.jini-chat-pane .op-meta {
+  color: var(--jini-chat-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.jini-chat-pane .op-expand-chev { flex-shrink: 0; color: var(--jini-chat-faint); }
+/* Collapsed by default: 0 max-height clips the inner content, no display:none — keeps the height
+   transition instead of an instant jump cut. */
+.jini-chat-pane .accordion-collapsible { max-height: 0; overflow: hidden; transition: max-height .15s ease; }
+.jini-chat-pane .accordion-collapsible.open { max-height: 480px; overflow-y: auto; }
+.jini-chat-pane .accordion-collapsible-inner { padding: 0 10px 10px; }
+.jini-chat-pane .op-card-detail { display: flex; flex-direction: column; gap: 6px; }
+.jini-chat-pane .op-path,
+.jini-chat-pane .op-command,
+.jini-chat-pane .op-output {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--jini-chat-panel);
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.jini-chat-pane .op-open {
+  border: 1px solid var(--jini-chat-border-strong);
+  border-radius: 6px;
+  background: var(--jini-chat-panel);
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+/* The "Done · 6m 29s · 2612 out · $0.4028" line — real numbers from the run's own kind:'usage' event. */
+.jini-chat-pane .jini-message-usage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--jini-chat-muted);
+  margin-top: 2px;
+}
+.jini-chat-pane .jini-message-usage-dot { font-size: 8px; color: #4e875f; }
 @media (max-width: 560px) {
   .jini-chat-pane__header { padding-inline: 16px; }
   .jini-chat-pane .jini-message-list { padding-inline: 16px; }
