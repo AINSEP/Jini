@@ -1095,3 +1095,216 @@ button {
   cursor: pointer;
   text-decoration: underline;
 }
+
+/*
+ * @jini/chat-react ships unstyled semantic markup on purpose — a host supplies CSS. This host
+ * never did, which is exactly why a user turn and an assistant turn were visually indistinguishable
+ * and every tool call rendered as a flat wall of raw JSON. This block is that missing CSS.
+ */
+
+.jini-message-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.jini-message {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 88%;
+}
+
+/* Right-aligned, filled bubble — the same "this is what I typed" convention as every chat product. */
+.jini-message-user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+
+.jini-message-user .jini-message-content {
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  border-radius: 14px 14px 4px 14px;
+  padding: 10px 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jini-message-user .jini-message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.jini-message-user .jini-message-attachment-chip {
+  font-size: 11px;
+  background: #e4e2d9;
+  color: #55524a;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+/* Left-aligned, unfilled — plain text reads as "not me" without needing a second color to prove it. */
+.jini-message-assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+
+.jini-message-agent {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: #8a8778;
+}
+
+.jini-message-assistant .jini-message-content {
+  color: #25241f;
+  line-height: 1.5;
+}
+
+.jini-message-error {
+  color: #b3261e;
+  font-size: 13px;
+}
+
+.jini-message-pending {
+  color: #8a8778;
+  font-size: 13px;
+  font-style: italic;
+}
+
+/* The "Done · 6m 29s · 2612 out · $0.4028" line — real numbers from the run's own usage event, never estimated. */
+.jini-message-usage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #8a8778;
+  margin-top: 2px;
+}
+
+.jini-message-usage-dot {
+  font-size: 8px;
+  color: #4e875f;
+}
+
+/* Tool-call cards: collapsed by default (op-card-head is the only always-visible part), so a run
+   with a dozen tool calls reads as a dozen one-line rows, not a page of raw JSON. */
+.jini-message-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.op-card {
+  border: 1px solid #e4e2d9;
+  border-radius: 10px;
+  background: #f4f2ed;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+.op-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  background: none;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.op-status {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.op-status-ok {
+  color: #4e875f;
+}
+
+.op-status-error {
+  color: #b3261e;
+}
+
+.op-status-running {
+  color: var(--accent, #4f46e5);
+}
+
+.op-title {
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.shimmer-text {
+  opacity: 0.6;
+}
+
+.op-meta {
+  color: #77746d;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.op-expand-chev {
+  flex-shrink: 0;
+  color: #a8a598;
+}
+
+/* Collapsed by default: 0 max-height clips the inner content, no display:none — keeps the height
+   transition instead of an instant jump cut. */
+.accordion-collapsible {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.15s ease;
+}
+
+.accordion-collapsible.open {
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.accordion-collapsible-inner {
+  padding: 0 10px 10px;
+}
+
+.op-card-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.op-path,
+.op-command,
+.op-output {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: #fbfaf7;
+  border: 1px solid #e4e2d9;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.op-open {
+  border: 1px solid #cbc8bf;
+  border-radius: 6px;
+  background: #fff;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}

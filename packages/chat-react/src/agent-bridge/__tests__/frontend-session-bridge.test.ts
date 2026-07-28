@@ -236,7 +236,11 @@ describe('routing invocations', () => {
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await flush();
-    expect(postedBodies()[0]).toMatchObject({ ok: false, message: 'page.click: "element" is required' });
+    // Substring, not exact-equality: `executePageCapability` now appends the capability's input
+    // schema to a validation-error message (ai-control-plane.md §29.4's "schema-on-error"), so the
+    // real refusal text is longer than this test's original snapshot — the intent here is "the
+    // executor's refusal propagates unmodified", not "the message never changes shape".
+    expect(postedBodies()[0]).toMatchObject({ ok: false, message: expect.stringContaining('page.click: "element" is required') });
     void bridge;
   });
 

@@ -385,4 +385,97 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-output')).toBeNull();
     });
   });
+
+  describe('DelegatedToolCard (canonical Jini tool ids and the execute_delegated_tool wrapper)', () => {
+    it('renders a canonical page.fill event as "Tool call · Page Fill" with the element as the target', async () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'd1', name: 'page.fill', input: { element: 'signup-name-input', text: 'Ada Lovelace' } }}
+          result={{ kind: 'tool_result', toolUseId: 'd1', content: '{"filled":"signup-name-input"}', isError: false }}
+        />,
+      );
+      expect(screen.getByText(/Tool call/)).toBeInTheDocument();
+      expect(screen.getByText('Page Fill', { exact: false })).toBeInTheDocument();
+      expect(document.querySelector('.op-meta')?.textContent).toBe('signup-name-input');
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.op-command')?.textContent).toContain('signup-name-input');
+    });
+
+    it('humanizes a multi-segment tool id: daemon.db.vacuum -> Daemon Db Vacuum', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'd2', name: 'daemon.db.vacuum', input: {} }} runSucceeded />);
+      expect(screen.getByText('Daemon Db Vacuum', { exact: false })).toBeInTheDocument();
+    });
+
+    it('suppresses the raw execute_delegated_tool wrapper row when it succeeded — the canonical page.fill row already exists', () => {
+      const { container } = render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w1', name: 'execute_delegated_tool', input: { toolId: 'page.fill', input: { element: 'x', text: 'y' } } }}
+          result={{ kind: 'tool_result', toolUseId: 'w1', content: 'ok', isError: false }}
+        />,
+      );
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('also suppresses the mcp__jini__-prefixed wrapper name on success', () => {
+      const { container } = render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w1b', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'page.click', input: { element: 'x' } } }}
+          result={{ kind: 'tool_result', toolUseId: 'w1b', content: 'ok', isError: false }}
+        />,
+      );
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('does NOT suppress a failed wrapper call — it has no canonical row to fall back on, so hiding it would hide a real error', () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w2', name: 'execute_delegated_tool', input: { toolId: 'page.fill', input: { element: 'x', text: 'y' } } }}
+          result={{ kind: 'tool_result', toolUseId: 'w2', content: 'ToolExecutor: unknown tool "page.fill"', isError: true }}
+        />,
+      );
+      expect(screen.getByText(/Tool call/)).toBeInTheDocument();
+      expect(screen.getByText('Page Fill', { exact: false })).toBeInTheDocument();
+    });
+
+    it('does NOT suppress a still-pending wrapper call (no result yet)', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'w3', name: 'execute_delegated_tool', input: { toolId: 'page.navigate', input: { page: 'signup-form' } } }} runStreaming />);
+      expect(screen.getByText(/Tool call/)).toBeInTheDocument();
+      expect(screen.getByText('Page Navigate', { exact: false })).toBeInTheDocument();
+    });
+
+    it('recovers the real tool id and args from an unsuppressed (failed) wrapper, not the wrapper name itself', async () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w4', name: 'execute_delegated_tool', input: { toolId: 'daemon.db.vacuum', input: {} } }}
+          result={{ kind: 'tool_result', toolUseId: 'w4', content: 'denied', isError: true }}
+        />,
+      );
+      expect(screen.getByText('Daemon Db Vacuum', { exact: false })).toBeInTheDocument();
+      expect(screen.queryByText('Execute Delegated Tool', { exact: false })).not.toBeInTheDocument();
+    });
+
+    it('does not treat an ordinary vendor tool name (e.g. Bash) as a Jini tool id', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'v1', name: 'Bash', input: { command: 'ls' } }} runSucceeded />);
+      expect(screen.queryByText(/Tool call/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('SearchToolsCard / DescribeToolCard', () => {
+    it('renders search_tools with the query as the collapsed summary', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's1', name: 'search_tools', input: { query: 'page fill form field' } }} runSucceeded />);
+      expect(screen.getByText('Search tools')).toBeInTheDocument();
+      expect(screen.getByText('page fill form field')).toBeInTheDocument();
+    });
+
+    it('renders the mcp__jini__-prefixed search_tools name too', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's2', name: 'mcp__jini__search_tools', input: { query: 'navigate' } }} runSucceeded />);
+      expect(screen.getByText('Search tools')).toBeInTheDocument();
+    });
+
+    it('renders describe_tool with the tool id as the collapsed summary', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's3', name: 'describe_tool', input: { id: 'page.fill' } }} runSucceeded />);
+      expect(screen.getByText('Describe tool')).toBeInTheDocument();
+      expect(screen.getByText('page.fill')).toBeInTheDocument();
+    });
+  });
 });

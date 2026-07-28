@@ -21,7 +21,7 @@
  * once that god-component gets its own extraction task).
  */
 import type { ReactNode } from 'react';
-import type { ChatAttachment, ChatMessage } from '@jini/chat-core';
+import type { AgentEvent, ChatAttachment, ChatMessage } from '@jini/chat-core';
 import { splitOnQuestionForms, stripArtifact } from '@jini/chat-core';
 import { useToolTimeline } from '../hooks/useToolTimeline.js';
 import { useT } from '../hooks/context.js';
@@ -42,6 +42,31 @@ export interface MessageRowProps {
   onRequestOpenFile?: (name: string) => void;
   /** Host-supplied renderer for a `ChatAttachment` chip. Falls back to a plain filename chip. */
   renderAttachment?: (attachment: ChatAttachment) => ReactNode;
+}
+
+type UsageEvent = Extract<AgentEvent, { kind: 'usage' }>;
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+/** One "Done · 6m 29s · 2612 out · $0.4028" summary line, from the run's own `kind:'usage'` event — never estimated client-side. Renders only the fields the event actually carries, so a transport that supplies partial usage data degrades gracefully instead of showing fabricated zeros. */
+function UsageSummary({ usage }: { usage: UsageEvent }) {
+  const t = useT();
+  const parts: string[] = [];
+  if (usage.durationMs !== undefined) parts.push(formatDuration(usage.durationMs));
+  if (usage.outputTokens !== undefined) parts.push(t('{n} out', { n: usage.outputTokens }));
+  if (usage.costUsd !== undefined) parts.push(`$${usage.costUsd.toFixed(4)}`);
+  if (parts.length === 0) return null;
+  return (
+    <div className="jini-message-usage">
+      <span className="jini-message-usage-dot" aria-hidden>●</span>
+      {t('Done')} · {parts.join(' · ')}
+    </div>
+  );
 }
 
 export function MessageRow({
@@ -77,6 +102,7 @@ export function MessageRow({
 
   const visibleContent = stripArtifact(message.content);
   const segments = splitOnQuestionForms(visibleContent);
+  const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
 
   return (
     <div className="jini-message jini-message-assistant" data-message-id={message.id} data-run-status={message.runStatus}>
@@ -105,6 +131,7 @@ export function MessageRow({
           ))}
         </div>
       ) : null}
+      {usageEvent ? <UsageSummary usage={usageEvent} /> : null}
       {message.runStatus === 'failed' ? <div className="jini-message-error">{t('This turn failed.')}</div> : null}
       {message.runStatus === 'running' && !visibleContent.trim() && timeline.rows.length === 0 ? (
         <div className="jini-message-pending" aria-live="polite">

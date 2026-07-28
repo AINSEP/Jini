@@ -124,4 +124,75 @@ describe('MessageRow', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(onRequestOpenFile).toHaveBeenCalledWith('known.txt');
   });
+
+  describe('usage summary line', () => {
+    it('renders duration, output tokens, and cost from the message\'s usage event', () => {
+      const message: ChatMessage = {
+        id: 'u1',
+        role: 'assistant',
+        content: 'Done.',
+        events: [{ kind: 'usage', inputTokens: 26, outputTokens: 2612, costUsd: 0.4028355, durationMs: 46220 }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      const usageText = document.querySelector('.jini-message-usage')?.textContent;
+      expect(usageText).toContain('Done');
+      expect(usageText).toContain('46s');
+      expect(usageText).toContain('2612 out');
+      expect(usageText).toContain('$0.4028');
+    });
+
+    it('formats a duration over a minute as "Xm Ys"', () => {
+      const message: ChatMessage = {
+        id: 'u2',
+        role: 'assistant',
+        content: '',
+        events: [{ kind: 'usage', durationMs: 389000 }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText(/6m 29s/)).toBeInTheDocument();
+    });
+
+    it('renders only the fields the usage event actually carries, never a fabricated zero', () => {
+      const message: ChatMessage = {
+        id: 'u3',
+        role: 'assistant',
+        content: '',
+        events: [{ kind: 'usage', costUsd: 0.01 }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText(/\$0\.0100/)).toBeInTheDocument();
+      expect(screen.queryByText(/out/)).not.toBeInTheDocument();
+    });
+
+    it('renders nothing when the usage event carries no displayable field', () => {
+      const message: ChatMessage = { id: 'u4', role: 'assistant', content: 'hi', events: [{ kind: 'usage' }], runStatus: 'succeeded' };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-usage')).toBeNull();
+    });
+
+    it('renders nothing when there is no usage event at all', () => {
+      const message: ChatMessage = { id: 'u5', role: 'assistant', content: 'hi', runStatus: 'succeeded' };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-usage')).toBeNull();
+    });
+
+    it('uses the last usage event when more than one is present', () => {
+      const message: ChatMessage = {
+        id: 'u6',
+        role: 'assistant',
+        content: '',
+        events: [
+          { kind: 'usage', costUsd: 0.01 },
+          { kind: 'usage', costUsd: 0.99 },
+        ],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText(/\$0\.9900/)).toBeInTheDocument();
+      expect(screen.queryByText(/\$0\.0100/)).not.toBeInTheDocument();
+    });
+  });
 });
