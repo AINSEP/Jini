@@ -1,21 +1,32 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/a2ui';
+import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat-react';
 
 /**
  * A2UI Lab — a real, agent-driven A2UI (a2ui.org v1.0) surface, streamed from the actual Jini
  * daemon through the same durable RunLifecycle every other playground demo uses (see
- * `daemon.ts`'s `runA2uiDemo`), interpreted by `@jini-ai/a2ui`'s headless interpreter, and rendered
- * by the small React renderer below (Column/Row/Text/Button — the 4-component subset that package
- * implements; see `packages/a2ui/source-map.md` for the full gap list against the real basic
- * catalog's 18). Clicking the button builds a real, spec-shaped `action` envelope and POSTs it to
- * a dedicated relay (`/a2ui-action`, proxied to `daemon.ts`'s `startA2uiActionRelay`), which
- * delivers it back into the running daemon-side demo — a genuine renderer -> agent round trip, not
- * a client-only simulation.
+ * `daemon.ts`'s `runA2uiDemo`), interpreted by `@jini-ai/agentic/a2ui`'s headless interpreter, and rendered
+ * by the small React renderer below (Column/Row/Text/Button — the catalog validates all 18 of the
+ * real basic catalog's components, but rendering still only draws these 4; see
+ * `packages/agentic/source-map.md`'s "Folded from `@jini-ai/a2ui`" section for the renderer-coverage gap). Clicking the button builds a real,
+ * spec-shaped `action` envelope and POSTs it to a dedicated relay (`/a2ui-action`, proxied to
+ * `daemon.ts`'s `startA2uiActionRelay`), which delivers it back into the running daemon-side demo —
+ * a genuine renderer -> agent round trip, not a client-only simulation.
  *
  * `window.__a2uiLab` exposes the live interpreter instance for adversarial testing via
  * `browser_evaluate` (malformed envelopes, cycles, unknown catalog types, etc.) — test-only, not
  * part of the actual product surface.
  */
+
+/**
+ * Registered once at module scope (this route's module is bundled eagerly, same as `AgentLab`'s
+ * and `McpUiLab`'s — see `main.tsx`), so any page's `ChatPane` renders a live A2UI surface inline
+ * whenever a real agent turn emits `type: 'a2ui'` events (`daemon-transport.ts` unwraps those into
+ * `kind: 'ext', name: 'a2ui'` events before `ChatPane` ever sees them). `onAgentAction` is
+ * deliberately omitted here — see `A2uiSurfaceCard`'s own module doc for why an agent-directed
+ * action has nowhere real to go yet outside this fixed lab demo's own `/a2ui-action` relay.
+ */
+registerExtEventRenderer('a2ui', (props) => <A2uiSurfaceCard {...props} />);
 
 const A2UI_DEMO_AGENT_ID = 'a2ui-demo';
 
@@ -112,7 +123,7 @@ async function readApiError(response: Response): Promise<Error> {
   }
 }
 
-/** Renders one component and its children by walking the surface's component map from `componentId`, degrading sanely (a visible, inert placeholder, never a crash) for a missing child id or a circular reference — the two adversarial cases `packages/a2ui/src/tree.ts` is built to answer. Only the static-array `ChildList` form is walked; a template (dynamic-list) `children` value renders a documented "not implemented" placeholder instead of expanding — see `packages/a2ui/source-map.md`. */
+/** Renders one component and its children by walking the surface's component map from `componentId`, degrading sanely (a visible, inert placeholder, never a crash) for a missing child id or a circular reference — the two adversarial cases `packages/agentic/src/a2ui/tree.ts` is built to answer. Only the static-array `ChildList` form is walked; a template (dynamic-list) `children` value renders a documented "not implemented" placeholder instead of expanding — see `packages/agentic/source-map.md`. */
 function RenderComponent({
   interpreter,
   surfaceId,

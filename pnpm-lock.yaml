@@ -72,9 +72,6 @@ importers:
 
   examples/reference-web:
     dependencies:
-      '@jini-ai/a2ui':
-        specifier: workspace:*
-        version: link:../../packages/a2ui
       '@jini-ai/agentic':
         specifier: workspace:*
         version: link:../../packages/agentic
@@ -157,16 +154,6 @@ importers:
 
   foundry/integrations/open-design: {}
 
-  packages/a2ui:
-    dependencies:
-      zod:
-        specifier: ^3.25.76
-        version: 3.25.76
-    devDependencies:
-      '@vitest/coverage-v8':
-        specifier: ^2.1.9
-        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
-
   packages/agent-runtime:
     dependencies:
       '@jini-ai/platform':
@@ -182,6 +169,9 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../protocol
+      zod:
+        specifier: ^3.25.76
+        version: 3.25.76
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^2.1.9

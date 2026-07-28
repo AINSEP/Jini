@@ -1195,7 +1195,7 @@ button {
   overflow: auto;
 }
 
-/* A2UI catalog rendering — Column/Row/Text/Button, the 4-component subset @jini-ai/a2ui implements. */
+/* A2UI catalog rendering — Column/Row/Text/Button; @jini-ai/a2ui's catalog validates all 18 of the real basic catalog's components, but this renderer (shared by the lab page and A2uiSurfaceCard below) still only draws these 4 — see packages/a2ui/source-map.md for the renderer-coverage gap against the catalog. */
 
 .a2ui-column {
   display: flex;
@@ -1253,6 +1253,52 @@ button {
   background: #fbe6e2;
   color: #8a2c1f;
   font-size: 12px;
+}
+
+/*
+ * A2UI surface rendered inline in the chat transcript (A2uiSurfaceCard, registered against
+ * ext-event-renderer-registry.ts's 'a2ui' name) — a narrower, message-bubble-scoped treatment of
+ * the same Column/Row/Text/Button rendering above, distinct from .a2ui-lab-surface's full-page
+ * chrome.
+ */
+.a2ui-surface-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid #ddd8cb;
+  border-radius: 10px;
+  background: #ffffff;
+  max-width: 100%;
+}
+
+.a2ui-surface-waiting {
+  color: #7a7666;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.a2ui-surface-refused {
+  color: #8a2c1f;
+  font-size: 13px;
+}
+
+.a2ui-surface-notice {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.a2ui-surface-notice-refused {
+  background: #fbe6e2;
+  color: #8a2c1f;
+}
+
+.a2ui-surface-notice-unwired {
+  background: #f4f2ed;
+  color: #7a7666;
 }
 
 /*

@@ -121,10 +121,10 @@ export type RunAgentPayload =
    * unlike `surface_request`/`surface_response` above (which are a narrower, unrelated "ask a
    * structured question, get a value back" primitive with no component tree or data binding — see
    * that variant's own doc, written before A2UI was implemented in this codebase, for the
-   * distinction). `message` is typed `unknown` rather than importing `@jini-ai/a2ui`'s own message
+   * distinction). `message` is typed `unknown` rather than importing `@jini-ai/agentic`'s own message
    * union deliberately: `@jini-ai/protocol` sits below every other package in the dependency graph and
    * must not depend sideways on a feature package for this one variant's shape — the real,
-   * structural validation happens where the type IS known, in `@jini-ai/a2ui`'s own
+   * structural validation happens where the type IS known, in `@jini-ai/agentic/a2ui`'s own
    * `parseAgentToRendererMessage` on the consuming side. Added for the A2UI build-then-break task;
    * see `examples/reference-web/src/daemon.ts`'s `runA2uiDemo` for the one producer that exists
    * today, and `examples/reference-web/src/A2uiLab.tsx` for the one consumer.

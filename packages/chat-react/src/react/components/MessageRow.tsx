@@ -24,7 +24,9 @@ import type { ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage } from '@jini-ai/chat-core';
 import { splitOnQuestionForms, stripArtifact } from '@jini-ai/chat-core';
 import { useToolTimeline } from '../hooks/useToolTimeline.js';
+import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
 import { useT } from '../hooks/context.js';
+import { getExtEventRenderer } from '../../ext-event-renderer-registry.js';
 import { Markdown } from './Markdown.js';
 import { ToolCard } from './ToolCard.js';
 import { QuestionForm } from './QuestionForm.js';
@@ -82,6 +84,7 @@ export function MessageRow({
 }: MessageRowProps) {
   const t = useT();
   const timeline = useToolTimeline(message.events, { runStreaming, runSucceeded });
+  const extGroups = useExtEventGroups(message.events);
 
   if (message.role === 'user') {
     return (
@@ -129,6 +132,16 @@ export function MessageRow({
           {timeline.rows.map((row) => (
             <ToolCard key={row.id} use={row.use} result={row.result} runStreaming={runStreaming} runSucceeded={runSucceeded} {...(projectFileNames !== undefined ? { projectFileNames } : {})} {...(onRequestOpenFile !== undefined ? { onRequestOpenFile } : {})} />
           ))}
+        </div>
+      ) : null}
+      {extGroups.length > 0 ? (
+        <div className="jini-message-ext-events">
+          {extGroups.map((group) => {
+            const renderer = getExtEventRenderer(group.name);
+            if (!renderer) return null;
+            const node = renderer({ name: group.name, events: group.events, runStreaming, runSucceeded, runId: message.runId });
+            return node ? <div key={group.name}>{node}</div> : null;
+          })}
         </div>
       ) : null}
       {usageEvent ? <UsageSummary usage={usageEvent} /> : null}

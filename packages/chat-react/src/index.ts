@@ -12,6 +12,7 @@ export * from './transport.js';
 export * from './artifact-types.js';
 export * from './slots.js';
 export * from './tool-renderer-registry.js';
+export * from './ext-event-renderer-registry.js';
 
 // `features/model-picker/` is an independent slice (depends only on
 // `@jini-ai/agent-runtime`, not this package's conversation/message state) —
@@ -23,6 +24,7 @@ export * from './react/hooks/useRunStream.js';
 export * from './react/hooks/useConversation.js';
 export * from './react/hooks/useComposer.js';
 export * from './react/hooks/useToolTimeline.js';
+export * from './react/hooks/useExtEventGroups.js';
 export * from './react/hooks/usePinnedTodos.js';
 export * from './react/hooks/useQuestionForms.js';
 export * from './react/hooks/useArtifactStream.js';
@@ -39,6 +41,8 @@ export { TodoCard } from './react/components/TodoCard.js';
 export type { TodoCardProps } from './react/components/TodoCard.js';
 export { ToolCard } from './react/components/ToolCard.js';
 export type { ToolCardProps } from './react/components/ToolCard.js';
+export { A2uiSurfaceCard } from './react/components/A2uiSurfaceCard.js';
+export type { A2uiSurfaceCardProps } from './react/components/A2uiSurfaceCard.js';
 export { QuestionForm } from './react/components/QuestionForm.js';
 export type { QuestionFormProps, QuestionFormHandle, QuestionFormFileSubmission } from './react/components/QuestionForm.js';
 export { QuestionsPanel } from './react/components/QuestionsPanel.js';

@@ -124,11 +124,12 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // R2: deep cross-package relative reach, and a deep bare @jini-ai/<name>/<subpath> import.
     write(root, 'packages/core/src/bad-r2-relative.ts', `import { x } from '../../daemon/src/foo.js';\nexport { x };\n`);
     write(root, 'packages/http/src/bad-r2-deep.ts', `import { x } from '@jini-ai/daemon/dist/foo.js';\nexport { x };\n`);
-    // R2 exemption: @jini-ai/agentic/dom is the one other named-literal exception, alongside
-    // @jini-ai/core/internal — must NOT be flagged. A *different* subpath of the same package
-    // (bad-r2-agentic-other-subpath.ts) proves the exemption is the exact literal, not a pattern
-    // that swallows every @jini-ai/agentic/* import.
+    // R2 exemption: @jini-ai/agentic/dom and @jini-ai/agentic/a2ui are the other named-literal
+    // exceptions, alongside @jini-ai/core/internal — must NOT be flagged. A *different* subpath of
+    // the same package (bad-r2-agentic-other-subpath.ts) proves the exemption is the exact literal,
+    // not a pattern that swallows every @jini-ai/agentic/* import.
     write(root, 'packages/http/src/ok-r2-agentic-dom.ts', `import { x } from '@jini-ai/agentic/dom';\nexport { x };\n`);
+    write(root, 'packages/http/src/ok-r2-agentic-a2ui.ts', `import { x } from '@jini-ai/agentic/a2ui';\nexport { x };\n`);
     write(
       root,
       'packages/http/src/bad-r2-agentic-other-subpath.ts',
@@ -263,6 +264,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [has(engineViolations, 'R2-deep-path', 'bad-r2-relative.ts'), 'R2 should catch a relative import reaching into another package'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-deep.ts'), 'R2 should catch a deep bare @jini-ai/<name>/<subpath> import'],
       [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-dom.ts'), 'R2 must NOT flag the gated @jini-ai/agentic/dom import'],
+      [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-a2ui.ts'), 'R2 must NOT flag the gated @jini-ai/agentic/a2ui import'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-agentic-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini-ai/agentic/<subpath> — the exemption is the exact literal, not a pattern'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-string.ts'), 'R5 should catch a product-identity string'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-prefix.ts'), 'R5 should catch an OD_ prefixed identifier'],

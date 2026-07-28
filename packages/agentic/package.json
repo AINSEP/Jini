@@ -14,7 +14,8 @@
     "admission": "admitted",
     "entries": {
       ".": "universal",
-      "./dom": "browser"
+      "./dom": "browser",
+      "./a2ui": "universal"
     }
   },
   "type": "module",
@@ -26,6 +27,10 @@
     "./dom": {
       "types": "./dist/dom/index.d.ts",
       "import": "./dist/dom/index.js"
+    },
+    "./a2ui": {
+      "types": "./dist/a2ui/index.d.ts",
+      "import": "./dist/a2ui/index.js"
     }
   },
   "files": [
@@ -47,7 +52,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/protocol": "workspace:*"
+    "@jini-ai/protocol": "workspace:*",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",

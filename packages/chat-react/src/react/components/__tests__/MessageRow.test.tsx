@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '@jini-ai/chat-core';
+import { clearExtEventRenderers, registerExtEventRenderer } from '../../../ext-event-renderer-registry.js';
 import { MessageRow } from '../MessageRow.js';
 
 describe('MessageRow', () => {
@@ -193,6 +194,59 @@ describe('MessageRow', () => {
       render(<MessageRow message={message} runSucceeded />);
       expect(screen.getByText(/\$0\.9900/)).toBeInTheDocument();
       expect(screen.queryByText(/\$0\.0100/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('ext events', () => {
+    afterEach(() => clearExtEventRenderers());
+
+    it('dispatches a kind:ext event group to its registered renderer, passing every event and runId', () => {
+      const seen: unknown[] = [];
+      registerExtEventRenderer('a2ui', (props) => {
+        seen.push(props);
+        return <div data-testid="a2ui-rendered">{props.events.length} events</div>;
+      });
+      const message: ChatMessage = {
+        id: 'e1',
+        role: 'assistant',
+        content: '',
+        runId: 'run-123',
+        events: [
+          { kind: 'ext', name: 'a2ui', data: { step: 1 } },
+          { kind: 'ext', name: 'a2ui', data: { step: 2 } },
+        ],
+        runStatus: 'running',
+      };
+      render(<MessageRow message={message} runStreaming runSucceeded={false} />);
+      expect(screen.getByTestId('a2ui-rendered')).toHaveTextContent('2 events');
+      expect(seen).toEqual([
+        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, runId: 'run-123' },
+      ]);
+    });
+
+    it('renders nothing for an ext event whose name has no registered renderer', () => {
+      const message: ChatMessage = {
+        id: 'e2',
+        role: 'assistant',
+        content: 'hi',
+        events: [{ kind: 'ext', name: 'unregistered_kind', data: {} }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-ext-events')?.textContent).toBe('');
+    });
+
+    it('renders nothing when the registered renderer itself returns null/false/undefined', () => {
+      registerExtEventRenderer('quiet', () => null);
+      const message: ChatMessage = {
+        id: 'e3',
+        role: 'assistant',
+        content: '',
+        events: [{ kind: 'ext', name: 'quiet', data: {} }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-ext-events')?.textContent).toBe('');
     });
   });
 });

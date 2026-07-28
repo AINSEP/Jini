@@ -394,11 +394,20 @@ export async function checkEngineBoundaries(
             // the DOM half (createDomPageDriver) and there is no third package for it to live in
             // without adding to the sprawl this rule exists to bound. Gated to this exact literal,
             // not a pattern — no other package's subpath is exempted by this branch.
+          } else if (spec === '@jini-ai/agentic/a2ui') {
+            // R2 exception #3 (2026-07-28 fold-in): the standalone @jini-ai/a2ui package folded into
+            // @jini-ai/agentic/src/a2ui/ (see packages/agentic/source-map.md's "Folded from
+            // @jini-ai/a2ui") rather than adding a fourth top-level package — the same
+            // sprawl-avoidance reasoning as ./dom above. Published as its own subpath (not bundled
+            // into the bare root barrel) since it has zero DOM/React dependency and a consumer of
+            // only the A2UI protocol shouldn't have to pull in agentic's page-control vocabulary to
+            // get it. @jini-ai/chat-react's A2uiSurfaceCard is the one real consumer today. Gated to
+            // this exact literal, same as ./dom — no other subpath is exempted by this branch.
           } else {
             violations.push({
               rule: 'R2-deep-path',
               file,
-              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom) is allowed`,
+              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui) is allowed`,
             });
           }
         }

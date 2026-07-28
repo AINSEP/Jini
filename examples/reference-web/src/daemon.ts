@@ -10,7 +10,7 @@ import {
   parseRendererToAgentMessage,
   type AgentToRendererMessage,
   type RendererToAgentMessage,
-} from '@jini-ai/a2ui';
+} from '@jini-ai/agentic/a2ui';
 import { createAguiEncoder } from '@jini-ai/agentic';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { ToolRegistration } from '@jini-ai/core';
@@ -271,7 +271,7 @@ async function runA2uiDemo(
   });
   const emitAgent = (data: RunAgentPayload) => lifecycle.emit(runId, { event: 'agent', data });
   /**
-   * Validates every outgoing message against `@jini-ai/a2ui`'s own `parseAgentToRendererMessage`
+   * Validates every outgoing message against `@jini-ai/agentic/a2ui`'s own `parseAgentToRendererMessage`
    * before it goes out over the wire — this demo dogfoods the same schema the browser-side
    * interpreter enforces, so a typo in one of the literal messages below fails loudly here
    * instead of silently reaching the renderer as a message it then has to reject.
@@ -387,7 +387,7 @@ function startA2uiActionRelay(port: number): HttpServer {
         return;
       }
       // Real spec-conformance enforcement, not a rubber stamp: an envelope that fails
-      // `@jini-ai/a2ui`'s own renderer -> agent schema (missing version, malformed action shape, ...)
+      // `@jini-ai/agentic/a2ui`'s own renderer -> agent schema (missing version, malformed action shape, ...)
       // is refused here at the network boundary, before it can ever reach `runA2uiDemo`.
       const parsed = parseRendererToAgentMessage(body.message);
       if (!parsed.ok) {

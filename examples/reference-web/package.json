@@ -12,7 +12,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@jini-ai/a2ui": "workspace:*",
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/chat-core": "workspace:*",
     "@jini-ai/chat-react": "workspace:*",

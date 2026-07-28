@@ -148,6 +148,12 @@ export function toAgentEvent(event: RunProtocolEventWire, handlers: RunHandlers)
       ...(typeof payload.durationMs === 'number' ? { durationMs: payload.durationMs } : {}),
     };
   }
+  if (payload.type === 'a2ui') {
+    // Unwrap `.message` here rather than letting the generic `ext` fallback below carry the whole
+    // `{type, message}` envelope — `A2uiSurfaceCard` (registered against `ext-event-renderer-registry.ts`'s
+    // `'a2ui'` name) expects each event's `data` to already be one real `AgentToRendererMessage`.
+    return { kind: 'ext', name: 'a2ui', data: payload.message };
+  }
   return { kind: 'ext', name: typeof payload.type === 'string' ? payload.type : 'agent', data: payload };
 }
 
