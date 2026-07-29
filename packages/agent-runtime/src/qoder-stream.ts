@@ -13,7 +13,30 @@
 import { Buffer } from 'node:buffer';
 
 type JsonRecord = Record<string, unknown>;
-type QoderEvent = Record<string, unknown>;
+
+/** Every event `createQoderStreamHandler` can emit, discriminated on `type` — see `claude-stream.ts`'s `ClaudeStreamEvent` doc for why this is exported rather than left as `Record<string, unknown>`. */
+export type QoderEvent =
+  | {
+      type: 'status';
+      label: 'initializing';
+      model?: string | undefined;
+      sessionId?: string | undefined;
+      qodercliVersion?: string | undefined;
+    }
+  | { type: 'text_delta' | 'thinking_delta'; delta: string }
+  | { type: 'thinking_start' }
+  | { type: 'error'; message: string; raw: string }
+  | {
+      type: 'usage';
+      usage: unknown;
+      modelUsage?: unknown;
+      costUsd: unknown;
+      durationMs: number | null;
+      stopReason: unknown;
+      isError: boolean;
+    }
+  | { type: 'raw'; line: string };
+
 type QoderEventSink = (event: QoderEvent) => void;
 
 function isRecord(value: unknown): value is JsonRecord {

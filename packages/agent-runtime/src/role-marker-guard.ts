@@ -141,6 +141,8 @@ const NEWLINE_ANCHORED_PENDING_MARKER_TAIL_RE =
 // alone.
 const TAIL_BUFFER_SIZE = 64;
 
+export type RoleMarkerWarningEvent = { type: 'fabricated_role_marker'; marker: string; messageId: string };
+
 export interface RoleMarkerGuard {
   /** Feed a text delta for the current message. Returns the safe portion
    *  to emit (may be shorter than `text` if a marker was found mid-chunk,
@@ -149,7 +151,7 @@ export interface RoleMarkerGuard {
   /** Whether a fabricated marker was detected (further text is dropped). */
   readonly contaminated: boolean;
   /** If contaminated, the warning event to emit. `null` if clean. */
-  warningEvent(): { type: 'fabricated_role_marker'; marker: string; messageId: string } | null;
+  warningEvent(): RoleMarkerWarningEvent | null;
 }
 
 /**

@@ -17,7 +17,9 @@
  *   - text_delta    : assistant text chunk (gets fed to the artifact parser)
  *   - thinking_delta: extended-thinking chunk (shown in a collapsed block)
  *   - tool_use      : { id, name, input }     (fires when input is complete)
- *   - tool_result   : { tool_use_id, content, is_error }
+ *   - tool_result   : { toolUseId, content, isError } (camelCase — this is our own emitted
+ *                     event shape, not a passthrough of Claude's `tool_use_id`/`is_error` wire
+ *                     field names; see the `user`-message handling below)
  *   - usage         : aggregated input/output/cache tokens + cost
  *
  * Callers give us `onEvent({ type, ...payload })`. We track per-content-block
@@ -25,10 +27,32 @@
  * `tool_use` event when that block stops.
  */
 
-import { createRoleMarkerGuard, type RoleMarkerGuard } from './role-marker-guard.js';
+import { createRoleMarkerGuard, type RoleMarkerGuard, type RoleMarkerWarningEvent } from './role-marker-guard.js';
 
-type StreamEvent = Record<string, unknown>;
-type EventSink = (event: StreamEvent) => void;
+/**
+ * Every event `createClaudeStreamHandler` can emit, discriminated on `type`. Exported (via
+ * `index.ts`) precisely because it wasn't before: a consumer outside this package previously had
+ * only `Record<string, unknown>` to go on, guessed a field name that doesn't exist
+ * (`event.text` instead of the real `event.delta` on `text_delta`), and silently lost every
+ * streamed token — no type error, no runtime error. Field types stay `unknown` wherever the
+ * parser itself never validates that field's shape (e.g. `tool_use.input` is whatever Claude's
+ * CLI sent, unchecked) — narrower than that would assert a guarantee this module doesn't actually
+ * enforce.
+ */
+export type ClaudeStreamEvent =
+  | { type: 'status'; label: string; model?: unknown; sessionId?: unknown; ttftMs?: number }
+  | { type: 'text_delta' | 'thinking_delta'; delta: string }
+  | { type: 'thinking_start' }
+  | { type: 'tool_use'; id: unknown; name: unknown; input: unknown }
+  | { type: 'tool_input_delta'; id: string; name: string; delta: string }
+  | { type: 'tool_result'; toolUseId: unknown; content: string; isError: boolean }
+  | { type: 'turn_end'; stopReason: string }
+  | { type: 'usage'; usage: unknown; costUsd: unknown; durationMs: unknown; stopReason: string | null }
+  | { type: 'error'; message: string; code: string }
+  | { type: 'raw'; line: string }
+  | RoleMarkerWarningEvent;
+
+type EventSink = (event: ClaudeStreamEvent) => void;
 type BlockState = {
   type?: unknown;
   name?: unknown;
@@ -250,7 +274,7 @@ export function createClaudeStreamHandler(
   // any compensating security benefit. See PR #3303 review
   // r3324xxxxxx. Thinking is passed through unguarded; only the
   // user-visible text channel is policed.
-  function emitSafeText(msgId: string | null, text: string, eventType: string = 'text_delta') {
+  function emitSafeText(msgId: string | null, text: string, eventType: 'text_delta' | 'thinking_delta' = 'text_delta') {
     if (eventType === 'text_delta') {
       text = stripDuplicateArtifactText(text);
       if (!text) return;
@@ -444,7 +468,7 @@ export function createClaudeStreamHandler(
     }
 
     if (obj.type === 'system' && obj.subtype === 'status') {
-      onEvent({ type: 'status', label: obj.status ?? 'working' });
+      onEvent({ type: 'status', label: typeof obj.status === 'string' ? obj.status : 'working' });
       return;
     }
 
@@ -536,7 +560,11 @@ export function createClaudeStreamHandler(
     }
 
     if (obj.type === 'result') {
-      const stopReason =
+      // Explicit annotation: the `&&`/`||` chain's inferred type includes a phantom `false` (TS
+      // widens each unresolved `&&` branch to its check's boolean), even though no runtime path
+      // through this chain can ever produce the literal `false` — the last `|| null` guarantees a
+      // string or null. Pinning the declared type to what's actually true, not casting past it.
+      const stopReason: string | null =
         (typeof obj.stop_reason === 'string' && obj.stop_reason) ||
         (typeof obj.terminal_reason === 'string' && obj.terminal_reason) ||
         null;

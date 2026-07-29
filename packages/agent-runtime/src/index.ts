@@ -59,11 +59,17 @@ export * from './defs/index.js';
 // narrower ACP-probe shape re-exported below. See source-map.md.
 export * from './model-registry.js';
 
-// Stream parsers.
-export { createClaudeStreamHandler } from './claude-stream.js';
+// Stream parsers. Each handler's event union is exported alongside it — previously only
+// `Record<string, unknown>` was visible to a consumer outside this package, which is how a real
+// external integration guessed a nonexistent field name (`event.text`) and silently lost every
+// streamed token instead of getting a compile error. `json-event-stream.ts`'s
+// `createJsonEventStreamHandler` is the one parser NOT given this treatment here: it is a
+// generic multi-CLI parser (`ParserKind`-dispatched, ~40 emission sites across many wire
+// formats), and typing it accurately is a larger, separate task than this pass covers.
+export { createClaudeStreamHandler, type ClaudeStreamEvent } from './claude-stream.js';
 export { createJsonEventStreamHandler } from './json-event-stream.js';
-export { createQoderStreamHandler } from './qoder-stream.js';
-export { createCopilotStreamHandler } from './copilot-stream.js';
+export { createQoderStreamHandler, type QoderEvent } from './qoder-stream.js';
+export { createCopilotStreamHandler, type CopilotStreamEvent } from './copilot-stream.js';
 
 // Ports (injected seams — see each module's doc comment for what OD logic it replaces).
 export * from './amr-profile-resolver.js';

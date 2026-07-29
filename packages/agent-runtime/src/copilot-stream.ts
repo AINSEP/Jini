@@ -28,8 +28,17 @@
  *   result                        -> usage
  */
 
-type StreamEvent = Record<string, unknown>;
-type EventSink = (event: StreamEvent) => void;
+/** Every event `createCopilotStreamHandler` can emit, discriminated on `type` — see `claude-stream.ts`'s `ClaudeStreamEvent` doc for why this is exported rather than left as `Record<string, unknown>`. */
+export type CopilotStreamEvent =
+  | { type: 'raw'; line: string }
+  | { type: 'status'; label: 'initializing'; model: unknown }
+  | { type: 'status'; label: 'streaming' }
+  | { type: 'thinking_delta' | 'text_delta'; delta: string }
+  | { type: 'tool_use'; id: unknown; name: unknown; input: unknown }
+  | { type: 'tool_result'; toolUseId: unknown; content: string; isError: boolean }
+  | { type: 'usage'; usage: unknown; stopReason: 'completed' | 'error'; durationMs: unknown };
+
+type EventSink = (event: CopilotStreamEvent) => void;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
