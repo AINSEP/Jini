@@ -126,7 +126,7 @@ export {
  * inversion of the truth.
  *
  * The exported symbols below still carry `Agui`/`AGUI` prefixes: renaming those crosses into
- * `@jini-ai/http` (whose `RUN_STREAM_ROUTE_PATH` is `/api/runs/:runId/agui-stream`) and
+ * `@jini-ai/http-kit` (whose `RUN_STREAM_ROUTE_PATH` is `/api/runs/:runId/agui-stream`) and
  * `@jini-ai/protocol`, so it is deliberately not bundled with this directory move.
  */
 export {

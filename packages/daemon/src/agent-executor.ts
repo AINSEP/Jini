@@ -72,7 +72,7 @@
  * deliberately never ported (see `run/core/failure-taxonomy.ts`'s own doc and
  * `source-map.md`). The real zero-config classifier lives in `@jini-ai/daemon`'s
  * `run/core/retry.ts` (`resumableFromProcessExit`/`classifyProcessExitFailure`)
- * and is wired in by `@jini-ai/node-host`'s `createLocalNodeDaemon` — see that
+ * and is wired in by `@jini-ai/server`'s `createLocalNodeDaemon` — see that
  * package's own source-map.md, and `run/core/retry.ts`'s own doc for the
  * classification policy and its 2026-07-22 merge-time reconciliation against
  * a second, independently-built (and rejected) classifier that once lived in

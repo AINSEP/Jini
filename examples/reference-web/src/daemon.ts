@@ -14,10 +14,10 @@ import {
 import { createAguiEncoder } from '@jini-ai/agentic';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { ToolRegistration } from '@jini-ai/core';
-import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini-ai/http';
+import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini-ai/http-kit';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/media';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
-import { createFrontendControl, createLocalNodeDaemon } from '@jini-ai/node-host';
+import { createFrontendControl, createLocalNodeDaemon } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat-core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
@@ -417,7 +417,7 @@ async function main(): Promise<void> {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
   };
-  const mediaTaskStore = createSqliteMediaTaskStore(resolve(dataDir, 'media-tasks.db'));
+  const mediaTaskStore = await createSqliteMediaTaskStore(resolve(dataDir, 'media-tasks.db'));
   const memoryRoutesDeps = {
     notes: createNoteStore({ validTypes: ['note'], defaultType: 'note' }),
     extractions: createExtractionLog(),

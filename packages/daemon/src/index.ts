@@ -17,7 +17,7 @@
  *
  * `terminal-session.ts` (2026-07-21) adds the interactive-terminal session manager: a
  * `node-pty`-backed `PtySpawn` wired into `@jini-ai/platform`'s generic `TerminalService`, plus
- * session-ownership gating and the kill/write/resize lock `@jini-ai/http`'s `terminals.ts` route
+ * session-ownership gating and the kill/write/resize lock `@jini-ai/http-kit`'s `terminals.ts` route
  * pack calls into. This is this workspace's first native-compiled-addon dependency — see this
  * package's `package.json` and `source-map.md`'s dated section.
  */
@@ -26,6 +26,7 @@ export * from './close-status.js';
 export * from './run-lifecycle.js';
 export * from './tool-executor.js';
 export * from './delegated-tool-bridge.js';
+export * from './remote-tool-bridge.js';
 export * from './frontend-session-registry.js';
 export * from './frontend-capability-tools.js';
 export * from './agent-executor.js';

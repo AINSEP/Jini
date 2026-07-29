@@ -4,7 +4,6 @@ import * as i18n from '../features/i18n/index.js';
 import * as observability from '../features/observability/index.js';
 import * as connectors from '../features/connectors/index.js';
 import * as browserChrome from '../features/browser-chrome/index.js';
-import * as sketchEditor from '../features/sketch-editor/index.js';
 import * as assetGrid from '../features/asset-grid/index.js';
 import * as viewerShell from '../features/viewer-shell/index.js';
 import * as versionManager from '../features/version-manager/index.js';
@@ -18,6 +17,8 @@ import * as settingsPrivacy from '../features/settings-dialog/tabs/privacy/index
 import * as settingsIntegrations from '../features/settings-dialog/tabs/integrations/index.js';
 import * as memory from '../features/memory/index.js';
 import * as resourceDashboard from '../features/resource-dashboard/index.js';
+import * as sketchEditor from '../features/sketch-editor/index.js';
+import * as lexicalRichTextEditor from '../features/lexical-rich-text-editor/index.js';
 
 // Guards against the exact bug found while merging browser-chrome and
 // viewer-shell: both features were fully built, individually tested, and
@@ -31,7 +32,6 @@ const featureModules: Record<string, object> = {
   'features/observability': observability,
   'features/connectors': connectors,
   'features/browser-chrome': browserChrome,
-  'features/sketch-editor': sketchEditor,
   'features/asset-grid': assetGrid,
   'features/viewer-shell': viewerShell,
   'features/version-manager': versionManager,
@@ -62,5 +62,25 @@ describe('package barrel (src/index.ts)', () => {
       }
     }
     expect(missing, 'exports present in a feature module but missing from the package barrel').toEqual([]);
+  });
+
+  it('does NOT re-export sketch-editor or lexical-rich-text-editor — those carry a heavy npm dependency (@excalidraw/excalidraw, lexical) and live at their own subpaths', () => {
+    // Inverse of the guard above: these two feature modules are deliberately EXCLUDED from the
+    // barrel (2026-07-29) so importing anything else from `@jini-ai/ui` never drags in Excalidraw
+    // or Lexical. Checks every export from each module by REFERENCE, not just name presence —
+    // `buildMentionToken` is a coincidental same-name-different-function collision between
+    // `mention-autocomplete` (legitimately on the barrel) and `lexical-rich-text-editor` (not); a
+    // name-only check would wrongly flag that as a leak instead of catching only a real one (the
+    // literal `lexical-rich-text-editor` value becoming reachable through the root barrel).
+    const leaked: string[] = [];
+    for (const [path, mod] of Object.entries({
+      'features/sketch-editor': sketchEditor,
+      'features/lexical-rich-text-editor': lexicalRichTextEditor,
+    })) {
+      for (const [exportName, value] of Object.entries(mod)) {
+        if ((barrel as Record<string, unknown>)[exportName] === value) leaked.push(`${exportName} (from ${path})`);
+      }
+    }
+    expect(leaked, 'exports that should only be reachable via their own subpath, not the root barrel').toEqual([]);
   });
 });

@@ -12,7 +12,7 @@ export interface ChatPaneAgentOption {
 /**
  * Browser-safe runtime inventory consumed by the chat pane. This is
  * structurally compatible with the daemon's `AgentSummary` DTO without
- * coupling the React package to `@jini-ai/http`.
+ * coupling the React package to `@jini-ai/http-kit`.
  */
 export interface ChatPaneAgent {
   id: string;

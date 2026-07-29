@@ -259,7 +259,7 @@ export async function postJsonToDaemon(
 /**
  * `GET` `<base><route>` and return the parsed JSON response. Same transport contract as
  * {@link postJsonToDaemon} (timeout, response-size cap, structured-error mapping, redaction) with
- * no request body — for read-only daemon routes such as `@jini-ai/http`'s `GET /api/runs` and
+ * no request body — for read-only daemon routes such as `@jini-ai/http-kit`'s `GET /api/runs` and
  * `GET /api/runs/:runId`.
  */
 export async function getJsonFromDaemon(

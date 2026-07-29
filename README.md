@@ -7,12 +7,12 @@ code under `packages/` must remain free of product-specific behavior and identit
 
 ## Repository map
 
-- `packages/` — publishable `@jini/*` engine packages.
+- `packages/` — publishable `@jini-ai/*` engine packages.
 - [`examples/`](examples/README.md) — the public starting point for runnable browser and
   desktop hosts, disposable sample projects, and the release/neutrality proof.
 - `foundry/` — the internal workshop around the engine: automation, architecture
   documentation, and product integrations. It is not part of the engine and must never be
-  imported by `packages/@jini/**`; see
+  imported by `packages/@jini-ai/**`; see
   [`foundry/README.md`](foundry/README.md).
 - `ADS-memory/` — durable project decisions, reports, evidence, and curated memory.
 - `AI-Dev-Shop/` — the vendored development-pipeline toolkit.

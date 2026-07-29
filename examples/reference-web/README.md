@@ -1,7 +1,7 @@
 # Jini Playground — web host
 
 This Vite + React app is Jini's runnable browser reference host. It consumes
-`@jini/chat-react`, starts a real `@jini/node-host` daemon, and adapts the daemon's durable
+`@jini-ai/chat-react`, starts a real `@jini-ai/server` daemon, and adapts the daemon's durable
 run/SSE protocol to the headless chat transport.
 
 The visible runtime picker contains only agents returned by the daemon's live discovery
@@ -10,7 +10,7 @@ reports none. A deterministic runner remains inside the example daemon as a tran
 fixture, but it is not inserted into the user-facing agent list.
 
 The right-hand chat is the self-contained `ChatPane` exported by
-`@jini/chat-react`. The package owns its `MessageList`, `Composer`,
+`@jini-ai/chat-react`. The package owns its `MessageList`, `Composer`,
 `AgentRuntimePicker`, selection defaults, send/reset/cancel orchestration, and
 activity derivation. This host supplies only environment data and adapters:
 the daemon transport, live agent inventory, project run context, sample

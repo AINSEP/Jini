@@ -10,7 +10,7 @@
  *   triple. This is the security-sensitive one: it is a runtime *value*
  *   export that returns live handler closures, and it is what the
  *   `ToolExecutor` authorization gate exists to guard.
- * - `AnyPack`/`RequiredTokenIds`/`MissingTokenIds` so `@jini-ai/node-host`'s
+ * - `AnyPack`/`RequiredTokenIds`/`MissingTokenIds` so `@jini-ai/server`'s
  *   `createLocalNodeDaemon` can re-derive `createDaemon`'s exact
  *   compile-time "missing binding" gate on its own wrapper config type,
  *   instead of either duplicating the type-level logic or losing the

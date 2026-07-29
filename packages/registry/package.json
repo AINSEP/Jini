@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/registry",
   "version": "0.1.2",
+  "description": "Pluggable content-registry backends (static, GitHub, database) and semver specifier resolution over @jini-ai/protocol’s registry wire types.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,10 +11,10 @@
   "jini": {
     "domain": "capability",
     "kind": "registry",
-    "runtime": "node",
-    "admission": "incubating"
+    "runtime": "node"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -42,10 +43,18 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/protocol": "workspace:*",
+    "@jini-ai/protocol": "workspace:*"
+  },
+  "peerDependencies": {
     "better-sqlite3": "^11.10.0"
   },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11"
+    "@types/better-sqlite3": "^7.6.11",
+    "better-sqlite3": "^11.10.0"
   }
 }

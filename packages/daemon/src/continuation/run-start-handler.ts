@@ -4,7 +4,7 @@
  * seam, matching the existing `resolveDaemonUrl` precedent)" (Final
  * Recommendation, `ADS-memory/reports/swarm-consensus/runs/20260722T023000Z-consensus-report.md`).
  *
- * Today, `@jini-ai/http`'s `POST /api/runs` durably starts a run via
+ * Today, `@jini-ai/http-kit`'s `POST /api/runs` durably starts a run via
  * `RunLifecycle.start()` and then — only if a host supplied one — invokes an
  * `onStarted`/`RunStartHandler` callback. Nothing in the kernel ever turns
  * that durable start into an actual `AgentExecutor.run()` call: a host with
@@ -18,11 +18,11 @@
  * Recommendation item 5) — there is no sensible kernel-supplied fallback to
  * fall through to.
  *
- * This does not itself touch `@jini-ai/http`'s `RunStartHandler` type (a
- * `@jini-ai/daemon` → `@jini-ai/http` import would invert the package graph —
- * `@jini-ai/http` already imports `@jini-ai/daemon`, never the reverse).
+ * This does not itself touch `@jini-ai/http-kit`'s `RunStartHandler` type (a
+ * `@jini-ai/daemon` → `@jini-ai/http-kit` import would invert the package graph —
+ * `@jini-ai/http-kit` already imports `@jini-ai/daemon`, never the reverse).
  * {@link DefaultRunStartHandler}'s parameter type is a structural subset of
- * `@jini-ai/http`'s `RunStartContext`, so a real `RunStartContext` value —
+ * `@jini-ai/http-kit`'s `RunStartContext`, so a real `RunStartContext` value —
  * passed by a host wiring this handler in as `RunHttpDeps.onStarted` —
  * satisfies it without either package needing to import the other's types.
  */
@@ -46,13 +46,13 @@ export type ResolveRunInput = (
   context: ResolveRunInputContext,
 ) => Promise<ResolvedRunInput> | ResolvedRunInput;
 
-/** Structural subset of `@jini-ai/http`'s `RunStartContext` — see module doc for why this package cannot import that type directly. */
+/** Structural subset of `@jini-ai/http-kit`'s `RunStartContext` — see module doc for why this package cannot import that type directly. */
 export interface RunStartDriverContext {
   readonly request: { readonly contextRef: string; readonly agentId?: string };
   readonly run: { readonly id: string };
 }
 
-/** Structurally assignable to `@jini-ai/http`'s `RunStartHandler` — see module doc. */
+/** Structurally assignable to `@jini-ai/http-kit`'s `RunStartHandler` — see module doc. */
 export type DefaultRunStartHandler = (context: RunStartDriverContext) => Promise<void>;
 
 export interface CreateDefaultRunStartHandlerOptions {
@@ -70,8 +70,8 @@ export interface CreateDefaultRunStartHandlerOptions {
  * know `AgentExecutor`'s call shape or wire cancellation/journaling by hand.
  * @param options.agentExecutor - The executor this handler drives. Any byte-journaling is the executor's own concern (see `CreateAgentExecutorOptions.journal`) — this handler does not journal directly.
  * @param options.resolveRunInput - Host-owned composition seam — see module doc.
- * @returns A handler structurally assignable to `@jini-ai/http`'s `RunStartHandler`.
- * @throws Whatever `resolveRunInput` or `agentExecutor.run()` throw — `@jini-ai/http`'s `runStartRoute` already treats a rejecting `onStarted` as a failed run (finishes it, reports the internal error), so this handler deliberately does not swallow either failure itself.
+ * @returns A handler structurally assignable to `@jini-ai/http-kit`'s `RunStartHandler`.
+ * @throws Whatever `resolveRunInput` or `agentExecutor.run()` throw — `@jini-ai/http-kit`'s `runStartRoute` already treats a rejecting `onStarted` as a failed run (finishes it, reports the internal error), so this handler deliberately does not swallow either failure itself.
  * @complexity O(1) plus `resolveRunInput`'s and `agentExecutor.run()`'s own costs.
  * @overallScore 100/100
  */

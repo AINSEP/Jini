@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/media",
   "version": "0.1.2",
+  "description": "Multi-provider image/video/audio generation gateway: capability registry, multi-vendor REST dispatch, policy and staging ports, and an optional SQLite task store.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,10 +11,13 @@
   "jini": {
     "domain": "capability",
     "kind": "media-gateway",
-    "runtime": "node",
-    "admission": "incubating"
+    "runtime": "node"
   },
   "type": "module",
+  "sideEffects": [
+    "./dist/dispatch/engine.js",
+    "./dist/dispatch/providers/*.js"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

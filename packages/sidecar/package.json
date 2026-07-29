@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/sidecar",
   "version": "0.1.2",
+  "description": "Sidecar process runtime: JSON-IPC server and client, IPC path validation, namespace/runtime path resolution, port allocation, launch bootstrap, and a local daemon registry.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,10 +11,10 @@
   "jini": {
     "domain": "platform",
     "kind": "process-bridge",
-    "runtime": "node",
-    "admission": "locked"
+    "runtime": "node"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

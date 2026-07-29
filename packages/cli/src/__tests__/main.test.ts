@@ -91,7 +91,7 @@ describe('main: no-command / help', () => {
 });
 
 describe('main: dispatching to registered commands', () => {
-  it('dispatches "run list" and reaches @jini-ai/http\'s /api/runs route', async () => {
+  it('dispatches "run list" and reaches @jini-ai/http-kit\'s /api/runs route', async () => {
     const deps = makeDeps();
     const fetchImpl = vi.fn(async (url: string | URL | Request) => {
       expect(String(url)).toBe('http://d.example/api/runs');

@@ -17,10 +17,17 @@
  * three product-prefixed env vars (see `source-map.md` for the exact
  * original names); the names are now `ARTIFACT_STUB_GUARD*` (no product
  * prefix) — same three-var shape and defaults, just de-branded.
+ *
+ * This file is genuinely runtime-universal — no `node:fs` (or any other
+ * Node-only API). The one thing that needs real disk I/O, scanning a
+ * directory for prior siblings, lives at the separate
+ * `@jini-ai/artifacts/node` entry point (`findPriorArtifactSiblings`,
+ * `evaluateArtifactStubGuard`) — split out 2026-07-29 so this package's main
+ * barrel, which re-exports this module, is never forced to resolve
+ * `node:fs`/`node:path` for a consumer that only wants the pure decision
+ * logic (`classifyArtifactStubGuard`) or types. See that entry point for the
+ * real, disk-backed guard.
  */
-import type { Dirent } from 'node:fs';
-import { readFile, readdir, stat } from 'node:fs/promises';
-import path from 'node:path';
 
 export type ArtifactStubGuardMode = 'reject' | 'warn' | 'off';
 
@@ -44,13 +51,6 @@ export interface ArtifactStubGuardWarning {
   readonly newSize: number;
   readonly priorSize: number;
   readonly priorName: string;
-}
-
-export interface EvaluateArtifactStubGuardInput {
-  readonly scanDir: string;
-  readonly identifier: string;
-  readonly newSize: number;
-  readonly config: ArtifactStubGuardConfig;
 }
 
 export interface EvaluateArtifactStubGuardResult {
@@ -85,10 +85,6 @@ export const DEFAULT_ARTIFACT_STUB_GUARD_CONFIG: ArtifactStubGuardConfig = {
   siblingExtensions: ['.html', '.htm'],
 };
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
 /** Slugifies a free-form identifier into a filename-safe basename (lowercase, `[a-z0-9_-]`, max 60 chars). */
 export function slugifyArtifactIdentifier(value: string): string {
   return value
@@ -117,87 +113,6 @@ export function artifactIdentifiersMatch(a: string, b: string): boolean {
   const slugB = slugifyArtifactIdentifier(b);
   if (slugA !== slugB) return false;
   return a === slugA || b === slugB;
-}
-
-async function readSidecarIdentifier(scanDir: string, entryName: string): Promise<string | null> {
-  try {
-    const raw = await readFile(path.join(scanDir, `${entryName}.artifact.json`), 'utf8');
-    const parsed = JSON.parse(raw) as { metadata?: { identifier?: unknown } } | null;
-    const id = parsed?.metadata?.identifier;
-    return typeof id === 'string' && id.length > 0 ? id : null;
-  } catch {
-    return null;
-  }
-}
-
-function extensionAlternation(extensions: readonly string[]): string {
-  return extensions.map((ext) => escapeRegExp(ext)).join('|');
-}
-
-function legacyCandidateIdentifiers(filename: string, extensionPattern: RegExp, suffixPattern: RegExp): string[] {
-  const fullBasename = filename.replace(extensionPattern, '');
-  const stripped = filename.replace(suffixPattern, '');
-  const candidates: string[] = [];
-  if (fullBasename.length > 0) candidates.push(fullBasename);
-  if (stripped.length > 0 && stripped !== fullBasename) candidates.push(stripped);
-  return candidates;
-}
-
-/**
- * Finds prior siblings on disk that share an identifier with a newly-written
- * artifact, matching `<identifier>(-N)?.<ext>` for any of `config.siblingExtensions`.
- * The scan deliberately includes any file at the same path as the new write
- * — when a write overwrites an existing file with the same name, the file
- * currently on disk is the prior content (the overwrite happens after this
- * scan runs).
- */
-export async function findPriorArtifactSiblings(
-  scanDir: string,
-  identifier: string,
-  config: Pick<ArtifactStubGuardConfig, 'siblingExtensions'>,
-): Promise<PriorArtifactSibling[]> {
-  if (identifier.length === 0) return [];
-  const extAlternation = extensionAlternation(config.siblingExtensions);
-  if (!extAlternation) return [];
-  const extensionPattern = new RegExp(`(?:${extAlternation})$`, 'i');
-  const suffixPattern = new RegExp(`(?:-\\d+)?(?:${extAlternation})$`, 'i');
-
-  const tokens = new Set<string>();
-  tokens.add(identifier);
-  const slug = slugifyArtifactIdentifier(identifier);
-  if (slug.length > 0) tokens.add(slug);
-  else tokens.add(EMPTY_SLUG_FALLBACK_NAME);
-  const alternation = Array.from(tokens, escapeRegExp).join('|');
-  const pattern = new RegExp(`^(?:${alternation})(?:-\\d+)?(?:${extAlternation})$`, 'i');
-
-  let entries: Dirent[];
-  try {
-    entries = await readdir(scanDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  const results: PriorArtifactSibling[] = [];
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    if (!pattern.test(entry.name)) continue;
-    const sidecarIdentifier = await readSidecarIdentifier(scanDir, entry.name);
-    // `legacyCandidateIdentifiers` always returns at least one non-empty
-    // candidate here: `entry.name` already matched `pattern` above, which
-    // requires its basename to start with one of `tokens` (all non-empty),
-    // so an explicit `candidateIdentifiers.length === 0` guard would be
-    // dead code — an empty array's `.some()` below already `continue`s.
-    const candidateIdentifiers = sidecarIdentifier !== null
-      ? [sidecarIdentifier]
-      : legacyCandidateIdentifiers(entry.name, extensionPattern, suffixPattern);
-    if (!candidateIdentifiers.some((c) => artifactIdentifiersMatch(identifier, c))) continue;
-    try {
-      const st = await stat(path.join(scanDir, entry.name));
-      results.push({ name: entry.name, size: st.size });
-    } catch {
-      // Ignore unreadable entries — they don't influence the guard decision.
-    }
-  }
-  return results;
 }
 
 /** Reads guard config from `ARTIFACT_STUB_GUARD` / `ARTIFACT_STUB_GUARD_MIN_RATIO` / `ARTIFACT_STUB_GUARD_MIN_PRIOR_BYTES`, falling back to `defaults` for any unset/invalid value. */
@@ -263,13 +178,4 @@ export function classifyArtifactStubGuard(
 
   const warning = buildWarning(identifier, newSize, largest);
   return { outcome: config.mode === 'reject' ? 'reject' : 'warn', warning };
-}
-
-export async function evaluateArtifactStubGuard(
-  input: EvaluateArtifactStubGuardInput,
-): Promise<EvaluateArtifactStubGuardResult> {
-  if (input.config.mode === 'off') return { outcome: 'pass' };
-  if (input.identifier.length === 0) return { outcome: 'pass' };
-  const priors = await findPriorArtifactSiblings(input.scanDir, input.identifier, input.config);
-  return classifyArtifactStubGuard(priors, input.identifier, input.newSize, input.config);
 }

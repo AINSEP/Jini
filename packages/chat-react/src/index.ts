@@ -28,6 +28,7 @@ export * from './react/hooks/useExtEventGroups.js';
 export * from './react/hooks/usePinnedTodos.js';
 export * from './react/hooks/useQuestionForms.js';
 export * from './react/hooks/useArtifactStream.js';
+export * from './react/hooks/useChatFabDrag.js';
 export {
   useT,
   useI18n,
@@ -61,6 +62,8 @@ export { Composer } from './react/components/Composer.js';
 export type { ComposerProps } from './react/components/Composer.js';
 export { AttachmentTray } from './react/components/AttachmentTray.js';
 export type { AttachmentTrayProps } from './react/components/AttachmentTray.js';
+export { ChatFab } from './react/components/ChatFab.js';
+export type { ChatFabProps } from './react/components/ChatFab.js';
 export { JiniChatProvider, useJiniChatSlots, useOnFeedback } from './react/components/JiniChatProvider.js';
 export type { JiniChatProviderProps, JiniChatSlots } from './react/components/JiniChatProvider.js';
 

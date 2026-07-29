@@ -18,7 +18,7 @@ export interface PlaygroundRunRequest {
   /**
    * Proves which browser surface started this run, so the daemon can route `page.*` calls back to
    * it. Rides in this host-owned envelope rather than on the neutral run DTO — see
-   * `@jini-ai/node-host`'s `createFrontendControl`. Absent for a run with no originating tab.
+   * `@jini-ai/server`'s `createFrontendControl`. Absent for a run with no originating tab.
    */
   frontendBindToken?: string;
 }

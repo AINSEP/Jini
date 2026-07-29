@@ -118,7 +118,7 @@ function toCapabilityInput(capabilityId: string, input: unknown): Record<string,
  *
  * @param options - The registry to route through, the manifest to expose, and the gate to apply.
  * @returns Registrations in manifest order, ready to hand to a `ToolRegistry` (or to
- * `@jini-ai/node-host`'s `toolRegistrations` config option).
+ * `@jini-ai/server`'s `toolRegistrations` config option).
  * @throws Never. A duplicate id is reported by `ToolRegistry.register` at registration time,
  * naming the id — this function does not pre-empt that with a second, differently-worded error.
  *

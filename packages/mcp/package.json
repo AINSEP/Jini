@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/mcp",
   "version": "0.1.2",
+  "description": "Model Context Protocol adapters: server config schema and IO, an MCP client, and agent-side MCP server installation.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,10 +11,10 @@
   "jini": {
     "domain": "integration",
     "kind": "protocol-adapter",
-    "runtime": "node",
-    "admission": "incubating"
+    "runtime": "node"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

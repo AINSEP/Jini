@@ -35,9 +35,9 @@ importers:
       '@jini-ai/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
-      '@jini-ai/node-host':
+      '@jini-ai/server':
         specifier: workspace:*
-        version: link:../../packages/node-host
+        version: link:../../packages/server
 
   examples/nlweb-demo:
     devDependencies:
@@ -87,9 +87,9 @@ importers:
       '@jini-ai/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
-      '@jini-ai/http':
+      '@jini-ai/http-kit':
         specifier: workspace:*
-        version: link:../../packages/http
+        version: link:../../packages/http-kit
       '@jini-ai/mcp':
         specifier: workspace:*
         version: link:../../packages/mcp
@@ -99,12 +99,12 @@ importers:
       '@jini-ai/memory':
         specifier: workspace:*
         version: link:../../packages/memory
-      '@jini-ai/node-host':
-        specifier: workspace:*
-        version: link:../../packages/node-host
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
+      '@jini-ai/server':
+        specifier: workspace:*
+        version: link:../../packages/server
       react:
         specifier: ^19.2.0
         version: 19.2.7
@@ -198,12 +198,6 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../platform
-      better-sqlite3:
-        specifier: ^11.10.0
-        version: 11.10.0
-      ws:
-        specifier: ^8.18.0
-        version: 8.21.1
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.11
@@ -214,6 +208,12 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
+      better-sqlite3:
+        specifier: ^11.10.0
+        version: 11.10.0
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.1
 
   packages/chat-core:
     dependencies:
@@ -303,13 +303,13 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../protocol
-      node-pty:
-        specifier: ^1.1.0
-        version: 1.1.0
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
+      node-pty:
+        specifier: ^1.1.0
+        version: 1.1.0
 
   packages/deploy:
     dependencies:
@@ -350,7 +350,7 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
 
-  packages/http:
+  packages/http-kit:
     dependencies:
       '@jini-ai/agent-runtime':
         specifier: workspace:*
@@ -415,43 +415,6 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
 
-  packages/node-host:
-    dependencies:
-      '@jini-ai/agent-runtime':
-        specifier: workspace:*
-        version: link:../agent-runtime
-      '@jini-ai/core':
-        specifier: workspace:*
-        version: link:../core
-      '@jini-ai/daemon':
-        specifier: workspace:*
-        version: link:../daemon
-      '@jini-ai/http':
-        specifier: workspace:*
-        version: link:../http
-      '@jini-ai/sidecar':
-        specifier: workspace:*
-        version: link:../sidecar
-      '@jini-ai/sqlite':
-        specifier: workspace:*
-        version: link:../sqlite
-      better-sqlite3:
-        specifier: ^11.10.0
-        version: 11.10.0
-      express:
-        specifier: ^4.21.0
-        version: 4.22.2
-    devDependencies:
-      '@types/better-sqlite3':
-        specifier: ^7.6.11
-        version: 7.6.13
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@vitest/coverage-v8':
-        specifier: ^2.1.9
-        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
-
   packages/platform:
     dependencies:
       undici:
@@ -477,13 +440,13 @@ importers:
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../protocol
-      better-sqlite3:
-        specifier: ^11.10.0
-        version: 11.10.0
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
+      better-sqlite3:
+        specifier: ^11.10.0
+        version: 11.10.0
 
   packages/renderers-react:
     dependencies:
@@ -528,6 +491,43 @@ importers:
         specifier: ^25.0.1
         version: 25.0.1
 
+  packages/server:
+    dependencies:
+      '@jini-ai/agent-runtime':
+        specifier: workspace:*
+        version: link:../agent-runtime
+      '@jini-ai/core':
+        specifier: workspace:*
+        version: link:../core
+      '@jini-ai/daemon':
+        specifier: workspace:*
+        version: link:../daemon
+      '@jini-ai/http-kit':
+        specifier: workspace:*
+        version: link:../http-kit
+      '@jini-ai/sidecar':
+        specifier: workspace:*
+        version: link:../sidecar
+      '@jini-ai/sqlite':
+        specifier: workspace:*
+        version: link:../sqlite
+      better-sqlite3:
+        specifier: ^11.10.0
+        version: 11.10.0
+      express:
+        specifier: ^4.21.0
+        version: 4.22.2
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.11
+        version: 7.6.13
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@vitest/coverage-v8':
+        specifier: ^2.1.9
+        version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
+
   packages/sidecar:
     dependencies:
       '@jini-ai/core':
@@ -540,9 +540,9 @@ importers:
 
   packages/sqlite:
     dependencies:
-      '@jini-ai/daemon':
+      '@jini-ai/protocol':
         specifier: workspace:*
-        version: link:../daemon
+        version: link:../protocol
       better-sqlite3:
         specifier: ^11.10.0
         version: 11.10.0

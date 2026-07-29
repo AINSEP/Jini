@@ -3,8 +3,8 @@
  *
  * The real `discover` callback `resolveDaemonUrl` (`daemon-url.ts`) has always accepted but this
  * package never implemented — see `source-map.md`'s "Deferred" item 1 and its own 2026-07-21
- * investigation, which found `@jini-ai/node-host`'s `createLocalNodeDaemon` wrote nothing anywhere a
- * separate CLI process could read. That daemon side is now built (`@jini-ai/node-host`'s
+ * investigation, which found `@jini-ai/server`'s `createLocalNodeDaemon` wrote nothing anywhere a
+ * separate CLI process could read. That daemon side is now built (`@jini-ai/server`'s
  * `discoveryFile` config, backed by `@jini-ai/sidecar`'s `daemon-registry.ts`); this module is the
  * matching CLI-side reader: `createLocalDaemonDiscovery(...)` builds a probe over that same
  * on-disk record, verified live (not just present — see `readLiveDaemonRegistryRecord`'s own
@@ -12,7 +12,7 @@
  *
  * Deliberately not wired to a hardcoded default `dataDir`: exactly like `resolveDaemonUrl` itself
  * has no baked-in env var name or default URL, this package has no opinion on where a given
- * product's daemon keeps its data — the caller (whatever wires a `@jini-ai/node-host` daemon and a
+ * product's daemon keeps its data — the caller (whatever wires a `@jini-ai/server` daemon and a
  * `@jini-ai/cli`-transport pack together for one product) supplies the same `dataDir` (or an
  * explicit `registryPath`, when `createLocalNodeDaemon`'s own `discoveryFile` was overridden away
  * from its default) to both sides.
@@ -25,7 +25,7 @@ export interface LocalDaemonDiscoveryOptions {
   /**
    * The same `dataDir` the target `createLocalNodeDaemon({ dataDir, ... })` call was given. The
    * registry path is derived from it via `@jini-ai/sidecar`'s `resolveDaemonRegistryPath` — the
-   * identical derivation `@jini-ai/node-host` uses for its own `discoveryFile` default. Ignored when
+   * identical derivation `@jini-ai/server` uses for its own `discoveryFile` default. Ignored when
    * `registryPath` is also given.
    */
   dataDir?: string;

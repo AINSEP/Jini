@@ -1,6 +1,6 @@
 # agent-protocol
 
-`@jini/agent-runtime` module providing the ACP and pi RPC subprocess protocol
+`@jini-ai/agent-runtime` module providing the ACP and pi RPC subprocess protocol
 adapters used to drive external AI agent CLIs.
 
 ---
@@ -37,7 +37,7 @@ belongs in `core/`.
 - **The root barrel uses explicit named re-exports** — never `export *` — so
   the public surface is enumerable and free of silent name collisions.
 - **External code imports from `'./agent-protocol/index.js'`** (or the
-  package root barrel, `@jini/agent-runtime`) — never from a subdirectory
+  package root barrel, `@jini-ai/agent-runtime`) — never from a subdirectory
   path directly.
 
 ## Public surface
@@ -148,7 +148,7 @@ member — the shared transport primitive both adapters depend on.
 port-injection seams (the classifier port, the de-branded defaults) but does
 not itself implement a real, product-specific `AccountFailureClassifier` —
 that belongs to a future product-adapter package, per `AGENTS.md`'s boundary
-that `packages/@jini/**` must contain zero product-identity strings.
+that `packages/@jini-ai/**` must contain zero product-identity strings.
 
 See `source-map.md` for the full origin commit, file-by-file transform
 table, and the documented discrepancy about which upstream branch this module

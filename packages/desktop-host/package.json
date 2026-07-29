@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/desktop-host",
   "version": "0.1.2",
+  "description": "Shell-agnostic desktop-host ports: single-instance lock, window lifecycle, protocol handling, sidecar launch, paths, and config. Electron and Tauri assemblies live behind ./electron and ./tauri.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,10 +11,10 @@
   "jini": {
     "domain": "platform",
     "kind": "host",
-    "runtime": "desktop",
-    "admission": "incubating"
+    "runtime": "desktop"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -26,6 +27,16 @@
       "types": "./dist/bridge-testing.d.ts",
       "import": "./dist/bridge-testing.js",
       "default": "./dist/bridge-testing.js"
+    },
+    "./electron": {
+      "types": "./dist/electron/index.d.ts",
+      "import": "./dist/electron/index.js",
+      "default": "./dist/electron/index.js"
+    },
+    "./tauri": {
+      "types": "./dist/tauri/index.d.ts",
+      "import": "./dist/tauri/index.js",
+      "default": "./dist/tauri/index.js"
     }
   },
   "files": [

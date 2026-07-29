@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/diagnostics",
   "version": "0.1.2",
+  "description": "Diagnostics-bundle tooling: JSON/text secret redaction, log-source collection, manifest building, and zip packaging for support exports.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,10 +11,10 @@
   "jini": {
     "domain": "tooling",
     "kind": "diagnostics",
-    "runtime": "node",
-    "admission": "incubating"
+    "runtime": "node"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

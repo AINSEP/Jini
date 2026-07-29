@@ -39,7 +39,7 @@
  * two-phase boot reconciliation. See `createInMemoryMediaTaskStore` in
  * `task-store.ts` for the reference behavior this mirrors.
  */
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import type {
   MediaTask,
   MediaTaskCreateInput,
@@ -138,8 +138,19 @@ export interface SqliteMediaTaskStore extends MediaTaskStore {
  * the process comes back up sees every task exactly as it was left, and
  * `reconcileOnBoot` can then mark anything still `queued`/`running` as
  * `interrupted`.
+ *
+ * `better-sqlite3` (a native compiled addon) is dynamically imported here
+ * rather than statically at module scope (mirroring `@jini-ai/daemon`'s
+ * `loadRealSpawnPty`/`node-pty` pattern) — this package's root barrel
+ * re-exports this module unconditionally, so a static top-level import would
+ * force every consumer of `@jini-ai/media`, even one wanting only
+ * `renderStub`, to load the native binary at module-evaluation time. Now
+ * only an actual `createSqliteMediaTaskStore` call pays that cost, and it
+ * fails cleanly (a rejected promise) rather than crashing unrelated imports
+ * if the platform/environment lacks a usable prebuild.
  */
-export function createSqliteMediaTaskStore(dbPath: string): SqliteMediaTaskStore {
+export async function createSqliteMediaTaskStore(dbPath: string): Promise<SqliteMediaTaskStore> {
+  const { default: Database } = await import('better-sqlite3');
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
 

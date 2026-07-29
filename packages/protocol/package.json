@@ -1,6 +1,7 @@
 {
   "name": "@jini-ai/protocol",
   "version": "0.1.2",
+  "description": "The Jini wire contract: run, event, journal, registry, and error types shared by every other package. Zod-validated, no other dependencies.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -10,10 +11,10 @@
   "jini": {
     "domain": "engine",
     "kind": "contract",
-    "runtime": "universal",
-    "admission": "locked"
+    "runtime": "universal"
   },
   "type": "module",
+  "sideEffects": false,
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {

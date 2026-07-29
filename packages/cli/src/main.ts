@@ -22,12 +22,12 @@
  *
  * **Daemon-URL resolution.** `resolveDaemonUrl` (`daemon-url.ts`) has no baked-in default —
  * this package has never had a locked default daemon port to fall back to (see
- * `source-map.md`: `@jini-ai/node-host`'s `createLocalNodeDaemon` binds an ephemeral port, not a
+ * `source-map.md`: `@jini-ai/server`'s `createLocalNodeDaemon` binds an ephemeral port, not a
  * fixed one). This binary wires the three real, already-built pieces together instead of
  * inventing a new one: an explicit `--daemon-url <url>` flag (highest precedence), a
  * `JINI_DAEMON_URL` env var, and — when `--data-dir <path>` or `--registry-path <path>` is
  * given — `local-daemon-discovery.ts`'s `createLocalDaemonDiscovery`, the CLI-side reader for
- * a `@jini-ai/node-host`-written on-disk daemon registry record. That discovery module's own doc
+ * a `@jini-ai/server`-written on-disk daemon registry record. That discovery module's own doc
  * already flagged it as built-but-unconsumed ("no pack has registered against
  * `CommandRegistry` yet"); this is that consumer. If none of the three resolve, there is still
  * no silent fallback — `resolveDaemonUrl` throws, and this file's own catch boundary (below)
@@ -113,7 +113,7 @@ const ROOT_USAGE = renderUsage({
   description: 'CLI transport for a Jini daemon over HTTP. Commands: run, daemon, version.',
   options: [
     { flag: '--daemon-url <url>', description: 'Explicit daemon base URL. Takes precedence over JINI_DAEMON_URL and local discovery.' },
-    { flag: '--data-dir <path>', description: "Resolve a locally running daemon's URL from this data directory's on-disk registry (see @jini-ai/node-host's createLocalNodeDaemon)." },
+    { flag: '--data-dir <path>', description: "Resolve a locally running daemon's URL from this data directory's on-disk registry (see @jini-ai/server's createLocalNodeDaemon)." },
     { flag: '--registry-path <path>', description: "Exact registry file path, overriding --data-dir's derived default." },
     { flag: '--help, -h', description: 'Show this help.' },
     { flag: '--version, -v', description: 'Print the running daemon\'s version (alias for "jini version"; recognized only as the first argument).' },

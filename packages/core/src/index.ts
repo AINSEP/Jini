@@ -6,6 +6,8 @@ export * from './bindings.js';
 // re-export here would leak them onto this public entry point.
 export type { Daemon, DaemonConfig } from './daemon.js';
 export { createDaemon } from './daemon.js';
+export type { PackDisposalFailure } from './pack-lifecycle.js';
+export { disposePacks, registerPackTools } from './pack-lifecycle.js';
 export * from './redact.js';
 export * from './api-token-auth.js';
 export * from './origin-validation.js';

@@ -1,4 +1,4 @@
-# `@jini/composio`
+# `@jini-ai/composio`
 
 Incubating, Node-only Composio integration package for Jini hosts.
 
@@ -40,7 +40,7 @@ import {
   ConnectorStatusService,
   FileConnectorCredentialStore,
   createFileComposioConfigStore,
-} from '@jini/composio';
+} from '@jini-ai/composio';
 
 const configStore = createFileComposioConfigStore({
   filePath: '/var/lib/example/composio/config.json',
@@ -59,16 +59,17 @@ const service = new ComposioConnectorService({
 });
 ```
 
-`@jini/composio` is not yet part of the locked package set. See
-`UNLOCKED.md` and `source-map.md` for its admission status, provenance, and
-accepted live-credential verification gap.
+See `source-map.md` for provenance and the accepted live-credential
+verification gap. (`UNLOCKED.md` describes the locked/incubating admission
+gate, which was removed repo-wide on 2026-07-28 — it is a historical record,
+not a current constraint.)
 
 Verification commands:
 
 ```sh
-pnpm --filter @jini/composio run typecheck
-pnpm --filter @jini/composio run test
-pnpm --filter @jini/composio run test:coverage
+pnpm --filter @jini-ai/composio run typecheck
+pnpm --filter @jini-ai/composio run test
+pnpm --filter @jini-ai/composio run test:coverage
 ```
 
 The committed coverage gate includes every `src/**/*.ts` module and requires

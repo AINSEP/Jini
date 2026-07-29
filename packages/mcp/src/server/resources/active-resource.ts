@@ -18,7 +18,7 @@
  * same way (both require a Skill/DesignSystem noun this kernel doesn't have).
  *
  * Security posture matches every other tool/resource in this package: no
- * separate authorization mechanism here — whatever `@jini-ai/http`'s
+ * separate authorization mechanism here — whatever `@jini-ai/http-kit`'s
  * same-origin guard / bearer-auth middleware already enforces on
  * `GET /api/active` is the only gate a read of this resource passes
  * through.

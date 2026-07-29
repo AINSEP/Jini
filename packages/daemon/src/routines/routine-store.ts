@@ -1,5 +1,5 @@
 /**
- * `RoutineStore` — the CRUD + run-history persistence port for `@jini-ai/http`'s routine routes.
+ * `RoutineStore` — the CRUD + run-history persistence port for `@jini-ai/http-kit`'s routine routes.
  * Designed the same way `../event-log.js`'s `EventLog` is designed (that module's own doc
  * comment is the explicit template named by the porting proposal,
  * `ADS-memory/reports/proposals/PROP-http-route-packs-automation-routines-2026-07-21.md`): a

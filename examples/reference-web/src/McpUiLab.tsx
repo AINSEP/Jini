@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat-core';
-import { ChatPane, registerToolRenderer } from '@jini-ai/chat-react';
+import { ChatFab, ChatPane, registerToolRenderer } from '@jini-ai/chat-react';
 import { uploadChatAttachments } from './attachments.js';
-import { ChatFab } from './ChatFab.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { McpUiLabHostFrame } from './McpUiLabHost.js';
 import { MCPUI_LAB_VIEW_MODES, type McpUiLabViewMode } from './mcpui-lab-view.js';

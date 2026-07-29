@@ -2,7 +2,7 @@
 
 A small NLWeb-shaped spike: ask a site a question in natural language, get Schema.org back.
 
-**This is a spike, not architecture.** Nothing here is `@jini/*` yet, and nothing depends on it.
+**This is a spike, not architecture.** Nothing here is `@jini-ai/*` yet, and nothing depends on it.
 Its purpose is to answer one question cheaply — *does retrieval quality actually require
 embeddings for a site this size?* — before anyone builds an embedding pipeline.
 
@@ -50,7 +50,7 @@ synonym map for the handful of terms your domain actually cares about.
 
 The split this argues for is the same one `PageDriver` uses.
 
-**Generic — could live in `@jini/*`:** the `/ask` endpoint, retrieval and ranking, the
+**Generic — could live in `@jini-ai/*`:** the `/ask` endpoint, retrieval and ranking, the
 Schema.org response shaping, the `noMatch` contract, and the MCP projection (every NLWeb
 endpoint is also an MCP server, and Jini already has an MCP server).
 
@@ -60,7 +60,7 @@ than product vocabulary, which is what makes it admissible as the shared shape a
 
 **Missing from Jini entirely:** embeddings and vector search. There is no such primitive in the
 repo today — that is the one real subsystem an embeddings-based version would need. The LLM half
-already exists: `@jini/memory`'s `llm-provider` is a multi-vendor "call an LLM, get strict JSON
+already exists: `@jini-ai/memory`'s `llm-provider` is a multi-vendor "call an LLM, get strict JSON
 back" call, which is exactly the shape the summarizer wants.
 
 ## Files

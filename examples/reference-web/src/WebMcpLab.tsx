@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat-core';
-import { ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat-react';
+import { ChatFab, ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat-react';
 import {
   findCapabilityInputError,
   toWebMcpTool,
@@ -10,7 +10,6 @@ import {
 } from '@jini-ai/agentic';
 import { getAgentModelContext } from '@jini-ai/agentic/dom';
 import { uploadChatAttachments } from './attachments.js';
-import { ChatFab } from './ChatFab.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { PLAYGROUND_RUNTIME_ACCESS } from './runtime-access.js';
 import { installWebMcpLabPolyfill } from './webmcp-lab-polyfill.js';

@@ -10,6 +10,6 @@
   "dependencies": {
     "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/daemon": "workspace:*",
-    "@jini-ai/node-host": "workspace:*"
+    "@jini-ai/server": "workspace:*"
   }
 }

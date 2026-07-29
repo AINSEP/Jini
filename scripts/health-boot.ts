@@ -48,7 +48,7 @@ async function main(): Promise<void> {
   if (rootDeps.length === 0) {
     throw new Error(
       'health-boot: examples/minimal-host/package.json has no @jini-ai/* dependencies — nothing to pack. ' +
-        'Add at least one @jini-ai/* dependency (e.g. @jini-ai/node-host) first.',
+        'Add at least one @jini-ai/* dependency (e.g. @jini-ai/server) first.',
     );
   }
 

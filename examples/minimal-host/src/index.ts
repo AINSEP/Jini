@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/agent-runtime';
-import { createLocalNodeDaemon } from '@jini-ai/node-host';
+import { createLocalNodeDaemon } from '@jini-ai/server';
 
 interface DaemonStatusBody {
   ok?: boolean;

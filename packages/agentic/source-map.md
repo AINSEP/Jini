@@ -597,7 +597,7 @@ is over an unrelated union. `packages/protocol`'s own test suite re-run clean af
 - **Not routed through `@jini-ai/chat-react`'s conversation abstraction** — a deliberate choice, not
   an oversight: that abstraction is chat-*message*-shaped (`ChatMessage`/`useConversation`), and
   A2UI's surface state has no natural chat-message projection. The fixture *does* go through the
-  same real `@jini-ai/daemon` `RunLifecycle` + `@jini-ai/node-host` HTTP daemon + real SSE stream
+  same real `@jini-ai/daemon` `RunLifecycle` + `@jini-ai/server` HTTP daemon + real SSE stream
   `AgentLab`/chat-pane itself would use (`POST /api/runs`, `GET /api/runs/:id/events`) — "reachable
   through the real chat-pane execution path" is satisfied at the daemon/transport layer, not by
   reusing the chat-message UI layer, which would have been a worse fit for surface-shaped state.

@@ -87,7 +87,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
   const failures: SelfTestFailure[] = [];
 
   try {
-    for (const packageName of ['core', 'http', 'node-host', 'daemon', 'protocol']) {
+    for (const packageName of ['core', 'http-kit', 'server', 'daemon', 'protocol']) {
       writePackage(root, packageName);
     }
     write(root, 'packages/missing-metadata/package.json', '{"name":"@jini-ai/missing-metadata"}\n');
@@ -123,16 +123,16 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     write(root, 'packages/core/src/bad-r1.tsx', `import { x } from '../../../examples/reference-web/foo.js';\nexport { x };\n`);
     // R2: deep cross-package relative reach, and a deep bare @jini-ai/<name>/<subpath> import.
     write(root, 'packages/core/src/bad-r2-relative.ts', `import { x } from '../../daemon/src/foo.js';\nexport { x };\n`);
-    write(root, 'packages/http/src/bad-r2-deep.ts', `import { x } from '@jini-ai/daemon/dist/foo.js';\nexport { x };\n`);
+    write(root, 'packages/http-kit/src/bad-r2-deep.ts', `import { x } from '@jini-ai/daemon/dist/foo.js';\nexport { x };\n`);
     // R2 exemption: @jini-ai/agentic/dom and @jini-ai/agentic/a2ui are the other named-literal
     // exceptions, alongside @jini-ai/core/internal — must NOT be flagged. A *different* subpath of
     // the same package (bad-r2-agentic-other-subpath.ts) proves the exemption is the exact literal,
     // not a pattern that swallows every @jini-ai/agentic/* import.
-    write(root, 'packages/http/src/ok-r2-agentic-dom.ts', `import { x } from '@jini-ai/agentic/dom';\nexport { x };\n`);
-    write(root, 'packages/http/src/ok-r2-agentic-a2ui.ts', `import { x } from '@jini-ai/agentic/a2ui';\nexport { x };\n`);
+    write(root, 'packages/http-kit/src/ok-r2-agentic-dom.ts', `import { x } from '@jini-ai/agentic/dom';\nexport { x };\n`);
+    write(root, 'packages/http-kit/src/ok-r2-agentic-a2ui.ts', `import { x } from '@jini-ai/agentic/a2ui';\nexport { x };\n`);
     write(
       root,
-      'packages/http/src/bad-r2-agentic-other-subpath.ts',
+      'packages/http-kit/src/bad-r2-agentic-other-subpath.ts',
       `import { x } from '@jini-ai/agentic/other';\nexport { x };\n`,
     );
     // R5: product-identity string + OD_ prefix.
@@ -141,13 +141,13 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // R6: value import of getToolRegistration from a non-daemon package.
     write(
       root,
-      'packages/http/src/bad-r6.ts',
+      'packages/http-kit/src/bad-r6.ts',
       `import { getToolRegistration } from '@jini-ai/core/internal';\nexport { getToolRegistration };\n`,
     );
     // R6 exemption: same import, but type-only, from a non-daemon package — must NOT be flagged.
     write(
       root,
-      'packages/node-host/src/ok-r6-type-only.ts',
+      'packages/server/src/ok-r6-type-only.ts',
       `import type { AnyPack } from '@jini-ai/core/internal';\nexport type { AnyPack };\n`,
     );
     // R6 exemption: value import, but from daemon itself — must NOT be flagged.
@@ -163,7 +163,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       'packages/core/src/ok-same-package.ts',
       `import { x } from './ok-relative.js';\nexport { x };\n`,
     );
-    write(root, 'packages/http/src/ok-bare.ts', `import { createDaemon } from '@jini-ai/core';\nexport { createDaemon };\n`);
+    write(root, 'packages/http-kit/src/ok-bare.ts', `import { createDaemon } from '@jini-ai/core';\nexport { createDaemon };\n`);
     // Known-good: a provenance-citing doc comment (this codebase's real convention) must NOT
     // be parsed as a live import or a live product-identity string — regression test for the
     // false-positive `pnpm guard` actually produced on its first real run against this repo.

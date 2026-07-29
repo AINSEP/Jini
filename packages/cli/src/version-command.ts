@@ -5,7 +5,7 @@
  * `GET /api/daemon/status`'s `version` field (`packages/http/src/daemon-status.ts`,
  * `DaemonStatusResponse.version`) — the same route `daemon-command.ts`'s `daemon status`
  * already calls. `packages/cli/source-map.md`'s original UNCLEAR verdict on a standalone
- * `version` command noted "@jini-ai/http has no version route yet ... nothing to call"; that
+ * `version` command noted "@jini-ai/http-kit has no version route yet ... nothing to call"; that
  * blocker never actually required a *separate* route — `daemonStatusRoute`'s response body
  * already carries a `version` field, so no new HTTP route was added for this command. It just
  * extracts and prints that one field instead of the full status envelope `daemon status` prints.

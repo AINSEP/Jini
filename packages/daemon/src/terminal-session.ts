@@ -13,7 +13,7 @@
  * 1. **A real `node-pty`-backed `PtySpawn`.** `@jini-ai/platform` intentionally
  *    does not depend on `node-pty` (a native compiled addon); `@jini-ai/daemon`
  *    does (see this package's `package.json` and `source-map.md`'s dated
- *    section for why that dependency now lives here, not in `@jini-ai/http` or
+ *    section for why that dependency now lives here, not in `@jini-ai/http-kit` or
  *    `@jini-ai/platform`). {@link loadRealSpawnPty} is the real, dynamically
  *    imported default the reference session manager below uses.
  *
@@ -155,7 +155,7 @@ function toSessionInfo(session: PlatformTerminalSession, resourceRef: string | n
 }
 
 export interface CreateTerminalSessionOptions {
-  /** Opaque grouping/scoping reference (e.g. what `@jini-ai/http`'s `workspace-root.ts` resolved `cwd` from) — tracked by this module only, never forwarded to `@jini-ai/platform`. */
+  /** Opaque grouping/scoping reference (e.g. what `@jini-ai/http-kit`'s `workspace-root.ts` resolved `cwd` from) — tracked by this module only, never forwarded to `@jini-ai/platform`. */
   readonly resourceRef?: string | null;
   readonly cwd: string;
   readonly cols?: number;

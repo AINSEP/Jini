@@ -17,11 +17,11 @@
     "@jini-ai/chat-react": "workspace:*",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/daemon": "workspace:*",
-    "@jini-ai/http": "workspace:*",
+    "@jini-ai/http-kit": "workspace:*",
     "@jini-ai/mcp": "workspace:*",
     "@jini-ai/media": "workspace:*",
     "@jini-ai/memory": "workspace:*",
-    "@jini-ai/node-host": "workspace:*",
+    "@jini-ai/server": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"

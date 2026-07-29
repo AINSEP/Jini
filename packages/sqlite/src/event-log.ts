@@ -26,7 +26,7 @@ import type {
   EventLogAppendInput,
   EventLogEntry,
   EventLogReplayResult,
-} from '@jini-ai/daemon';
+} from '@jini-ai/protocol';
 
 /**
  * Default per-run retention cap applied when `SqliteEventLogOptions.maxEntriesPerRun` is
