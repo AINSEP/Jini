@@ -33,6 +33,22 @@ function parseOnlyFlag(argv: readonly string[]): string[] | null {
   return value.split(',').map((s) => s.trim()).filter(Boolean);
 }
 
+/**
+ * Idempotency check: `--only`'s dependency closure frequently re-includes packages the caller
+ * didn't ask for and that are already live (e.g. most packages depend on `@jini-ai/platform`).
+ * Without this, a partial run that already published some of the closure fails immediately on
+ * the first already-published package it revisits — `npm publish` refuses to overwrite an
+ * existing version — instead of continuing on to the packages that actually still need it.
+ */
+function isVersionAlreadyPublished(name: string, version: string): boolean {
+  try {
+    const out = execFileSync('npm', ['view', `${name}@${version}`, 'version'], { stdio: 'pipe' }).toString().trim();
+    return out === version;
+  } catch {
+    return false;
+  }
+}
+
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   const registry = discoverJiniPackages(packagesDir);
@@ -58,6 +74,11 @@ async function main(): Promise<void> {
 
   for (const name of closure) {
     const entry = registry.get(name)!;
+    const localVersion = entry.pkg.version;
+    if (localVersion && isVersionAlreadyPublished(name, localVersion)) {
+      console.log(`\n--- skipping ${name}@${localVersion} (already published) ---`);
+      continue;
+    }
     console.log(`\n--- building ${name} ---`);
     execFileSync('pnpm', ['--filter', name, 'run', 'build'], { cwd: repoRoot, stdio: 'inherit' });
 
