@@ -26,6 +26,15 @@ describe('opencodeAgentDef.buildArgs', () => {
     ]);
   });
 
+  it('does not add the skip-permissions flag when permissionMode is "restricted", even if the CLI supports it', () => {
+    agentCapabilities.set('opencode', { skipPermissions: true });
+    expect(opencodeAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' }, {})).toEqual([
+      'run',
+      '--format',
+      'json',
+    ]);
+  });
+
   it('does not add the skip-permissions flag when the capability is recorded as disabled', () => {
     agentCapabilities.set('opencode', { skipPermissions: false });
     expect(opencodeAgentDef.buildArgs('hi', [], [], {}, {})).toEqual(['run', '--format', 'json']);

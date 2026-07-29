@@ -135,6 +135,12 @@ describe('codebuddyAgentDef.buildArgs', () => {
     expect(args.slice(-2)).toEqual(['--permission-mode', 'bypassPermissions']);
   });
 
+  it('omits --permission-mode bypassPermissions entirely when permissionMode is "restricted"', () => {
+    const args = codebuddyAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    expect(args).not.toContain('--permission-mode');
+    expect(args).not.toContain('bypassPermissions');
+  });
+
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
     expect(() => codebuddyAgentDef.buildArgs('hi', [])).not.toThrow();
   });

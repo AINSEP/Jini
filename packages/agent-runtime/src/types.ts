@@ -27,6 +27,17 @@ export type RuntimeReasoningOption = RuntimeModelOption;
 export type RuntimeBuildOptions = {
   model?: string | null;
   reasoning?: string | null;
+  // Every def that has one auto-approves its CLI's own permission prompts by default
+  // (`bypassPermissions` / `--yolo` / `--dangerously-skip-permissions`, depending on the CLI) —
+  // there is no TTY on a spawned subprocess to answer an interactive prompt, so a caller that
+  // never sets this gets exactly today's behavior unchanged. Pass `'restricted'` to opt a run
+  // OUT of that auto-approval; the def then omits its bypass flag, which typically means the
+  // underlying CLI denies/blocks actions that would otherwise need approval rather than prompting
+  // (still non-interactive-safe — just conservative instead of permissive). Not every def reads
+  // this: Codex already has its own distinct sandbox model (`workspace-write` by default,
+  // escalating to full access only via explicit env/platform conditions) and is unaffected either
+  // way; see `defs/codex.ts`'s `codexNeedsDangerFullAccessSandbox`.
+  permissionMode?: 'bypass' | 'restricted';
 };
 
 export type RuntimeContext = {

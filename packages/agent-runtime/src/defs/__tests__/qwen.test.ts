@@ -22,6 +22,17 @@ describe('qwenAgentDef.buildArgs', () => {
   it('omits --model when the model is the literal string "default"', () => {
     expect(qwenAgentDef.buildArgs('hi', [], [], { model: 'default' })).toEqual(['--yolo']);
   });
+
+  it('omits --yolo entirely when permissionMode is "restricted"', () => {
+    expect(qwenAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' })).toEqual([]);
+  });
+
+  it('still adds --model after omitting --yolo in restricted mode', () => {
+    expect(qwenAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted', model: 'qwen3-coder-plus' })).toEqual([
+      '--model',
+      'qwen3-coder-plus',
+    ]);
+  });
 });
 
 describe('qwenAgentDef shape', () => {

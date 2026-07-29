@@ -18,11 +18,16 @@ export const qwenAgentDef = {
     // Qwen Code reads from piped stdin when no positional prompt is supplied.
     // Current Qwen treats/rejects a bare `-` rather than needing it as a stdin sentinel.
     buildArgs: (_prompt, _imagePaths, _extra, options = {}) => {
-      const args = ['--yolo'];
+      const args = [];
+      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+      // behavior) unless a caller explicitly opts into a restricted run.
+      if (options.permissionMode !== 'restricted') {
+        args.push('--yolo');
+      }
       if (options.model && options.model !== 'default') {
         args.push('--model', options.model);
       }
-   
+
       return args;
     },
     promptViaStdin: true,

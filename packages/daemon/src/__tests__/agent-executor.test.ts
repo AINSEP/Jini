@@ -357,6 +357,36 @@ describe('AgentExecutor — successful run end-to-end', () => {
       undefined,
     );
   });
+
+  it('forwards permissionMode to buildArgs even when model/reasoning are both absent', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-permission-mode' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      permissionMode: 'restricted',
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, { permissionMode: 'restricted' }, undefined);
+  });
+
+  it('omits the options object entirely when model, reasoning, and permissionMode are all absent', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-no-options' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'do the thing', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, undefined, undefined);
+  });
 });
 
 describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {

@@ -36,8 +36,12 @@ export const qoderAgentDef = {
         '-p',
         '--output-format',
         'stream-json',
-        '--yolo',
       ];
+      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+      // behavior) unless a caller explicitly opts into a restricted run.
+      if (options.permissionMode !== 'restricted') {
+        args.push('--yolo');
+      }
       if (runtimeContext.cwd) {
         args.push('-w', runtimeContext.cwd);
       }

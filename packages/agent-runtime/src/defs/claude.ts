@@ -122,7 +122,11 @@ export const claudeAgentDef = {
       } else if (typeof runtimeContext.newSessionId === 'string' && runtimeContext.newSessionId) {
         args.push('--session-id', runtimeContext.newSessionId);
       }
-      args.push('--permission-mode', 'bypassPermissions');
+      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+      // behavior) unless a caller explicitly opts into a restricted run.
+      if (options.permissionMode !== 'restricted') {
+        args.push('--permission-mode', 'bypassPermissions');
+      }
       return args;
     },
     promptViaStdin: true,

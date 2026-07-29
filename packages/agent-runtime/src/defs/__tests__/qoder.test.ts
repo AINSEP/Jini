@@ -71,6 +71,14 @@ describe('qoderAgentDef.buildArgs', () => {
     expect(qoderAgentDef.buildArgs('hi', null as unknown as string[], [], {}, {})).toEqual(BASE_ARGS);
   });
 
+  it('omits --yolo entirely when permissionMode is "restricted"', () => {
+    expect(qoderAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' }, {})).toEqual([
+      '-p',
+      '--output-format',
+      'stream-json',
+    ]);
+  });
+
   it('composes cwd, model, dirs, and attachments together', () => {
     const args = qoderAgentDef.buildArgs(
       'hi',

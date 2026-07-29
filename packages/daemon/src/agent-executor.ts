@@ -424,6 +424,14 @@ export interface AgentExecutorRunInput {
   readonly model?: string;
   /** Optional host-selected reasoning effort, forwarded to runtime argv builders. */
   readonly reasoning?: string;
+  /**
+   * Forwarded verbatim to `RuntimeBuildOptions.permissionMode` (see `@jini-ai/agent-runtime`'s
+   * `types.ts`). Every def that has an auto-approve flag (`bypassPermissions` / `--yolo` /
+   * `--dangerously-skip-permissions`) uses it by default when this is omitted — unchanged
+   * behavior, since there is no TTY on a spawned subprocess to answer an interactive prompt.
+   * A host that wants a run to NOT auto-approve every action passes `'restricted'` here.
+   */
+  readonly permissionMode?: 'bypass' | 'restricted';
   /** Host-validated image files forwarded through argv, ACP, or pi-rpc. */
   readonly imagePaths?: readonly string[];
   /** Additional host-validated directories the runtime may read. */
@@ -1643,10 +1651,11 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       input.prompt,
       [...(input.imagePaths ?? [])],
       input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
-      input.model !== undefined || input.reasoning !== undefined
+      input.model !== undefined || input.reasoning !== undefined || input.permissionMode !== undefined
         ? {
             ...(input.model !== undefined ? { model: input.model } : {}),
             ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
+            ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
           }
         : undefined,
       runtimeContext,
