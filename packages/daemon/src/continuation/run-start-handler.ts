@@ -39,6 +39,26 @@ export interface ResolvedRunInput {
   readonly prompt: string;
   readonly cwd: string;
   readonly env?: NodeJS.ProcessEnv;
+  /**
+   * Forwarded verbatim to `AgentExecutorRunInput.permissionMode`.
+   *
+   * **Load-bearing, and the reason this interface grew.** Omitting it is not neutral: every def that
+   * has an auto-approve flag (`bypassPermissions` / `--yolo` / `--dangerously-skip-permissions`) uses
+   * it by default when this is absent. So a host that had been passing `'restricted'` to
+   * `AgentExecutor.run()` by hand and then adopted `createDefaultRunStartHandler` would silently have
+   * started auto-approving every action — a security regression wearing the clothes of a refactor.
+   * This field is what makes that host's existing posture expressible through the default handler.
+   */
+  readonly permissionMode?: 'bypass' | 'restricted';
+  /** Forwarded verbatim to `AgentExecutorRunInput.model` — a host-selected model id. */
+  readonly model?: string;
+  /** Forwarded verbatim to `AgentExecutorRunInput.reasoning` — a host-selected reasoning effort. */
+  readonly reasoning?: string;
+  /**
+   * Forwarded verbatim to `AgentExecutorRunInput.credentialEnv`: provider credentials this run's agent
+   * needs, delegated explicitly by the host and never read implicitly from `process.env` (SEC-001).
+   */
+  readonly credentialEnv?: Record<string, string>;
 }
 
 /** Host-owned composition seam: turns a durably-started run's identity into what `AgentExecutor.run()` actually needs. No generic default exists — see module doc. */
@@ -84,12 +104,19 @@ export function createDefaultRunStartHandler(
       contextRef: context.request.contextRef,
       ...(context.request.agentId !== undefined ? { agentId: context.request.agentId } : {}),
     });
+    // Each optional field is spread only when present, never passed as an explicit `undefined`:
+    // `AgentExecutor.run()` distinguishes absent from undefined for `permissionMode` in particular,
+    // where absent means "use the def's own auto-approve default".
     await options.agentExecutor.run({
       runId: context.run.id,
       agentId: resolved.agentId,
       prompt: resolved.prompt,
       cwd: resolved.cwd,
       ...(resolved.env !== undefined ? { env: resolved.env } : {}),
+      ...(resolved.permissionMode !== undefined ? { permissionMode: resolved.permissionMode } : {}),
+      ...(resolved.model !== undefined ? { model: resolved.model } : {}),
+      ...(resolved.reasoning !== undefined ? { reasoning: resolved.reasoning } : {}),
+      ...(resolved.credentialEnv !== undefined ? { credentialEnv: resolved.credentialEnv } : {}),
     });
   };
 }

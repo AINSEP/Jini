@@ -519,3 +519,48 @@ testable pure function" convention (`createDeferredEndGate`, `actionResultToApiR
 raised from 100/99.4/100/100 (package-wide) + a separate `src/server/**` 100% override to a single
 flat 100/100/100/100 — the two-tier config existed only because `oauth.ts` couldn't clear 100
 before; no longer needed.
+
+## 2026-07-29 addition — a stable `./bin` export subpath for the `jini-mcp` executable
+
+**Nothing was ported.** This is a package-manifest fix for a real consumer defect.
+
+`package.json` declared `bin: { "jini-mcp": "./dist/bin/serve.js" }` but an `exports` map containing
+only `"."`. A `bin` entry is not part of the exports map, so under Node's strict subpath resolution a
+consumer that needed the executable's path — to spawn it as a CLI-injected MCP server, which is the
+entire reason `serve.ts` exists — could not ask for it:
+`require.resolve('@jini-ai/mcp/dist/bin/serve.js')` fails with `ERR_PACKAGE_PATH_NOT_EXPORTED` even
+though the file is really on disk. Consumers were therefore resolving the one exported entry point
+and walking to a sibling path by hand (`join(dirname(require.resolve('@jini-ai/mcp')), 'bin',
+'serve.js')`), which hardcodes this package's private build layout into every consumer and breaks
+silently if `dist/`'s shape ever changes.
+
+Added:
+
+```json
+"./bin": { "default": "./dist/bin/serve.js" }
+```
+
+**Why `default` only, with no `types` or `import` condition** — deliberate, not an oversight, and the
+one place this subpath departs from the `types`/`import`/`default` shape every other export in the
+workspace uses. This subpath exists to be *resolved to a path string and handed to `spawn`*, never to
+be imported:
+
+- `serve.ts` ends in a top-level `await serve()` behind its `isMainModule` guard. A module with
+  top-level await cannot be `require()`d at all (`ERR_REQUIRE_ASYNC_MODULE`) even on a Node new
+  enough to `require()` ESM, so advertising it as importable to a CommonJS consumer would be a lie.
+- `serve.ts`'s own module doc already records why it is deliberately **not** re-exported from
+  `../index.ts`: it is a `process.env`-reading, stdio-serving, potentially `process.exit`-calling
+  side effect. The same reasoning applies to advertising `types`/`import` here.
+- `require.resolve` matches against the CommonJS condition set (`require`, `node`, `default`), so
+  `default` is the condition that actually makes a consumer's resolution succeed. An `import`-only
+  entry would have left CommonJS consumers exactly as stuck as before.
+
+No `jini.entries` map was added: `entries` is opt-in, and `./bin` shares the package's single
+`runtime: "node"` — adding it would have obliged every subpath to be listed for no gain.
+
+**Verified, personally, this session**: `require.resolve('@jini-ai/mcp/bin')` from a real CommonJS
+consumer (Tovu, which links this package via `file:`) now resolves to
+`.../packages/mcp/dist/bin/serve.js`, while `@jini-ai/mcp/dist/bin/serve.js` still correctly returns
+`ERR_PACKAGE_PATH_NOT_EXPORTED` — the escape hatch closed, the front door opened. 4 new tests in
+`src/__tests__/package-exports.test.ts` assert the subpath's declared target, that it never drifts
+from the `bin` entry, that it is backed by a real source file, and that the root export is unchanged.

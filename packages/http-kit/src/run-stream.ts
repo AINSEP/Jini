@@ -31,7 +31,7 @@ export interface RunStreamInternalErrorContext {
 
 export interface RunStreamDeps {
   readonly lifecycle: RunLifecycle;
-  /** Protocol adapter supplied by the composition root (for example `createAguiEncoder()`). */
+  /** Protocol adapter supplied by the composition root (for example `createGenUiEncoder()`). */
   readonly encoder: RunStreamEncoder;
   /** Host-owned sink for failures that must not escape an async Express handler. Defaults to `console.error`. */
   readonly onInternalError?: (context: RunStreamInternalErrorContext) => void;

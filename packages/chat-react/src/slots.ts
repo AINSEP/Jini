@@ -20,7 +20,7 @@
 import type { ReactNode } from 'react';
 import type { ChatAttachment } from '@jini-ai/chat-core';
 import type { ArtifactFile } from './artifact-types.js';
-import type { FeedbackChange, OnFeedback } from './transport.js';
+import type { FeedbackChange, OnFeedback } from '@jini-ai/chat-core';
 
 export type { FeedbackChange, OnFeedback };
 

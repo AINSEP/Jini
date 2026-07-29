@@ -279,6 +279,61 @@ describe('accessibleLabel', () => {
     expect(field).not.toBeNull();
     expect(findFieldFillRefusal(field!)).toBe('suspicious-name');
   });
+
+  // A contenteditable region is not a form control, so it has no `.labels` — the two <label>
+  // relationships the platform resolves for free on an <input> have to be walked by hand here.
+  // Without that, a rich-text surface visibly labelled "Card number" reaches the guard with
+  // nothing to judge, which is exactly the hole the `field_47` case above exists to close.
+  it('resolves a wrapping <label> for a contenteditable region, which has no .labels of its own', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label>Card number <div data-agent-element="al-ce-wrap" contenteditable="true" name="field_47"></div></label>',
+    );
+    expect(await makeDriver().describeField('al-ce-wrap')).toMatchObject({
+      type: 'contenteditable',
+      accessibleLabel: 'Card number',
+    });
+  });
+
+  it('resolves an explicit <label for> pointing at a contenteditable region by id', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label for="ce-cc">Card number</label><div id="ce-cc" data-agent-element="al-ce-for" contenteditable="true"></div>',
+    );
+    expect(await makeDriver().describeField('al-ce-for')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('skips a <label for> that names a different id and keeps looking', async () => {
+    // The manual for-linked walk scans every <label> on the page, so it must actually compare
+    // `htmlFor` rather than take the first label it finds.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label for="some-other-field">Not this one</label><label for="ce-picked">Card number</label>' +
+        '<div id="ce-picked" data-agent-element="al-ce-pick" contenteditable="true"></div>',
+    );
+    expect(await makeDriver().describeField('al-ce-pick')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('ignores an empty wrapping <label> and falls through to the for-linked one', async () => {
+    // A wrapper that contributes no text is not a label: preferring it would report `''` and hide
+    // the real name. The contenteditable itself is empty, so the wrapper's textContent is empty too.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label for="ce-empty-wrap">Card number</label>' +
+        '<label><div id="ce-empty-wrap" data-agent-element="al-ce-empty" contenteditable="true"></div></label>',
+    );
+    expect(await makeDriver().describeField('al-ce-empty')).toMatchObject({ accessibleLabel: 'Card number' });
+  });
+
+  it('reports no accessible label for a hidden input, whose .labels is null rather than an empty list', async () => {
+    // `HTMLInputElement.labels` is specified to be null — not an empty NodeList — for
+    // `type="hidden"`. Iterating it directly would throw on a field a page can genuinely publish.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<input type="hidden" data-agent-element="al-hidden" name="csrf" value="t" />',
+    );
+    expect(await makeDriver().describeField('al-hidden')).toMatchObject({ type: 'hidden', accessibleLabel: undefined });
+  });
 });
 
 describe('describeState', () => {

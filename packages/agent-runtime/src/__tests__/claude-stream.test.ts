@@ -207,6 +207,19 @@ describe('createClaudeStreamHandler', () => {
     ]);
   });
 
+  it('does not end the turn on a message_delta that carries no stop reason', () => {
+    // Anthropic sends `message_delta` for running usage totals too, with `stop_reason: null` until
+    // the turn actually finishes. Treating any `message_delta` as terminal would truncate the turn
+    // mid-stream, and the dedupe guard would then swallow the real end.
+    const events = run([
+      { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_no_stop' } } },
+      { type: 'stream_event', event: { type: 'message_delta', delta: { stop_reason: null }, usage: { output_tokens: 2 } } },
+      { type: 'stream_event', event: { type: 'message_delta', delta: { usage: { output_tokens: 4 } } } },
+    ]);
+
+    expect(events.filter((event) => event.type === 'turn_end')).toEqual([]);
+  });
+
   it('deduplicates turn_end when both assistant and message_delta carry the same stop reason', () => {
     const events = run([
       {

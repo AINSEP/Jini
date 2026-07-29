@@ -44,7 +44,7 @@ import type {
   ToolDescriptor,
   ToolRegistry,
 } from '@jini-ai/core';
-import { getToolRegistration } from '@jini-ai/core/internal';
+import { authorizeToolInvocation } from '@jini-ai/core/internal';
 
 export type ConfirmationDecision = 'confirm' | 'deny';
 
@@ -172,9 +172,9 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * `getAuditRecord`/an append hook later; out of this task's scope (see
  * `source-map.md`).
  *
- * @param options.registry - The `ToolRegistry` to resolve `{descriptor,
- * handler, policy}` triples from, via `@jini-ai/core/internal`'s
- * `getToolRegistration` — the one and only caller of that internal export.
+ * @param options.registry - The `ToolRegistry` to resolve and authorize
+ * tools against, via `@jini-ai/core/internal`'s `authorizeToolInvocation`
+ * — the one and only caller of that internal export.
  * @param options.delegate - Transport-supplied authorize/confirm UI seam;
  * omit for a headless caller whose tools never need interactive gating.
  * @complexity `execute` is O(1) plus the handler's own cost; `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
@@ -216,31 +216,53 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     input: unknown,
     signal?: AbortSignal,
   ): Promise<ToolExecutionResult> {
-    const registration = getToolRegistration(registry, toolId);
-    if (!registration) {
+    // Existence is checked separately from — and before — authorization so the audit record can
+    // be opened before the (possibly slow, possibly throwing) authorization gate runs, matching
+    // pre-authorizeToolInvocation timing: `requested` used to precede `policy.authorize`, and a
+    // policy that hangs or throws used to still leave a record behind. `has()` only confirms
+    // existence, never returns a handler, so this doesn't reopen the leak authorizeToolInvocation
+    // closed — that gate still runs, still unconditionally, inside the call below.
+    if (!registry.has(toolId)) {
       throw new Error(`ToolExecutor: unknown tool "${toolId}"`);
     }
-    const { descriptor, handler, policy } = registration;
 
     const executionId = randomUUID();
     audits.set(executionId, {
       executionId,
-      toolId: descriptor.id,
+      toolId,
       principalId: principal.id,
       runId: run.id,
       events: [],
     });
     appendEvent(executionId, 'requested');
 
-    let decision = await policy.authorize({ principal, run, tool: descriptor, input });
-    if (decision === 'allow' && delegate.onAuthorize) {
-      decision = await delegate.onAuthorize({ principal, run, tool: descriptor, input });
-    }
-    if (decision !== 'allow') {
+    // `.bind(delegate)` rather than passing the bare method reference: `ExecutionDelegate` is
+    // declared with method syntax, so a host may legitimately implement it as a class instance
+    // whose `onAuthorize` reads `this`. Handing the detached function to `@jini-ai/core` would
+    // call it with `this` bound to the wrapper object, and a `this`-using veto would throw a
+    // TypeError out of `execute()` instead of returning a decision. Re-read per call (not hoisted
+    // to `createToolExecutor`) so a delegate that gains `onAuthorize` after construction still
+    // gets consulted, matching the pre-`authorizeToolInvocation` behaviour.
+    const onAuthorize = delegate.onAuthorize?.bind(delegate);
+    const resolved = await authorizeToolInvocation(
+      registry,
+      toolId,
+      principal,
+      run,
+      input,
+      onAuthorize ? { onAuthorize } : undefined,
+    );
+    // `registry.has(toolId)` above already confirmed the tool exists, and `ToolRegistry` is
+    // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
+    // resolving the same `toolId` against the same `registry` cannot come back `undefined` here.
+    const { descriptor } = resolved!;
+
+    if (resolved!.decision !== 'allow') {
       appendEvent(executionId, 'denied');
       return { executionId, status: 'denied' };
     }
     appendEvent(executionId, 'authorized');
+    const { handler } = resolved!;
 
     if (descriptor.requiresConfirmation) {
       const confirmation = await requestConfirmation({ executionId, principal, run, tool: descriptor, input });

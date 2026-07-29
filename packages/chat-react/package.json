@@ -44,14 +44,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/chat-core": "workspace:*",
+    "@jini-ai/protocol": "workspace:*",
     "@jini-ai/ui": "workspace:*"
   },
   "peerDependencies": {
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",

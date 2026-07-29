@@ -11,7 +11,7 @@ import {
   type AgentToRendererMessage,
   type RendererToAgentMessage,
 } from '@jini-ai/agentic/a2ui';
-import { createAguiEncoder } from '@jini-ai/agentic';
+import { createGenUiEncoder } from '@jini-ai/agentic';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { ToolRegistration } from '@jini-ai/core';
 import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini-ai/http-kit';
@@ -596,7 +596,7 @@ async function main(): Promise<void> {
           });
         },
         (app, { lifecycle }) =>
-          registerRunStreamRoute(app, { lifecycle, encoder: createAguiEncoder() }),
+          registerRunStreamRoute(app, { lifecycle, encoder: createGenUiEncoder() }),
         (app, { adapter }) => registerMemoryRoutes(app, memoryRoutesDeps, adapter),
         (app, { adapter }) =>
           registerMediaRoutes(

@@ -15,10 +15,10 @@
  * stream into AG-UI *wire* events. Same protocol, two unrelated halves of it.
  */
 import type { RunAgentPayload, RunProtocolEvent } from '@jini-ai/protocol';
-import type { AGUIEvent } from './events.js';
+import type { GenUiEvent } from './events.js';
 
-export interface AguiEncodeContext {
-  /** The run this event belongs to — stamped onto every produced `AGUIEvent`. */
+export interface GenUiEncodeContext {
+  /** The run this event belongs to — stamped onto every produced `GenUiEvent`. */
   readonly runId: string;
   /** Passed through onto the produced event's `seq`, when the caller tracks one (e.g. an SSE `Last-Event-ID`-shaped cursor). Omitted entirely (not set to `undefined`) when absent, matching the original adapter's own base-field construction. */
   readonly seq?: number;
@@ -39,30 +39,30 @@ interface PendingToolCall {
  * an instance across multiple runs, since the correlation map has no per-run partitioning of its
  * own (`ctx.runId` is only used to stamp the produced event, not to scope the map).
  */
-export interface AguiEncoder {
+export interface GenUiEncoder {
   /**
-   * Encodes one `RunProtocolEvent` into an `AGUIEvent`, or `null` if this event has no AG-UI
+   * Encodes one `RunProtocolEvent` into an `GenUiEvent`, or `null` if this event has no AG-UI
    * equivalent (an unrecognized/not-yet-generalized event kind — silently dropped by the relay,
    * matching the original adapter's own default behavior).
    */
-  encode(event: RunProtocolEvent, ctx: AguiEncodeContext): AGUIEvent | null;
+  encode(event: RunProtocolEvent, ctx: GenUiEncodeContext): GenUiEvent | null;
 }
 
 /**
- * Creates a fresh `AguiEncoder` with its own, empty tool-call correlation map.
+ * Creates a fresh `GenUiEncoder` with its own, empty tool-call correlation map.
  * @complexity `encode` is O(1) per call (one `Map` get/set/delete); memory is O(k) in the number
  * of currently in-flight (not yet resolved) tool calls for the run this instance encodes.
  * @overallScore 100/100
  */
-export function createAguiEncoder(): AguiEncoder {
+export function createGenUiEncoder(): GenUiEncoder {
   const pendingToolCalls = new Map<string, PendingToolCall>();
 
-  function baseFields(ctx: AguiEncodeContext): { runId: string; ts: number; seq?: number } {
+  function baseFields(ctx: GenUiEncodeContext): { runId: string; ts: number; seq?: number } {
     const ts = ctx.now ? ctx.now() : Date.now();
     return ctx.seq !== undefined ? { runId: ctx.runId, ts, seq: ctx.seq } : { runId: ctx.runId, ts };
   }
 
-  function encodeAgentPayload(payload: RunAgentPayload, ctx: AguiEncodeContext): AGUIEvent | null {
+  function encodeAgentPayload(payload: RunAgentPayload, ctx: GenUiEncodeContext): GenUiEvent | null {
     const base = baseFields(ctx);
     switch (payload.type) {
       case 'text_delta':
@@ -127,7 +127,7 @@ export function createAguiEncoder(): AguiEncoder {
     }
   }
 
-  function encode(event: RunProtocolEvent, ctx: AguiEncodeContext): AGUIEvent | null {
+  function encode(event: RunProtocolEvent, ctx: GenUiEncodeContext): GenUiEvent | null {
     switch (event.kind) {
       case 'start':
         return { ...baseFields(ctx), kind: 'run.lifecycle', status: 'started' };

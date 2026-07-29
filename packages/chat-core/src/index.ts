@@ -10,6 +10,7 @@ export * from './events.js';
 export * from './messages.js';
 export * from './partial-json.js';
 export * from './tool-events.js';
+export * from './transport.js';
 export * from './tools.js';
 export * from './todos.js';
 export * from './question-form.js';

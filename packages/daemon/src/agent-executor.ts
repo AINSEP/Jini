@@ -169,6 +169,83 @@ export function isSupportedStreamFormat(value: string): value is SupportedStream
 }
 
 /**
+ * Whether `run()` can drive a given def, and — when it can — its `streamFormat` already narrowed for
+ * the dispatch logic that follows. The narrowing rides along deliberately: it is what lets `run()`
+ * delegate every compatibility guard here without then re-checking the format to satisfy the type
+ * system, which would leave an unreachable branch behind.
+ */
+export type AgentExecutorCompatibility =
+  | { readonly supported: true; readonly streamFormat: SupportedStreamFormat }
+  | { readonly supported: false; readonly reason: string };
+
+/**
+ * The single source of truth for whether this executor can drive a def.
+ *
+ * It exists because that knowledge was previously reachable only by *calling* `run()` and inspecting
+ * the failure. Anything that lists agents for a user to pick from — a discovery route, an agent
+ * picker, a CLI healthcheck — needs the same answer *before* a run exists, and had no way to ask it.
+ * The observable symptom was a consumer advertising an agent that its own executor then rejected the
+ * instant it was selected.
+ *
+ * `run()` consumes this rather than re-checking the conditions itself, so the discovery-time answer
+ * and the run-time guards cannot disagree. A predicate that merely duplicated the guards would be
+ * the same bug in a second location.
+ *
+ * @param def - The def to assess. Must be the **full** `RuntimeAgentDef`, not a projected
+ * `DetectedAgent`: that type omits `maxPromptArgBytes`, one of the three prompt-delivery signals
+ * checked here, so the argv-bound defs (`aider`, `deepseek`) would be misjudged as unsupported.
+ * @returns A discriminated result — see {@link AgentExecutorCompatibility}. The `reason` text is
+ * operator-facing and is what `run()` reports as its `AGENT_RUNTIME_UNSUPPORTED` message.
+ * @complexity O(1) — fixed field checks.
+ * @overallScore 100/100
+ */
+export function assessAgentExecutorCompatibility(def: RuntimeAgentDef): AgentExecutorCompatibility {
+  const streamFormat = def.streamFormat;
+  if (!isSupportedStreamFormat(streamFormat)) {
+    return {
+      supported: false,
+      reason: `AgentExecutor: agent "${def.id}" has streamFormat "${streamFormat}", which is not implemented in v1 — only ${SUPPORTED_STREAM_FORMATS.join(', ')} are supported (see packages/daemon/source-map.md for the deferred antigravity guard)`,
+    };
+  }
+  // Antigravity is the one plain def NOT driven — see module doc. Deliberately checked ahead of the
+  // generic prompt-delivery logic below: it declares `promptViaStdin: true` and would otherwise clear
+  // every guard that follows, but it needs auth-URL-leak buffering and a cross-run model-selection
+  // lock this driver has no seam for yet.
+  if (streamFormat === 'plain' && def.id === 'antigravity') {
+    return {
+      supported: false,
+      reason: `AgentExecutor: agent "${def.id}" needs auth-URL-leak buffering and a cross-run model-selection lock that generic streamFormat 'plain' driving does not provide — deliberately deferred, see ADS-memory/reports/proposals/PROP-plain-format-agent-driving-2026-07-21.md`,
+    };
+  }
+  if (
+    streamFormat !== 'acp-json-rpc' &&
+    def.promptViaStdin !== true &&
+    def.promptViaFile !== true &&
+    typeof def.maxPromptArgBytes !== 'number'
+  ) {
+    return {
+      supported: false,
+      reason: `AgentExecutor: agent "${def.id}" does not deliver its prompt via stdin, a staged prompt file, or a byte-budgeted argv — v1 has no other prompt delivery path`,
+    };
+  }
+  return { supported: true, streamFormat };
+}
+
+/**
+ * Whether `run()` can actually drive this def — the discovery-time counterpart to the guards inside
+ * `run()`, so a consumer never offers a user an agent that fails the moment it is selected.
+ *
+ * @param def - The full `RuntimeAgentDef`; see {@link assessAgentExecutorCompatibility} for why a
+ * projected `DetectedAgent` is not sufficient.
+ * @returns `true` when this executor would attempt the run.
+ * @complexity O(1).
+ * @overallScore 100/100
+ */
+export function isAgentExecutorSupported(def: RuntimeAgentDef): boolean {
+  return assessAgentExecutorCompatibility(def).supported;
+}
+
+/**
  * Selects and constructs the real stream-parser handler for a supported
  * `streamFormat`. `json-event-stream` additionally dispatches on
  * `def.eventParser` (the parser's own internal `kind` switch — e.g.
@@ -501,6 +578,13 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
 const BASELINE_AGENT_ENV_KEYS = [
   'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP', 'SHELL',
   'LANG', 'LC_ALL', 'LC_CTYPE',
+  // `USER` is required for a spawned `claude` CLI to find its own login/credential state — with
+  // it omitted (even though `HOME` is present), `claude` fails fast with "Not logged in · Please
+  // run /login" despite real credentials existing on disk/keychain. Confirmed by bisection against
+  // a real authenticated `claude` install: `BASELINE_AGENT_ENV_KEYS` alone fails, adding back every
+  // `CLAUDE_CODE_*`/`CLAUDECODE` var still fails, `LOGNAME`/`SSH_AUTH_SOCK` alone still fail, but
+  // `USER` alone flips it to success. See tovu-learnings.md §9 for the full investigation trail.
+  'USER',
   'SystemRoot', 'windir', 'ComSpec', 'PATHEXT', // Windows-only; harmless no-ops elsewhere
 ] as const;
 
@@ -695,6 +779,30 @@ export interface McpJsonInjectionOptions {
   readonly args?: readonly string[];
   /** The daemon's own loopback base URL the spawned `jini-mcp` process calls back into via `JINI_DAEMON_URL` (see `packages/mcp/src/bin/serve.ts`'s `DAEMON_URL_ENV_VAR`). */
   readonly daemonUrl: string;
+  /**
+   * Mints the bearer credential this run's `jini-mcp` child presents on its callbacks, delivered to
+   * the child through `JINI_DAEMON_TOKEN`. Omit it and the child is spawned exactly as before, with
+   * no token env var at all — so this is additive for every existing host.
+   *
+   * **A resolver, not a string, and deliberately so.** A host's `McpJsonInjectionOptions` is built
+   * once when it composes its executor — before any run exists. A plain string field could therefore
+   * only ever carry one boot-wide secret shared by every run, which defeats the point: the reason to
+   * hand the child a credential at all is that it can be scoped to the one run it was spawned for and
+   * stop working when that run ends. Taking `runId` here is what makes a per-run credential
+   * expressible.
+   *
+   * May be async so a host can mint through a keystore or signing service. Resolution happens in
+   * `writeMcpJsonForRun`, which is already async and already effectful; `buildMcpJsonServerEntry`
+   * stays pure and synchronous and receives the resolved value.
+   *
+   * Never hand this the host's own inbound API token. The child is the least-trusted participant in
+   * the run — it is reachable by whatever the spawned CLI does — so its credential should authorize
+   * its own callback route and nothing else.
+   *
+   * @throws Anything the host's own minting throws. `run()` turns a rejection into a pre-spawn
+   * `AGENT_SPAWN_FAILED` failure rather than spawning a child that cannot authenticate.
+   */
+  readonly credential?: (runId: string) => string | Promise<string>;
   /** Reads an existing `.mcp.json` at the given absolute path so this driver merges rather than clobbers a project's own file. Rejecting (ENOENT or otherwise) is treated as "no existing file" — see `writeMcpJsonForRun`. @default the real `fs.promises.readFile` (utf8) */
   readonly readFile?: (path: string) => Promise<string>;
   /** Writes the merged `.mcp.json` content back out. @default the real `fs.promises.writeFile` (utf8) */
@@ -707,23 +815,40 @@ const JINI_MCP_SERVER_KEY = 'jini';
 interface McpJsonServerEntry {
   readonly command: string;
   readonly args: string[];
-  readonly env: { readonly JINI_RUN_ID: string; readonly JINI_DAEMON_URL: string };
+  readonly env: {
+    readonly JINI_RUN_ID: string;
+    readonly JINI_DAEMON_URL: string;
+    /** Present only when the host supplied a `credential` resolver — see {@link McpJsonInjectionOptions.credential}. */
+    readonly JINI_DAEMON_TOKEN?: string;
+  };
 }
 
 /**
- * Builds this run's `mcpServers.jini` entry — pure, so every field mapping is directly
- * assertable without touching the filesystem.
+ * Builds this run's `mcpServers.jini` entry — pure and synchronous, so every field mapping is
+ * directly assertable without touching the filesystem. The credential arrives already resolved:
+ * `McpJsonInjectionOptions.credential` is a possibly-async per-run resolver, and awaiting it is
+ * `writeMcpJsonForRun`'s job, which keeps the effect out of this function.
+ *
+ * @param runId - The run this entry scopes its child to.
+ * @param options - `command`/`args`/`daemonUrl` from the host's injection options.
+ * @param credential - The already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN`
+ * entirely. Omitting produces byte-identical output to before this parameter existed.
  * @complexity O(1).
  * @overallScore 100/100
  */
 export function buildMcpJsonServerEntry(
   runId: string,
   options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl'>,
+  credential?: string,
 ): McpJsonServerEntry {
   return {
     command: options.command,
     args: options.args !== undefined ? [...options.args] : [],
-    env: { JINI_RUN_ID: runId, JINI_DAEMON_URL: options.daemonUrl },
+    env: {
+      JINI_RUN_ID: runId,
+      JINI_DAEMON_URL: options.daemonUrl,
+      ...(credential !== undefined ? { JINI_DAEMON_TOKEN: credential } : {}),
+    },
   };
 }
 
@@ -793,7 +918,10 @@ async function writeMcpJsonForRun(
     // degrade to "start fresh", matching mergeMcpJsonContent's own doc.
     existingRaw = undefined;
   }
-  const serverEntry = buildMcpJsonServerEntry(runId, mcpJsonInjection);
+  // Resolved per-run, here rather than in `buildMcpJsonServerEntry`, so that function stays pure and
+  // synchronous. `undefined` when the host supplied no resolver, which omits the env var entirely.
+  const credential = await mcpJsonInjection.credential?.(runId);
+  const serverEntry = buildMcpJsonServerEntry(runId, mcpJsonInjection, credential);
   await writeFileFn(filePath, mergeMcpJsonContent(existingRaw, serverEntry));
 }
 
@@ -1568,39 +1696,14 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       return failBeforeSpawn(input.runId, 'AGENT_NOT_FOUND', `AgentExecutor: unknown agentId "${input.agentId}"`);
     }
 
-    const streamFormat = def.streamFormat;
-    if (!isSupportedStreamFormat(streamFormat)) {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_RUNTIME_UNSUPPORTED',
-        `AgentExecutor: agent "${def.id}" has streamFormat "${streamFormat}", which is not implemented in v1 — only ${SUPPORTED_STREAM_FORMATS.join(', ')} are supported (see packages/daemon/source-map.md for the deferred antigravity guard)`,
-      );
+    // Every compatibility guard lives in `assessAgentExecutorCompatibility` so discovery surfaces can
+    // ask the same question before a run exists — see that function's own doc. It returns the narrowed
+    // `streamFormat` on success, so this delegation costs no redundant re-check.
+    const compatibility = assessAgentExecutorCompatibility(def);
+    if (!compatibility.supported) {
+      return failBeforeSpawn(input.runId, 'AGENT_RUNTIME_UNSUPPORTED', compatibility.reason);
     }
-    // Antigravity is the one plain def NOT driven — see module doc. This
-    // guard is deliberately independent of (and ahead of) the generic
-    // prompt-delivery/dispatch logic below: even though antigravity's def
-    // declares promptViaStdin: true and would otherwise clear every guard
-    // that follows, it needs auth-URL-leak buffering and a cross-run
-    // model-selection lock this driver has no seam for yet.
-    if (streamFormat === 'plain' && def.id === 'antigravity') {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_RUNTIME_UNSUPPORTED',
-        `AgentExecutor: agent "${def.id}" needs auth-URL-leak buffering and a cross-run model-selection lock that generic streamFormat 'plain' driving does not provide — deliberately deferred, see ADS-memory/reports/proposals/PROP-plain-format-agent-driving-2026-07-21.md`,
-      );
-    }
-    if (
-      streamFormat !== 'acp-json-rpc' &&
-      def.promptViaStdin !== true &&
-      def.promptViaFile !== true &&
-      typeof def.maxPromptArgBytes !== 'number'
-    ) {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_RUNTIME_UNSUPPORTED',
-        `AgentExecutor: agent "${def.id}" does not deliver its prompt via stdin, a staged prompt file, or a byte-budgeted argv — v1 has no other prompt delivery path`,
-      );
-    }
+    const streamFormat = compatibility.streamFormat;
 
     // Argv-bound defs (aider, deepseek) — reject an oversized prompt before
     // ever resolving a binary or touching the filesystem. A no-op for every

@@ -125,23 +125,27 @@ export {
  * it is the one file here that really does speak AG-UI, so merging it with these six was the exact
  * inversion of the truth.
  *
- * The exported symbols below still carry `Agui`/`AGUI` prefixes: renaming those crosses into
- * `@jini-ai/http-kit` (whose `RUN_STREAM_ROUTE_PATH` is `/api/runs/:runId/agui-stream`) and
- * `@jini-ai/protocol`, so it is deliberately not bundled with this directory move.
+ * The exported symbols were renamed `Agui`/`AGUI` → `GenUi` on 2026-07-29, finishing what the
+ * directory move started: with genuine AG-UI (`./ag-ui.ts`, exported just above as `toAgUiTool`
+ * and friends) living in the same barrel, two unrelated protocols were reading as one.
+ *
+ * `@jini-ai/http-kit`'s `RUN_STREAM_ROUTE_PATH` is deliberately still `/api/runs/:runId/agui-stream`.
+ * That string is a wire contract an already-deployed client can be calling; renaming a TypeScript
+ * symbol is free, renaming a URL is a breaking change, and the two do not have to move together.
  */
 export {
-  createAguiEncoder,
-  type AguiEncodeContext,
-  type AguiEncoder,
-  type AGUIAgentMessageEvent,
-  type AGUIEvent,
-  type AGUIEventBase,
-  type AGUIEventKind,
-  type AGUIRunLifecycleEvent,
-  type AGUIStateUpdateEvent,
-  type AGUISurfaceRequestedEvent,
-  type AGUISurfaceRespondedEvent,
-  type AGUIToolCallEvent,
+  createGenUiEncoder,
+  type GenUiEncodeContext,
+  type GenUiEncoder,
+  type GenUiAgentMessageEvent,
+  type GenUiEvent,
+  type GenUiEventBase,
+  type GenUiEventKind,
+  type GenUiRunLifecycleEvent,
+  type GenUiStateUpdateEvent,
+  type GenUiSurfaceRequestedEvent,
+  type GenUiSurfaceRespondedEvent,
+  type GenUiToolCallEvent,
 } from './gen-ui/index.js';
 
 export {

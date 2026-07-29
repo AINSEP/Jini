@@ -67,11 +67,49 @@ consumer-adoption pass — see each package's own `source-map.md` for the day-by
 | `@jini-ai/sqlite` | `better-sqlite3` | Hard `dependencies`, real value import (`createSqliteEventLog` opens the DB itself) | Always needs a working prebuild — this package's whole job is being the SQLite adapter. |
 | `@jini-ai/server` (ex-`node-host`) | `better-sqlite3` | Transitive, via its `@jini-ai/sqlite` dependency | Same requirement as `@jini-ai/sqlite`, inherited. |
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
-| `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional) — same "type only, caller-owned handle" shape as `registry`, in `db.ts`'s `SqliteDbProvider` | Same as `registry` above. |
+| `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |
 | `@jini-ai/media` | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `@jini-ai/media` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
-| `@jini-ai/daemon` | `node-pty` | Dynamically imported (`await import('node-pty')`) inside `loadRealSpawnPty` only | The rest of the package (agent execution, tool registry, etc.) boots fine even with no usable `node-pty` addon — only an actual terminal-session spawn fails, cleanly. |
+| `@jini-ai/daemon` | `node-pty` | `peerDependencies` (optional) + dynamically imported (`await import('node-pty')`) inside `loadRealSpawnPty` only | The rest of the package (agent execution, tool registry, etc.) boots fine with `node-pty` absent — only an actual terminal-session spawn fails, cleanly. Install `node-pty` yourself if you want terminals. **This also means every transitive consumer (`@jini-ai/http-kit`, `@jini-ai/server`) stops paying a native compile just to mount one JSON route.** |
 
-Everything else in the workspace (`ws` in `@jini-ai/capability-providers`'s `./adapters/ws`,
-`shiki` in `@jini-ai/renderers-react`, the various vendor SDKs in `@jini-ai/media`'s dispatch
-providers) is pure JS — no native compile step, no Electron ABI concern, regardless of how heavy
-the package is on disk.
+Everything else in the workspace (`shiki` in `@jini-ai/renderers-react`, the various vendor SDKs in
+`@jini-ai/media`'s dispatch providers) is pure JS — no native compile step, no Electron ABI
+concern, regardless of how heavy the package is on disk.
+
+### Optional peer dependencies — the convention
+
+Beyond the native addons above, several packages declare a heavy but *pure-JS* dependency as an
+optional peer rather than a hard `dependencies` entry. The rule: **if a dependency is only reachable
+through a non-root `exports` subpath, it is an optional peer.** Installing the package for its root
+barrel then costs nothing extra, and the subpath tells you exactly what to add if you want it.
+
+| Package | Optional peer | Needed only for |
+|---|---|---|
+| `@jini-ai/capability-providers` | `ws` | `./adapters/ws` (`WebSocketRealtimeProvider`) |
+| `@jini-ai/capability-providers` | `better-sqlite3` | `./adapters/sqlite` (`SqliteDbProvider`) |
+| `@jini-ai/ui` | `@excalidraw/excalidraw` | `./sketch-editor` |
+| `@jini-ai/ui` | `lexical`, `@lexical/react`, `@lexical/utils` | `./lexical-rich-text-editor` |
+| `@jini-ai/registry` | `better-sqlite3` | `DatabaseRegistryBackend` |
+| `@jini-ai/daemon` | `node-pty` | Terminal sessions (`loadRealSpawnPty`) |
+
+`react` and `react-dom` are peers of every React package (`@jini-ai/ui`, `@jini-ai/chat-react`,
+`@jini-ai/renderers-react`) — **not** optional, and never `dependencies`. A React library that
+declares React as a normal dependency can get a second copy installed under itself, which breaks
+hooks at runtime in ways that are hard to diagnose. The declared range is `^18.3.0 || ^19.0.0`.
+
+### ESM only
+
+Every published `@jini-ai/*` package is **ESM only**: `"type": "module"`, and the `exports` map
+offers `types` / `import` / `default` conditions with **no `require` condition and no CommonJS
+build**. A CommonJS consumer cannot `require()` these packages; it must use a dynamic
+`await import()` or move to ESM. This is a deliberate, uniform constraint across the engine, not an
+oversight in any one package.
+
+### Package metadata quick reference
+
+- `description` — every package carries a real one-line description. Keep it accurate when scope
+  changes; it is the first thing an adopter reads on npm.
+- `sideEffects` — `false` on every package except `@jini-ai/media`, which lists the exact files
+  (`./dist/dispatch/engine.js`, `./dist/dispatch/providers/*.js`) whose module-eval vendor
+  self-registration a bundler must not tree-shake away.
+- `jini.admission` — **removed 2026-07-28.** The locked/incubating/admitted tier is gone and
+  nothing validates the field; do not reintroduce it.

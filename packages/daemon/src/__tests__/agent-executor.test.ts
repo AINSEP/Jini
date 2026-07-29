@@ -4,8 +4,10 @@ import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import {
+  AGENT_DEFS,
   attachAcpSession,
   attachPiRpcSession,
+  getAgentDef,
   preparePromptFileForAgent,
   type AcpSessionController,
   type AgentLaunchResolution,
@@ -20,8 +22,10 @@ import { createRunByteJournal, type RunByteJournal } from '../continuation/journ
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
 import {
   AgentExecutorError,
+  assessAgentExecutorCompatibility,
   buildMcpJsonServerEntry,
   createAgentExecutor,
+  isAgentExecutorSupported,
   isSupportedStreamFormat,
   mergeMcpJsonContent,
   translateAgentRuntimeEvent,
@@ -2826,6 +2830,30 @@ describe('buildMcpJsonServerEntry', () => {
     expect(entry.args).toEqual(['--flag']);
     expect(entry.args).not.toBe(args);
   });
+
+  it('adds JINI_DAEMON_TOKEN when a resolved credential is supplied', () => {
+    const entry = buildMcpJsonServerEntry(
+      'run-1',
+      { command: 'jini-mcp', daemonUrl: 'http://127.0.0.1:4242' },
+      'run-scoped-secret',
+    );
+    expect(entry.env).toEqual({
+      JINI_RUN_ID: 'run-1',
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+      JINI_DAEMON_TOKEN: 'run-scoped-secret',
+    });
+  });
+
+  // The additive guarantee, at the byte level: omitting the credential must produce exactly what this
+  // function produced before the parameter existed — not a `JINI_DAEMON_TOKEN: undefined` key, which
+  // serializes into `.mcp.json` differently and would change what the child process sees.
+  it('omits the token key entirely when no credential is supplied', () => {
+    const options = { command: 'jini-mcp', daemonUrl: 'http://127.0.0.1:4242' };
+    expect(Object.keys(buildMcpJsonServerEntry('run-1', options).env)).toEqual(['JINI_RUN_ID', 'JINI_DAEMON_URL']);
+    expect(JSON.stringify(buildMcpJsonServerEntry('run-1', options, undefined))).toBe(
+      JSON.stringify(buildMcpJsonServerEntry('run-1', options)),
+    );
+  });
 });
 
 describe('mergeMcpJsonContent', () => {
@@ -2995,6 +3023,97 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
     const events = await collectEvents(lifecycle, run.id);
     expect(events.find((e) => e.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
   });
+
+  it('resolves the credential with this run\'s id and delivers it as JINI_DAEMON_TOKEN', async () => {
+    const { mcpJsonInjection, writeCalls } = createMcpFsSpies();
+    const seenRunIds: string[] = [];
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        credential: (runId: string) => {
+          seenRunIds.push(runId);
+          return `token-for-${runId}`;
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(seenRunIds).toEqual([run.id]);
+    expect(JSON.parse(writeCalls[0]!.content).mcpServers.jini.env).toEqual({
+      JINI_RUN_ID: run.id,
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+      JINI_DAEMON_TOKEN: `token-for-${run.id}`,
+    });
+  });
+
+  it('awaits an async credential resolver', async () => {
+    const { mcpJsonInjection, writeCalls } = createMcpFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        credential: async (runId: string) => {
+          await Promise.resolve();
+          return `async-token-for-${runId}`;
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(JSON.parse(writeCalls[0]!.content).mcpServers.jini.env.JINI_DAEMON_TOKEN).toBe(
+      `async-token-for-${run.id}`,
+    );
+  });
+
+  // The whole reason `credential` is a resolver rather than a string: two runs under one executor
+  // must be able to get different secrets. A boot-time string field could not express this, and a
+  // shared secret would defeat the point of scoping a credential to a run at all.
+  it('mints a distinct credential per run, not one shared across the executor', async () => {
+    const { mcpJsonInjection, writeCalls } = createMcpFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      mcpJsonInjection: { ...mcpJsonInjection, credential: (runId: string) => `token-for-${runId}` },
+    });
+
+    const first = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: first.run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    const second = await lifecycle.start({ contextRef: 'ctx-2' });
+    await executor.run({ runId: second.run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const tokens = writeCalls.map((c) => JSON.parse(c.content).mcpServers.jini.env.JINI_DAEMON_TOKEN);
+    expect(tokens).toEqual([`token-for-${first.run.id}`, `token-for-${second.run.id}`]);
+    expect(tokens[0]).not.toBe(tokens[1]);
+  });
+
+  it('fails the run before spawn when the credential resolver rejects', async () => {
+    const { mcpJsonInjection } = createMcpFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        credential: async () => {
+          throw new Error('keystore unavailable');
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    // Spawning a child that cannot authenticate would produce a run whose every tool call 401s —
+    // failing before spawn is the correct outcome.
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    expect(spawnCalls).toHaveLength(0);
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.find((e) => e.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
+  });
 });
 
 describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () => {
@@ -3035,6 +3154,20 @@ describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () 
     }
   });
 
+  it('forwards USER — a spawned `claude` CLI cannot find its own login state without it, even with HOME present (see tovu-learnings.md §9)', async () => {
+    vi.stubEnv('USER', 'test-user');
+    try {
+      const { lifecycle, executor, spawnCalls } = createHarness();
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+      const env = spawnCalls[0]!.options.env as Record<string, string>;
+      expect(env.USER).toBe('test-user');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('delegates a run-specific credential via credentialEnv even though it is absent from process.env', async () => {
     expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
     const { lifecycle, executor, spawnCalls } = createHarness();
@@ -3064,5 +3197,85 @@ describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () 
 
     const env = spawnCalls[0]!.options.env as Record<string, string>;
     expect(env.CUSTOM_UNALLOWLISTED_VAR).toBe('present-because-caller-opted-in');
+  });
+});
+
+describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
+  const defOf = (id: string): RuntimeAgentDef => {
+    const def = getAgentDef(id);
+    if (!def) throw new Error(`test setup: no def registered for "${id}"`);
+    return def;
+  };
+
+  it('accepts the JSON-stream and ACP families', () => {
+    expect(isAgentExecutorSupported(defOf('claude'))).toBe(true);
+    expect(isAgentExecutorSupported(defOf('codex'))).toBe(true);
+  });
+
+  // THE regression guard for this predicate. `aider` and `deepseek` are `streamFormat: 'plain'` with
+  // neither `promptViaStdin` nor `promptViaFile` — they qualify solely via `maxPromptArgBytes`. That
+  // field is one of the ones `DetectedAgent` omits, so a predicate written against the projected
+  // discovery type instead of the full def would silently drop two working agents from every
+  // consumer's picker while fixing one broken one.
+  it.each(['aider', 'deepseek'])('accepts the argv-bound def %s (qualifies only via maxPromptArgBytes)', (id) => {
+    const def = defOf(id);
+    expect(def.promptViaStdin).not.toBe(true);
+    expect(def.promptViaFile).not.toBe(true);
+    expect(typeof def.maxPromptArgBytes).toBe('number');
+    expect(isAgentExecutorSupported(def)).toBe(true);
+  });
+
+  it('rejects antigravity, naming the deferred work rather than a generic failure', () => {
+    const result = assessAgentExecutorCompatibility(defOf('antigravity'));
+    expect(result.supported).toBe(false);
+    expect(result.supported === false && result.reason).toContain('auth-URL-leak buffering');
+  });
+
+  it('rejects an unrecognized streamFormat', () => {
+    const result = assessAgentExecutorCompatibility({
+      ...defOf('claude'),
+      streamFormat: 'some-future-format',
+    } as RuntimeAgentDef);
+    expect(result.supported).toBe(false);
+    expect(result.supported === false && result.reason).toContain('not implemented in v1');
+  });
+
+  it('rejects a def with no viable prompt-delivery path', () => {
+    // The key is omitted rather than set to `undefined`: `maxPromptArgBytes` is an optional `number`,
+    // and the predicate's check is `typeof def.maxPromptArgBytes !== 'number'`, so absence — not an
+    // explicit undefined — is the state under test.
+    const { maxPromptArgBytes: _argvBudget, ...withoutArgvBudget } = defOf('aider');
+    const result = assessAgentExecutorCompatibility({
+      ...withoutArgvBudget,
+      promptViaStdin: false,
+      promptViaFile: false,
+    });
+    expect(result.supported).toBe(false);
+    expect(result.supported === false && result.reason).toContain('prompt delivery path');
+  });
+
+  it('returns the narrowed streamFormat on success', () => {
+    const result = assessAgentExecutorCompatibility(defOf('claude'));
+    expect(result.supported === true && result.streamFormat).toBe(defOf('claude').streamFormat);
+  });
+
+  // The anti-drift guarantee. The predicate exists to answer, at discovery time, exactly what `run()`
+  // would decide — so the two must agree on every def in the real registry, not just the ones someone
+  // remembered to write a case for. A new def added to `AGENT_DEFS` is covered automatically.
+  it('agrees with run() for every def in AGENT_DEFS', async () => {
+    expect(AGENT_DEFS.length).toBeGreaterThan(20);
+    for (const def of AGENT_DEFS) {
+      const predicted = isAgentExecutorSupported(def);
+      const { lifecycle, executor } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: `ctx-${def.id}` });
+      let rejectedAsUnsupported = false;
+      try {
+        await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: '/work' });
+      } catch (error) {
+        rejectedAsUnsupported =
+          error instanceof AgentExecutorError && error.code === 'AGENT_RUNTIME_UNSUPPORTED';
+      }
+      expect(rejectedAsUnsupported, `${def.id}: predicate said supported=${predicted}`).toBe(!predicted);
+    }
   });
 });

@@ -525,3 +525,57 @@ incubating routes are absent unless explicitly composed.
 
 Verified: `pnpm --filter @jini/node-host build`; `pnpm --filter @jini/node-host typecheck`;
 `pnpm --filter @jini/node-host exec vitest run --testTimeout=15000` (**78/78**).
+
+## 2026-07-29 addition — `sidecar-strict` security mode; `agents` filtered by executor compatibility
+
+**Nothing was ported.** Two additions to existing assemblies.
+
+### `composeJiniKernel`'s third security mode
+
+`security` gained a `sidecar-strict` arm alongside `host` and `jini-local`, for a daemon whose threat
+model is another process running as the same OS user. It installs `@jini-ai/http-kit`'s
+`requireStrictBearerToken` (no loopback exemption, no disable flag, fail-closed 503) plus the usual
+origin guard.
+
+**Additive by construction, not by promise.** The modes are arms of a discriminated union, so the two
+existing arms cannot be altered by adding a third — and a test asserts each still installs exactly what
+it did. `tokenEnvVar` is required with no default: this package does not name a host's secret.
+
+**One mounting-order change, and it is load-bearing.** The strict bearer gate mounts *ahead of*
+`express.json()`, unlike `jini-local`'s gate which mounts after. A caller this gate will reject with 401
+should never have had its body parsed, and the gate needs nothing the parser provides — only `req.path`
+and the `Authorization` header. The module's mounting-order doc was renumbered accordingly.
+
+Asserting that ordering took some thought. It is invisible to the route-registration inventory, because
+the gate mounts with a bare `app.use(handler)` and the inventory records only string-path registrations.
+It is instead proven behaviorally with a malformed JSON body: the parser answers 400, the gate answers
+401, and whichever runs first wins — so an unauthenticated request yields 401 while an authenticated one
+yields 400. The pair matters; the first assertion alone would also pass if the body were simply never
+parsed by anyone.
+
+`probe`-phase routes mount before the gate, so health/readiness/version stay reachable without a
+credential. That falls out of the existing phase order rather than needing an exemption.
+
+### `agents` now filters on executor compatibility
+
+The feature scanned every runtime definition, so a composition could advertise `antigravity` — which
+`AgentExecutor` explicitly rejects — and hand a user a choice that failed the instant it was selected.
+`isExecutableDetectedAgent` applies `@jini-ai/daemon`'s `isAgentExecutorSupported` by default.
+
+Two decisions worth recording:
+
+- **Assessed against the full `RuntimeAgentDef` resolved by id, not the `DetectedAgent` in hand.** The
+  projected type omits `maxPromptArgBytes`, and the argv-bound defs (`aider`, `deepseek`) qualify *solely*
+  through it. Filtering on the projection would have removed two working agents while fixing one broken
+  one — a strictly worse bug. There are tests for exactly this.
+- **An id with no registered def is kept, not dropped.** A host supplying its own `detector` may
+  legitimately surface agents driven by something other than this executor. There is nothing to assess,
+  and refusing to advertise them would break that host on no evidence.
+
+Filtering by default is a behavior change for an existing consumer — `antigravity` disappears from
+`GET /api/agents`. Taken deliberately: the previous behavior was a bug rather than a contract, and
+`options.agents.detector` remains an escape hatch for any host that disagrees.
+
+**Verified, personally, this session**: `pnpm --filter @jini-ai/server run typecheck` clean; the package's
+full suite **195/195 passing** (7 files), including 8 new `sidecar-strict` tests and 4 new filtering tests.
+`pnpm guard` clean.

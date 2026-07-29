@@ -2,7 +2,7 @@ import { PassThrough } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { McpToolServerHandle, McpToolServerOptions } from '../../server/tool-server.js';
-import { DAEMON_URL_ENV_VAR, RUN_ID_ENV_VAR, serve, type ServeDeps } from '../serve.js';
+import { DAEMON_TOKEN_ENV_VAR, DAEMON_URL_ENV_VAR, RUN_ID_ENV_VAR, serve, type ServeDeps } from '../serve.js';
 
 class ExitSentinel extends Error {
   constructor(public code: number) {
@@ -308,5 +308,53 @@ describe('module top-level entrypoint guard', () => {
     vi.resetModules();
     await import('../serve.js');
     expect(stderrSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('serve() — daemon credential propagation', () => {
+  function captureOptions() {
+    let seen: McpToolServerOptions | undefined;
+    const createMcpToolServer = vi.fn((options: McpToolServerOptions) => {
+      seen = options;
+      return { run: async () => {} } as McpToolServerHandle;
+    });
+    return { createMcpToolServer, seenOptions: () => seen };
+  }
+
+  it('turns JINI_DAEMON_TOKEN into an Authorization header for every tool call', async () => {
+    const { createMcpToolServer, seenOptions } = captureOptions();
+    await serve(
+      makeDeps({
+        env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_TOKEN_ENV_VAR]: 'run-scoped-secret' },
+        createMcpToolServer,
+      }),
+    );
+    expect(seenOptions()?.authHeaders).toEqual({ Authorization: 'Bearer run-scoped-secret' });
+  });
+
+  // Optional, unlike JINI_RUN_ID: a daemon that trusts loopback issues no credential, and this
+  // process must keep serving it exactly as before rather than refusing to boot.
+  it('omits authHeaders entirely when no credential was delivered', async () => {
+    const { createMcpToolServer, seenOptions } = captureOptions();
+    await serve(makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1' }, createMcpToolServer }));
+    expect(seenOptions()).not.toHaveProperty('authHeaders');
+  });
+
+  it('treats an empty credential as absent rather than sending "Bearer "', async () => {
+    const { createMcpToolServer, seenOptions } = captureOptions();
+    await serve(
+      makeDeps({ env: { [RUN_ID_ENV_VAR]: 'run-1', [DAEMON_TOKEN_ENV_VAR]: '' }, createMcpToolServer }),
+    );
+    expect(seenOptions()).not.toHaveProperty('authHeaders');
+  });
+
+  it('still requires JINI_RUN_ID even when a credential is present', async () => {
+    const createMcpToolServer = vi.fn();
+    const deps = makeDeps({
+      env: { [DAEMON_TOKEN_ENV_VAR]: 'run-scoped-secret' },
+      createMcpToolServer: castMcpToolServer(createMcpToolServer),
+    });
+    await expect(serve(deps)).rejects.toThrow(ExitSentinel);
+    expect(createMcpToolServer).not.toHaveBeenCalled();
   });
 });

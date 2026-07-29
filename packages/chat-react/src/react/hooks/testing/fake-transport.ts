@@ -6,7 +6,7 @@
  * path (`../testing/fake-transport.js`).
  */
 import type { AgentEvent } from '@jini-ai/chat-core';
-import type { ChatTransport, RunHandlers, StartRunInput } from '../../../transport.js';
+import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/chat-core';
 
 export interface FakeTransportCall {
   input: StartRunInput;

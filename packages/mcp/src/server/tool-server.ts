@@ -94,6 +94,12 @@ export interface McpToolServerOptions {
   readonly idleMs?: number;
   /** Defaults to the global `fetch`; threaded into every tool call's {@link McpToolContext}. */
   readonly fetchImpl?: typeof fetch;
+  /**
+   * Headers attached to every daemon call this server's tools and resources make — in practice the
+   * bearer credential the spawning daemon issued for this run. Omit for a daemon whose `/api` surface
+   * does not require one; omitting is the pre-existing behavior.
+   */
+  readonly authHeaders?: Readonly<Record<string, string>>;
   /** Defaults to `process.stdin`; inject for tests (or an alternate stdio pair). */
   readonly stdin?: Readable;
   /** Defaults to `process.stdout`; inject for tests. */
@@ -141,6 +147,7 @@ export function createMcpToolServer(options: McpToolServerOptions): McpToolServe
       const ctx: McpToolContext = {
         baseUrl: String(resolvedBaseUrl).replace(/\/$/, ''),
         fetchImpl: options.fetchImpl ?? fetch,
+        ...(options.authHeaders !== undefined ? { authHeaders: options.authHeaders } : {}),
       };
 
       let closeTransportForIdle: (() => void) | null = null;

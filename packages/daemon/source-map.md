@@ -261,8 +261,8 @@ it matches anything in `@jini/core`. New files:
 | File | Package | Contents |
 |---|---|---|
 | `packages/core/src/principal.ts` | `@jini/core` | `Principal { id, roles? }` — deliberately minimal per §3 ("Principal/Authorizer, pure interfaces"); anything richer is a consumer concern. |
-| `packages/core/src/tool-registry.ts` | `@jini/core` | `RunRef` (a structural `{ id: string }` — no import needed to satisfy it; `@jini/protocol`'s `RunStatus` already has `id: string` and structurally satisfies it, so `@jini/core` gains no new dependency), `ToolDescriptor`, `ToolExecutionContext`, `ToolHandler`, `ToolPolicy`/`AuthorizationDecision`, `ToolRegistration`, the public `ToolRegistry` interface (`register`/`has`/`list` — descriptors only), `createToolRegistry()`, and the package-internal `getToolRegistration(registry, toolId)`. |
-| `packages/core/src/internal.ts` | `@jini/core` | Re-exports **only** `getToolRegistration` — see "Handlers never publicly retrievable" below. |
+| `packages/core/src/tool-registry.ts` | `@jini/core` | `RunRef` (a structural `{ id: string }` — no import needed to satisfy it; `@jini/protocol`'s `RunStatus` already has `id: string` and structurally satisfies it, so `@jini/core` gains no new dependency), `ToolDescriptor`, `ToolExecutionContext`, `ToolHandler`, `ToolPolicy`/`AuthorizationDecision`, `ToolRegistration`, the public `ToolRegistry` interface (`register`/`has`/`list` — descriptors only), `createToolRegistry()`, and the package-internal `authorizeToolInvocation(registry, toolId, principal, run, input, delegate?)` (renamed 2026-07-29, see below — formerly `getToolRegistration(registry, toolId)`). |
+| `packages/core/src/internal.ts` | `@jini/core` | Re-exports **only** `authorizeToolInvocation` (plus its `ToolAuthorizationDelegate`/`ToolInvocationAuthorization` types) — see "Handlers never publicly retrievable" below. |
 | `packages/core/src/tool-tokens.ts` | `@jini/core` | `ToolRegistryToken`, alongside the service per this package's own token-placement convention. |
 | `packages/daemon/src/tool-executor.ts` | `@jini/daemon` | `ExecutionDelegate`, the audit-trail types, `ToolExecutionResult`, the `ToolExecutor` interface, `createToolExecutor()`. |
 | `packages/daemon/src/tokens.ts` (edited) | `@jini/daemon` | Added `ToolExecutorToken` alongside the pre-existing `RunLifecycleToken`/`EventLogToken`. |
@@ -275,10 +275,10 @@ returns `ToolDescriptor`s only. But `ToolExecutor` (a different package)
 genuinely needs the full `{descriptor, handler, policy}` triple to do its
 job. The registrations themselves live in a module-private `WeakMap<ToolRegistry,
 Map<string, ToolRegistration>>` in `tool-registry.ts` — unreachable from the
-returned `ToolRegistry` object's own methods — and `getToolRegistration`
+returned `ToolRegistry` object's own methods — and `authorizeToolInvocation`
 is the one function that can read it back out. That function is exported
 from `./internal.ts`, **not** from `./index.ts`'s public barrel (verified
-by a test: `'getToolRegistration' in publicBarrel === false`), and
+by a test: `'authorizeToolInvocation' in publicBarrel === false`), and
 `internal.ts` is wired as a separate `./internal` entry in this package's
 `package.json` `exports` map rather than a subpath TypeScript/Node would
 resolve by accident. This is the realistic boundary a JS/TS package can
@@ -287,6 +287,24 @@ modifier) — a consumer of `@jini/core`'s default entry point cannot reach
 a handler; `@jini/daemon`'s `ToolExecutor` is the one caller that imports
 `@jini/core/internal` on purpose, and that import is visible in its own
 source (`tool-executor.ts`'s own import line), not hidden.
+
+**2026-07-29 hardening:** a package.json `exports` subpath is not a
+language-level access modifier — nothing actually stops a *different*
+package from importing `@jini/core/internal` too, so the paragraph above
+describes intent, not enforcement (`scripts/check-engine-boundaries.ts`
+rule R6 is the actual enforcement layer, and it only shipped later). The
+original `getToolRegistration(registry, toolId)` returned the full
+`{descriptor, handler, policy}` triple unconditionally — any package able
+to reach the import could retrieve a live handler closure and invoke it
+directly, skipping `ToolExecutor`'s authorization gate entirely. It was
+replaced by `authorizeToolInvocation(registry, toolId, principal, run,
+input, delegate?)`, which runs the tool's own `ToolPolicy` (and an optional
+transport-level `delegate.onAuthorize` veto) *inside* the function, and
+only includes `handler` in its returned object when the decision is
+`'allow'`. A denied or unauthorized call gets a descriptor and a decision,
+never a handler — so the gate can no longer be bypassed by calling this
+export directly instead of going through `ToolExecutor`, closing the leak
+structurally rather than by convention.
 
 ### Design decisions
 

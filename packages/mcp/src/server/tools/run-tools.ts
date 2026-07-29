@@ -14,7 +14,7 @@
  * full origin-mapping and what was deliberately not ported).
  */
 import { getDaemonJson, postDaemonJson } from '../daemon-client.js';
-import { requireString, type McpToolDef } from '../tool-protocol.js';
+import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 
 const READ_ANNOTATIONS = {
   readOnlyHint: true,
@@ -65,7 +65,7 @@ export const startRunTool: McpToolDef = {
     if (agentId !== undefined) body.agentId = agentId;
     const idempotencyKey = optionalNonEmptyString(args.idempotencyKey);
     if (idempotencyKey !== undefined) body.idempotencyKey = idempotencyKey;
-    return postDaemonJson(ctx.baseUrl, '/api/runs', body, { fetchImpl: ctx.fetchImpl });
+    return postDaemonJson(ctx.baseUrl, '/api/runs', body, daemonCallOptions(ctx));
   },
 };
 
@@ -84,7 +84,7 @@ export const getRunTool: McpToolDef = {
   annotations: { ...READ_ANNOTATIONS, title: 'Check a run' },
   handler: async (args, ctx) => {
     requireString(args.runId, 'runId');
-    return getDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}`, { fetchImpl: ctx.fetchImpl });
+    return getDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}`, daemonCallOptions(ctx));
   },
 };
 
@@ -107,7 +107,7 @@ export const cancelRunTool: McpToolDef = {
     const body: Record<string, unknown> = {};
     const reason = optionalNonEmptyString(args.reason);
     if (reason !== undefined) body.reason = reason;
-    return postDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}/cancel`, body, { fetchImpl: ctx.fetchImpl });
+    return postDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}/cancel`, body, daemonCallOptions(ctx));
   },
 };
 
@@ -124,7 +124,7 @@ export const getActiveContextTool: McpToolDef = {
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { ...READ_ANNOTATIONS, title: 'What is the caller focused on?' },
   handler: async (_args, ctx) => {
-    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', { fetchImpl: ctx.fetchImpl });
+    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', daemonCallOptions(ctx));
     if (data.active !== true) {
       return {
         active: false,
@@ -141,7 +141,7 @@ export const listAgentsTool: McpToolDef = {
   description: 'List every agent def registered with this host\'s @jini-ai/agent-runtime — {id, name} pairs suitable for start_run\'s optional agentId argument. Static registration data only: this does not probe which agent binaries are actually installed on the host machine.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { ...READ_ANNOTATIONS, title: 'List registered agents' },
-  handler: async (_args, ctx) => getDaemonJson(ctx.baseUrl, '/api/agents', { fetchImpl: ctx.fetchImpl }),
+  handler: async (_args, ctx) => getDaemonJson(ctx.baseUrl, '/api/agents', daemonCallOptions(ctx)),
 };
 
 /** The full set of kernel-run tool defs this package ships, ready to pass as `createMcpToolServer`'s `tools` option. */

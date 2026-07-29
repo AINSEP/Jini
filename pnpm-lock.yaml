@@ -159,6 +159,9 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../platform
+      '@jini-ai/protocol':
+        specifier: workspace:*
+        version: link:../protocol
     devDependencies:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
@@ -227,15 +230,15 @@ importers:
 
   packages/chat-react:
     dependencies:
-      '@jini-ai/agent-runtime':
-        specifier: workspace:*
-        version: link:../agent-runtime
       '@jini-ai/agentic':
         specifier: workspace:*
         version: link:../agentic
       '@jini-ai/chat-core':
         specifier: workspace:*
         version: link:../chat-core
+      '@jini-ai/protocol':
+        specifier: workspace:*
+        version: link:../protocol
       '@jini-ai/ui':
         specifier: workspace:*
         version: link:../ui
@@ -459,12 +462,6 @@ importers:
       micromark-extension-gfm:
         specifier: ^3.0.0
         version: 3.0.0
-      react:
-        specifier: ^19.2.0
-        version: 19.2.7
-      react-dom:
-        specifier: ^19.2.0
-        version: 19.2.7(react@19.2.7)
       shiki:
         specifier: ^1.24.4
         version: 1.29.2
@@ -490,6 +487,12 @@ importers:
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
+      react:
+        specifier: ^19.2.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.7(react@19.2.7)
 
   packages/server:
     dependencies:
@@ -556,37 +559,28 @@ importers:
 
   packages/ui:
     dependencies:
-      '@excalidraw/excalidraw':
-        specifier: 0.18.1
-        version: 0.18.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@jini-ai/agentic':
         specifier: workspace:*
         version: link:../agentic
       '@jini-ai/renderers-react':
         specifier: workspace:*
         version: link:../renderers-react
-      '@lexical/react':
-        specifier: 0.36.2
-        version: 0.36.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(yjs@13.6.31)
-      '@lexical/utils':
-        specifier: 0.36.2
-        version: 0.36.2
-      lexical:
-        specifier: 0.36.2
-        version: 0.36.2
       micromark:
         specifier: ^4.0.0
         version: 4.0.2
       micromark-extension-gfm:
         specifier: ^3.0.0
         version: 3.0.0
-      react:
-        specifier: ^19.2.0
-        version: 19.2.7
-      react-dom:
-        specifier: ^19.2.0
-        version: 19.2.7(react@19.2.7)
     devDependencies:
+      '@excalidraw/excalidraw':
+        specifier: 0.18.1
+        version: 0.18.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@lexical/react':
+        specifier: 0.36.2
+        version: 0.36.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(yjs@13.6.31)
+      '@lexical/utils':
+        specifier: 0.36.2
+        version: 0.36.2
       '@testing-library/jest-dom':
         specifier: ^6.6.3
         version: 6.9.1
@@ -608,6 +602,15 @@ importers:
       jsdom:
         specifier: ^25.0.1
         version: 25.0.1
+      lexical:
+        specifier: 0.36.2
+        version: 0.36.2
+      react:
+        specifier: ^19.2.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.7(react@19.2.7)
 
 packages:
 

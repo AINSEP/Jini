@@ -20,10 +20,11 @@ import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 import { definePack, type Principal, type ToolRegistration } from '@jini-ai/core';
-import { detectAgents, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
+import { detectAgents, getAgentDef, type DetectedAgent, type OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import {
   createDefaultRunStartHandler,
   createRemoteToolEventRecorder,
+  isAgentExecutorSupported,
   createTerminalSessionManager,
   createTerminalToolRegistrations,
   type ResolveRunInput,
@@ -188,6 +189,32 @@ export function buildDaemonDbOperations(db: import('better-sqlite3').Database, f
   };
 }
 
+/**
+ * Whether the `agents` feature should advertise this probe result.
+ *
+ * Discovery scans every runtime definition, but `AgentExecutor` refuses to drive some of them
+ * (`antigravity` today, for reasons recorded in `@jini-ai/daemon`'s own module doc). Advertising one
+ * of those yields an agent a user can select and then cannot run — so the executor's own
+ * compatibility answer is applied here, at the surface that offers the choice.
+ *
+ * Assessed against the **full** `RuntimeAgentDef` resolved by id, not the `DetectedAgent` passed in:
+ * the projected type omits `maxPromptArgBytes`, and the argv-bound defs (`aider`, `deepseek`) qualify
+ * solely through it, so judging the projection would drop two working agents.
+ *
+ * An id with no registered def is **kept**, not dropped. A host supplying its own `detector` may
+ * legitimately surface agents outside `AGENT_DEFS`, driven by something other than this executor;
+ * there is nothing to assess, and refusing to advertise them would break that host on no evidence.
+ *
+ * @param agent - One probe result from the active detector.
+ * @returns `true` when the agent should appear in `GET /api/agents`.
+ * @complexity O(1) — one registry lookup plus fixed field checks.
+ * @overallScore 100/100
+ */
+export function isExecutableDetectedAgent(agent: DetectedAgent): boolean {
+  const def = getAgentDef(agent.id);
+  return def === null || isAgentExecutorSupported(def);
+}
+
 /** Projects a real `DetectedAgent` probe onto the HTTP summary shape. */
 export function projectDetectedAgent(agent: DetectedAgent): AgentSummary {
   return {
@@ -300,7 +327,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         if (force) scan = null;
         if (!scan) {
           scan = detector()
-            .then((agents) => agents.map(projectDetectedAgent))
+            // Filtered before projection so the executor's answer is computed from the full def —
+            // see `isExecutableDetectedAgent`'s doc for why the projected shape is not enough.
+            .then((agents) => agents.filter(isExecutableDetectedAgent).map(projectDetectedAgent))
             .catch((error: unknown) => {
               scan = null;
               throw error;

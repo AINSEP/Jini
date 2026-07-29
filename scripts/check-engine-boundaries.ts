@@ -7,11 +7,13 @@
  *     split — see `packages/agentic/source-map.md`). Both are exact-literal exceptions, not a
  *     pattern; a third package wanting a second entry point needs its own named exception here.
  * R5: no product-identity strings in packages/@jini-ai/**.
- * R6: `getToolRegistration` (a runtime *value*, not `import type`) may only be imported from
- *     `@jini-ai/core/internal` inside `packages/daemon/**` — closes the tool-handler-authz-bypass
- *     leak found in the 2026-07-19 swarm-consensus debate (Codex GPT-5.6-sol, confirmed by
- *     Gemini/Opus). Type-only imports of that subpath (e.g. `server`'s `AnyPack`) are
- *     unrestricted — they carry no runtime capability.
+ * R6: any runtime *value* (not `import type`) from `@jini-ai/core/internal` may only be imported
+ *     inside `packages/daemon/**` — a second, independent layer on top of the 2026-07-29
+ *     structural fix that made the subpath's value export (`authorizeToolInvocation`, formerly
+ *     `getToolRegistration`) require passing authorization before ever returning a handler.
+ *     Originally closed the tool-handler-authz-bypass leak found in the 2026-07-19
+ *     swarm-consensus debate (Codex GPT-5.6-sol, confirmed by Gemini/Opus). Type-only imports of
+ *     that subpath (e.g. `server`'s `AnyPack`) are unrestricted — they carry no runtime capability.
  * R7: removed 2026-07-28 at the user's explicit direction — it blocked a locked package from
  *     importing a package listed in `UNLOCKED.md` unless that entry's `status` was `"stable"`.
  *     The tiered locked/incubating/admitted admission gate this enforced (and the "23 packages
@@ -377,8 +379,9 @@ export async function checkEngineBoundaries(
 
         if (subpath !== null) {
           if (spec === '@jini-ai/core/internal') {
-            // R6: only a VALUE import of getToolRegistration from outside @jini-ai/daemon is a leak.
-            // Type-only imports (server's AnyPack/MissingTokenIds) are unrestricted.
+            // R6: only a VALUE import (currently authorizeToolInvocation) from outside
+            // @jini-ai/daemon is a leak. Type-only imports (server's AnyPack/MissingTokenIds) are
+            // unrestricted.
             if (!ref.typeOnly && ownPackage !== 'daemon') {
               violations.push({
                 rule: 'R6-internal-leak',

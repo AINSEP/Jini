@@ -365,6 +365,156 @@ describe('security defaults', () => {
   });
 });
 
+// Unlike `jini-local` above, this mode CAN be asserted with live requests: it has no loopback
+// short-circuit, and this suite necessarily calls over loopback — which is exactly what makes these
+// the highest-value assertions in the file for this mode.
+describe('sidecar-strict security', () => {
+  const TOKEN_ENV_VAR = 'TEST_SIDECAR_TOKEN';
+  const strict = {
+    mode: 'sidecar-strict',
+    host: '127.0.0.1',
+    tokenEnvVar: TOKEN_ENV_VAR,
+  } as const;
+
+  // The real `detectAgents` probes every agent CLI on the machine (~14s here). These tests are about
+  // the gate, not detection, so stub it — `options.agents.detector` is the existing seam for exactly
+  // this. Without it, any test that gets *past* the gate pays for 24 subprocess probes.
+  const noAgents = { agents: { detector: async () => [] } };
+
+  const usesApi = (app: Express) =>
+    getRouteRegistrationInventory(app).filter((r) => r.method === 'USE' && r.path === '/api').length;
+
+  it('rejects an unauthenticated loopback caller with 401 — the whole point of the mode', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+    });
+    expect((await fetch(`${url}/api/agents`)).status).toBe(401);
+  });
+
+  it('rejects a wrong bearer token from loopback with 401', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+    });
+    const response = await fetch(`${url}/api/agents`, { headers: { authorization: 'Bearer wrong' } });
+    expect(response.status).toBe(401);
+  });
+
+  it('admits a correct bearer token', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+      featureOptions: noAgents,
+    });
+    const response = await fetch(`${url}/api/agents`, {
+      headers: { authorization: 'Bearer sidecar-secret' },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it('fails closed with 503 when the named token env var is unset', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: {},
+    });
+    const response = await fetch(`${url}/api/agents`, { headers: { authorization: 'Bearer anything' } });
+    expect(response.status).toBe(503);
+  });
+
+  // `probe`-phase routes mount ahead of the gate, so monitoring never needs the secret.
+  it('leaves health and readiness probes reachable without a token', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+      featureOptions: shutdownOption,
+    });
+    expect((await fetch(`${url}/api/health`)).status).toBe(200);
+    expect((await fetch(`${url}/api/ready`)).status).toBe(200);
+  });
+
+  it('honors an exact-match exempt path and still gates a longer path sharing its prefix', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      capabilities: { 'tool:delegated': true },
+      features: { delegatedToolCalls: true },
+      security: { ...strict, exemptPaths: ['/api/delegated-tool-calls'] },
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+    });
+    // Exempt: reaches the route, which then rejects the empty body on its own terms — any status
+    // other than 401/503 proves the gate was not what answered.
+    const exempt = await fetch(`${url}/api/delegated-tool-calls`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect([401, 503]).not.toContain(exempt.status);
+    // Not exempt: exact equality, never prefix.
+    expect((await fetch(`${url}/api/delegated-tool-calls/extra`, { method: 'POST' })).status).toBe(401);
+  });
+
+  // Only the origin guard is `/api`-scoped in this mode; the bearer gate mounts with a bare
+  // `app.use(handler)`, which the route-registration inventory does not record at all (it only
+  // records string-path registrations). So the mount ORDER is asserted behaviorally below rather
+  // than structurally here.
+  it('registers exactly one /api-scoped gate — the origin guard', async () => {
+    const { app } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+    });
+    expect(usesApi(app)).toBe(1);
+  });
+
+  // The load-bearing ordering property: the gate runs BEFORE `express.json()`, so a caller it is
+  // going to reject never has its body parsed. Malformed JSON is the probe that can tell the two
+  // orderings apart — the parser answers 400, the gate answers 401, and whichever runs first wins.
+  it('rejects an unauthenticated caller before the body parser sees a malformed body', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+    });
+    const response = await fetch(`${url}/api/runs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{ definitely not valid json',
+    });
+    expect(response.status).toBe(401);
+  });
+
+  // The other half of that proof: with a valid token the gate calls next(), the parser is reached,
+  // and the same malformed body now fails as a parse error. Without this pairing the test above
+  // would also pass if the body were simply never parsed by anyone.
+  it('lets an authenticated caller reach the body parser, which then rejects the same body', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      security: strict,
+      env: { [TOKEN_ENV_VAR]: 'sidecar-secret' },
+    });
+    const response = await fetch(`${url}/api/runs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer sidecar-secret' },
+      body: '{ definitely not valid json',
+    });
+    expect(response.status).toBe(400);
+  });
+});
+
 describe('kernel base failure cleanup', () => {
   it('closes every handle it had already opened when rehydration fails', async () => {
     const dataDir = makeTempDataDir();
@@ -554,5 +704,60 @@ describe('daemon-status derived defaults', () => {
 
     const body = (await (await fetch(`${url}/api/daemon/status`)).json()) as { dataDir: string };
     expect(body.dataDir).toBe('');
+  });
+});
+
+describe('agents feature — AgentExecutor compatibility filtering', () => {
+  // Shaped like a real `DetectedAgent` for the fields `projectDetectedAgent` reads.
+  const detected = (id: string) => ({
+    id,
+    name: id,
+    available: true,
+    models: [],
+    modelsSource: 'fallback' as const,
+  });
+
+  async function listAgentIds(ids: string[]): Promise<string[]> {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      featureOptions: { agents: { detector: async () => ids.map(detected) as never } },
+    });
+    const body = (await (await fetch(`${url}/api/agents`)).json()) as { agents: { id: string }[] };
+    return body.agents.map((a) => a.id);
+  }
+
+  it('drops antigravity, which AgentExecutor refuses to drive', async () => {
+    expect(await listAgentIds(['claude', 'antigravity'])).toEqual(['claude']);
+  });
+
+  // The counterpart guard to the predicate's own: these two qualify only via `maxPromptArgBytes`, a
+  // field `DetectedAgent` omits. Filtering on the projected shape instead of the resolved def would
+  // silently remove two working agents from every consumer's picker.
+  it('keeps the argv-bound defs aider and deepseek', async () => {
+    expect(await listAgentIds(['aider', 'deepseek'])).toEqual(['aider', 'deepseek']);
+  });
+
+  // A host with its own detector may surface agents outside AGENT_DEFS, driven by something other
+  // than this executor. There is nothing to assess, so they are kept rather than dropped.
+  it('keeps an unrecognized id that has no registered runtime def', async () => {
+    expect(await listAgentIds(['claude', 'some-host-specific-agent'])).toEqual([
+      'claude',
+      'some-host-specific-agent',
+    ]);
+  });
+
+  it('applies the same filter to an explicit rescan', async () => {
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      featureOptions: {
+        agents: { detector: async () => [detected('claude'), detected('antigravity')] as never },
+      },
+    });
+    const body = (await (
+      await fetch(`${url}/api/agents/rescan`, { method: 'POST', headers: { origin: `${url}` } })
+    ).json()) as { agents: { id: string }[] };
+    expect(body.agents.map((a) => a.id)).toEqual(['claude']);
   });
 });

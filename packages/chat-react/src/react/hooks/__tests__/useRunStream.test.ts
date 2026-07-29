@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatTransport } from '../../../transport.js';
+import type { ChatTransport } from '@jini-ai/chat-core';
 import { useRunStream } from '../useRunStream.js';
 import { createFakeChatTransport } from '../testing/fake-transport.js';
 

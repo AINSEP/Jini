@@ -8,14 +8,25 @@
  * then presentational components, then the `<JiniChatProvider>` composition
  * root) — see source-map.md's "Status" section for what's shipped so far.
  */
-export * from './transport.js';
+// The `ChatTransport` port moved to `@jini-ai/chat-core` on 2026-07-29 (it is pure types over
+// `AbortSignal`, so a non-React host should not need this package to name the seam it implements).
+// Re-exported here so every existing `import { ChatTransport } from '@jini-ai/chat-react'` keeps
+// working; new code should import it from `@jini-ai/chat-core` directly.
+export type {
+  ChatTransport,
+  FeedbackChange,
+  OnFeedback,
+  RunContext,
+  RunHandlers,
+  StartRunInput,
+} from '@jini-ai/chat-core';
 export * from './artifact-types.js';
 export * from './slots.js';
 export * from './tool-renderer-registry.js';
 export * from './ext-event-renderer-registry.js';
 
 // `features/model-picker/` is an independent slice (depends only on
-// `@jini-ai/agent-runtime`, not this package's conversation/message state) —
+// `@jini-ai/protocol`, not this package's conversation/message state) —
 // re-exported here for a consumer that wants everything from one barrel.
 export * from './features/model-picker/index.js';
 export * from './features/chat-pane/index.js';

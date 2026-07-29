@@ -138,11 +138,11 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // R5: product-identity string + OD_ prefix.
     write(root, 'packages/core/src/bad-r5-string.ts', `export const NAME = 'Open Design';\n`);
     write(root, 'packages/core/src/bad-r5-prefix.ts', `export const OD_STAMP = 'x';\n`);
-    // R6: value import of getToolRegistration from a non-daemon package.
+    // R6: value import of authorizeToolInvocation from a non-daemon package.
     write(
       root,
       'packages/http-kit/src/bad-r6.ts',
-      `import { getToolRegistration } from '@jini-ai/core/internal';\nexport { getToolRegistration };\n`,
+      `import { authorizeToolInvocation } from '@jini-ai/core/internal';\nexport { authorizeToolInvocation };\n`,
     );
     // R6 exemption: same import, but type-only, from a non-daemon package — must NOT be flagged.
     write(
@@ -154,7 +154,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     write(
       root,
       'packages/daemon/src/ok-r6-daemon.ts',
-      `import { getToolRegistration } from '@jini-ai/core/internal';\nexport { getToolRegistration };\n`,
+      `import { authorizeToolInvocation } from '@jini-ai/core/internal';\nexport { authorizeToolInvocation };\n`,
     );
     // Known-good: ordinary same-package relative import and bare package import — must NOT be flagged.
     write(root, 'packages/core/src/ok-relative.ts', `export const x = 1;\n`);
@@ -268,7 +268,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [has(engineViolations, 'R2-deep-path', 'bad-r2-agentic-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini-ai/agentic/<subpath> — the exemption is the exact literal, not a pattern'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-string.ts'), 'R5 should catch a product-identity string'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-prefix.ts'), 'R5 should catch an OD_ prefixed identifier'],
-      [has(engineViolations, 'R6-internal-leak', 'bad-r6.ts'), 'R6 should catch a value import of getToolRegistration outside daemon'],
+      [has(engineViolations, 'R6-internal-leak', 'bad-r6.ts'), 'R6 should catch a value import of authorizeToolInvocation outside daemon'],
       [!has(engineViolations, 'R6-internal-leak', 'ok-r6-type-only.ts'), 'R6 must NOT flag a type-only import of @jini-ai/core/internal'],
       [!has(engineViolations, 'R6-internal-leak', 'ok-r6-daemon.ts'), 'R6 must NOT flag a value import from inside @jini-ai/daemon itself'],
       [has(engineViolations, 'R8-package-metadata', 'packages/missing-metadata/package.json'), 'R8 should catch missing package classification metadata'],

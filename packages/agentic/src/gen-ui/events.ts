@@ -12,7 +12,7 @@
  * subdirectory — see `./encoder.ts` for why it is kept apart from the flat `ag-ui.ts`.
  */
 
-export type AGUIEventKind =
+export type GenUiEventKind =
   | 'agent.message'
   | 'tool_call'
   | 'state_update'
@@ -20,20 +20,20 @@ export type AGUIEventKind =
   | 'ui.surface_responded'
   | 'run.lifecycle';
 
-export interface AGUIEventBase {
-  kind: AGUIEventKind;
+export interface GenUiEventBase {
+  kind: GenUiEventKind;
   runId: string;
   seq?: number;
   ts: number;
 }
 
-export interface AGUIAgentMessageEvent extends AGUIEventBase {
+export interface GenUiAgentMessageEvent extends GenUiEventBase {
   kind: 'agent.message';
   text: string;
   done?: boolean;
 }
 
-export interface AGUIToolCallEvent extends AGUIEventBase {
+export interface GenUiToolCallEvent extends GenUiEventBase {
   kind: 'tool_call';
   toolName: string;
   args: unknown;
@@ -42,27 +42,27 @@ export interface AGUIToolCallEvent extends AGUIEventBase {
   result?: unknown;
 }
 
-export interface AGUIStateUpdateEvent extends AGUIEventBase {
+export interface GenUiStateUpdateEvent extends GenUiEventBase {
   kind: 'state_update';
   path: string;
   value: unknown;
 }
 
-export interface AGUISurfaceRequestedEvent extends AGUIEventBase {
+export interface GenUiSurfaceRequestedEvent extends GenUiEventBase {
   kind: 'ui.surface_requested';
   surfaceId: string;
   surfaceKind: 'form' | 'choice' | 'confirmation' | 'oauth-prompt';
   payload: unknown;
 }
 
-export interface AGUISurfaceRespondedEvent extends AGUIEventBase {
+export interface GenUiSurfaceRespondedEvent extends GenUiEventBase {
   kind: 'ui.surface_responded';
   surfaceId: string;
   value: unknown;
   respondedBy: 'user' | 'agent' | 'auto' | 'cache';
 }
 
-export interface AGUIRunLifecycleEvent extends AGUIEventBase {
+export interface GenUiRunLifecycleEvent extends GenUiEventBase {
   kind: 'run.lifecycle';
   status: 'started' | 'pipeline_stage_started' | 'pipeline_stage_completed' | 'completed' | 'cancelled' | 'failed';
   stageId?: string;
@@ -70,10 +70,10 @@ export interface AGUIRunLifecycleEvent extends AGUIEventBase {
   message?: string;
 }
 
-export type AGUIEvent =
-  | AGUIAgentMessageEvent
-  | AGUIToolCallEvent
-  | AGUIStateUpdateEvent
-  | AGUISurfaceRequestedEvent
-  | AGUISurfaceRespondedEvent
-  | AGUIRunLifecycleEvent;
+export type GenUiEvent =
+  | GenUiAgentMessageEvent
+  | GenUiToolCallEvent
+  | GenUiStateUpdateEvent
+  | GenUiSurfaceRequestedEvent
+  | GenUiSurfaceRespondedEvent
+  | GenUiRunLifecycleEvent;

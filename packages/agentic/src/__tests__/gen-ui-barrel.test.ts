@@ -4,14 +4,14 @@ import * as agui from '../index.js';
 
 // Exercises the public root barrel's re-export of src/gen-ui/encoder.ts (folded in from the
 // standalone @jini-ai/agui package, plan §3a — see that module's doc).
-describe('@jini-ai/agentic public barrel — createAguiEncoder', () => {
-  it('re-exports createAguiEncoder', () => {
-    expect(agui.createAguiEncoder).toBeDefined();
-    expect(typeof agui.createAguiEncoder).toBe('function');
+describe('@jini-ai/agentic public barrel — createGenUiEncoder', () => {
+  it('re-exports createGenUiEncoder', () => {
+    expect(agui.createGenUiEncoder).toBeDefined();
+    expect(typeof agui.createGenUiEncoder).toBe('function');
   });
 
-  it('createAguiEncoder produces a working encoder end to end', () => {
-    const encoder = agui.createAguiEncoder();
+  it('createGenUiEncoder produces a working encoder end to end', () => {
+    const encoder = agui.createGenUiEncoder();
     const result = encoder.encode(
       {
         runId: 'run-1',

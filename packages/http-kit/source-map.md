@@ -1855,3 +1855,68 @@ self-test fixture.
 
 Verified: `pnpm guard`; `pnpm --filter @jini/http build`; `pnpm --filter @jini/http typecheck`;
 `pnpm --filter @jini/http test` (**907/907**).
+
+## 2026-07-29 addition — `requireStrictBearerToken`, shared bearer primitives, and `route-manifest.ts`
+
+**Nothing was ported.** Two additions generalized from a real consumer (Tovu), plus one consolidation.
+
+### `requireStrictBearerToken` (`api-security-middleware.ts`)
+
+`registerApiBearerAuthMiddleware` lets **any loopback peer through unauthenticated** before it reads the
+`Authorization` header. That is the right affordance for a desktop UI or local CLI reaching its own
+daemon, and a complete no-op for a daemon whose threat model is a *co-resident process*: a `127.0.0.1`
+bind excludes remote hosts and says nothing about a sibling process running as the same user. A consumer
+spawning a Jini daemon that can start agent runs and execute tools against a real database had to write
+its own middleware to close that, and did.
+
+The new factory is that middleware, generalized: fail-closed **503** when the named env var is unset
+(never a silent pass-through), **401** on missing/malformed/mismatched, **no** peer-address exemption,
+**no** disable flag, and an exact-match-only `exemptPaths` defaulting to empty.
+
+**This is not a new opinion for Jini.** `remote-run-events.ts`'s own gate already made the identical
+call for the identical reason on a single route — see its module doc: *"a loopback bind is exactly the
+shape a same-machine but lower-trust process would also present"*. This generalizes that posture from
+one route to a whole `/api` surface.
+
+`tokenEnvVar` is **required with no default**, matching `McpJsonInjectionOptions`'s "host-resolved, not
+this package's to know" posture. This package does not name a host's secret.
+
+### Consolidation: shared `bearerTokenFromHeader` + `timingSafeTokenMatch`
+
+Both pre-existing gates parsed the bearer header with their own copy of the same regex and compared
+tokens with `!==`. A plain string compare short-circuits on the first differing byte, making duration a
+function of how many leading bytes were correct — recoverable over many requests. Both now route through
+one exported header parser and one `timingSafeEqual`-backed comparison.
+
+`requireRemoteToolBridgeToken` was **not** folded into the new factory despite the identical posture: its
+two routes own distinct `REMOTE_TOOL_BRIDGE_*` error codes so an operator can tell *which* secret is
+missing from the response alone. Only the decision logic is shared, not the response shape — the
+existing suite passes unmodified, which is the evidence that consolidation changed no behavior.
+
+### `route-manifest.ts`
+
+Published `{method, path}` inventory per feature family, as data readable without mounting. A host
+proxying a daemon in another process had no way to ask for the route list and copied path strings by
+hand; one real consumer's proxy consequently shipped without `GET /api/runs`, leaving that endpoint
+404-ing at the host's own router with nothing to indicate the host was the cause.
+
+The design constraint that makes it trustworthy: **it declares no method or path literals.** Every entry
+references the same `JsonRouteSpec` constant the family's registrar mounts, so a spec's path change moves
+the manifest automatically. The paired test mounts each declared family's real registrar onto a recording
+app and asserts equality, closing the one remaining gap (a family gaining a route nobody lists).
+
+That test found a real discrepancy on its first run: the `runs` family mounts **two** spec-less streaming
+routes — `RUN_EVENTS_ROUTE_PATH` (`/api/runs/:runId/events`, mounted by `registerRunRoutes` itself) and
+`RUN_STREAM_ROUTE_PATH` (`/api/runs/:runId/agui-stream`, mounted separately by `registerRunStreamRoute`).
+They are easy to mistake for one another and a proxy needs both. The former was a bare literal at its
+registration site until this pass; it is now an exported constant for the same
+reference-don't-restate reason.
+
+Scope is deliberately partial — the families a sidecar consumer proxies, not all 19. `routeFamilyManifest`
+returns `undefined` rather than `[]` for an undeclared family so a proxy can never mistake "undocumented"
+for "has no routes".
+
+**Verified, personally, this session**: `pnpm --filter @jini-ai/http-kit run typecheck` clean; the
+package's full suite **1002/1002 passing** (36 files), including 17 new strict-gate tests and 14 new
+manifest tests. The pre-existing `remote-run-events` and `api-security-middleware` suites pass
+**unmodified**.

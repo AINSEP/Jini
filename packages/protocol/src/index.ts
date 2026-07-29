@@ -1,3 +1,4 @@
+export * from './agent-catalog.js';
 export * from './common.js';
 export * from './errors.js';
 export * from './event-log.js';
@@ -5,3 +6,4 @@ export * from './events.js';
 export * from './journal.js';
 export * from './registry.js';
 export * from './run.js';
+export * from './run-context.js';

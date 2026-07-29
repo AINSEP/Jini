@@ -50,6 +50,17 @@ import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
 export const RUN_ID_ENV_VAR = 'JINI_RUN_ID';
 /** Checked (only) when resolving the daemon HTTP base URL — see `resolveDaemonUrl`'s own docs; matches `@jini-ai/cli/main.ts`'s identically-named constant. */
 export const DAEMON_URL_ENV_VAR = 'JINI_DAEMON_URL';
+/**
+ * Bearer credential for this process's daemon callbacks, set by the spawning daemon when it issued
+ * one (see `@jini-ai/daemon`'s `McpJsonInjectionOptions.credential`).
+ *
+ * **Optional, unlike {@link RUN_ID_ENV_VAR}.** A daemon whose `/api` surface trusts loopback issues
+ * no credential, and this process must keep working against one exactly as before — so an unset
+ * value means "send no `Authorization` header", never a startup failure. When a daemon *does*
+ * require a credential and none was delivered, that daemon's own gate answers 401; refusing to boot
+ * here instead would be guessing at a policy this process cannot observe.
+ */
+export const DAEMON_TOKEN_ENV_VAR = 'JINI_DAEMON_TOKEN';
 
 const SERVER_NAME = 'jini-mcp';
 const SERVER_VERSION = '0.0.0';
@@ -118,6 +129,14 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
     }),
   ];
 
+  // Absent credential => no `authHeaders` at all => byte-identical request headers to before this
+  // env var existed. See DAEMON_TOKEN_ENV_VAR's doc for why an unset value is not a startup failure.
+  const credential = env[DAEMON_TOKEN_ENV_VAR];
+  const authHeaders =
+    typeof credential === 'string' && credential.length > 0
+      ? { Authorization: `Bearer ${credential}` }
+      : undefined;
+
   const serverOptions: McpToolServerOptions = {
     name: SERVER_NAME,
     version: SERVER_VERSION,
@@ -125,6 +144,7 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
     resources: KERNEL_RESOURCES,
     resolveBaseUrl,
     instructions: INSTRUCTIONS,
+    ...(authHeaders !== undefined ? { authHeaders } : {}),
     ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
     ...(deps.stdin !== undefined ? { stdin: deps.stdin } : {}),
     ...(deps.stdout !== undefined ? { stdout: deps.stdout } : {}),

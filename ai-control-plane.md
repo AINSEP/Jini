@@ -64,7 +64,7 @@ This is the control-plane gap. Jini needs a deliberate way for agents to ask the
 
 The live exercise used temporary directories and a temporary host callback. It did not establish that the current `minimal-host` is a finished user-facing daemon. In particular:
 
-- `POST /api/runs` currently accepts `contextRef`, optional `agentId`, and optional `idempotencyKey`; it does not yet define a real prompt/history/runtime-profile request.
+- `POST /api/runs` currently accepts `contextRef`, optional `agentId`, and optional `idempotencyKey`; it does not yet define a real prompt/history/runtime-profile request. **Update 2026-07-29:** `@jini-ai/protocol` now ships an optional, shared `encodeRunContextRef`/`decodeRunContextRef` helper (`RunContextPayload = {prompt?, history?}`) a host may use to populate `contextRef` instead of inventing its own encoding — `contextRef` itself remains opaque to the kernel; this doesn't define a first-class wire request field, it just stops every host from reinventing the same ad-hoc JSON-into-a-string trick (see `tovu-learnings.md` §4).
 - The temporary test used `contextRef` as the prompt solely to prove the end-to-end path. That is not the proposed wire contract.
 - `createLocalNodeDaemon()` binds a real `AgentExecutor`, but a host must still supply `onRunStarted` to map an accepted run to an agent, prompt, working directory, environment, and authority policy.
 - The current `agents?: unknown[]` node-host option is documented as forward-compatible but is not wired into execution.

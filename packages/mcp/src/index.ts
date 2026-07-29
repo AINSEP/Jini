@@ -85,6 +85,7 @@ export {
 export {
   cancelRunTool,
   createMcpToolServer,
+  daemonCallOptions,
   errorResult,
   getActiveContextTool,
   getDaemonJson,

@@ -25,6 +25,7 @@
  */
 import { getDaemonJson } from '../daemon-client.js';
 import type { McpResourceDef } from '../resource-protocol.js';
+import { daemonCallOptions } from '../tool-protocol.js';
 
 interface ActiveContextPayload {
   readonly active: boolean;
@@ -45,7 +46,7 @@ export const activeContextResource: McpResourceDef = {
     'The resource (resourceRef) plus optional detail the caller last recorded as its current focus via POST /api/active — the same generic, product-neutral pointer the get_active_context tool proxies, exposed here as an attachable MCP resource instead of a tool call.',
   mimeType: 'application/json',
   read: async (ctx) => {
-    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', { fetchImpl: ctx.fetchImpl });
+    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', daemonCallOptions(ctx));
     return { text: JSON.stringify(data, null, 2) };
   },
 };

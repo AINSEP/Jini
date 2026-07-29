@@ -26,6 +26,7 @@ import type { Express, NextFunction, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import type { RemoteToolEventRecorder, RunLifecycle } from '@jini-ai/daemon';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
+import { bearerTokenFromHeader, timingSafeTokenMatch } from './api-security-middleware.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
 
@@ -44,7 +45,6 @@ export interface RemoteRunEventHttpDeps {
 }
 
 const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';
-const BEARER_TOKEN_PATTERN = /^Bearer\s+(\S+)\s*$/i;
 
 /**
  * Gates both remote-run-event routes behind a dedicated shared secret. Unlike
@@ -52,6 +52,14 @@ const BEARER_TOKEN_PATTERN = /^Bearer\s+(\S+)\s*$/i;
  * that lets a caller inject events into someone else's run must never silently run unauthenticated
  * just because a host forgot to configure the token. If the token isn't configured, the route
  * fails closed with 503, not 200.
+ *
+ * Kept as its own middleware rather than folded into `api-security-middleware.ts`'s
+ * `requireStrictBearerToken` (which has the identical fail-closed/no-loopback-exemption posture)
+ * because these two routes own their own error codes — `REMOTE_TOOL_BRIDGE_*`, distinct from the
+ * general API token's, so an operator can tell which secret is missing from the response alone.
+ * The *decision* logic is shared: header parsing and the constant-time comparison both come from
+ * that module, so the two gates cannot drift on what counts as a well-formed header or on
+ * comparison safety.
  */
 export function requireRemoteToolBridgeToken(deps: {
   readonly tokenConfig?: RemoteToolBridgeTokenConfig;
@@ -70,8 +78,8 @@ export function requireRemoteToolBridgeToken(deps: {
       });
       return;
     }
-    const match = BEARER_TOKEN_PATTERN.exec(req.get('authorization') ?? '');
-    if (!match || match[1] !== token) {
+    const presented = bearerTokenFromHeader(req.get('authorization'));
+    if (presented === null || !timingSafeTokenMatch(presented, token)) {
       res.status(401).json({
         error: { code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${tokenEnvVar}> required` },
       });

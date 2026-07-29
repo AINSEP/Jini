@@ -11,9 +11,9 @@
  * this hook never imports `fetch`/`EventSource` itself.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AgentEvent, ChatAttachment, ChatMessage, RunStatus } from '@jini-ai/chat-core';
+import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '@jini-ai/chat-core';
 import { isTerminalRunStatus } from '@jini-ai/chat-core';
-import type { ChatTransport, RunContext } from '../../transport.js';
+import type { ChatTransport, RunContext } from '@jini-ai/chat-core';
 import { useRunStream } from './useRunStream.js';
 
 export interface UseConversationOptions {
@@ -93,7 +93,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         // `activeAssistantIdRef` first), so `m.runStatus` is always defined
         // and `run.status` is never `'idle'` by the time this callback
         // fires — one of the four branches below always reassigns it.
-        let runStatus: RunStatus = m.runStatus!;
+        let runStatus: ChatRunStatus = m.runStatus!;
         if (run.status === 'streaming') runStatus = 'running';
         else if (run.status === 'done') runStatus = 'succeeded';
         else if (run.status === 'error') runStatus = 'failed';

@@ -12,7 +12,7 @@
  * Finding a tool id here grants nothing (`PROP` §6.3).
  */
 import { getDaemonJson } from '../daemon-client.js';
-import { requireString, type McpToolDef } from '../tool-protocol.js';
+import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 
 const READ_ANNOTATIONS = {
   readOnlyHint: true,
@@ -48,9 +48,7 @@ export const searchToolsTool: McpToolDef = {
     requireString(args.query, 'query');
     const params = new URLSearchParams({ q: args.query });
     if (typeof args.limit === 'number') params.set('limit', String(args.limit));
-    const data = await getDaemonJson<ToolCatalogSearchResponse>(ctx.baseUrl, `/api/tools/search?${params.toString()}`, {
-      fetchImpl: ctx.fetchImpl,
-    });
+    const data = await getDaemonJson<ToolCatalogSearchResponse>(ctx.baseUrl, `/api/tools/search?${params.toString()}`, daemonCallOptions(ctx));
     return data.hits;
   },
 };
@@ -71,7 +69,7 @@ export const describeToolTool: McpToolDef = {
   annotations: { ...READ_ANNOTATIONS, title: 'Describe a tool' },
   handler: async (args, ctx) => {
     requireString(args.id, 'id');
-    return getDaemonJson(ctx.baseUrl, `/api/tools/${encodeURIComponent(args.id)}`, { fetchImpl: ctx.fetchImpl });
+    return getDaemonJson(ctx.baseUrl, `/api/tools/${encodeURIComponent(args.id)}`, daemonCallOptions(ctx));
   },
 };
 

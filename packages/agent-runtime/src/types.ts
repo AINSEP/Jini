@@ -12,6 +12,7 @@
  * as found — see `source-map.md` for the full provenance table.
  */
 import type { ExecFileOptions } from 'node:child_process';
+import type { AgentDiagnostic } from '@jini-ai/protocol';
 
 export type RuntimeEnv = NodeJS.ProcessEnv | Record<string, string>;
 
@@ -269,76 +270,13 @@ export type RuntimeExecOptions = ExecFileOptions & {
 };
 
 /**
- * A typed "what should the UI do to fix this" intent attached to an
- * {@link AgentDiagnostic}. The UI renders a button per intent and owns the
- * concrete handler (open a URL, re-run detection, write an env override,
- * launch an OAuth terminal flow). Keeping the intent typed — rather than a
- * pre-baked button label + URL — lets multiple surfaces (a settings card,
- * an unavailable-agents grid, a CLI healthcheck) render the same fix
- * affordances from one source of truth instead of each re-deriving copy
- * and wiring.
- *
- * Vendored (minimal, unmodified shape) from OD's
- * `packages/contracts/src/api/registry.ts#AgentFixIntent` — see
- * `source-map.md`. `@jini-ai/agent-runtime` does not depend on OD's
- * contracts workspace package.
+ * Agent unavailability/fix-affordance vocabulary. Moved to `@jini-ai/protocol` on 2026-07-29 (see
+ * that package's `agent-catalog.ts`) so a browser package can consume it without depending on this
+ * Node-only runtime. Re-exported here so every existing import keeps working unchanged.
  */
-export type AgentFixIntent =
-  /** Open the agent's configuration / auth docs (`AgentInfo.docsUrl`). */
-  | { kind: 'openDocs' }
-  /** Open the agent's install / download page (`AgentInfo.installUrl`). */
-  | { kind: 'openInstall' }
-  /** Re-run agent detection (a Settings "Rescan" affordance). */
-  | { kind: 'rescan' }
-  /**
-   * Prompt the user to point the host application at an explicit binary by
-   * writing `envKey` (e.g. `CURSOR_AGENT_BIN`) into a configured-env store.
-   * Used when the CLI is installed somewhere PATH detection can't reach.
-   */
-  | { kind: 'setEnv'; envKey: string }
-  /** Clear a previously-set binary override so detection falls back to PATH. */
-  | { kind: 'clearEnv'; envKey: string }
-  /**
-   * Launch the agent's interactive sign-in in a system terminal (used by
-   * adapters whose OAuth flow cannot complete in a headless/print mode).
-   */
-  | { kind: 'launchOAuth'; agentId: string };
-
-export type AgentDiagnosticReason =
-  /** The binary (and any fallback names) was not found on PATH. */
-  | 'not-on-path'
-  /** A file matched but is not executable (missing +x / wrong PATHEXT). */
-  | 'not-executable'
-  /** A wrapper/shim was found but its target is gone (exit 126/127). */
-  | 'shim-broken'
-  /** A user-set `*_BIN` override points at a missing/invalid file. */
-  | 'configured-bin-invalid'
-  /** Installed and invocable, but the CLI is not authenticated. */
-  | 'auth-missing'
-  /** Installed, but auth status could not be verified. */
-  | 'auth-unknown';
-
-export type AgentDiagnosticSeverity = 'error' | 'warning' | 'info';
-
-/**
- * Why a CLI agent is unavailable or only partially usable, in a shape a UI
- * can render as "one-line reason + fix button(s)" instead of a silent grey
- * card. Vendored from OD's contracts workspace package — see
- * `AgentFixIntent`'s doc comment.
- */
-export interface AgentDiagnostic {
-  reason: AgentDiagnosticReason;
-  severity: AgentDiagnosticSeverity;
-  /** Short, human-readable, single-sentence explanation. */
-  message: string;
-  /** Optional longer context (e.g. the probe's stderr tail). */
-  detail?: string;
-  /**
-   * Directories PATH detection searched, surfaced verbatim for the
-   * `not-on-path` case so the user can see where detection looked before
-   * being asked to set an explicit binary path.
-   */
-  searchedDirs?: string[];
-  /** Ordered fix affordances the UI should offer for this diagnostic. */
-  fixActions?: AgentFixIntent[];
-}
+export type {
+  AgentDiagnostic,
+  AgentDiagnosticReason,
+  AgentDiagnosticSeverity,
+  AgentFixIntent,
+} from '@jini-ai/protocol';

@@ -15,10 +15,14 @@
  *
  * 1. `probe`-phase routes — before the body parser and before any auth, so liveness/readiness never
  *    depends on either.
- * 2. the JSON body parser, then (when this composition owns security) the bearer and origin gates.
- * 3. `api`-phase routes, in catalog order.
- * 4. the caller's own `onAfterApiRoutes` hook — product HTTP extensions and pack routes.
- * 5. `status`-phase routes, last, so a status surface reports on a fully assembled app.
+ * 2. `sidecar-strict`'s bearer gate, when that mode is active — ahead of the body parser, so a
+ *    request this gate will reject never has its body parsed at all. It needs only `req.path` and the
+ *    `Authorization` header.
+ * 3. the JSON body parser, then (when this composition owns security) the remaining gates:
+ *    `sidecar-strict`'s origin guard, or `jini-local`'s bearer + origin pair.
+ * 4. `api`-phase routes, in catalog order.
+ * 5. the caller's own `onAfterApiRoutes` hook — product HTTP extensions and pack routes.
+ * 6. `status`-phase routes, last, so a status surface reports on a fully assembled app.
  *
  * Tools are registered for every active feature **before any route mounts**, so a feature's routes
  * can assume its own tools exist, and `afterTools` hooks (the tool catalog's durable snapshot) see
@@ -41,6 +45,7 @@ import {
   mountPackHttp,
   registerApiBearerAuthMiddleware,
   registerApiOriginGuardMiddleware,
+  requireStrictBearerToken,
   configuredAllowedOrigins,
   type AdapterContext,
 } from '@jini-ai/http-kit';
@@ -70,6 +75,35 @@ export type JiniKernelSecurity =
       readonly mode: 'jini-local';
       readonly host: string;
       readonly apiToken?: { readonly tokenEnvVar?: string; readonly disableEnvVar?: string };
+    }
+  /**
+   * Like `jini-local`, but for a daemon whose threat model is **another process running as the same
+   * OS user**, not a remote attacker: every `/api` request must carry the bearer token, including
+   * one arriving from `127.0.0.1`, and an unconfigured token fails closed with 503 rather than
+   * silently serving unauthenticated callers.
+   *
+   * Use this when the daemon holds authority a co-resident process should not be able to borrow —
+   * starting real agent runs, executing tools against a real database. A loopback bind keeps remote
+   * hosts out but does nothing about a sibling process, which is precisely what `jini-local`'s
+   * loopback short-circuit trusts.
+   *
+   * `probe`-phase routes (health/readiness/version) mount before this gate and therefore stay
+   * reachable without a token — monitoring never needs a secret.
+   */
+  | {
+      readonly mode: 'sidecar-strict';
+      readonly host: string;
+      /**
+       * Env var carrying the required bearer token. Required with no default — this package does
+       * not name a host's secret, matching every other host-resolved seam in the engine.
+       */
+      readonly tokenEnvVar: string;
+      /**
+       * Exact `req.path` values this gate does not apply to. Defaults to none. Every entry is a hole
+       * in the gate, so each one belongs at the mount site with a stated reason — the intended use
+       * is a callback route whose only legitimate caller cannot yet present a credential.
+       */
+      readonly exemptPaths?: readonly string[];
     };
 
 export interface ComposeJiniKernelConfig {
@@ -219,9 +253,33 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
     const { app } = config;
     mountPhase('probe', app, composed, featureDaemon);
 
+    const security = config.security ?? { mode: 'host' };
+
+    // `sidecar-strict`'s bearer gate mounts BEFORE the body parser, unlike `jini-local`'s: a caller
+    // this gate is going to reject with 401 should never have had its body parsed in the first place.
+    // The gate reads only `req.path` and the `Authorization` header, so it needs nothing the parser
+    // provides. Its origin guard still mounts below, alongside `jini-local`'s.
+    if (security.mode === 'sidecar-strict') {
+      app.use(
+        requireStrictBearerToken({
+          tokenEnvVar: security.tokenEnvVar,
+          env,
+          ...(security.exemptPaths !== undefined ? { exemptPaths: security.exemptPaths } : {}),
+        }),
+      );
+    }
+
     if (config.installJsonBodyParser !== false) app.use(express.json());
 
-    const security = config.security ?? { mode: 'host' };
+    if (security.mode === 'sidecar-strict') {
+      registerApiOriginGuardMiddleware(app, {
+        host: security.host,
+        extraAllowedOrigins: configuredAllowedOrigins(env),
+        getResolvedPort: () => config.adapter.resolvedPortRef.current,
+        env,
+      });
+    }
+
     if (security.mode === 'jini-local') {
       registerApiBearerAuthMiddleware(app, {
         tokenConfig: {

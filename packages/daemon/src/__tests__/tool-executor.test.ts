@@ -12,6 +12,7 @@ import {
   createToolExecutor,
   type ConfirmationDecision,
   type ExecutionDelegate,
+  type ToolAuthorizationRequest,
   type ToolConfirmationRequest,
 } from '../tool-executor.js';
 
@@ -115,6 +116,68 @@ describe('@jini-ai/daemon — ToolExecutor — authorization', () => {
     await executor.execute(principal, run, 'danger', {});
     expect(called).toBe(false);
   });
+
+  it('consults a class-based delegate with its own `this` intact', async () => {
+    // Regression: `ExecutionDelegate` is declared with method syntax, so implementing it as a
+    // class is expected usage. Handing the detached `delegate.onAuthorize` reference to
+    // `@jini-ai/core` rebound `this` to the wrapper object, so a `this`-using veto threw a
+    // TypeError out of `execute()` rather than returning a decision.
+    class Gate implements ExecutionDelegate {
+      private readonly granted = new Set(['granted']);
+      onAuthorize(request: ToolAuthorizationRequest): AuthorizationDecision {
+        return this.granted.has(request.tool.id) ? 'allow' : 'deny';
+      }
+    }
+    const registry = registryWith(
+      { descriptor: { id: 'granted' }, handler: async () => 'ok', policy: allowAll() },
+      { descriptor: { id: 'ungranted' }, handler: async () => 'should not run', policy: allowAll() },
+    );
+    const executor = createToolExecutor({ registry, delegate: new Gate() });
+
+    await expect(executor.execute(principal, run, 'granted', {})).resolves.toMatchObject({
+      status: 'completed',
+      output: 'ok',
+    });
+    await expect(executor.execute(principal, run, 'ungranted', {})).resolves.toMatchObject({
+      status: 'denied',
+    });
+  });
+
+  it('hands both the policy and the delegate veto the principal, run, tool and input of the call', async () => {
+    // Pins the argument plumbing across the `authorizeToolInvocation` package boundary. It needs
+    // a test because `Principal` and `RunRef` are mutually assignable structural `{id}` shapes, so
+    // transposing those two positional arguments would typecheck silently.
+    const seen: ToolAuthorizationRequest[] = [];
+    const registry = registryWith({
+      descriptor: { id: 'echo', description: 'echoes' },
+      handler: async () => 'ok',
+      policy: {
+        authorize: (ctx) => {
+          seen.push(ctx);
+          return 'allow';
+        },
+      },
+    });
+    const delegate: ExecutionDelegate = {
+      onAuthorize: (request) => {
+        seen.push(request);
+        return 'allow';
+      },
+    };
+    const executor = createToolExecutor({ registry, delegate });
+
+    const caller: Principal = { id: 'user-7', roles: ['editor'] };
+    const target: RunRef = { id: 'run-9' };
+    await executor.execute(caller, target, 'echo', { path: 'a.txt' });
+
+    expect(seen).toHaveLength(2);
+    for (const ctx of seen) {
+      expect(ctx.principal).toEqual({ id: 'user-7', roles: ['editor'] });
+      expect(ctx.run).toEqual({ id: 'run-9' });
+      expect(ctx.tool).toEqual({ id: 'echo', description: 'echoes' });
+      expect(ctx.input).toEqual({ path: 'a.txt' });
+    }
+  });
 });
 
 describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
@@ -216,6 +279,9 @@ describe('@jini-ai/daemon — ToolExecutor — confirmation', () => {
     });
 
     const resultPromise = executor.execute(principal, run, 'confirm-me', {});
+    // Two ticks: authorizeToolInvocation (resolve + policy.authorize) is now its own async
+    // function boundary in @jini-ai/core, one more hop than a direct `await policy.authorize()`.
+    await Promise.resolve();
     await Promise.resolve();
     executor.resumeConfirmation(capturedExecutionId, 'deny');
     const result = await resultPromise;
@@ -358,6 +424,9 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     });
 
     const resultPromise = executor.execute(principal, run, 'confirm-me', {});
+    // Two ticks: authorizeToolInvocation (resolve + policy.authorize) is now its own async
+    // function boundary in @jini-ai/core, one more hop than a direct `await policy.authorize()`.
+    await Promise.resolve();
     await Promise.resolve();
     executor.cancel(capturedExecutionId);
 

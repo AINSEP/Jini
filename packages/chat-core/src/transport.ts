@@ -3,10 +3,15 @@
  *
  * The `ChatTransport` port — the single seam a host uses to reach a real
  * agent runtime (SSE/fetch, WebSocket, a local daemon, an in-memory fake for
- * tests). No hook or component in this package constructs an
- * `EventSource`/`fetch`/`WebSocket` directly; every one of them receives a
- * `ChatTransport` (via `<JiniChatProvider transport={...}>` or as a direct
- * hook argument) and calls through it instead.
+ * tests).
+ *
+ * Moved here from `@jini-ai/chat-react` on 2026-07-29. The port is pure types over
+ * `AbortSignal` — no React, no DOM, no transport implementation — so keeping it in the React
+ * adapter meant a non-React host had to depend on the React package just to name the seam it
+ * implements. `@jini-ai/chat-react` re-exports every name below, so nothing that already imported
+ * them from there needs to change; no hook or component there constructs an
+ * `EventSource`/`fetch`/`WebSocket` directly — each receives a `ChatTransport` (via
+ * `<JiniChatProvider transport={...}>` or as a direct hook argument) and calls through it.
  *
  * Generalizes OD's `providers/daemon.ts` `streamViaDaemon` +
  * `DaemonStreamHandlers` (`daemon.ts:261`, `daemon.ts:594`) — verified
@@ -16,7 +21,8 @@
  * `foundry/docs/jini-port/recon/r4b-webui-design.md` §2 for the target shape this
  * module implements verbatim.
  */
-import type { AgentEvent, ChatAttachment, ChatMessage, RunStatus } from '@jini-ai/chat-core';
+import type { AgentEvent } from './events.js';
+import type { ChatAttachment, ChatMessage, ChatRunStatus } from './messages.js';
 
 /**
  * Per-run event handlers a `ChatTransport` invokes as a run streams.
@@ -68,7 +74,7 @@ export interface ChatTransport {
   startRun(input: StartRunInput, handlers: RunHandlers): Promise<{ runId: string }>;
   /** Resume listening to an already-started run (reconnect/replay). */
   reattachRun(runId: string, handlers: RunHandlers): Promise<void>;
-  fetchRunStatus(runId: string): Promise<RunStatus | null>;
+  fetchRunStatus(runId: string): Promise<ChatRunStatus | null>;
   stopRun(runId: string): Promise<void>;
   reportFeedback?(change: FeedbackChange): Promise<void>;
 }

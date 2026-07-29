@@ -167,6 +167,206 @@ describe('runOllamaToolTurn', () => {
     expect(JSON.parse(init2.body).options).toBeUndefined();
   });
 
+  it('sends options.temperature, alongside num_predict when both are set', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, temperature: 0, maxTokens: 64, onEvent: () => {} });
+    // Temperature 0 must survive: it is the most useful value and the easiest to lose to a
+    // truthiness check, and Ollama nests both under a single `options` object.
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).options).toEqual({ temperature: 0, num_predict: 64 });
+  });
+
+  it('forwards a non-empty tools array verbatim, and omits the field for an empty one', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    const tools = [{ type: 'function' as const, function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } } }];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, tools, onEvent: () => {} });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).tools).toEqual(tools);
+
+    // Ollama rejects `tools: []`, so an empty list must be indistinguishable from no list.
+    fetchMock.mockClear();
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, tools: [], onEvent: () => {} });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).not.toHaveProperty('tools');
+  });
+
+  it('passes a caller AbortSignal through to fetch so a cancelled turn actually cancels the request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, signal: controller.signal, onEvent: () => {} });
+    expect(fetchMock.mock.calls[0]![1].signal).toBe(controller.signal);
+  });
+
+  it('reports a thrown non-Error rejection from fetch by stringifying it', async () => {
+    // `fetch` rejecting with a non-Error is rare but real (a bare string from a patched global, an
+    // undici internal); the turn must still surface an error rather than crash on `.message`.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('socket hang up'));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'error', message: 'socket hang up' });
+    expect(events).toContainEqual({ type: 'end', reason: 'error' });
+  });
+
+  it('falls back to the raw (truncated) body when a non-ok error response is not JSON', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502, body: null, text: async () => '<html>Bad Gateway</html>' }));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'error', message: '<html>Bad Gateway</html>', code: '502' });
+  });
+
+  it('truncates an overlong non-JSON error body to 500 characters', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, body: null, text: async () => 'x'.repeat(2000) }));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    const error = events.find((e): e is Extract<OllamaTurnEvent, { type: 'error' }> => e.type === 'error');
+    expect(error?.message).toHaveLength(500);
+  });
+
+  it('falls back to the raw body when the error JSON has no string error field', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 400, body: null, text: async () => '{"detail":"nope"}' }));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'error', message: '{"detail":"nope"}', code: '400' });
+  });
+
+  it('decodes a body delivered as Uint8Array chunks, which is what a real fetch stream yields', async () => {
+    const encoder = new TextEncoder();
+    const body: AsyncIterable<Uint8Array> = {
+      async *[Symbol.asyncIterator]() {
+        yield encoder.encode(`${textLine('from bytes')}\n`);
+        yield encoder.encode(`${doneLine()}\n`);
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body as unknown as AsyncIterable<string>)));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'text_delta', delta: 'from bytes' });
+  });
+
+  it('skips blank and malformed lines in the stream instead of aborting the turn', async () => {
+    // Ollama sends blank keep-alive lines, and a proxy can inject non-JSON noise. Either must be
+    // survivable: the surrounding real lines still have to be processed.
+    const body = ndjsonBody('', '   ', 'not json at all', textLine('still here'), '[]', doneLine());
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: OllamaTurnEvent[] = [];
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'text_delta', delta: 'still here' });
+    expect(result).toEqual({ finishReason: 'stop', toolTurns: 0 });
+  });
+
+  it('yields a final line that arrived without a terminating newline', async () => {
+    const body: AsyncIterable<string> = {
+      async *[Symbol.asyncIterator]() {
+        yield `${textLine('mid')}\n`;
+        yield doneLine(); // no trailing newline — the stream simply ends
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} });
+    expect(result).toEqual({ finishReason: 'stop', toolTurns: 0 });
+  });
+
+  it('completes the read loop normally when the unterminated final line is content rather than the done marker', async () => {
+    // Distinct from the case above: there `done: true` breaks the read loop the moment the trailing
+    // line is consumed, so the decoder never runs to completion. Here the stream just stops (a
+    // dropped connection), the loop asks for another line, and the decoder must finish cleanly
+    // instead of hanging or throwing.
+    const body: AsyncIterable<string> = {
+      async *[Symbol.asyncIterator]() {
+        yield `${textLine('first ')}\n`;
+        yield textLine('and the tail'); // complete JSON, no newline, no done marker
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: OllamaTurnEvent[] = [];
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events.filter((e) => e.type === 'text_delta')).toEqual([
+      { type: 'text_delta', delta: 'first ' },
+      { type: 'text_delta', delta: 'and the tail' },
+    ]);
+    expect(result.finishReason).toBeNull();
+  });
+
+  it('drops a truncated final line that is not valid JSON rather than throwing at end of stream', async () => {
+    // A connection cut mid-line leaves an unparseable remainder, and there is no `done: true` line
+    // to have broken out of the read loop first — so the decoder itself has to survive it. The turn
+    // ends on whatever text already arrived instead of rejecting.
+    const body: AsyncIterable<string> = {
+      async *[Symbol.asyncIterator]() {
+        yield `${textLine('partial answer')}\n`;
+        yield '{"model":"llama3","mess';
+      },
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: OllamaTurnEvent[] = [];
+    const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'text_delta', delta: 'partial answer' });
+    expect(result.finishReason).toBeNull();
+  });
+
+  it('ignores a line whose message field is not an object', async () => {
+    const body = ndjsonBody(JSON.stringify({ model: 'llama3', message: 'oops', done: false }), doneLine());
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events.filter((e) => e.type === 'text_delta')).toEqual([]);
+  });
+
+  it('skips malformed tool_calls entries — a non-object, a missing function, and a nameless function', async () => {
+    // A nameless call is unexecutable: forwarding it would make `executeTool` fail on an empty name
+    // instead of the turn simply ignoring noise.
+    const body = ndjsonBody(
+      JSON.stringify({
+        model: 'llama3',
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: ['nope', { id: 'x' }, { function: {} }, { function: { name: '', arguments: {} } }, { function: { name: 'get_weather', arguments: { location: 'SF' } } }],
+        },
+        done: false,
+      }),
+      doneLine(),
+    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({
+      apiKey,
+      model: 'llama3',
+      messages: baseMessages,
+      onEvent: (e) => events.push(e),
+    });
+    expect(events.filter((e) => e.type === 'tool_use')).toEqual([
+      { type: 'tool_use', id: 'ollama-tool-0', name: 'get_weather', input: { location: 'SF' } },
+    ]);
+  });
+
+  it('parses string-encoded tool arguments, and keeps them as a raw string when they are not JSON', async () => {
+    // Ollama sends `arguments` as an object, but an OpenAI-compatible proxy in front of it sends the
+    // JSON-encoded string form. Both have to reach `executeTool` as something usable.
+    const body = ndjsonBody(
+      JSON.stringify({
+        model: 'llama3',
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: 'a', function: { name: 'get_weather', arguments: '{"location":"SF"}' } },
+            { id: 'b', function: { name: 'get_weather', arguments: 'location=SF' } },
+          ],
+        },
+        done: false,
+      }),
+      doneLine(),
+    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
+    expect(events.filter((e) => e.type === 'tool_use')).toEqual([
+      { type: 'tool_use', id: 'a', name: 'get_weather', input: { location: 'SF' } },
+      { type: 'tool_use', id: 'b', name: 'get_weather', input: 'location=SF' },
+    ]);
+  });
+
   it('merges caller-supplied extraHeaders verbatim (no hardcoded product-identity header)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
     vi.stubGlobal('fetch', fetchMock);

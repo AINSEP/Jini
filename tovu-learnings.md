@@ -219,7 +219,21 @@ principal` itself (we did this with a plain `Map`, populated in `onStarted`, cle
 doesn't have to be `Principal` itself (keep the kernel identity-neutral) — even a passthrough
 `unknown` field a host stamps and reads back would remove the AsyncLocalStorage requirement.
 
-## 4. `RunCreateRequest` has no prompt/history field — every consumer reinvents the encoding
+## 4. `RunCreateRequest` has no prompt/history field — every consumer reinvents the encoding — RESOLVED 2026-07-29 (as a shared helper, not a wire-contract field)
+
+**Update:** shipped as `@jini-ai/protocol`'s `encodeRunContextRef`/`decodeRunContextRef` +
+`RunContextPayload` (`packages/protocol/src/run-context.ts`), not as a new field on
+`RunCreateRequest` itself. Reasoning for that choice over this section's original "better" option:
+`RunCreateRequest`/`RunStartContext` (now living in `@jini-ai/http-kit`'s `runs.ts`, not
+`protocol` — this doc's original text assumed a location that had since moved) sit at the kernel
+boundary, and the locked architecture keeps kernel nouns {Run, Agent, Tool} deliberately ignorant
+of chat vocabulary (`contextRef` is opaque by design, not by omission). Baking `prompt`/`history`
+onto the request type would have been exactly the kind of product-vocabulary leak the vocabulary
+firewall exists to prevent. A prefixed (`jini-run-context:v1:`), optional, standalone encode/decode
+pair gives both real consumers (this repo's own playground, Tovu) a shared implementation to stop
+reinventing — while `contextRef` itself stays a plain opaque string as far as `RunLifecycle`/
+`RunCreateRequest` are concerned; using the helper is a host's choice, never required. 100%
+covered, `pnpm guard` clean. The original finding follows below unedited.
 
 `{contextRef, agentId?, idempotencyKey?}` is the whole shape. `ai-control-plane.md` (Jini's own doc)
 acknowledges this is provisional ("does not yet define a real prompt/history/runtime-profile
@@ -325,10 +339,24 @@ and which elements are flex containers vs. flex items with which direction.
   polished agent picker (Local CLI vs. BYOK toggle, per-agent installed/diagnostic state, rescan
   button) with zero custom UI code.
 
-## 9. Unresolved: `claude` CLI reports "Not logged in" when spawned via `AgentExecutor`'s default env
+## 9. RESOLVED (2026-07-29): `claude` CLI reports "Not logged in" when spawned via `AgentExecutor`'s default env
 
-Not confirmed as a Jini bug — flagged here so whoever hits it next doesn't re-derive the repro
-from scratch. `AgentExecutor`'s default env (`buildAgentEnv`'s `BASELINE_AGENT_ENV_KEYS`: `PATH`,
+**Fix shipped**: `USER` is now in `BASELINE_AGENT_ENV_KEYS`
+(`packages/daemon/src/agent-executor.ts`). Bisection (`node:child_process.spawn`, matching
+`claudeAgentDef.buildArgs`'s real invocation + `writePromptToStdin`'s `stream-json` write, against
+a real authenticated `claude` install) tried `XDG_CONFIG_HOME`/`XDG_DATA_HOME`/`XDG_CACHE_HOME`
+(unset on the test machine — not it), `SSH_AUTH_SOCK` alone (still fails), `LOGNAME` alone (still
+fails), then `USER` alone — flips it to a real success (`result: "ok"`, real model/usage in the
+`stream-json` output) — confirmed twice. Baseline-only (no `USER`) reconfirmed failing
+immediately before the fix was found, so the before/after contrast is real, not a fluke of run
+ordering. Regression test added: `packages/daemon/src/__tests__/agent-executor.test.ts`'s SEC-001
+describe block, "forwards USER — a spawned `claude` CLI cannot find its own login state without
+it, even with HOME present". Package tests (593 passed), typecheck, and `pnpm guard` all clean
+after the change.
+
+Original repro trail preserved below for context.
+
+`AgentExecutor`'s default env (`buildAgentEnv`'s `BASELINE_AGENT_ENV_KEYS`: `PATH`,
 `HOME`, `USERPROFILE`, `TMPDIR`/`TEMP`/`TMP`, `SHELL`, `LANG`, `LC_ALL`, `LC_CTYPE`, plus Windows
 keys) is **not sufficient** for a spawned `claude` CLI to find its own login state, even though
 `HOME` (where `claude login`'s credentials would normally live) is in the allowlist. Reproduced
@@ -368,6 +396,5 @@ single-process product adopting Jini hits the same wall). Item 1a (the `ToolExec
 co-location requirement) shipped a fix this session — see its own section above — so it's now a
 choice, not a blocker; worth re-evaluating whether that changes the urgency or shape of 1/1c's own
 fixes (a remote-executor topology may want a different composition primitive than a
-same-process one). Item 9 (the env-allowlist auth failure) is worth a fast follow if anyone can
-spare 20 minutes with a real `claude login`'d machine to finish the bisection — it may be a one-line
-fix to `BASELINE_AGENT_ENV_KEYS`.
+same-process one). Item 9 (the env-allowlist auth failure) is now resolved — see its own section
+above — the fix was in fact one line (`USER` added to `BASELINE_AGENT_ENV_KEYS`).

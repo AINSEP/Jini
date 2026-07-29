@@ -15,19 +15,19 @@
  */
 
 export {
-  createAguiEncoder,
-  type AguiEncodeContext,
-  type AguiEncoder,
+  createGenUiEncoder,
+  type GenUiEncodeContext,
+  type GenUiEncoder,
 } from './encoder.js';
 
 export type {
-  AGUIAgentMessageEvent,
-  AGUIEvent,
-  AGUIEventBase,
-  AGUIEventKind,
-  AGUIRunLifecycleEvent,
-  AGUIStateUpdateEvent,
-  AGUISurfaceRequestedEvent,
-  AGUISurfaceRespondedEvent,
-  AGUIToolCallEvent,
+  GenUiAgentMessageEvent,
+  GenUiEvent,
+  GenUiEventBase,
+  GenUiEventKind,
+  GenUiRunLifecycleEvent,
+  GenUiStateUpdateEvent,
+  GenUiSurfaceRequestedEvent,
+  GenUiSurfaceRespondedEvent,
+  GenUiToolCallEvent,
 } from './events.js';

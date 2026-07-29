@@ -106,8 +106,18 @@ export {
   resolveHostToolLaunchPlan,
 } from './host-tools.js';
 
-export type { ApiBearerAuthMiddlewareDeps, ApiOriginGuardMiddlewareDeps } from './api-security-middleware.js';
-export { registerApiBearerAuthMiddleware, registerApiOriginGuardMiddleware } from './api-security-middleware.js';
+export type {
+  ApiBearerAuthMiddlewareDeps,
+  ApiOriginGuardMiddlewareDeps,
+  StrictBearerTokenDeps,
+} from './api-security-middleware.js';
+export {
+  bearerTokenFromHeader,
+  registerApiBearerAuthMiddleware,
+  registerApiOriginGuardMiddleware,
+  requireStrictBearerToken,
+  timingSafeTokenMatch,
+} from './api-security-middleware.js';
 
 export type { RunStreamDeps, RunStreamEncoder, RunStreamInternalErrorContext } from './run-stream.js';
 export { handleRunStreamRequest, registerRunStreamRoute, RUN_STREAM_ROUTE_PATH } from './run-stream.js';
@@ -142,11 +152,14 @@ export type {
 export {
   registerRunEventStream,
   registerRunRoutes,
+  RUN_EVENTS_ROUTE_PATH,
   runCancelRoute,
   runListRoute,
   runStartRoute,
   runStatusRoute,
 } from './runs.js';
+
+export { JINI_ROUTE_MANIFEST, manifestRoutesForFamilies, routeFamilyManifest } from './route-manifest.js';
 
 export type { AgentListResponse, AgentModelSummary, AgentsHttpDeps, AgentSummary } from './agents.js';
 export { agentListRoute, agentRescanRoute, registerAgentRoutes } from './agents.js';

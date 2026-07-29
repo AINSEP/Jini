@@ -101,7 +101,11 @@ function RenderComponent({
   switch (component.component) {
     case 'Text':
       return (
-        <span className={`a2ui-text a2ui-text-${String(component.props.variant ?? 'body')}`} data-a2ui-component-id={componentId}>
+        // `variant` is always populated: the catalog's `TextPropsSchema` declares
+        // `.default('body')`, and the interpreter stores zod's *output* (`applyComponentsList`'s
+        // `parsed.data`, its only writer), so an absent variant is filled in upstream and an
+        // explicit `null` is refused before the component ever enters the map. No `??` fallback.
+        <span className={`a2ui-text a2ui-text-${String(component.props.variant)}`} data-a2ui-component-id={componentId}>
           {resolveText(component.props.text)}
         </span>
       );
@@ -121,7 +125,9 @@ function RenderComponent({
       return (
         <button
           type="button"
-          className={`a2ui-button a2ui-button-${String(component.props.variant ?? 'default')}`}
+          // Always populated, for the same reason as `Text`'s variant above — `ButtonPropsSchema`
+          // declares `.default('default')`.
+          className={`a2ui-button a2ui-button-${String(component.props.variant)}`}
           data-a2ui-component-id={componentId}
           onClick={() => onAction(componentId)}
         >
@@ -191,8 +197,11 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
   const root = surfaceId ? interpreter.getRoot(surfaceId) : undefined;
 
   function handleAction(componentId: string) {
-    if (!surfaceId) return;
-    const built = interpreter.buildAction(surfaceId, componentId);
+    // `surfaceId` is non-null here by construction, not by luck: this callback is only ever reached
+    // from a `Button` inside the rendered tree, and nothing renders until `root` resolves — which
+    // the `!root` early return below only permits when `surfaceId` was already truthy. Asserted
+    // rather than re-checked, exactly as the `RenderComponent` call site below already does.
+    const built = interpreter.buildAction(surfaceId!, componentId);
     if (!built.ok) {
       setRefusalNotice(built.reason);
       return;

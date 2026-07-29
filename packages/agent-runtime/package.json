@@ -43,7 +43,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/platform": "workspace:*"
+    "@jini-ai/platform": "workspace:*",
+    "@jini-ai/protocol": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9"

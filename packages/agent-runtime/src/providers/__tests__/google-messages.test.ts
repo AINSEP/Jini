@@ -216,6 +216,90 @@ describe('runGoogleToolTurn', () => {
     expect(events.map((e) => e.type)).toEqual(['status', 'text_delta', 'end']);
   });
 
+  it('reports a thrown non-Error rejection from fetch by stringifying it', async () => {
+    // A patched or proxied global `fetch` can reject with a bare string; reading `.message` off it
+    // would produce `undefined` as the user-visible error message.
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('socket hang up'));
+    const events: GoogleTurnEvent[] = [];
+    // A realistic-length key, not this file's usual `'k'`: a single-character secret makes
+    // `redactSecrets` rewrite the letter k inside "socket" and hides what is being asserted.
+    await runGoogleToolTurn({ apiKey: 'AIzaSyTestKey', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'error', message: 'socket hang up' });
+    expect(events).toContainEqual({ type: 'end', reason: 'error' });
+  });
+
+  it('skips a candidate that is present but not an object', async () => {
+    const body = sseBody(chunk({ candidates: ['not-a-candidate'] }), textCandidate('hi', 'STOP'));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: GoogleTurnEvent[] = [];
+    const result = await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) });
+    expect(result.finishReason).toBe('STOP');
+    expect(events.filter((e) => e.type === 'text_delta')).toEqual([{ type: 'text_delta', delta: 'hi' }]);
+  });
+
+  it('accepts a candidate carrying only a finishReason, with no content and no parts array', async () => {
+    // Gemini's terminal candidate frequently arrives content-free (and a safety-blocked one always
+    // does), so a missing `content`/`parts` must still let the finishReason through.
+    const body = sseBody(
+      chunk({ candidates: [{ index: 0, finishReason: 'MAX_TOKENS' }] }),
+      chunk({ candidates: [{ index: 0, content: { role: 'model' } }] }),
+      chunk({ candidates: [{ index: 0, content: { role: 'model', parts: 'not-an-array' } }] }),
+    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: GoogleTurnEvent[] = [];
+    const result = await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) });
+    expect(result.finishReason).toBe('MAX_TOKENS');
+    expect(events.filter((e) => e.type === 'text_delta')).toEqual([]);
+  });
+
+  it('skips a non-object part and a functionCall with no name, keeping the usable parts of the same candidate', async () => {
+    // A nameless functionCall is unexecutable — forwarding it would fail inside `executeTool`
+    // instead of the turn simply ignoring it.
+    const body = sseBody(
+      chunk({
+        candidates: [
+          {
+            index: 0,
+            content: {
+              role: 'model',
+              parts: ['not-a-part', { functionCall: { args: { a: 1 } } }, { functionCall: { name: 'noop' } }, { text: 'kept' }],
+            },
+            finishReason: 'STOP',
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    const events: GoogleTurnEvent[] = [];
+    await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: (e) => events.push(e) });
+    // `noop` carries no `args` at all, which must default to an empty input object rather than
+    // reaching the tool as `undefined`.
+    expect(events.filter((e) => e.type === 'tool_use')).toEqual([{ type: 'tool_use', id: 'call_0', name: 'noop', input: {} }]);
+    expect(events).toContainEqual({ type: 'text_delta', delta: 'kept' });
+  });
+
+  it('replays both the text and the tool calls of a mixed turn into the continuation request', async () => {
+    // Gemini can put narration and a functionCall in the same turn. Dropping the text from the
+    // replayed `model` content would silently rewrite the conversation the model then reasons over.
+    const firstBody = sseBody(textCandidate("Let me check. "), functionCallCandidate('get_weather', { location: 'SF' }, 'fc_1'), textCandidate('', 'STOP'));
+    const secondBody = sseBody(textCandidate('Sunny.', 'STOP'));
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await runGoogleToolTurn({
+      apiKey: 'k',
+      model: 'gemini-2.5-flash',
+      contents: baseContents,
+      executeTool: vi.fn().mockResolvedValue({ content: '72F sunny' }),
+      onEvent: () => {},
+    });
+
+    expect(JSON.parse(fetchMock.mock.calls[1]![1].body).contents[1]).toEqual({
+      role: 'model',
+      parts: [{ text: 'Let me check. ' }, { functionCall: { name: 'get_weather', args: { location: 'SF' }, id: 'fc_1' } }],
+    });
+  });
+
   it('runs a full tool-use loop: emits tool_use, invokes executeTool, emits tool_result, and continues to a final stop (loop-continuation is toolCalls.length, not finishReason)', async () => {
     // Gemini's own finishReason enum has no tool-call-specific value — the model can return
     // `finishReason: 'STOP'` on the very same candidate that carries a functionCall part.

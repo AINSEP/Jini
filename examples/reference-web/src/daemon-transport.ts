@@ -3,13 +3,13 @@ import {
   type AgentEvent,
   type ChatAttachment,
   type ChatMessage,
-  type RunStatus,
+  type ChatRunStatus,
 } from '@jini-ai/chat-core';
 import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/chat-react';
 
 interface RunStatusWire {
   id: string;
-  state: RunStatus;
+  state: ChatRunStatus;
 }
 
 interface RunResponseWire {

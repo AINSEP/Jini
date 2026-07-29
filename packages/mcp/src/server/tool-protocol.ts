@@ -20,6 +20,35 @@ export interface McpToolContext {
   readonly baseUrl: string;
   /** Defaults to the global `fetch`; threaded through so a host can inject its own (e.g. for tests). */
   readonly fetchImpl: typeof fetch;
+  /**
+   * Headers every daemon call must carry — in practice `{ Authorization: 'Bearer <token>' }` when the
+   * spawning daemon gave this process a credential (`JINI_DAEMON_TOKEN`). Empty/absent when it did
+   * not, which is the pre-existing behavior for a daemon whose `/api` surface trusts loopback.
+   *
+   * Read it via {@link daemonCallOptions} rather than by hand — see that function's doc.
+   */
+  readonly authHeaders?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Maps a tool context onto the `DaemonRequestOptions` every daemon call needs.
+ *
+ * **Use this instead of writing `{ fetchImpl: ctx.fetchImpl }` inline.** Both fields have to travel
+ * together on every call, and the failure mode when one is forgotten is not a compile error but a
+ * silent 401 from that one tool while every other tool keeps working — the kind of bug that reaches
+ * a user as "some of these tools just don't do anything". Routing every call site through one
+ * mapping means a newly added tool is authenticated by construction.
+ *
+ * @param ctx - The context handed to a tool or resource handler.
+ * @returns Options carrying the injected `fetch` and, when present, the auth headers.
+ * @complexity O(1).
+ * @overallScore 100/100
+ */
+export function daemonCallOptions(ctx: McpToolContext): { fetchImpl: typeof fetch; headers?: Record<string, string> } {
+  return {
+    fetchImpl: ctx.fetchImpl,
+    ...(ctx.authHeaders !== undefined ? { headers: { ...ctx.authHeaders } } : {}),
+  };
 }
 
 /**

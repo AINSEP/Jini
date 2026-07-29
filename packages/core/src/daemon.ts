@@ -7,7 +7,7 @@ import type { AnyToken, ManyToken, Token } from './token.js';
  * compile-time "missing binding" gate for a wrapper composition function (today:
  * `@jini-ai/server`'s `createLocalNodeDaemon`) without duplicating the type-level logic. Not
  * re-exported from `index.ts` — see `./internal.ts`'s module doc for why this stays off the
- * public surface (same boundary pattern as `tool-registry.ts`'s `getToolRegistration`).
+ * public surface (same boundary pattern as `tool-registry.ts`'s `authorizeToolInvocation`).
  */
 export type AnyPack = Pack<any, any, string>;
 

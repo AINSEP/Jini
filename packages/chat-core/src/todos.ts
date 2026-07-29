@@ -7,7 +7,7 @@
  * no framework.
  */
 import type { AgentEvent } from './events.js';
-import type { RunStatus } from './messages.js';
+import type { ChatRunStatus } from './messages.js';
 
 export type TodoStatus = 'pending' | 'in_progress' | 'completed' | 'stopped';
 
@@ -136,7 +136,7 @@ export function latestTodoWriteInputFromMessages(
 /** Convenience alias for {@link latestTodoWriteInputFromMessages} matching the `latestTodoWriteInput()` name in the target API. */
 export const latestTodoWriteInput = latestTodoWriteInputFromMessages;
 
-function hasTerminalRunEnded(runStatus: RunStatus | undefined, endedAt: number | undefined): boolean {
+function hasTerminalRunEnded(runStatus: ChatRunStatus | undefined, endedAt: number | undefined): boolean {
   return (
     runStatus === 'succeeded' ||
     runStatus === 'failed' ||
@@ -175,7 +175,7 @@ function stoppedTodoWriteInput(input: unknown): unknown {
 export function latestTodoWriteInputForPinnedCard<
   T extends {
     events?: AgentEvent[] | undefined;
-    runStatus?: RunStatus | undefined;
+    runStatus?: ChatRunStatus | undefined;
     endedAt?: number | undefined;
   },
 >(messages: ReadonlyArray<T> | undefined): unknown | null {

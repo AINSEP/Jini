@@ -26,7 +26,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
-import { requireString, type McpToolDef } from '../tool-protocol.js';
+import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 
 /** Response shape `POST /api/delegated-tool-calls` (`packages/http/src/delegated-tools.ts`) returns. */
 interface DelegatedToolExecuteResponse {
@@ -95,9 +95,7 @@ export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedTo
         toolId: args.toolId,
         input: args.input,
       };
-      const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, {
-        fetchImpl: ctx.fetchImpl,
-      });
+      const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, daemonCallOptions(ctx));
       return data.result;
     },
   };
