@@ -39,7 +39,7 @@ describe('A2uiSurfaceCard', () => {
     expect(screen.queryByText('first')).not.toBeInTheDocument();
   });
 
-  it('resolves a rendererOnly local function-call action without needing onAgentAction, and shows no unwired notice', async () => {
+  it('resolves a rendererOnly local function-call action without needing onAgentAction, and shows its resolved value', async () => {
     const events = [
       createSurfaceMessage('s1', [
         { id: 'root', component: 'Button', child: 'label', action: { functionCall: { call: 'adminReset', args: {} } } },
@@ -50,6 +50,26 @@ describe('A2uiSurfaceCard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
     expect(screen.queryByText(/has not wired up a live agent-action relay/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Action refused/)).not.toBeInTheDocument();
+    // `adminReset`'s impl returns void — the notice must still fire so a local action is never a
+    // silent no-op, even when there is nothing meaningful to report back.
+    expect(screen.getByText('Local action resolved: (no return value)')).toBeInTheDocument();
+  });
+
+  it('shows a local function-call action’s actual return value, not just that it ran', async () => {
+    const events = [
+      createSurfaceMessage('s1', [
+        {
+          id: 'root',
+          component: 'Button',
+          child: 'label',
+          action: { functionCall: { call: 'greetUser', args: { name: 'Ada' } } },
+        },
+        { id: 'label', component: 'Text', text: 'Greet' },
+      ]),
+    ];
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Greet' }));
+    expect(screen.getByText('Local action resolved: Hello, Ada!')).toBeInTheDocument();
   });
 
   it('calls onAgentAction with the built message for an event-shaped (agent-directed) action', async () => {

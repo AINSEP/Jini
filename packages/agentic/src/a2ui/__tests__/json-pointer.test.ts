@@ -111,4 +111,8 @@ describe('setAtPointer', () => {
   it('replaces a non-object intermediate with a fresh object rather than throwing', () => {
     expect(setAtPointer({ a: 5 }, '/a/b', 1)).toEqual({ a: { b: 1 } });
   });
+  it('degrades to a no-op (never throws) for a pointer missing its leading slash — an agent-authored `updateDataModel` path is untrusted wire data, and this was the exact input that used to crash the whole chat React root before this fix', () => {
+    const doc = { a: 1 };
+    expect(setAtPointer(doc, 'a', 2)).toBe(doc);
+  });
 });

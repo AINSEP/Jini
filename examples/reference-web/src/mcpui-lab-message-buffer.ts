@@ -26,14 +26,17 @@ export interface BufferedWindowMessage {
 }
 
 export interface EarlyMessageBuffer {
-  /** Delivers to the live subscriber if one exists; otherwise appends to the backlog. */
+  /** Delivers to every live subscriber if at least one exists; otherwise appends to the backlog. */
   push(message: BufferedWindowMessage): void;
   /**
-   * Installs the one live subscriber, immediately draining (in arrival order) anything already
-   * buffered. Only one subscriber is live at a time — matching this fixture's one-Host-component
-   * reality — so a second `subscribe` call replaces the first (the returned disposer only clears
-   * the slot if it still belongs to the caller, so a stale unmount effect cannot un-subscribe a
-   * newer subscriber).
+   * Installs a live subscriber, immediately draining (in arrival order) anything already
+   * buffered to it. Any number of subscribers may be live at once — `McpUiLab.tsx` mounts TWO
+   * `McpUiLabHostFrame` instances by design (the always-on manual harness plus the
+   * agent-triggered `show_mcpui_widget` widget), and each needs every message a View posts, not
+   * just whichever Host subscribed most recently; each Host is already responsible for filtering
+   * to messages `source`d from its own iframe (see `McpUiLabHost.tsx`'s `handleViewRequest`
+   * caller). The returned disposer removes only this handler's own registration, so it is a no-op
+   * if called again or after a different subscribe call has already superseded it by identity.
    * @returns An unsubscribe function.
    */
   subscribe(handler: (message: BufferedWindowMessage) => void): () => void;
@@ -57,19 +60,23 @@ export const MAX_BUFFERED_MESSAGES = 200;
  */
 export function createEarlyMessageBuffer(maxBuffered: number = MAX_BUFFERED_MESSAGES): EarlyMessageBuffer {
   const backlog: BufferedWindowMessage[] = [];
-  let liveHandler: ((message: BufferedWindowMessage) => void) | null = null;
+  const liveHandlers = new Set<(message: BufferedWindowMessage) => void>();
 
   return {
     push(message) {
-      if (liveHandler) {
-        liveHandler(message);
+      if (liveHandlers.size > 0) {
+        // Snapshot before iterating: a handler that itself subscribes/unsubscribes synchronously
+        // (e.g. a Host tearing itself down mid-dispatch) must not mutate the Set out from under
+        // `for...of`, which — while `Set` iteration tolerates same-tick mutation reasonably
+        // well — is easier to reason about frozen for the duration of one broadcast.
+        for (const handler of [...liveHandlers]) handler(message);
         return;
       }
       backlog.push(message);
       if (backlog.length > maxBuffered) backlog.shift();
     },
     subscribe(handler) {
-      liveHandler = handler;
+      liveHandlers.add(handler);
       while (backlog.length > 0) {
         // Shift, not splice-all: a handler that itself calls `push` synchronously (unlikely, but
         // not this module's business to forbid) must not see a backlog it just extended replayed
@@ -79,7 +86,7 @@ export function createEarlyMessageBuffer(maxBuffered: number = MAX_BUFFERED_MESS
         handler(next);
       }
       return () => {
-        if (liveHandler === handler) liveHandler = null;
+        liveHandlers.delete(handler);
       };
     },
     get backlogSize() {

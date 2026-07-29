@@ -43,6 +43,8 @@ export { ToolCard } from './react/components/ToolCard.js';
 export type { ToolCardProps } from './react/components/ToolCard.js';
 export { A2uiSurfaceCard } from './react/components/A2uiSurfaceCard.js';
 export type { A2uiSurfaceCardProps } from './react/components/A2uiSurfaceCard.js';
+export { ExtEventErrorBoundary } from './react/components/ExtEventErrorBoundary.js';
+export type { ExtEventErrorBoundaryProps } from './react/components/ExtEventErrorBoundary.js';
 export { QuestionForm } from './react/components/QuestionForm.js';
 export type { QuestionFormProps, QuestionFormHandle, QuestionFormFileSubmission } from './react/components/QuestionForm.js';
 export { QuestionsPanel } from './react/components/QuestionsPanel.js';

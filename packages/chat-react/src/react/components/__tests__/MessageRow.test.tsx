@@ -248,5 +248,28 @@ describe('MessageRow', () => {
       render(<MessageRow message={message} runSucceeded />);
       expect(document.querySelector('.jini-message-ext-events')?.textContent).toBe('');
     });
+
+    it('confines a throwing ext-event renderer to its own group instead of crashing the whole row', () => {
+      // Registered the same way a real hooks-based renderer is (`(props) => <SomeComponent ... />`,
+      // per this registry's own module doc) so the throw happens during React's reconciliation of
+      // the returned element — same place a real render-phase or effect-phase throw from e.g.
+      // `A2uiSurfaceCard` would land — not synchronously inside `MessageRow`'s own render body.
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      function ThrowingRenderer(): never {
+        throw new Error('malformed data-model path');
+      }
+      registerExtEventRenderer('a2ui', () => <ThrowingRenderer />);
+      const message: ChatMessage = {
+        id: 'e4',
+        role: 'assistant',
+        content: 'still here',
+        events: [{ kind: 'ext', name: 'a2ui', data: {} }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText('still here')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: malformed data-model path');
+      consoleError.mockRestore();
+    });
   });
 });

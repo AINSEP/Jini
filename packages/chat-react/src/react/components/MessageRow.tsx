@@ -27,6 +27,7 @@ import { useToolTimeline } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
 import { useT } from '../hooks/context.js';
 import { getExtEventRenderer } from '../../ext-event-renderer-registry.js';
+import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
 import { Markdown } from './Markdown.js';
 import { ToolCard } from './ToolCard.js';
 import { QuestionForm } from './QuestionForm.js';
@@ -140,7 +141,16 @@ export function MessageRow({
             const renderer = getExtEventRenderer(group.name);
             if (!renderer) return null;
             const node = renderer({ name: group.name, events: group.events, runStreaming, runSucceeded, runId: message.runId });
-            return node ? <div key={group.name}>{node}</div> : null;
+            if (!node) return null;
+            return (
+              // `key` includes the event count so a group that failed on an earlier, shorter
+              // event list gets a fresh boundary instance (not the still-tripped one) once a new
+              // event actually arrives for it, instead of staying tombstoned for the message's
+              // whole lifetime.
+              <ExtEventErrorBoundary key={`${group.name}:${group.events.length}`} name={group.name}>
+                <div>{node}</div>
+              </ExtEventErrorBoundary>
+            );
           })}
         </div>
       ) : null}

@@ -83,20 +83,38 @@ describe('createEarlyMessageBuffer', () => {
     expect(buffer.backlogSize).toBe(1);
   });
 
-  it("a stale unsubscribe cannot cancel a NEWER subscriber's registration", () => {
-    // Models a React StrictMode double-mount / fast remount: an old effect's cleanup running
-    // after a new effect has already subscribed must not silently deafen the current Host.
+  it('delivers a live message to every concurrent subscriber, not just whichever subscribed last', () => {
+    // The actual production bug this guards: `McpUiLab.tsx` mounts TWO `McpUiLabHostFrame`
+    // instances at once (the always-on manual harness plus the agent-triggered
+    // `show_mcpui_widget` widget), each subscribing its own Host. A buffer that only tracks one
+    // "live" slot silently starves whichever Host mounted first the moment the second subscribes
+    // — no error, no log, just missing messages.
+    const buffer = createEarlyMessageBuffer();
+    const firstReceived: unknown[] = [];
+    const secondReceived: unknown[] = [];
+    buffer.subscribe((message) => firstReceived.push(message.data));
+    buffer.subscribe((message) => secondReceived.push(message.data));
+
+    buffer.push(msg({ seq: 'broadcast' }));
+
+    expect(firstReceived).toEqual([{ seq: 'broadcast' }]);
+    expect(secondReceived).toEqual([{ seq: 'broadcast' }]);
+  });
+
+  it("unsubscribing one concurrent subscriber does not cancel a DIFFERENT still-live subscriber's registration", () => {
+    // Each `subscribe` call's disposer removes only its own handler reference (e.g. a Host
+    // re-subscribing after a `sessionKey` change, or one of the two concurrent Hosts tearing
+    // down) — it must never affect a sibling subscription that happens to still be live.
     const buffer = createEarlyMessageBuffer();
     const firstReceived: unknown[] = [];
     const secondReceived: unknown[] = [];
     const unsubscribeFirst = buffer.subscribe((message) => firstReceived.push(message.data));
     buffer.subscribe((message) => secondReceived.push(message.data));
 
-    unsubscribeFirst(); // stale — the second subscriber is now live, this must be a no-op
+    unsubscribeFirst();
+    buffer.push(msg('after-first-unsubscribed'));
 
-    buffer.push(msg('after-stale-unsubscribe'));
-
-    expect(secondReceived).toEqual(['after-stale-unsubscribe']);
+    expect(secondReceived).toEqual(['after-first-unsubscribed']);
     expect(firstReceived).toEqual([]);
   });
 

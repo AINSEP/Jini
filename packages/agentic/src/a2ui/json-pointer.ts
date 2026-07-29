@@ -92,11 +92,24 @@ export function getAtPointer(doc: unknown, pointer: string): PointerGetResult {
  * `updateDataModel`'s own spec text ("To delete the key/value at path, set value explicitly to
  * null."). At the root pointer, `value === null` replaces the entire data model with `null` (there
  * is no "key" to delete at the root; documented as this port's own consistent interpretation).
+ *
+ * Never throws on a malformed pointer (e.g. missing leading `/`) — degrades to a no-op (`doc`
+ * returned unchanged), matching `getAtPointer`'s "a bad binding must not crash the renderer"
+ * contract. `updateDataModel`'s `path` is agent-authored wire data; an uncaught throw here had no
+ * error boundary above it anywhere in `packages/chat-react` or its hosts to stop it from
+ * unmounting the whole chat React root (see `ExtEventErrorBoundary`, added as a systemic backstop
+ * for the same class of bug — this is the specific root cause it would otherwise have had to
+ * catch).
  */
 export function setAtPointer(doc: unknown, pointer: string, value: unknown): unknown {
   if (isRootPointer(pointer)) return value;
 
-  const tokens = parsePointerTokens(pointer);
+  let tokens: string[];
+  try {
+    tokens = parsePointerTokens(pointer);
+  } catch {
+    return doc;
+  }
   const parentTokens = tokens.slice(0, -1);
   const lastToken = tokens[tokens.length - 1]!;
 

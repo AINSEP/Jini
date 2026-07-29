@@ -163,6 +163,7 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
   const surfaceIdRef = useRef<string | undefined>(undefined);
   const [refusalNotice, setRefusalNotice] = useState<string | null>(null);
   const [pendingAgentAction, setPendingAgentAction] = useState<string | null>(null);
+  const [localActionResult, setLocalActionResult] = useState<{ componentId: string; value: unknown } | null>(null);
 
   useEffect(() => interpreter.subscribe(() => forceRender((n) => n + 1)), [interpreter]);
 
@@ -197,12 +198,26 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
       return;
     }
     setRefusalNotice(null);
-    if (built.kind === 'local') return; // already applied by buildAction; the re-render above reflects it
+    if (built.kind === 'local') {
+      // `buildAction`'s local branch is a pure computation (`resolveDynamicValue` over a
+      // registered catalog function's `impl`) — it never touches interpreter state, so there is
+      // nothing for `interpreter.subscribe` to notify and no re-render to "reflect" it. The only
+      // honest thing this component can do with the resolved value is show it.
+      setPendingAgentAction(null);
+      setLocalActionResult({ componentId, value: built.result });
+      return;
+    }
+    setLocalActionResult(null);
     if (onAgentAction) {
       onAgentAction(runId, built.message);
     } else {
       setPendingAgentAction(JSON.stringify(built.message));
     }
+  }
+
+  function formatLocalActionValue(value: unknown): string {
+    if (value === undefined) return t('(no return value)');
+    return typeof value === 'string' ? value : JSON.stringify(value);
   }
 
   if (!root) {
@@ -228,6 +243,11 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
       {pendingAgentAction ? (
         <div className="a2ui-surface-notice a2ui-surface-notice-unwired" role="status">
           {t('This action is meant for the agent, but this host has not wired up a live agent-action relay yet.')}
+        </div>
+      ) : null}
+      {localActionResult ? (
+        <div className="a2ui-surface-notice a2ui-surface-notice-local-action" role="status" data-a2ui-component-id={localActionResult.componentId}>
+          {t('Local action resolved: {value}', { value: formatLocalActionValue(localActionResult.value) })}
         </div>
       ) : null}
     </div>
