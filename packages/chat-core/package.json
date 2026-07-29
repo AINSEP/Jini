@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat-core",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -14,6 +14,8 @@
     "admission": "locked"
   },
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

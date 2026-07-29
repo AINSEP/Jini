@@ -1,5 +1,25 @@
 # @jini-ai/chat-core
 
+## 0.1.2
+
+### Patch Changes
+
+- Add top-level `main`/`types` fields alongside the existing `exports` map. A consumer on
+  TypeScript's classic `moduleResolution: "node"` (node10) — which ignores `package.json#exports`
+  entirely — could not resolve this package's types at all (`TS2307: Cannot find module`) even
+  after the previous exports-map fix restored `require()` at runtime; type resolution and runtime
+  resolution are separate algorithms. Verified against a real external consumer (Tovu, whose
+  tsconfig uses this legacy resolution mode): adding these two fields, with its tsconfig completely
+  unchanged, made the error disappear. Also fixes absolute-path `require()` (distinct from a bare
+  specifier, which already worked) for the same reason — `main` was previously absent.
+
+  Purely additive: every modern resolver (Node's own runtime `exports` resolution, TypeScript's
+  `bundler`/`node16`/`nodenext`) prefers `exports` over `main`/`types` when both are present, so
+  this changes nothing for a consumer already on a modern resolver.
+
+- Updated dependencies
+  - @jini-ai/agentic@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
