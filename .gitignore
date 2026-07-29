@@ -10,6 +10,10 @@ coverage/
 .env
 .env.local
 
+# npm publish auth token (see scripts/publish-all.ts) — never committed, never part of any
+# package's published `files`.
+.npmrc
+
 # Local Jini daemon state and browser automation snapshots
 .jini/
 .playwright-mcp/
