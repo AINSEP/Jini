@@ -1,9 +1,12 @@
 {
   "name": "@jini-example/minimal-host",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
-  "scripts": { "test": "vitest run", "start": "node src/index.ts" },
+  "scripts": {
+    "test": "vitest run",
+    "start": "node src/index.ts"
+  },
   "dependencies": {
     "@jini-ai/agent-runtime": "workspace:*",
     "@jini-ai/daemon": "workspace:*",

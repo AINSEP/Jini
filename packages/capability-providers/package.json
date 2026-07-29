@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/capability-providers",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -17,11 +17,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./unsafe-reference": {
       "types": "./dist/unsafe-reference/index.d.ts",
-      "import": "./dist/unsafe-reference/index.js"
+      "import": "./dist/unsafe-reference/index.js",
+      "default": "./dist/unsafe-reference/index.js"
     }
   },
   "files": [

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agentic",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -22,15 +22,18 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./dom": {
       "types": "./dist/dom/index.d.ts",
-      "import": "./dist/dom/index.js"
+      "import": "./dist/dom/index.js",
+      "default": "./dist/dom/index.js"
     },
     "./a2ui": {
       "types": "./dist/a2ui/index.d.ts",
-      "import": "./dist/a2ui/index.js"
+      "import": "./dist/a2ui/index.js",
+      "default": "./dist/a2ui/index.js"
     }
   },
   "files": [

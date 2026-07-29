@@ -1,0 +1,12 @@
+# @jini-example/minimal-host
+
+## 0.0.1
+
+### Patch Changes
+
+- Updated dependencies
+- Updated dependencies [e181b22]
+- Updated dependencies [0d15314]
+  - @jini-ai/node-host@0.2.0
+  - @jini-ai/agent-runtime@0.2.0
+  - @jini-ai/daemon@0.2.0

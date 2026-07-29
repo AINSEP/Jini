@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/desktop-host",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -17,11 +17,13 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./bridge-testing": {
       "types": "./dist/bridge-testing.d.ts",
-      "import": "./dist/bridge-testing.js"
+      "import": "./dist/bridge-testing.js",
+      "default": "./dist/bridge-testing.js"
     }
   },
   "files": [
