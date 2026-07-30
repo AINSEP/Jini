@@ -220,6 +220,52 @@ describe('createClaudeStreamHandler', () => {
     expect(events.filter((event) => event.type === 'turn_end')).toEqual([]);
   });
 
+  it('deduplicates turn_end across an id-less assistant wrapper and a same-reason result frame', () => {
+    // The dedup key is `${currentMessageId}\0${stopReason}`, so a frame that never
+    // supplied a message id leaves the key null and the guard cannot fire.
+    const events = run([
+      {
+        type: 'assistant',
+        message: {
+          content: [{ type: 'text', text: 'done' }],
+          stop_reason: 'end_turn',
+        },
+      },
+      { type: 'result', stop_reason: 'end_turn' },
+    ]);
+
+    expect(events.filter((event) => event.type === 'turn_end')).toEqual([
+      { type: 'turn_end', stopReason: 'end_turn' },
+    ]);
+  });
+
+  it('still emits a turn_end per id-less assistant wrapper when two consecutive turns share a stop reason', () => {
+    // The counterpart guard to the test above: widening dedup must not swallow a
+    // real second turn boundary. A suppressed `tool_use` turn_end would leave the
+    // daemon's stdin-close handler waiting on a turn that never arrives.
+    const events = run([
+      {
+        type: 'assistant',
+        message: {
+          content: [{ type: 'tool_use', id: 'toolu_a', name: 'Read', input: { path: 'a' } }],
+          stop_reason: 'tool_use',
+        },
+      },
+      {
+        type: 'assistant',
+        message: {
+          content: [{ type: 'tool_use', id: 'toolu_b', name: 'Read', input: { path: 'b' } }],
+          stop_reason: 'tool_use',
+        },
+      },
+    ]);
+
+    expect(events.filter((event) => event.type === 'turn_end')).toEqual([
+      { type: 'turn_end', stopReason: 'tool_use' },
+      { type: 'turn_end', stopReason: 'tool_use' },
+    ]);
+  });
+
   it('deduplicates turn_end when both assistant and message_delta carry the same stop reason', () => {
     const events = run([
       {

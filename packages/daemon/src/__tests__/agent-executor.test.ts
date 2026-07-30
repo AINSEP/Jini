@@ -2978,6 +2978,81 @@ describe('AgentExecutor — runtimeLock (antigravity model-selection mutex)', ()
     expect(stager.cleanup).toHaveBeenCalledTimes(1);
   });
 
+  it('releases the lock when buildArgs itself throws — the settings.json write it guards can fail', async () => {
+    // The lock is acquired BEFORE buildArgs precisely so buildArgs' process-global
+    // settings.json write is serialized. That write is real filesystem IO
+    // (mkdirSync/writeFileSync) and can throw on a read-only home, a permissions
+    // failure, or a full disk. With no try/finally around the buildArgs call the
+    // hold is never released and no process ever exists to fire the exit-based
+    // release, so every later concrete-model run on this def blocks forever.
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock, {
+      buildArgs: () => {
+        throw new Error("EACCES: permission denied, mkdir '/root/.gemini'");
+      },
+    });
+    const { lifecycle, executor } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' }),
+    ).rejects.toMatchObject({
+      code: 'AGENT_SPAWN_FAILED',
+      message: expect.stringContaining('EACCES'),
+    });
+
+    // Released, handoff never started (no process could have consumed the write),
+    // and the staged log file cleaned up like every other pre-spawn failure path.
+    expect(recording.events).toEqual(['acquire', 'release']);
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves the real antigravity lock acquirable by a later run after a buildArgs failure', async () => {
+    // The consequence test for the one above, against the REAL mutex: a wedged
+    // hold is only observable as the NEXT run hanging, which is the actual
+    // production symptom (all later concrete-model runs dead for the daemon's
+    // lifetime).
+    _resetAntigravityModelLockForTests();
+    try {
+      const stager = createFakeLogFileStager();
+      let shouldThrow = true;
+      const def = createLockedDef(antigravityModelLock, {
+        buildArgs: () => {
+          if (shouldThrow) throw new Error('EROFS: read-only file system');
+          return ['-p', '-'];
+        },
+      });
+      const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+
+      const { run: runA } = await lifecycle.start({ contextRef: 'ctx-a' });
+      await expect(
+        executor.run({ runId: runA.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' }),
+      ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+
+      shouldThrow = false;
+      const { run: runB } = await lifecycle.start({ contextRef: 'ctx-b' });
+      let bSettled = false;
+      const runBPromise = executor
+        .run({ runId: runB.id, agentId: 'fake-antigravity', prompt: 'y', cwd: '/work', model: 'M' })
+        .then(() => {
+          bSettled = true;
+        });
+      await flushAsync();
+
+      // Without the fix, run A's hold is still outstanding and run B's acquire
+      // never resolves, so this stays false forever.
+      expect(bSettled).toBe(true);
+      await runBPromise;
+
+      child.emit('exit', 0, null);
+      child.emit('close', 0, null);
+      await lifecycle.waitForTerminal(runB.id);
+    } finally {
+      _resetAntigravityModelLockForTests();
+    }
+  });
+
   it('proves two overlapping runs of the real antigravity lock genuinely serialize', async () => {
     // Uses the REAL antigravityModelLock (not a fake), driven through two
     // concurrent executor runs — the actual race this feature closes.

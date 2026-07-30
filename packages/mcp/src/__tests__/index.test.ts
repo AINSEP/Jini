@@ -36,4 +36,23 @@ describe('@jini-ai/mcp public barrel', () => {
       expect(mcp[n as keyof typeof mcp], `missing export: ${n}`).toBeDefined();
     }
   });
+
+  it('re-exports the tool-catalog discovery defs as the same objects the server module defines', async () => {
+    // `bin/serve.ts` registers these three alongside RUN_TOOLS, but the package
+    // exports only "." and "./bin" — so without a root re-export a consumer building
+    // its own createMcpToolServer cannot reach them at all, and the catalog half of
+    // the tool surface is private by accident. Identity-compared (not just presence-
+    // checked) so a re-export that accidentally shadows the real def with a copy
+    // fails here.
+    const source = await import('../server/tools/tool-catalog-tools.js');
+    expect(mcp.searchToolsTool).toBe(source.searchToolsTool);
+    expect(mcp.describeToolTool).toBe(source.describeToolTool);
+    expect(mcp.TOOL_CATALOG_TOOLS).toBe(source.TOOL_CATALOG_TOOLS);
+  });
+
+  it('exposes the catalog tools as usable McpToolDefs under their wire names', () => {
+    expect(mcp.TOOL_CATALOG_TOOLS.map((t) => t.name)).toEqual(['search_tools', 'describe_tool']);
+    expect(typeof mcp.searchToolsTool.handler).toBe('function');
+    expect(typeof mcp.describeToolTool.handler).toBe('function');
+  });
 });

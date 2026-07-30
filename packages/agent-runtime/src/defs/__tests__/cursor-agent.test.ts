@@ -111,6 +111,46 @@ describe('cursorAgentDef.buildArgs', () => {
     expect(args).not.toContain('--trust');
   });
 
+  it('omits --force entirely when permissionMode is "restricted"', () => {
+    const args = cursorAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    expect(args).not.toContain('--force');
+    expect(args).toEqual(['--print', '--output-format', 'stream-json', '--stream-partial-output']);
+  });
+
+  it('omits --trust in restricted mode even when the capability probe recorded it', () => {
+    agentCapabilities.set('cursor-agent', { trust: true });
+    const args = cursorAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    expect(args).not.toContain('--trust');
+    expect(args).not.toContain('--force');
+  });
+
+  it('still emits --force (and --trust when probed) when permissionMode is explicitly "bypass"', () => {
+    agentCapabilities.set('cursor-agent', { trust: true });
+    const args = cursorAgentDef.buildArgs('hi', [], [], { permissionMode: 'bypass' });
+    expect(args).toContain('--force');
+    expect(args).toContain('--trust');
+  });
+
+  it('still adds --workspace and --model after omitting the bypass flags in restricted mode', () => {
+    const args = cursorAgentDef.buildArgs(
+      'hi',
+      [],
+      [],
+      { permissionMode: 'restricted', model: 'gpt-5' },
+      { cwd: '/proj' },
+    );
+    expect(args).toEqual([
+      '--print',
+      '--output-format',
+      'stream-json',
+      '--stream-partial-output',
+      '--workspace',
+      '/proj',
+      '--model',
+      'gpt-5',
+    ]);
+  });
+
   it('adds --workspace <cwd> when runtimeContext.cwd is set', () => {
     const args = cursorAgentDef.buildArgs('hi', [], [], {}, { cwd: '/proj' });
     expect(args).toContain('--workspace');

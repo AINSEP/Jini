@@ -121,6 +121,9 @@ export {
 } from './server/index.js';
 export type { McpResourceDef, McpResourceReadResult } from './server/index.js';
 
+// ── server: the tool-catalog discovery defs (search_tools / describe_tool) ──
+export { searchToolsTool, describeToolTool, TOOL_CATALOG_TOOLS } from './server/index.js';
+
 // ── server: gap 3's MCP-callback delegated-tool-execution def ──────────────
 export { createExecuteDelegatedToolTool } from './server/index.js';
 export type { CreateExecuteDelegatedToolToolOptions } from './server/index.js';

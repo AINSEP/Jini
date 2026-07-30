@@ -38,7 +38,13 @@ export const searchToolsTool: McpToolDef = {
     type: 'object',
     properties: {
       query: { type: 'string', description: 'Keywords to search for, e.g. "navigate page" or "fill form". Required.' },
-      limit: { type: 'number', description: 'Max hits to return (1-25). Optional, defaults to 10.' },
+      // Bounds mirror `packages/http-kit/src/tool-catalog.ts`'s `parseSearchInput`
+      // exactly (`MAX_SEARCH_LIMIT = 25`, `DEFAULT_SEARCH_LIMIT = 10`, integers only,
+      // `>= 1`). Declared rather than left as a bare `number` so MCP validation and the
+      // route agree: otherwise `0`/`1.5` pass here and are refused downstream, and `26`
+      // passes here and is silently clamped — the caller is told one contract and given
+      // another.
+      limit: { type: 'integer', minimum: 1, maximum: 25, description: 'Max hits to return (1-25). Optional, defaults to 10.' },
     },
     required: ['query'],
     additionalProperties: false,

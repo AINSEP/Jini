@@ -44,7 +44,12 @@ export const aiderAgentDef = {
     //                                        run with noise
     buildArgs: (prompt, _imagePaths, _extra, options = {}) => {
       const args = [
-        '--yes-always',
+        // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+        // behavior) unless a caller explicitly opts into a restricted run. Without
+        // `--yes-always` aider asks for confirmation instead of auto-approving; on the
+        // daemon's non-TTY stdin that fails the action closed rather than performing it,
+        // which is the conservative outcome restricted mode is asking for.
+        ...(options.permissionMode !== 'restricted' ? ['--yes-always'] : []),
         '--no-pretty',
         '--no-git',
         '--no-auto-commits',

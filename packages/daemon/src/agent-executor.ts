@@ -1890,19 +1890,37 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       await cleanupStagedFiles();
     };
 
-    const args = def.buildArgs(
-      input.prompt,
-      [...(input.imagePaths ?? [])],
-      input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
-      input.model !== undefined || input.reasoning !== undefined || input.permissionMode !== undefined
-        ? {
-            ...(input.model !== undefined ? { model: input.model } : {}),
-            ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
-            ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
-          }
-        : undefined,
-      runtimeContext,
-    );
+    // buildArgs is not necessarily pure: a `runtimeLock` def's buildArgs is where the
+    // process-global state the lock guards actually gets written (antigravity writes its
+    // model selection into `~/.gemini/antigravity-cli/settings.json` with
+    // mkdirSync/writeFileSync). That write throws on a read-only home, a permissions
+    // failure, or a full disk. Without this boundary the throw escapes past
+    // `releaseStagedResources`, and because no child process exists yet, the exit-driven
+    // release can never fire either — the hold leaks and every later run of that def
+    // blocks forever on acquire. Same shape as the `writeMcpJsonForRun` guard below.
+    let args: string[];
+    try {
+      args = def.buildArgs(
+        input.prompt,
+        [...(input.imagePaths ?? [])],
+        input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
+        input.model !== undefined || input.reasoning !== undefined || input.permissionMode !== undefined
+          ? {
+              ...(input.model !== undefined ? { model: input.model } : {}),
+              ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
+              ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+            }
+          : undefined,
+        runtimeContext,
+      );
+    } catch (err) {
+      await releaseStagedResources();
+      return failBeforeSpawn(
+        input.runId,
+        'AGENT_SPAWN_FAILED',
+        `AgentExecutor: could not build launch arguments for agent "${def.id}": ${errorMessage(err)}`,
+      );
+    }
 
     // Gap 3, part 2 — write .mcp.json into the managed cwd before spawn, so a 'claude-mcp-json'
     // def's own spawn-time config load discovers the jini-mcp bridge server. A no-op for every

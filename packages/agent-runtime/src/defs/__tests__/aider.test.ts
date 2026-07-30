@@ -54,4 +54,30 @@ describe('aiderAgentDef.buildArgs', () => {
     expect(args).not.toContain('/img.png');
     expect(args).not.toContain('/extra/dir');
   });
+
+  it('omits --yes-always entirely when permissionMode is "restricted"', () => {
+    const args = aiderAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    expect(args).not.toContain('--yes-always');
+    expect(args).toEqual([
+      '--no-pretty',
+      '--no-git',
+      '--no-auto-commits',
+      '--no-suggest-shell-commands',
+      '--no-show-model-warnings',
+      '--message',
+      'hi',
+    ]);
+  });
+
+  it('still emits --yes-always when permissionMode is explicitly "bypass"', () => {
+    const args = aiderAgentDef.buildArgs('hi', [], [], { permissionMode: 'bypass' });
+    expect(args).toContain('--yes-always');
+  });
+
+  it('still adds --model and --message after omitting --yes-always in restricted mode', () => {
+    const args = aiderAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted', model: 'sonnet' });
+    expect(args).not.toContain('--yes-always');
+    expect(args[args.indexOf('--model') + 1]).toBe('sonnet');
+    expect(args.slice(-2)).toEqual(['--message', 'hi']);
+  });
 });

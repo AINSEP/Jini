@@ -383,6 +383,39 @@ describe('waitForAgyToReadModel', () => {
     expect(call).toBeGreaterThanOrEqual(2);
   });
 
+  it('does not accumulate one abort listener per poll interval when the timer keeps winning', async () => {
+    // Each loop iteration installs an `abort` listener alongside its sleep timer.
+    // `{ once: true }` only removes it when abort actually fires, so on the timer
+    // path the listener stays attached — one per poll — for the whole run.
+    const controller = new AbortController();
+    let added = 0;
+    let removed = 0;
+    const realAdd = controller.signal.addEventListener.bind(controller.signal);
+    const realRemove = controller.signal.removeEventListener.bind(controller.signal);
+    controller.signal.addEventListener = ((type: string, ...rest: unknown[]) => {
+      if (type === 'abort') added += 1;
+      return (realAdd as (...a: unknown[]) => unknown)(type, ...rest);
+    }) as typeof controller.signal.addEventListener;
+    controller.signal.removeEventListener = ((type: string, ...rest: unknown[]) => {
+      if (type === 'abort') removed += 1;
+      return (realRemove as (...a: unknown[]) => unknown)(type, ...rest);
+    }) as typeof controller.signal.removeEventListener;
+
+    const readFile = vi.fn(async () => 'nothing matching yet');
+    const result = await waitForAgyToReadModel('/fake/log', 'Model X', {
+      readFile,
+      pollIntervalMs: 5,
+      timeoutMs: 80,
+      abortSignal: controller.signal,
+    });
+
+    expect(result).toBe(false);
+    // Several polls must actually have happened, otherwise this asserts nothing.
+    expect(added).toBeGreaterThan(3);
+    // Every listener the timer path installed must have been taken back off.
+    expect(removed).toBe(added);
+  });
+
   it('keeps polling without throwing when readFile rejects (e.g. log not yet created), and times out to false', async () => {
     const readFile = vi.fn(async () => {
       throw new Error('ENOENT: no such file');
