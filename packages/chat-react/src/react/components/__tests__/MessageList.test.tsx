@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatMessage } from '@jini/chat-core';
+import type { ChatMessage } from '@jini-ai/chat-core';
 import { MessageList } from '../MessageList.js';
 
 const messages: ChatMessage[] = [
@@ -14,6 +14,13 @@ describe('MessageList', () => {
     render(<MessageList messages={messages} />);
     expect(screen.getByText('hi')).toBeInTheDocument();
     expect(screen.getByText('hello back')).toBeInTheDocument();
+  });
+
+  it('tags the transcript container for agent inspection', () => {
+    const { container } = render(<MessageList messages={messages} />);
+    const el = container.querySelector('[data-agent-element="chat-transcript"]');
+    expect(el).toHaveAttribute('data-agent-role', 'list');
+    expect(el).toHaveAttribute('data-agent-label', 'The conversation transcript, oldest message first');
   });
 
   it('marks only the last message as streaming while isStreaming is true', () => {

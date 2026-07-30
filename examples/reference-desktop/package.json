@@ -1,19 +1,21 @@
 {
   "name": "@jini-app/reference-desktop",
-  "version": "0.0.0",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "electron .",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@jini/desktop-host": "workspace:*"
+    "@jini-ai/desktop-host": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
-    "electron": "^43.2.0"
+    "electron": "^43.2.0",
+    "vitest": "^2.1.0"
   }
 }

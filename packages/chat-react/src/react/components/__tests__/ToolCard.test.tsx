@@ -15,6 +15,28 @@ describe('ToolCard', () => {
     expect(document.querySelector('.op-output')?.textContent).toBe('a.txt\nb.txt');
   });
 
+  it('tags every tool call for agent inspection with a handle unique to that call, regardless of which card variant renders', () => {
+    const { container: bashContainer } = render(<ToolCard use={{ kind: 'tool_use', id: 'call-1', name: 'Bash', input: { command: 'ls' } }} runSucceeded />);
+    const bashEl = bashContainer.querySelector('[data-agent-element="tool-call-call-1"]');
+    expect(bashEl).toHaveAttribute('data-agent-role', 'region');
+    expect(bashEl).toHaveAttribute('data-agent-label', 'A Bash tool call the AI made');
+    // The collapsed accordion detail lives inside this same tagged element, not gated behind it —
+    // `textContent` (what a `page.*` DOM reader actually uses) sees it whether or not a human has
+    // clicked to expand the accordion.
+    expect(bashEl?.textContent).toContain('ls');
+
+    const { container: genericContainer } = render(<ToolCard use={{ kind: 'tool_use', id: 'call-2', name: 'CustomTool', input: {} }} runSucceeded />);
+    const genericEl = genericContainer.querySelector('[data-agent-element="tool-call-call-2"]');
+    expect(genericEl).toHaveAttribute('data-agent-role', 'region');
+  });
+
+  it('registers no wrapper element for a suppressed successful execute_delegated_tool wrapper call', () => {
+    const { container } = render(
+      <ToolCard use={{ kind: 'tool_use', id: 'call-3', name: 'execute_delegated_tool', input: { toolId: 'page.fill', input: {} } }} result={{ kind: 'tool_result', toolUseId: 'call-3', content: 'ok', isError: false }} runSucceeded />,
+    );
+    expect(container.querySelector('[data-agent-element="tool-call-call-3"]')).not.toBeInTheDocument();
+  });
+
   it('falls back to GenericCard for an unrecognized tool', () => {
     render(<ToolCard use={{ kind: 'tool_use', id: 't2', name: 'CustomTool', input: { query: 'hello' } }} runSucceeded />);
     expect(screen.getByText('CustomTool')).toBeInTheDocument();
@@ -383,6 +405,232 @@ describe('ToolCard', () => {
     it('renders nothing when the error result content is whitespace-only', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'fe1', name: 'Write', input: { file_path: '/a.txt' } }} result={{ kind: 'tool_result', toolUseId: 'fe1', content: '   ', isError: true }} />);
       expect(document.querySelector('.op-output')).toBeNull();
+    });
+  });
+
+  describe('DelegatedToolCard (canonical Jini tool ids and the execute_delegated_tool wrapper)', () => {
+    it('renders a canonical page.fill event as "Tool call · Page Fill" with the element as the target', async () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'd1', name: 'page.fill', input: { element: 'signup-name-input', text: 'Ada Lovelace' } }}
+          result={{ kind: 'tool_result', toolUseId: 'd1', content: '{"filled":"signup-name-input"}', isError: false }}
+        />,
+      );
+      expect(screen.getByText(/Tool call/)).toBeInTheDocument();
+      expect(screen.getByText('Page Fill', { exact: false })).toBeInTheDocument();
+      expect(document.querySelector('.op-meta')?.textContent).toBe('signup-name-input');
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.op-command')?.textContent).toContain('signup-name-input');
+    });
+
+    it('humanizes a multi-segment tool id: daemon.db.vacuum -> Daemon Db Vacuum', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'd2', name: 'daemon.db.vacuum', input: {} }} runSucceeded />);
+      expect(screen.getByText('Daemon Db Vacuum', { exact: false })).toBeInTheDocument();
+    });
+
+    it('suppresses the raw execute_delegated_tool wrapper row when it succeeded — the canonical page.fill row already exists', () => {
+      const { container } = render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w1', name: 'execute_delegated_tool', input: { toolId: 'page.fill', input: { element: 'x', text: 'y' } } }}
+          result={{ kind: 'tool_result', toolUseId: 'w1', content: 'ok', isError: false }}
+        />,
+      );
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('also suppresses the mcp__jini__-prefixed wrapper name on success', () => {
+      const { container } = render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w1b', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'page.click', input: { element: 'x' } } }}
+          result={{ kind: 'tool_result', toolUseId: 'w1b', content: 'ok', isError: false }}
+        />,
+      );
+      expect(container.firstChild).toBeNull();
+    });
+
+    it('does NOT suppress a failed wrapper call — it has no canonical row to fall back on, so hiding it would hide a real error', () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w2', name: 'execute_delegated_tool', input: { toolId: 'page.fill', input: { element: 'x', text: 'y' } } }}
+          result={{ kind: 'tool_result', toolUseId: 'w2', content: 'ToolExecutor: unknown tool "page.fill"', isError: true }}
+        />,
+      );
+      expect(screen.getByText(/Tool call/)).toBeInTheDocument();
+      expect(screen.getByText('Page Fill', { exact: false })).toBeInTheDocument();
+    });
+
+    it('does NOT suppress a still-pending wrapper call (no result yet)', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'w3', name: 'execute_delegated_tool', input: { toolId: 'page.navigate', input: { page: 'signup-form' } } }} runStreaming />);
+      expect(screen.getByText(/Tool call/)).toBeInTheDocument();
+      expect(screen.getByText('Page Navigate', { exact: false })).toBeInTheDocument();
+    });
+
+    it('recovers the real tool id and args from an unsuppressed (failed) wrapper, not the wrapper name itself', async () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w4', name: 'execute_delegated_tool', input: { toolId: 'daemon.db.vacuum', input: {} } }}
+          result={{ kind: 'tool_result', toolUseId: 'w4', content: 'denied', isError: true }}
+        />,
+      );
+      expect(screen.getByText('Daemon Db Vacuum', { exact: false })).toBeInTheDocument();
+      expect(screen.queryByText('Execute Delegated Tool', { exact: false })).not.toBeInTheDocument();
+    });
+
+    it('does not treat an ordinary vendor tool name (e.g. Bash) as a Jini tool id', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'v1', name: 'Bash', input: { command: 'ls' } }} runSucceeded />);
+      expect(screen.queryByText(/Tool call/)).not.toBeInTheDocument();
+    });
+
+    it('keeps the wrapper name as the title when a failed wrapper carries no toolId to recover', () => {
+      // A transport-level failure can arrive before the wrapper's own arguments were understood, so
+      // there is no real tool id to show. Falling back to the wrapper name beats an empty title.
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 'w5', name: 'execute_delegated_tool', input: {} }}
+          result={{ kind: 'tool_result', toolUseId: 'w5', content: 'malformed request', isError: true }}
+        />,
+      );
+      expect(screen.getByText('Execute Delegated Tool', { exact: false })).toBeInTheDocument();
+    });
+
+    it('renders a canonical tool call with no input at all, showing an empty argument object', async () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'd3', name: 'page.reload', input: null }} runSucceeded />);
+      expect(screen.getByText('Page Reload', { exact: false })).toBeInTheDocument();
+      expect(document.querySelector('.op-meta')).toBeNull();
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.op-command')?.textContent).toBe('{}');
+    });
+
+    it('shows no target for a non-object input, rather than stringifying it into the summary', () => {
+      // `primaryTarget` only ever surfaces a *named* argument; a bare scalar has no name to show.
+      render(<ToolCard use={{ kind: 'tool_use', id: 'd4', name: 'page.snapshot', input: 'agent-lab' }} runSucceeded />);
+      expect(document.querySelector('.op-meta')).toBeNull();
+    });
+
+    it('falls back to the first string-valued argument as the target when no conventional key is present', () => {
+      // `page.*` tools name their target `element`/`page`/`handle`, but a host-registered tool need
+      // not — showing *something* identifying beats a bare "Tool call" row.
+      render(<ToolCard use={{ kind: 'tool_use', id: 'd5', name: 'forms.submit', input: { attempts: 2, form_name: 'signup' } }} runSucceeded />);
+      expect(document.querySelector('.op-meta')?.textContent).toBe('signup');
+    });
+
+    it('humanizes a tool id containing a doubled underscore without crashing on the empty word', () => {
+      // `page.fill__legacy` is a legal Jini tool id, and splitting on `_` yields an empty segment
+      // between the two underscores — capitalizing that would read index 0 of an empty string.
+      render(<ToolCard use={{ kind: 'tool_use', id: 'd6', name: 'page.fill__legacy', input: {} }} runSucceeded />);
+      // The empty word between the two underscores contributes nothing, leaving a doubled space
+      // that testing-library normalizes away — the point is that the row renders at all.
+      expect(document.querySelector('.op-title')?.textContent).toContain('Page Fill  Legacy');
+    });
+  });
+
+  describe('SearchToolsCard / DescribeToolCard', () => {
+    it('renders search_tools with the query as the collapsed summary', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's1', name: 'search_tools', input: { query: 'page fill form field' } }} runSucceeded />);
+      expect(screen.getByText('Search tools')).toBeInTheDocument();
+      expect(screen.getByText('page fill form field')).toBeInTheDocument();
+    });
+
+    it('renders the mcp__jini__-prefixed search_tools name too', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's2', name: 'mcp__jini__search_tools', input: { query: 'navigate' } }} runSucceeded />);
+      expect(screen.getByText('Search tools')).toBeInTheDocument();
+    });
+
+    it('renders the mcp__jini__-prefixed describe_tool name too', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's3b', name: 'mcp__jini__describe_tool', input: { id: 'page.click' } }} runSucceeded />);
+      expect(screen.getByText('Describe tool')).toBeInTheDocument();
+      expect(screen.getByText('page.click')).toBeInTheDocument();
+    });
+
+    it('renders describe_tool with the tool id as the collapsed summary', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's3', name: 'describe_tool', input: { id: 'page.fill' } }} runSucceeded />);
+      expect(screen.getByText('Describe tool')).toBeInTheDocument();
+      expect(screen.getByText('page.fill')).toBeInTheDocument();
+    });
+
+    it('opens the search_tools accordion to reveal the matched-tool listing the agent received', async () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 's4', name: 'search_tools', input: { query: 'fill', limit: 5 } }}
+          result={{ kind: 'tool_result', toolUseId: 's4', content: 'page.fill — Type text into a field', isError: false }}
+        />,
+      );
+      // Collapsed by default: the output exists in the DOM but the accordion is closed.
+      expect(document.querySelector('.accordion-collapsible.open')).toBeNull();
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.accordion-collapsible.open')).not.toBeNull();
+      expect(document.querySelector('.op-output')?.textContent).toBe('page.fill — Type text into a field');
+    });
+
+    it('omits the search_tools output block entirely when the result carried no content', () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 's5', name: 'search_tools', input: { query: 'nothing matches' } }}
+          result={{ kind: 'tool_result', toolUseId: 's5', content: '', isError: false }}
+        />,
+      );
+      expect(document.querySelector('.op-output')).toBeNull();
+    });
+
+    it('shows the search_tools shimmer title while the catalog query is still running', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's6', name: 'search_tools', input: { query: 'fill' } }} runStreaming />);
+      expect(document.querySelector('.op-title.shimmer-text')).not.toBeNull();
+    });
+
+    it('renders search_tools with no query and no input object at all', () => {
+      // The catalog tool has a required `query`, but a malformed agent call can omit it — the card
+      // must still render a titled row rather than crash or show an empty meta chip.
+      render(<ToolCard use={{ kind: 'tool_use', id: 's7', name: 'search_tools', input: null }} runSucceeded />);
+      expect(screen.getByText('Search tools')).toBeInTheDocument();
+      expect(document.querySelector('.op-meta')).toBeNull();
+    });
+
+    it('opens the describe_tool accordion to reveal the returned tool schema', async () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 's8', name: 'describe_tool', input: { id: 'page.fill' } }}
+          result={{ kind: 'tool_result', toolUseId: 's8', content: '{"inputSchema":{"type":"object"}}', isError: false }}
+        />,
+      );
+      expect(document.querySelector('.accordion-collapsible.open')).toBeNull();
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.accordion-collapsible.open')).not.toBeNull();
+      expect(document.querySelector('.op-output')?.textContent).toBe('{"inputSchema":{"type":"object"}}');
+    });
+
+    it('omits the describe_tool output block entirely when the result carried no content', () => {
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 's9', name: 'describe_tool', input: { id: 'page.fill' } }}
+          result={{ kind: 'tool_result', toolUseId: 's9', content: '', isError: false }}
+        />,
+      );
+      expect(document.querySelector('.op-output')).toBeNull();
+    });
+
+    it('shows the describe_tool shimmer title while the lookup is still running', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's10', name: 'describe_tool', input: { id: 'page.fill' } }} runStreaming />);
+      expect(document.querySelector('.op-title.shimmer-text')).not.toBeNull();
+    });
+
+    it('renders describe_tool with no id and no input object at all', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 's11', name: 'describe_tool', input: null }} runSucceeded />);
+      expect(screen.getByText('Describe tool')).toBeInTheDocument();
+      expect(document.querySelector('.op-meta')).toBeNull();
+    });
+
+    it('surfaces a describe_tool error result as an error detail block, not a silent failure', () => {
+      // The §29.4 schema-on-error path: an agent that asked about an unknown id must see why.
+      render(
+        <ToolCard
+          use={{ kind: 'tool_use', id: 's12', name: 'describe_tool', input: { id: 'page.nope' } }}
+          result={{ kind: 'tool_result', toolUseId: 's12', content: 'unknown tool "page.nope"', isError: true }}
+        />,
+      );
+      // Two blocks carry it: the always-mounted (collapsed) accordion output, plus the
+      // FileErrorDetail block that is visible without expanding anything.
+      expect(document.querySelectorAll('.op-output')).toHaveLength(2);
+      expect(document.querySelector('.op-card')?.lastElementChild?.textContent).toBe('unknown tool "page.nope"');
     });
   });
 });

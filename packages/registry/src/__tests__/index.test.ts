@@ -10,7 +10,7 @@ import {
   upsertRegistryEntry,
 } from '../index.js';
 
-describe('@jini/registry — barrel', () => {
+describe('@jini-ai/registry — barrel', () => {
   it('re-exports the versioning helpers and every backend class', () => {
     expect(parseRegistrySpecifier('vendor/name')).toEqual({ name: 'vendor/name' });
     expect(

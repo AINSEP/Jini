@@ -648,3 +648,91 @@ describe('useOnboardingDropdown', () => {
     expect(result.current.triggerLabel).toBe('Beta');
   });
 });
+
+describe('OnboardingDropdown with hook override prop', () => {
+  it('uses useOnboardingDropdown hook prop to render a forced closed state (state 1)', () => {
+    const mockToggleOpen = vi.fn();
+    const customHook = () => ({
+      rootRef: { current: null },
+      open: false,
+      query: '',
+      setQuery: vi.fn(),
+      resolvedPlacement: 'bottom' as const,
+      menuMaxHeight: 240,
+      visibleOptions: OPTIONS,
+      selectedValues: ['a'],
+      hasValue: true,
+      triggerLabel: 'Custom Injected Label',
+      emptyMessage: 'No options',
+      toggleOpen: mockToggleOpen,
+      selectOption: vi.fn(),
+    });
+
+    render(
+      <OnboardingDropdown
+        label="Select Item"
+        placeholder="Choose..."
+        options={OPTIONS}
+        value="a"
+        onChange={vi.fn()}
+        useOnboardingDropdown={customHook}
+      />,
+    );
+
+    const trigger = screen.getByRole('button');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByText('Custom Injected Label')).toBeTruthy();
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    fireEvent.click(trigger);
+    expect(mockToggleOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses useOnboardingDropdown hook prop to render a forced open state with items (state 2)', () => {
+    const mockSelectOption = vi.fn();
+    const mockSetQuery = vi.fn();
+    const customHook = () => ({
+      rootRef: { current: null },
+      open: true,
+      query: 'gam',
+      setQuery: mockSetQuery,
+      resolvedPlacement: 'top' as const,
+      menuMaxHeight: 180,
+      visibleOptions: [OPTIONS[2]!],
+      selectedValues: ['c'],
+      hasValue: true,
+      triggerLabel: 'Gamma',
+      emptyMessage: 'No options',
+      toggleOpen: vi.fn(),
+      selectOption: mockSelectOption,
+    });
+
+    render(
+      <OnboardingDropdown
+        label="Select Item"
+        placeholder="Choose..."
+        options={OPTIONS}
+        value="c"
+        searchable
+        onChange={vi.fn()}
+        useOnboardingDropdown={customHook}
+      />,
+    );
+
+    const trigger = screen.getByRole('button', { name: /gamma/i });
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByRole('listbox')).toBeTruthy();
+
+    const searchInput = screen.getByRole('searchbox') as HTMLInputElement;
+    expect(searchInput.value).toBe('gam');
+
+    fireEvent.change(searchInput, { target: { value: 'gamm' } });
+    expect(mockSetQuery).toHaveBeenCalledWith('gamm');
+
+    const gammaOption = screen.getByRole('option', { name: /gamma/i });
+    expect(gammaOption.className).toContain('is-selected');
+
+    fireEvent.click(gammaOption);
+    expect(mockSelectOption).toHaveBeenCalledWith(OPTIONS[2], true);
+  });
+});

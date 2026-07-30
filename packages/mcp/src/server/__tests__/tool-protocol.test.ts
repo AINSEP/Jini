@@ -109,11 +109,72 @@ describe('handleToolCall', () => {
     let seenArgs: unknown;
     let seenCtx: unknown;
     const tools = buildToolIndex([
-      makeTool({ name: 't', handler: (args, toolCtx) => { seenArgs = args; seenCtx = toolCtx; return 'ok'; } }),
+      makeTool({
+        name: 't',
+        inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
+        handler: (args, toolCtx) => { seenArgs = args; seenCtx = toolCtx; return 'ok'; },
+      }),
     ]);
     await handleToolCall('t', { runId: 'r1' }, tools, ctx);
     expect(seenArgs).toEqual({ runId: 'r1' });
     expect(seenCtx).toBe(ctx);
+  });
+
+  it('rejects arguments missing a required field before the handler ever runs, as an isError result', async () => {
+    const handler = () => { throw new Error('handler must not run'); };
+    const tools = buildToolIndex([
+      makeTool({
+        name: 't',
+        inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, required: ['runId'], additionalProperties: false },
+        handler,
+      }),
+    ]);
+    const result = await handleToolCall('t', {}, tools, ctx);
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
+  });
+
+  it('rejects an undeclared property under additionalProperties:false before the handler ever runs', async () => {
+    const handler = () => { throw new Error('handler must not run'); };
+    const tools = buildToolIndex([
+      makeTool({
+        name: 't',
+        inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
+        handler,
+      }),
+    ]);
+    const result = await handleToolCall('t', { runId: 'r1', extra: 'nope' }, tools, ctx);
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
+  });
+
+  it('rejects a wrong-typed argument before the handler ever runs', async () => {
+    const handler = () => { throw new Error('handler must not run'); };
+    const tools = buildToolIndex([
+      makeTool({
+        name: 't',
+        inputSchema: { type: 'object', properties: { limit: { type: 'number' } }, additionalProperties: false },
+        handler,
+      }),
+    ]);
+    const result = await handleToolCall('t', { limit: 'not-a-number' }, tools, ctx);
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
+  });
+
+  it('reuses the compiled schema validator across repeated calls to the same tool', async () => {
+    const handler = (args: Record<string, unknown>) => ({ received: args });
+    const tools = buildToolIndex([
+      makeTool({
+        name: 't',
+        inputSchema: { type: 'object', properties: { runId: { type: 'string' } }, additionalProperties: false },
+        handler,
+      }),
+    ]);
+    const first = await handleToolCall('t', { runId: 'r1' }, tools, ctx);
+    const second = await handleToolCall('t', { runId: 'r2' }, tools, ctx);
+    expect(first).toEqual(okResult({ received: { runId: 'r1' } }));
+    expect(second).toEqual(okResult({ received: { runId: 'r2' } }));
   });
 
   it('converts a thrown Error into an isError result with the (sanitized) message', async () => {

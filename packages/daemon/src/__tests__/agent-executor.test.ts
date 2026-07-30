@@ -1,27 +1,38 @@
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@jini/protocol';
+import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import {
+  AGENT_DEFS,
+  _resetAntigravityModelLockForTests,
+  antigravityModelLock,
   attachAcpSession,
   attachPiRpcSession,
+  getAgentDef,
+  prepareAgentLogFile,
   preparePromptFileForAgent,
   type AcpSessionController,
   type AgentLaunchResolution,
   type PiRpcSession,
   type RuntimeAgentDef,
-} from '@jini/agent-runtime';
-import type { Principal, RunRef } from '@jini/core';
-import type { JournalEntry } from '@jini/protocol';
+  type RuntimeLock,
+  type RuntimeLockAcquireContext,
+  type RuntimeLockHandoffContext,
+} from '@jini-ai/agent-runtime';
+import type { Principal, RunRef } from '@jini-ai/core';
+import type { JournalEntry } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../run-lifecycle.js';
 import { createRunByteJournal, type RunByteJournal } from '../continuation/journal.js';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
 import {
   AgentExecutorError,
+  assessAgentExecutorCompatibility,
   buildMcpJsonServerEntry,
   createAgentExecutor,
+  isAgentExecutorSupported,
   isSupportedStreamFormat,
   mergeMcpJsonContent,
   translateAgentRuntimeEvent,
@@ -169,8 +180,10 @@ interface HarnessOptions {
   stopProcessesRejects?: unknown;
   /** SEC-007: makes `listProcessSnapshots` reject instead of succeeding. */
   listProcessSnapshotsRejects?: unknown;
-  /** Overrides the real `@jini/agent-runtime` prompt-file stager (default: real — touches real disk under `os.tmpdir()`, a no-op for every def without `promptViaFile: true`). */
+  /** Overrides the real `@jini-ai/agent-runtime` prompt-file stager (default: real — touches real disk under `os.tmpdir()`, a no-op for every def without `promptViaFile: true`). */
   preparePromptFileForAgent?: typeof preparePromptFileForAgent;
+  /** Overrides the real `@jini-ai/agent-runtime` log-file stager (default: real — same deal, a no-op for every def without `needsAgentLogFile: true`). */
+  prepareAgentLogFile?: typeof prepareAgentLogFile;
   /** Gap 1's byte-journal — omitted by default, matching `CreateAgentExecutorOptions.journal`'s own opt-in default. */
   journal?: RunByteJournal;
   /** Gap 3's stdin-tool-result injection config — omitted by default, matching `CreateAgentExecutorOptions.continuation`'s own opt-in default. */
@@ -236,6 +249,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
     ...(options.preparePromptFileForAgent !== undefined
       ? { preparePromptFileForAgent: options.preparePromptFileForAgent }
       : {}),
+    ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}),
     listProcessSnapshots: async () => {
       if (options.listProcessSnapshotsRejects !== undefined) throw options.listProcessSnapshotsRejects;
       const pid = child.pid ?? 0;
@@ -330,6 +344,63 @@ describe('AgentExecutor — successful run end-to-end', () => {
     const endEvent = events[events.length - 1];
     expect(endEvent).toMatchObject({ kind: 'end', payload: { status: 'succeeded', code: 0, signal: null } });
   });
+
+  it('forwards the host-selected model, reasoning, images, and allowed directories to argv-based runtime buildArgs', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-model' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      model: 'model-picked-in-composer',
+      reasoning: 'high',
+      imagePaths: ['/uploads/reference.png'],
+      extraAllowedDirs: ['/uploads'],
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith(
+      'do the thing',
+      ['/uploads/reference.png'],
+      ['/uploads'],
+      { model: 'model-picked-in-composer', reasoning: 'high' },
+      undefined,
+    );
+  });
+
+  it('forwards permissionMode to buildArgs even when model/reasoning are both absent', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-permission-mode' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      permissionMode: 'restricted',
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, { permissionMode: 'restricted' }, undefined);
+  });
+
+  it('omits the options object entirely when model, reasoning, and permissionMode are all absent', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-no-options' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'do the thing', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, undefined, undefined);
+  });
 });
 
 describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
@@ -361,19 +432,25 @@ describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
     expect((await lifecycle.get(run.id))?.state).toBe('failed');
   });
 
-  it('rejects with AGENT_RUNTIME_UNSUPPORTED for antigravity specifically, even though it otherwise satisfies every plain-format guard (streamFormat + promptViaStdin)', async () => {
-    const { lifecycle, executor } = createHarness({
+  // Inverted deliberately. This test used to assert that antigravity was
+  // rejected *by id* even though it satisfied every other guard. Antigravity's
+  // two real needs are now met by declarative def fields (`needsAgentLogFile`/
+  // `stdoutPolicy`/`runtimeLock`) the driver reads generically, so the id
+  // branch is gone. What must stay true — and is what this now pins — is that
+  // no guard keys off an agent id at all: the id `'antigravity'` must not by
+  // itself change the answer either way.
+  it('no longer rejects a def by its id: the literal id "antigravity" is not what any guard reads', async () => {
+    const { lifecycle, executor, child } = createHarness({
       def: createFakeDef({ id: 'antigravity', streamFormat: 'plain', promptViaStdin: true }),
     });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
-    await expect(
-      executor.run({ runId: run.id, agentId: 'antigravity', prompt: 'x', cwd: '/work' }),
-    ).rejects.toMatchObject({
-      code: 'AGENT_RUNTIME_UNSUPPORTED',
-      message: expect.stringContaining('antigravity'),
-    });
-    expect((await lifecycle.get(run.id))?.state).toBe('failed');
+    const runPromise = executor.run({ runId: run.id, agentId: 'antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await expect(runPromise).resolves.toBeUndefined();
+
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal(run.id)).state).toBe('succeeded');
   });
 
   it('rejects with AGENT_RUNTIME_UNSUPPORTED for a def that does not deliver its prompt via stdin', async () => {
@@ -492,6 +569,44 @@ describe('AgentExecutor — turn_end closes stdin exactly once', () => {
     // A buggy/duplicate second turn_end must not double-close.
     child.stdout.emit('data', assistantTurnEnd.replace('"id":"m1"', '"id":"m2"'));
     await flushAsync();
+    expect(child.stdin!.end).toHaveBeenCalledTimes(1);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('closes stdin when current Claude emits the terminal reason only on its result frame', async () => {
+    const def = createFakeDef({ streamFormat: 'claude-stream-json', promptInputFormat: 'stream-json' });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    expect(child.stdin!.end).not.toHaveBeenCalled();
+
+    child.stdout.emit(
+      'data',
+      [
+        JSON.stringify({
+          type: 'stream_event',
+          event: { type: 'message_start', message: { id: 'msg_result_only' } },
+        }),
+        JSON.stringify({
+          type: 'assistant',
+          message: {
+            id: 'msg_result_only',
+            content: [{ type: 'text', text: 'JINI_WIRING_OK' }],
+            stop_reason: null,
+          },
+        }),
+        JSON.stringify({
+          type: 'result',
+          stop_reason: 'end_turn',
+          terminal_reason: 'completed',
+        }),
+      ].join('\n') + '\n',
+    );
+    await flushAsync();
+
     expect(child.stdin!.end).toHaveBeenCalledTimes(1);
 
     child.emit('close', 0, null);
@@ -780,7 +895,7 @@ describe('isSupportedStreamFormat', () => {
 });
 
 describe('createAgentExecutor — real default collaborators', () => {
-  it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @jini/agent-runtime / @jini/platform / node:child_process default', () => {
+  it('constructs cleanly with only { lifecycle } — every collaborator falls back to its real @jini-ai/agent-runtime / @jini-ai/platform / node:child_process default', () => {
     const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog() });
     const executor = createAgentExecutor({ lifecycle });
     expect(typeof executor.run).toBe('function');
@@ -1097,7 +1212,7 @@ describe('translateAgentRuntimeEvent', () => {
 
 // ---------------------------------------------------------------------------
 // ACP dispatch — a fake `attachAcpSession` (this driver's own injectable seam
-// for `@jini/agent-runtime`'s real ACP transport, matching the `spawn`/
+// for `@jini-ai/agent-runtime`'s real ACP transport, matching the `spawn`/
 // `getAgentDef`/`resolveAgentLaunch` fakes above) drives `wireAcpLifecycle`'s
 // internal branches without a real ACP subprocess. The real handshake is
 // covered separately by agent-executor-acp.integration.test.ts's actual
@@ -1108,6 +1223,8 @@ describe('translateAgentRuntimeEvent', () => {
 interface FakeAcpAttachCall {
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | null | undefined;
+  readonly imagePaths: readonly string[] | undefined;
   readonly envFormat: 'array' | 'map' | undefined;
   readonly onPermissionRequest: unknown;
   readonly send: (event: string, payload: unknown) => void;
@@ -1155,6 +1272,8 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
   const fakeAttachAcpSession = ((attachOptions: {
     prompt: string;
     cwd: string;
+    model?: string | null;
+    imagePaths?: readonly string[];
     envFormat?: 'array' | 'map';
     onPermissionRequest?: unknown;
     send: (event: string, payload: unknown) => void;
@@ -1162,6 +1281,8 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     attachCalls.push({
       prompt: attachOptions.prompt,
       cwd: attachOptions.cwd,
+      model: attachOptions.model,
+      imagePaths: attachOptions.imagePaths,
       envFormat: attachOptions.envFormat,
       onPermissionRequest: attachOptions.onPermissionRequest,
       send: attachOptions.send,
@@ -1242,6 +1363,25 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
     expect((stdoutEvent?.payload as { chunk: string }).chunk).toBe('raw acp stdout\n');
     const stderrEvent = events.find((e) => e.kind === 'stderr');
     expect((stderrEvent?.payload as { chunk: string }).chunk).toBe('raw acp stderr\n');
+  });
+
+  it('forwards the host-selected model and images into the ACP session', async () => {
+    const { lifecycle, executor, attachCalls } = createAcpHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-acp-model' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      model: 'claude-sonnet-4-5',
+      imagePaths: ['/uploads/reference.png'],
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(attachCalls[0]?.model).toBe('claude-sonnet-4-5');
+    expect(attachCalls[0]?.imagePaths).toEqual(['/uploads/reference.png']);
   });
 
   it('finishes failed (not cancelled) when the child closes and completedSuccessfully() reports false', async () => {
@@ -1486,7 +1626,7 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
 
 // ---------------------------------------------------------------------------
 // pi-rpc dispatch — a fake `attachPiRpcSession` (this driver's own injectable
-// seam for `@jini/agent-runtime`'s real pi-rpc transport), mirroring the ACP
+// seam for `@jini-ai/agent-runtime`'s real pi-rpc transport), mirroring the ACP
 // harness above. Unlike ACP's `send(event, payload)`, pi-rpc's `send` always
 // uses the `'agent'` channel (confirmed by reading every `mapPiRpcEvent` call
 // site in agent-runtime) — error-ness is signaled via the payload's own
@@ -1498,6 +1638,9 @@ describe('AgentExecutor — ACP dispatch (fake attachAcpSession)', () => {
 interface FakePiRpcAttachCall {
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | null | undefined;
+  readonly imagePaths: readonly string[] | undefined;
+  readonly uploadRoot: string | undefined;
   readonly send: (channel: string, payload: unknown) => void;
 }
 
@@ -1543,9 +1686,19 @@ function createPiRpcHarness(options: PiRpcHarnessOptions = {}): PiRpcHarness {
     child: unknown;
     prompt: string;
     cwd: string;
+    model?: string | null;
+    imagePaths?: readonly string[];
+    uploadRoot?: string;
     send: (channel: string, payload: unknown) => void;
   }) => {
-    attachCalls.push({ prompt: attachOptions.prompt, cwd: attachOptions.cwd, send: attachOptions.send });
+    attachCalls.push({
+      prompt: attachOptions.prompt,
+      cwd: attachOptions.cwd,
+      model: attachOptions.model,
+      imagePaths: attachOptions.imagePaths,
+      uploadRoot: attachOptions.uploadRoot,
+      send: attachOptions.send,
+    });
     if (options.attachThrows) {
       throw options.attachThrows;
     }
@@ -1620,6 +1773,27 @@ describe('AgentExecutor — pi-rpc dispatch (fake attachPiRpcSession)', () => {
     expect((stdoutEvent?.payload as { chunk: string }).chunk).toBe('raw pi stdout\n');
     const stderrEvent = events.find((e) => e.kind === 'stderr');
     expect((stderrEvent?.payload as { chunk: string }).chunk).toBe('raw pi stderr\n');
+  });
+
+  it('forwards the host-selected model, images, and upload root into the pi-rpc session', async () => {
+    const { lifecycle, executor, attachCalls } = createPiRpcHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-pi-model' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      model: 'anthropic/claude-sonnet-4-5',
+      imagePaths: ['/uploads/reference.png'],
+      uploadRoot: '/uploads',
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(attachCalls[0]?.model).toBe('anthropic/claude-sonnet-4-5');
+    expect(attachCalls[0]?.imagePaths).toEqual(['/uploads/reference.png']);
+    expect(attachCalls[0]?.uploadRoot).toBe('/uploads');
   });
 
   it('finishes failed (not cancelled) when the child closes and hasFatalError() reports true', async () => {
@@ -1936,7 +2110,7 @@ describe('AgentExecutor — plain-format prompt-file delivery (grok-build: promp
   it('stages the composed prompt to a real 0o600 temp file, threads its path into buildArgs, and removes it once the child exits', async () => {
     const def = createGrokBuildDef();
     // preparePromptFileForAgent is left at its real default here (not injected) — this is the one
-    // test in this suite proving the actual @jini/agent-runtime filesystem behavior end to end.
+    // test in this suite proving the actual @jini-ai/agent-runtime filesystem behavior end to end.
     const { lifecycle, executor, child, spawnCalls } = createHarness({ def });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
@@ -2027,6 +2201,747 @@ describe('AgentExecutor — plain-format prompt-file delivery (grok-build: promp
       message: expect.stringContaining('could not stage a prompt file'),
     });
     expect((await lifecycle.get(run.id))?.state).toBe('failed');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Antigravity — the 24th def, driven through declarative `RuntimeAgentDef`
+// fields rather than a `def.id === 'antigravity'` branch. Its two needs:
+//   (1) `agy` can print an OAuth sign-in URL to stdout and still exit 0, so
+//       stdout must be buffered until close, sanitized, then emitted;
+//   (2) its model choice is written into one process-global settings.json that
+//       `agy` reads at its own startup, so concurrent runs must serialize.
+// Every test below drives those through the *generic* fields, using fake defs
+// that declare them — so the driver is proved to key off the fields, never the
+// id. See packages/daemon/source-map.md's 2026-07-29 addition.
+// ---------------------------------------------------------------------------
+
+/** A staged-log-file stager whose path is caller-controlled, recording each call and its cleanup. */
+function createFakeLogFileStager(logPath = '/fake/tmp/agent.log'): {
+  prepareAgentLogFile: typeof prepareAgentLogFile;
+  calls: string[];
+  cleanup: ReturnType<typeof vi.fn>;
+} {
+  const calls: string[] = [];
+  const cleanup = vi.fn(async () => {});
+  return {
+    calls,
+    cleanup,
+    prepareAgentLogFile: (async (def: RuntimeAgentDef | null | undefined, label: string) => {
+      if (!def?.needsAgentLogFile) return null;
+      calls.push(label);
+      return { path: logPath, cleanup };
+    }) as unknown as typeof prepareAgentLogFile,
+  };
+}
+
+describe('AgentExecutor — stdoutPolicy: buffer-until-close + sanitize (antigravity)', () => {
+  /** The real agy print-mode auth-prompt stdout, split so the URL straddles two `'data'` events. */
+  const AUTH_CHUNKS = [
+    'Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oa',
+    'uth2/auth?client_id=12345&redirect_uri=antigravity-redirect\n',
+    'Waiting for authentication (timeout 30s)...\nError: authentication timed out.\n',
+  ];
+
+  function createBufferedDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
+    return createFakeDef({
+      id: 'fake-antigravity',
+      name: 'Fake Antigravity',
+      streamFormat: 'plain',
+      promptViaStdin: true,
+      needsAgentLogFile: true,
+      stdoutPolicy: {
+        buffering: 'until-close',
+        sanitize: (fullText) => fullText.replace(/https:\/\/accounts\.google\.com\/\S*/g, '[redacted sign-in URL]'),
+      },
+      buildArgs: (_prompt, _imagePaths, _extra, _options, runtimeContext) =>
+        runtimeContext?.agentLogFilePath ? ['--log-file', runtimeContext.agentLogFilePath, '-p', '-'] : ['-p', '-'],
+      ...overrides,
+    });
+  }
+
+  it('emits nothing at all until the child closes, then exactly one sanitized text_delta with the leaked URL absent', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef();
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'hello', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    for (const chunk of AUTH_CHUNKS) child.stdout.emit('data', chunk);
+    await flushAsync();
+
+    // THE assertion this whole feature exists for: with the child still alive
+    // and the URL already on stdout, the client has seen nothing — on either
+    // the chat channel or the raw echo channel.
+    const midRun = await collectEvents(lifecycle, run.id);
+    expect(midRun.filter((e) => e.kind === 'agent')).toEqual([]);
+    expect(midRun.filter((e) => e.kind === 'stdout')).toEqual([]);
+
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal(run.id)).state).toBe('succeeded');
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(agentPayloadTypes(events)).toEqual(['text_delta']);
+    const delta = (events.find((e) => e.kind === 'agent')!.payload as RunAgentPayload & { type: 'text_delta' }).delta;
+
+    // The URL straddled two chunks, which is exactly why a per-chunk sanitizer
+    // could not have caught it.
+    expect(delta).not.toContain('accounts.google.com');
+    expect(delta).not.toContain('client_id=12345');
+    expect(delta).toContain('Please visit the URL to log in: [redacted sign-in URL]');
+    expect(delta).toContain('Error: authentication timed out.');
+
+    // The raw 'stdout' echo is held back and sanitized too — emitting it raw
+    // would leak the exact string the sanitizer exists to remove.
+    const stdoutChunks = events.filter((e) => e.kind === 'stdout').map((e) => (e.payload as { chunk: string }).chunk);
+    expect(stdoutChunks).toEqual([delta]);
+
+    // …and finish() still lands last.
+    expect(events[events.length - 1]).toMatchObject({ kind: 'end', payload: { status: 'succeeded', code: 0 } });
+  });
+
+  it('concatenates many chunks in arrival order through the FIFO emit queue, flushing before finish()', async () => {
+    const stager = createFakeLogFileStager();
+    // No sanitizer, so the flushed text is provably the raw concatenation and
+    // this test measures ordering only.
+    const def = createBufferedDef({ stdoutPolicy: { buffering: 'until-close' } });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    const chunkCount = 25;
+    const expected = Array.from({ length: chunkCount }, (_, i) => `chunk-${i}`);
+    // Synchronously back-to-back, and interleaved with stderr, whose events go
+    // out live — the buffered stdout must still land as one event after them.
+    for (let i = 0; i < chunkCount; i++) {
+      child.stdout.emit('data', expected[i]);
+      if (i === 12) child.stderr.emit('data', 'a warning mid-stream');
+    }
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const events = await collectEvents(lifecycle, run.id);
+    const kinds = events.map((e) => e.kind);
+    const deltas = events
+      .filter((e) => e.kind === 'agent')
+      .map((e) => (e.payload as RunAgentPayload & { type: 'text_delta' }).delta);
+    expect(deltas).toEqual([expected.join('')]);
+    // Ordering, positionally: stderr (live) → stdout flush → agent flush → end.
+    expect(kinds).toEqual(['start', 'stderr', 'stdout', 'agent', 'end']);
+  });
+
+  it('emits nothing when a buffered run produces no stdout at all (an empty text_delta is noise)', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef();
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.filter((e) => e.kind === 'agent' || e.kind === 'stdout')).toEqual([]);
+  });
+
+  it('emits nothing when the sanitizer redacts the output down to nothing', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef({ stdoutPolicy: { buffering: 'until-close', sanitize: () => '' } });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.stdout.emit('data', 'entirely unsafe output');
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.filter((e) => e.kind === 'agent' || e.kind === 'stdout')).toEqual([]);
+  });
+
+  it('records the raw, unsanitized bytes in the byte journal — a host-owned log that is never replayed to run-event subscribers', async () => {
+    // The journal's contract is "every byte received" and it deliberately lives
+    // in a separate EventLog instance (see continuation/journal.ts's module
+    // doc), so it is the one place raw bytes are still kept.
+    const { journal, calls } = createSpyJournal();
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef();
+    const { lifecycle, executor, child } = createHarness({ def, journal, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    for (const chunk of AUTH_CHUNKS) child.stdout.emit('data', chunk);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const received = calls.filter((c) => c.entry.trust === 'untrusted').map((c) => c.entry.content);
+    expect(received).toEqual(AUTH_CHUNKS);
+    // But the client-facing stream carries only the sanitized copy.
+    const events = await collectEvents(lifecycle, run.id);
+    expect(JSON.stringify(events)).not.toContain('accounts.google.com');
+  });
+
+  it('keeps streaming live, per chunk, for a plain def that declares no stdoutPolicy at all (the other 4)', async () => {
+    // The explicit regression pin for grok-build/aider/deepseek/qwen: the same
+    // fake def, the same chunks, differing only in the absence of stdoutPolicy.
+    const def = createFakeDef({ id: 'fake-qwen', streamFormat: 'plain', promptViaStdin: true });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-qwen', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    for (const chunk of AUTH_CHUNKS) child.stdout.emit('data', chunk);
+    await flushAsync();
+
+    // Already visible — before any close event.
+    const midRun = await collectEvents(lifecycle, run.id);
+    const midDeltas = midRun
+      .filter((e) => e.kind === 'agent')
+      .map((e) => (e.payload as RunAgentPayload & { type: 'text_delta' }).delta);
+    expect(midDeltas).toEqual(AUTH_CHUNKS);
+    expect(midRun.filter((e) => e.kind === 'stdout').map((e) => (e.payload as { chunk: string }).chunk)).toEqual(AUTH_CHUNKS);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+    // No extra flush event appended on close for a live def.
+    const events = await collectEvents(lifecycle, run.id);
+    expect(agentPayloadTypes(events)).toEqual(['text_delta', 'text_delta', 'text_delta']);
+  });
+
+  it("does not buffer a def whose stdoutPolicy explicitly says 'live'", async () => {
+    const def = createFakeDef({ streamFormat: 'plain', promptViaStdin: true, stdoutPolicy: { buffering: 'live' } });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.stdout.emit('data', 'live chunk');
+    await flushAsync();
+    expect(agentPayloadTypes(await collectEvents(lifecycle, run.id))).toEqual(['text_delta']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('ignores stdoutPolicy for a structured (JSON-stream) def, whose events come from the parser', async () => {
+    // `stdoutPolicy` is documented as only meaningful for `plain`. A JSON-stream
+    // def that declared it must keep feeding its parser, not silently swallow
+    // every event until close.
+    const def = createFakeDef({ stdoutPolicy: { buffering: 'until-close', sanitize: () => 'SHOULD NOT APPEAR' } });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.stdout.emit('data', '{"type":"item.completed","item":{"type":"agent_message","text":"parsed reply"}}\n');
+    await flushAsync();
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(agentPayloadTypes(events)).toContain('text_delta');
+    expect(JSON.stringify(events)).not.toContain('SHOULD NOT APPEAR');
+    expect(JSON.stringify(events)).toContain('parsed reply');
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+});
+
+describe('AgentExecutor — needsAgentLogFile staging (antigravity)', () => {
+  function createLogFileDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
+    return createFakeDef({
+      id: 'fake-antigravity',
+      streamFormat: 'plain',
+      promptViaStdin: true,
+      needsAgentLogFile: true,
+      buildArgs: (_prompt, _imagePaths, _extra, _options, runtimeContext) => {
+        if (!runtimeContext?.agentLogFilePath) throw new Error('fake-antigravity expected agentLogFilePath');
+        return ['--log-file', runtimeContext.agentLogFilePath, '-p', '-'];
+      },
+      ...overrides,
+    });
+  }
+
+  it('stages a real 0o700-directory log path, threads it into buildArgs before spawn, and removes it once the child exits', async () => {
+    // prepareAgentLogFile left at its real default — the one test here proving
+    // the actual @jini-ai/agent-runtime filesystem behavior end to end.
+    const def = createLogFileDef();
+    const { lifecycle, executor, child, spawnCalls } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    expect(spawnCalls).toHaveLength(1);
+    const args = spawnCalls[0]!.args;
+    // Flag order is load-bearing on agy v1.0.3 (`--log-file` before `-p`).
+    expect(args[0]).toBe('--log-file');
+    const logPath = args[1]!;
+    expect(args.slice(2)).toEqual(['-p', '-']);
+    expect(logPath).toContain('agent-runtime-fake-antigravity-');
+    expect(logPath.endsWith('/agent.log')).toBe(true);
+
+    // The directory exists (so the CLI can write into it) but the file does not
+    // — the CLI creates that itself.
+    const dirStat = await fs.stat(path.dirname(logPath));
+    expect(dirStat.isDirectory()).toBe(true);
+    expect(dirStat.mode & 0o777).toBe(0o700);
+    await expect(fs.access(logPath)).rejects.toThrow();
+
+    // Simulate the CLI writing its diagnostic log, then exiting.
+    await fs.writeFile(logPath, 'Propagating selected model override to backend: label="M"\n', 'utf8');
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal(run.id)).state).toBe('succeeded');
+
+    // Cleaned up — a leaked log can hold whatever the CLI chose to write.
+    await expect(fs.access(logPath)).rejects.toThrow();
+    await expect(fs.access(path.dirname(logPath))).rejects.toThrow();
+  });
+
+  it('stages nothing for a def that did not opt in', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createFakeDef({ streamFormat: 'plain', promptViaStdin: true });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    expect(stager.calls).toEqual([]);
+    expect(stager.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('stages prompt file and log file together, threading both into one runtimeContext', async () => {
+    const stager = createFakeLogFileStager();
+    const promptCleanup = vi.fn(async () => {});
+    const fakePreparePromptFile = (async () => ({ path: '/fake/tmp/prompt.md', cleanup: promptCleanup })) as unknown as
+      typeof preparePromptFileForAgent;
+    const def = createFakeDef({
+      id: 'fake-both',
+      streamFormat: 'plain',
+      promptViaFile: true,
+      needsAgentLogFile: true,
+      buildArgs: (_p, _i, _e, _o, ctx) => ['--prompt-file', ctx!.promptFilePath!, '--log-file', ctx!.agentLogFilePath!],
+    });
+    const { lifecycle, executor, child, spawnCalls } = createHarness({
+      def,
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+      preparePromptFileForAgent: fakePreparePromptFile,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-both', prompt: 'x', cwd: '/work' });
+    expect(spawnCalls[0]!.args).toEqual(['--prompt-file', '/fake/tmp/prompt.md', '--log-file', '/fake/tmp/agent.log']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+    // Both released by the single composed cleanup.
+    expect(promptCleanup).toHaveBeenCalledTimes(1);
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['spawn() throws synchronously', { spawnThrows: new Error('EACCES') }],
+    ['the child emits "error" before "spawn"', { spawnErrorEvent: new Error('ENOENT') }],
+  ])('removes the staged log file when %s', async (_label, harnessOverrides) => {
+    const stager = createFakeLogFileStager();
+    const def = createLogFileDef();
+    const { lifecycle, executor } = createHarness({
+      def,
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+      ...harnessOverrides,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject(
+      { code: 'AGENT_SPAWN_FAILED' },
+    );
+
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+    expect((await lifecycle.get(run.id))?.state).toBe('failed');
+  });
+
+  it('removes the staged log file when the Windows command-line budget guard rejects post-buildArgs', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createLogFileDef({
+      maxPromptArgBytes: 30_000,
+      buildArgs: (prompt, _i, _e, _o, ctx) => ['--log-file', ctx!.agentLogFilePath!, '--message', prompt],
+    });
+    const { lifecycle, executor } = createHarness({
+      def,
+      launchPath: 'C:\\fake\\agy.cmd',
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: '"'.repeat(20_000), cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_PROMPT_TOO_LARGE' });
+
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes the staged log file when .mcp.json injection fails', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createLogFileDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+      mcpJsonInjection: {
+        command: 'jini-mcp',
+        daemonUrl: 'http://127.0.0.1:4242',
+        readFile: async () => '',
+        writeFile: async () => {
+          throw new Error('EROFS: read-only file system');
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject(
+      { code: 'AGENT_SPAWN_FAILED', message: expect.stringContaining('.mcp.json') },
+    );
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects cleanly with AGENT_SPAWN_FAILED (never a bare throw) when log-file staging itself fails, releasing the already-staged prompt file', async () => {
+    const promptCleanup = vi.fn(async () => {});
+    const fakePreparePromptFile = (async () => ({ path: '/fake/tmp/prompt.md', cleanup: promptCleanup })) as unknown as
+      typeof preparePromptFileForAgent;
+    const failingLogStager = (async () => {
+      throw new Error('ENOSPC: no space left on device');
+    }) as unknown as typeof prepareAgentLogFile;
+    const def = createLogFileDef({ promptViaFile: true });
+    const { lifecycle, executor } = createHarness({
+      def,
+      preparePromptFileForAgent: fakePreparePromptFile,
+      prepareAgentLogFile: failingLogStager,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject({
+      code: 'AGENT_SPAWN_FAILED',
+      message: expect.stringContaining('could not stage a log file'),
+    });
+    // The prompt file was staged first and must not leak because the log file failed.
+    expect(promptCleanup).toHaveBeenCalledTimes(1);
+    expect((await lifecycle.get(run.id))?.state).toBe('failed');
+  });
+
+  it('rejects cleanly when log-file staging fails and no prompt file was staged', async () => {
+    const failingLogStager = (async () => {
+      throw new Error('EMFILE');
+    }) as unknown as typeof prepareAgentLogFile;
+    const def = createLogFileDef();
+    const { lifecycle, executor } = createHarness({ def, prepareAgentLogFile: failingLogStager });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject({
+      code: 'AGENT_SPAWN_FAILED',
+      message: expect.stringContaining('could not stage a log file'),
+    });
+  });
+});
+
+describe('AgentExecutor — runtimeLock (antigravity model-selection mutex)', () => {
+  /** A `RuntimeLock` whose acquire/handoff/release are fully caller-controlled. */
+  function createRecordingLock(options: { waitForHandoff?: boolean } = {}) {
+    const events: string[] = [];
+    let releaseHandoff: (() => void) | undefined;
+    let rejectHandoff: ((err: unknown) => void) | undefined;
+    const seen: {
+      acquire?: RuntimeLockAcquireContext;
+      handoff?: { logFilePath: string | undefined; model: string | undefined };
+    } = {};
+    const lock: RuntimeLock = {
+      acquire: async (context) => {
+        events.push('acquire');
+        seen.acquire = context;
+        return {
+          release: () => events.push('release'),
+          ...(options.waitForHandoff === false
+            ? {}
+            : {
+                waitForHandoff: (handoffContext: RuntimeLockHandoffContext) => {
+                  events.push('waitForHandoff');
+                  seen.handoff = { logFilePath: handoffContext.logFilePath, model: handoffContext.model };
+                  return new Promise<void>((resolve, reject) => {
+                    releaseHandoff = () => resolve();
+                    rejectHandoff = reject;
+                  });
+                },
+              }),
+        };
+      },
+    };
+    return {
+      lock,
+      events,
+      seen,
+      settleHandoff: () => releaseHandoff?.(),
+      failHandoff: (err: unknown) => rejectHandoff?.(err),
+    };
+  }
+
+  function createLockedDef(lock: RuntimeLock, overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
+    return createFakeDef({
+      id: 'fake-antigravity',
+      streamFormat: 'plain',
+      promptViaStdin: true,
+      needsAgentLogFile: true,
+      runtimeLock: lock,
+      buildArgs: () => ['-p', '-'],
+      ...overrides,
+    });
+  }
+
+  it('acquires before buildArgs runs, passing the selected model, and hands the staged log path to waitForHandoff after spawn', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager('/fake/tmp/agy.log');
+    const buildArgsAt: string[] = [];
+    const def = createLockedDef(recording.lock, {
+      buildArgs: (_p, _i, _e, _o, ctx) => {
+        buildArgsAt.push(recording.events.join(','));
+        return ['--log-file', ctx!.agentLogFilePath!, '-p', '-'];
+      },
+    });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({
+      runId: run.id,
+      agentId: 'fake-antigravity',
+      prompt: 'x',
+      cwd: '/work',
+      model: 'Gemini 3.1 Pro (High)',
+    });
+
+    // Ordering: acquire strictly precedes buildArgs (which is what performs the
+    // process-global settings.json write).
+    expect(buildArgsAt).toEqual(['acquire']);
+    expect(recording.seen.acquire).toEqual({ model: 'Gemini 3.1 Pro (High)' });
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff']);
+    expect(recording.seen.handoff).toMatchObject({ logFilePath: '/fake/tmp/agy.log', model: 'Gemini 3.1 Pro (High)' });
+
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases as soon as waitForHandoff resolves, without waiting for the child to exit', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    expect(recording.events).not.toContain('release');
+
+    recording.settleHandoff();
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff', 'release']);
+
+    // The child is still alive; its later exit must not break anything.
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases on child exit when waitForHandoff never settles (a cold-starting CLI that never logs its signal)', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    expect(recording.events).not.toContain('release');
+
+    child.emit('exit', 0, null);
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff', 'release']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases even when waitForHandoff rejects — a lock stuck open is worse than an early release', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    recording.failHandoff(new Error('log watcher blew up'));
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff', 'release']);
+
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releasing twice is harmless (handoff settles, then the child exits)', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    recording.settleHandoff();
+    await flushAsync();
+    child.emit('exit', 0, null);
+    await flushAsync();
+    // Both release paths fired; the driver makes no attempt to suppress the
+    // second, per RuntimeLockHold.release's idempotence contract.
+    expect(recording.events.filter((e) => e === 'release')).toHaveLength(2);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('holds until child exit when the def declares a lock with no waitForHandoff at all', async () => {
+    const recording = createRecordingLock({ waitForHandoff: false });
+    const def = createLockedDef(recording.lock, { needsAgentLogFile: false, buildArgs: () => ['-p', '-'] });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    expect(recording.events).toEqual(['acquire']);
+
+    child.emit('exit', 0, null);
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'release']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('passes model: undefined to acquire when the caller selected no model', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    expect(recording.seen.acquire).toEqual({ model: undefined });
+
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases the lock on every pre-spawn failure path, where no child exists to signal exit', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor } = createHarness({
+      def,
+      spawnThrows: new Error('EACCES'),
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+
+    // Released, and waitForHandoff was never started (no live process could
+    // have consumed the guarded write).
+    expect(recording.events).toEqual(['acquire', 'release']);
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('proves two overlapping runs of the real antigravity lock genuinely serialize', async () => {
+    // Uses the REAL antigravityModelLock (not a fake), driven through two
+    // concurrent executor runs — the actual race this feature closes.
+    _resetAntigravityModelLockForTests();
+    try {
+      const buildOrder: string[] = [];
+      const makeDef = (id: string): RuntimeAgentDef =>
+        createFakeDef({
+          id,
+          streamFormat: 'plain',
+          promptViaStdin: true,
+          needsAgentLogFile: true,
+          runtimeLock: antigravityModelLock,
+          buildArgs: () => {
+            buildOrder.push(id);
+            return ['-p', '-'];
+          },
+        });
+
+      const defA = makeDef('run-a');
+      const defB = makeDef('run-b');
+      const stagerA = createFakeLogFileStager();
+      const stagerB = createFakeLogFileStager();
+      const harnessA = createHarness({ def: defA, prepareAgentLogFile: stagerA.prepareAgentLogFile });
+      const harnessB = createHarness({ def: defB, prepareAgentLogFile: stagerB.prepareAgentLogFile });
+      const { run: runA } = await harnessA.lifecycle.start({ contextRef: 'ctx-a' });
+      const { run: runB } = await harnessB.lifecycle.start({ contextRef: 'ctx-b' });
+
+      const promiseA = harnessA.executor.run({
+        runId: runA.id,
+        agentId: 'run-a',
+        prompt: 'x',
+        cwd: '/work',
+        model: 'Gemini 3.1 Pro (High)',
+      });
+      const promiseB = harnessB.executor.run({
+        runId: runB.id,
+        agentId: 'run-b',
+        prompt: 'x',
+        cwd: '/work',
+        model: 'Claude Opus 4.6 (Thinking)',
+      });
+
+      await promiseA;
+      // A holds the lock (its handoff watcher is polling a log file that will
+      // never contain the line), so B's buildArgs — the settings.json write —
+      // must not have run yet.
+      await flushAsync();
+      expect(buildOrder).toEqual(['run-a']);
+
+      // A's process exits, releasing.
+      harnessA.child.emit('exit', 0, null);
+      harnessA.child.emit('close', 0, null);
+      await harnessA.lifecycle.waitForTerminal(runA.id);
+
+      await promiseB;
+      expect(buildOrder).toEqual(['run-a', 'run-b']);
+
+      harnessB.child.emit('exit', 0, null);
+      harnessB.child.emit('close', 0, null);
+      await harnessB.lifecycle.waitForTerminal(runB.id);
+    } finally {
+      _resetAntigravityModelLockForTests();
+    }
   });
 });
 
@@ -2672,6 +3587,30 @@ describe('buildMcpJsonServerEntry', () => {
     expect(entry.args).toEqual(['--flag']);
     expect(entry.args).not.toBe(args);
   });
+
+  it('adds JINI_DAEMON_TOKEN when a resolved credential is supplied', () => {
+    const entry = buildMcpJsonServerEntry(
+      'run-1',
+      { command: 'jini-mcp', daemonUrl: 'http://127.0.0.1:4242' },
+      'run-scoped-secret',
+    );
+    expect(entry.env).toEqual({
+      JINI_RUN_ID: 'run-1',
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+      JINI_DAEMON_TOKEN: 'run-scoped-secret',
+    });
+  });
+
+  // The additive guarantee, at the byte level: omitting the credential must produce exactly what this
+  // function produced before the parameter existed — not a `JINI_DAEMON_TOKEN: undefined` key, which
+  // serializes into `.mcp.json` differently and would change what the child process sees.
+  it('omits the token key entirely when no credential is supplied', () => {
+    const options = { command: 'jini-mcp', daemonUrl: 'http://127.0.0.1:4242' };
+    expect(Object.keys(buildMcpJsonServerEntry('run-1', options).env)).toEqual(['JINI_RUN_ID', 'JINI_DAEMON_URL']);
+    expect(JSON.stringify(buildMcpJsonServerEntry('run-1', options, undefined))).toBe(
+      JSON.stringify(buildMcpJsonServerEntry('run-1', options)),
+    );
+  });
 });
 
 describe('mergeMcpJsonContent', () => {
@@ -2840,5 +3779,295 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
     expect(spawnCalls).toHaveLength(0);
     const events = await collectEvents(lifecycle, run.id);
     expect(events.find((e) => e.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
+  });
+
+  it('resolves the credential with this run\'s id and delivers it as JINI_DAEMON_TOKEN', async () => {
+    const { mcpJsonInjection, writeCalls } = createMcpFsSpies();
+    const seenRunIds: string[] = [];
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        credential: (runId: string) => {
+          seenRunIds.push(runId);
+          return `token-for-${runId}`;
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(seenRunIds).toEqual([run.id]);
+    expect(JSON.parse(writeCalls[0]!.content).mcpServers.jini.env).toEqual({
+      JINI_RUN_ID: run.id,
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+      JINI_DAEMON_TOKEN: `token-for-${run.id}`,
+    });
+  });
+
+  it('awaits an async credential resolver', async () => {
+    const { mcpJsonInjection, writeCalls } = createMcpFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        credential: async (runId: string) => {
+          await Promise.resolve();
+          return `async-token-for-${runId}`;
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(JSON.parse(writeCalls[0]!.content).mcpServers.jini.env.JINI_DAEMON_TOKEN).toBe(
+      `async-token-for-${run.id}`,
+    );
+  });
+
+  // The whole reason `credential` is a resolver rather than a string: two runs under one executor
+  // must be able to get different secrets. A boot-time string field could not express this, and a
+  // shared secret would defeat the point of scoping a credential to a run at all.
+  it('mints a distinct credential per run, not one shared across the executor', async () => {
+    const { mcpJsonInjection, writeCalls } = createMcpFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      mcpJsonInjection: { ...mcpJsonInjection, credential: (runId: string) => `token-for-${runId}` },
+    });
+
+    const first = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: first.run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    const second = await lifecycle.start({ contextRef: 'ctx-2' });
+    await executor.run({ runId: second.run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const tokens = writeCalls.map((c) => JSON.parse(c.content).mcpServers.jini.env.JINI_DAEMON_TOKEN);
+    expect(tokens).toEqual([`token-for-${first.run.id}`, `token-for-${second.run.id}`]);
+    expect(tokens[0]).not.toBe(tokens[1]);
+  });
+
+  it('fails the run before spawn when the credential resolver rejects', async () => {
+    const { mcpJsonInjection } = createMcpFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        credential: async () => {
+          throw new Error('keystore unavailable');
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    // Spawning a child that cannot authenticate would produce a run whose every tool call 401s —
+    // failing before spawn is the correct outcome.
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    expect(spawnCalls).toHaveLength(0);
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.find((e) => e.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
+  });
+});
+
+describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () => {
+  const SENTINEL_KEY = 'JINI_TEST_SECRET_TOKEN';
+
+  it('never forwards arbitrary host env vars (a daemon secret) to the spawned agent by default', async () => {
+    vi.stubEnv(SENTINEL_KEY, 'should-never-appear');
+    vi.stubEnv('DATABASE_URL', 'postgres://should-never-appear');
+    try {
+      const { lifecycle, executor, spawnCalls } = createHarness();
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+      expect(spawnCalls).toHaveLength(1);
+      const env = spawnCalls[0]!.options.env as Record<string, string>;
+      expect(env[SENTINEL_KEY]).toBeUndefined();
+      expect(env.DATABASE_URL).toBeUndefined();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('still forwards the baseline allowlist (PATH/HOME/locale) so the spawned agent can actually run', async () => {
+    vi.stubEnv('PATH', '/usr/bin:/bin');
+    vi.stubEnv('HOME', '/home/test-user');
+    vi.stubEnv('LANG', 'en_US.UTF-8');
+    try {
+      const { lifecycle, executor, spawnCalls } = createHarness();
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+      const env = spawnCalls[0]!.options.env as Record<string, string>;
+      expect(env.PATH).toBe('/usr/bin:/bin');
+      expect(env.HOME).toBe('/home/test-user');
+      expect(env.LANG).toBe('en_US.UTF-8');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('forwards USER — a spawned `claude` CLI cannot find its own login state without it, even with HOME present (see tovu-learnings.md §9)', async () => {
+    vi.stubEnv('USER', 'test-user');
+    try {
+      const { lifecycle, executor, spawnCalls } = createHarness();
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+      const env = spawnCalls[0]!.options.env as Record<string, string>;
+      expect(env.USER).toBe('test-user');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('delegates a run-specific credential via credentialEnv even though it is absent from process.env', async () => {
+    expect(process.env.ANTHROPIC_API_KEY).toBeUndefined();
+    const { lifecycle, executor, spawnCalls } = createHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'hi',
+      cwd: '/work',
+      credentialEnv: { ANTHROPIC_API_KEY: 'sk-test-explicit' },
+    });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.ANTHROPIC_API_KEY).toBe('sk-test-explicit');
+  });
+
+  it('the explicit input.env escape hatch still bypasses the allowlist entirely (advanced-caller path)', async () => {
+    const { lifecycle, executor, spawnCalls } = createHarness();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'hi',
+      cwd: '/work',
+      env: { PATH: '/custom/bin', CUSTOM_UNALLOWLISTED_VAR: 'present-because-caller-opted-in' },
+    });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CUSTOM_UNALLOWLISTED_VAR).toBe('present-because-caller-opted-in');
+  });
+});
+
+describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
+  const defOf = (id: string): RuntimeAgentDef => {
+    const def = getAgentDef(id);
+    if (!def) throw new Error(`test setup: no def registered for "${id}"`);
+    return def;
+  };
+
+  it('accepts the JSON-stream and ACP families', () => {
+    expect(isAgentExecutorSupported(defOf('claude'))).toBe(true);
+    expect(isAgentExecutorSupported(defOf('codex'))).toBe(true);
+  });
+
+  // THE regression guard for this predicate. `aider` and `deepseek` are `streamFormat: 'plain'` with
+  // neither `promptViaStdin` nor `promptViaFile` — they qualify solely via `maxPromptArgBytes`. That
+  // field is one of the ones `DetectedAgent` omits, so a predicate written against the projected
+  // discovery type instead of the full def would silently drop two working agents from every
+  // consumer's picker while fixing one broken one.
+  it.each(['aider', 'deepseek'])('accepts the argv-bound def %s (qualifies only via maxPromptArgBytes)', (id) => {
+    const def = defOf(id);
+    expect(def.promptViaStdin).not.toBe(true);
+    expect(def.promptViaFile).not.toBe(true);
+    expect(typeof def.maxPromptArgBytes).toBe('number');
+    expect(isAgentExecutorSupported(def)).toBe(true);
+  });
+
+  // Antigravity was the one registered def this predicate rejected. It is now
+  // accepted, and its two former blockers are met by def fields the driver
+  // reads generically — asserted here from the *real registry def*, not a fake,
+  // so the def and the driver cannot drift apart silently.
+  it('accepts the real antigravity def, which declares all three spawn-orchestration fields', () => {
+    const def = defOf('antigravity');
+    expect(def.needsAgentLogFile).toBe(true);
+    expect(def.stdoutPolicy?.buffering).toBe('until-close');
+    expect(def.stdoutPolicy?.buffering === 'until-close' && typeof def.stdoutPolicy.sanitize).toBe('function');
+    expect(typeof def.runtimeLock?.acquire).toBe('function');
+    expect(isAgentExecutorSupported(def)).toBe(true);
+  });
+
+  // All 24 registered defs are now driveable. A def added later that this
+  // driver cannot actually run should fail *here*, at the point someone can
+  // still decide what to do about it, rather than at a user's first run.
+  it('accepts every one of the 24 registered defs', () => {
+    const rejected = AGENT_DEFS.filter((def) => !isAgentExecutorSupported(def)).map((def) => def.id);
+    expect(rejected).toEqual([]);
+    expect(AGENT_DEFS).toHaveLength(24);
+  });
+
+  // The three new fields must stay opt-in: exactly one def declares them, and
+  // the other 23 keep their pre-existing behavior by declaring none.
+  it('leaves the other 23 defs — including the 4 other plain-format ones — declaring none of the three new fields', () => {
+    const withNewFields = AGENT_DEFS.filter(
+      (def) => def.needsAgentLogFile !== undefined || def.stdoutPolicy !== undefined || def.runtimeLock !== undefined,
+    ).map((def) => def.id);
+    expect(withNewFields).toEqual(['antigravity']);
+
+    for (const id of ['grok-build', 'aider', 'deepseek', 'qwen']) {
+      const def = defOf(id);
+      expect(def.streamFormat).toBe('plain');
+      // No `stdoutPolicy` at all — so `wireChildLifecycle` takes the live path,
+      // byte-for-byte as before this feature existed.
+      expect(def.stdoutPolicy).toBeUndefined();
+      expect(def.needsAgentLogFile).toBeUndefined();
+      expect(def.runtimeLock).toBeUndefined();
+    }
+  });
+
+  it('rejects an unrecognized streamFormat', () => {
+    const result = assessAgentExecutorCompatibility({
+      ...defOf('claude'),
+      streamFormat: 'some-future-format',
+    } as RuntimeAgentDef);
+    expect(result.supported).toBe(false);
+    expect(result.supported === false && result.reason).toContain('not implemented in v1');
+  });
+
+  it('rejects a def with no viable prompt-delivery path', () => {
+    // The key is omitted rather than set to `undefined`: `maxPromptArgBytes` is an optional `number`,
+    // and the predicate's check is `typeof def.maxPromptArgBytes !== 'number'`, so absence — not an
+    // explicit undefined — is the state under test.
+    const { maxPromptArgBytes: _argvBudget, ...withoutArgvBudget } = defOf('aider');
+    const result = assessAgentExecutorCompatibility({
+      ...withoutArgvBudget,
+      promptViaStdin: false,
+      promptViaFile: false,
+    });
+    expect(result.supported).toBe(false);
+    expect(result.supported === false && result.reason).toContain('prompt delivery path');
+  });
+
+  it('returns the narrowed streamFormat on success', () => {
+    const result = assessAgentExecutorCompatibility(defOf('claude'));
+    expect(result.supported === true && result.streamFormat).toBe(defOf('claude').streamFormat);
+  });
+
+  // The anti-drift guarantee. The predicate exists to answer, at discovery time, exactly what `run()`
+  // would decide — so the two must agree on every def in the real registry, not just the ones someone
+  // remembered to write a case for. A new def added to `AGENT_DEFS` is covered automatically.
+  it('agrees with run() for every def in AGENT_DEFS', async () => {
+    expect(AGENT_DEFS.length).toBeGreaterThan(20);
+    for (const def of AGENT_DEFS) {
+      const predicted = isAgentExecutorSupported(def);
+      const { lifecycle, executor } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: `ctx-${def.id}` });
+      let rejectedAsUnsupported = false;
+      try {
+        await executor.run({ runId: run.id, agentId: def.id, prompt: 'hi', cwd: '/work' });
+      } catch (error) {
+        rejectedAsUnsupported =
+          error instanceof AgentExecutorError && error.code === 'AGENT_RUNTIME_UNSUPPORTED';
+      }
+      expect(rejectedAsUnsupported, `${def.id}: predicate said supported=${predicted}`).toBe(!predicted);
+    }
   });
 });

@@ -3,7 +3,7 @@ import * as mcp from '../index.js';
 
 // Exercises the public root barrel (and, transitively, the core / client /
 // agent-install sub-barrels it re-exports through).
-describe('@jini/mcp public barrel', () => {
+describe('@jini-ai/mcp public barrel', () => {
   it('re-exports the core, client, and agent-install surface', () => {
     const names = [
       // core: config

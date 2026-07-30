@@ -21,7 +21,7 @@ export default defineConfig({
         // content plus a handful of example/asset scripts bundled inside
         // individual skill directories (e.g. a Remotion template's React
         // components, a web-clone skill's recon scripts). None of it is
-        // `@jini/agent-runtime`'s own TypeScript source (that's
+        // `@jini-ai/agent-runtime`'s own TypeScript source (that's
         // `src/*.ts` + `src/defs/*.ts`, documented in source-map.md's
         // "runtimes/ -> agent-runtime TypeScript source" section) and none
         // of it is imported by this package's own code, so it has no

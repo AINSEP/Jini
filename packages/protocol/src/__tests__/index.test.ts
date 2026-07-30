@@ -10,7 +10,7 @@ import {
   type RunStatus,
 } from '../index.js';
 
-describe('@jini/protocol', () => {
+describe('@jini-ai/protocol', () => {
   it('constructs a full run event sequence through the transport-neutral envelope', () => {
     const runId = 'run_1';
     const envelope = (cursor: string, kind: RunProtocolEvent['kind'], payload: unknown) => ({

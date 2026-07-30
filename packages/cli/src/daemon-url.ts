@@ -8,7 +8,7 @@
  * hardcodes its sidecar IPC protocol and a `pnpm exec tools-dev status`
  * fallback; neither belongs in a product-neutral package, so both are
  * replaced with an injected `discover` callback the caller (e.g. a future
- * `@jini/sidecar`-backed adapter) supplies.
+ * `@jini-ai/sidecar`-backed adapter) supplies.
  */
 
 export interface ResolveDaemonUrlOptions {

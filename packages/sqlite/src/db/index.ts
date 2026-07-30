@@ -1,5 +1,5 @@
 /**
- * @module @jini/sqlite/db
+ * @module @jini-ai/sqlite/db
  * Neutral SQLite persistence for the daemon: connection lifecycle + schema migration + per-table
  * CRUD, ported from the upstream daemon's decomposed `db/` capability-barrel. Only the generic engine
  * tables (projects, conversations, messages, agent_sessions) are ported; OD-product tables
@@ -46,3 +46,5 @@ export {
 export type { SqliteDb, DbRow, JsonObject, ChatSessionMode } from './core/index.js';
 export { parseJsonOrUndef, row, rows } from './core/index.js';
 export { migrate } from './schema/index.js';
+export type { ToolCatalogEntry, ToolCatalogSearchHit } from './tool-catalog/index.js';
+export { ensureToolCatalogTables, reseedToolCatalog, getToolCatalogEntry, searchToolCatalog } from './tool-catalog/index.js';

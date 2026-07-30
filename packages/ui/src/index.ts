@@ -1,14 +1,22 @@
-// @jini/ui — generic, product-neutral UI primitives.
+// @jini-ai/ui — generic, product-neutral UI primitives.
 // See packages/ui/README.md for scope and packages/ui/source-map.md for
 // provenance (multiple porting tasks land content here in parallel; see
 // that file's per-section breakdown).
+//
+// Two feature domains with a heavy npm dependency are deliberately not re-exported here
+// (2026-07-29): `sketch-editor` (`@excalidraw/excalidraw`, ~47MB — removed from this barrel,
+// previously exported here and the reason any `@jini-ai/ui` import dragged Excalidraw in) and
+// `lexical-rich-text-editor` (`lexical`/`@lexical/react`/`@lexical/utils` — never wired into this
+// barrel at all, so it was actually unreachable dead code from outside this package until now).
+// Both get their own `@jini-ai/ui/sketch-editor` / `@jini-ai/ui/lexical-rich-text-editor` entry
+// points instead, so a consumer wanting e.g. `WorkingDirPicker`/`AgentIcon` never drags either
+// in — import the specific subpath when you actually want that editor.
 
 export * from './features/i18n/index.js';
 export * from './features/observability/index.js';
 export * from './features/connectors/index.js';
 export * from './features/progress-card/index.js';
 export * from './features/browser-chrome/index.js';
-export * from './features/sketch-editor/index.js';
 export * from './features/asset-grid/index.js';
 export * from './features/asset-tree-browser/index.js';
 export * from './features/viewer-shell/index.js';

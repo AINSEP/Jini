@@ -1,12 +1,12 @@
 /**
- * `@jini/core` DI tokens for this package's ports, so a future pack (or a
+ * `@jini-ai/core` DI tokens for this package's ports, so a future pack (or a
  * consumer wiring desktop-host services into a `createDaemon` composition)
  * can bind/resolve them the same way `packages/daemon/src/tokens.ts` does
- * for `RunLifecycle`/`EventLog`. `@jini/desktop-host` does not itself
+ * for `RunLifecycle`/`EventLog`. `@jini-ai/desktop-host` does not itself
  * define a pack — these tokens exist for that future composition, not
  * because this package resolves them internally today.
  */
-import { token } from '@jini/core';
+import { token } from '@jini-ai/core';
 import type { SingleInstanceLockPort } from './single-instance.js';
 import type { WindowLifecyclePort } from './window-lifecycle.js';
 import type { ProtocolHandlerPort } from './protocol.js';

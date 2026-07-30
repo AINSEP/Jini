@@ -28,7 +28,7 @@ const DeployTargetToken = manyToken<DeployProvider>('jini.deployTarget');
  */
 const createDaemonUnsafe = createDaemon as (config: any) => ReturnType<typeof createDaemon>;
 
-describe('@jini/core composition contract', () => {
+describe('@jini-ai/core composition contract', () => {
   it('composes a pack against its bound dependencies and calls services() once', () => {
     const saved: string[] = [];
     const runStoreImpl: RunStore = { save: (id) => (saved.push(id), saved) };

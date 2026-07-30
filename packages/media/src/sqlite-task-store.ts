@@ -6,7 +6,7 @@
  *
  * Reuses this repo's existing durability pattern exactly —
  * `packages/sqlite/src/event-log.ts`'s `createSqliteEventLog`, the durable
- * adapter for `@jini/daemon`'s `EventLog` port — rather than inventing a
+ * adapter for `@jini-ai/daemon`'s `EventLog` port — rather than inventing a
  * parallel one: `new Database(dbPath)`, `db.pragma('journal_mode = WAL')`,
  * `CREATE TABLE IF NOT EXISTS` (idempotent — reopening the same file
  * resumes from whatever was durably committed), `db.transaction()` for
@@ -17,20 +17,20 @@
  * addition beyond the port interface to release the file handle — the same
  * shape `SqliteEventLog extends EventLog` already established.
  *
- * **Why this lives in `@jini/media` itself, not `@jini/sqlite`** (the
+ * **Why this lives in `@jini-ai/media` itself, not `@jini-ai/sqlite`** (the
  * "natural" home per the `EventLog` precedent, where the durable adapter
- * lives in a separate package from the port it implements): `@jini/sqlite`
+ * lives in a separate package from the port it implements): `@jini-ai/sqlite`
  * is one of `scripts/check-engine-boundaries.ts`'s 14 *locked* packages;
- * `@jini/media` is listed in `UNLOCKED.md` with `status: "incubating"`.
+ * `@jini-ai/media` is listed in `UNLOCKED.md` with `status: "incubating"`.
  * `check-engine-boundaries.ts`'s R7 rule forbids a locked package from
- * importing an unlocked, non-`"stable"` one — `@jini/sqlite` depending on
- * `@jini/media` for `MediaTaskStore`'s types would fail `pnpm guard`
- * outright. Implementing the adapter inside `@jini/media` (itself
+ * importing an unlocked, non-`"stable"` one — `@jini-ai/sqlite` depending on
+ * `@jini-ai/media` for `MediaTaskStore`'s types would fail `pnpm guard`
+ * outright. Implementing the adapter inside `@jini-ai/media` (itself
  * unlocked, so unrestricted in what it may depend on) keeps the exact same
  * schema/transaction/WAL/`close()` conventions without a guard violation.
  * See `ADS-memory/reports/proposals/PROP-media-durable-tasks-2026-07-21.md`
- * for the open question of whether this should move to `@jini/sqlite` once
- * `@jini/media` is promoted to `"stable"`.
+ * for the open question of whether this should move to `@jini-ai/sqlite` once
+ * `@jini-ai/media` is promoted to `"stable"`.
  *
  * Implements `task-store.ts`'s `MediaTaskStore` port exactly: same
  * `queued -> running -> done|failed|interrupted` transition legality
@@ -39,7 +39,7 @@
  * two-phase boot reconciliation. See `createInMemoryMediaTaskStore` in
  * `task-store.ts` for the reference behavior this mirrors.
  */
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 import type {
   MediaTask,
   MediaTaskCreateInput,
@@ -138,8 +138,19 @@ export interface SqliteMediaTaskStore extends MediaTaskStore {
  * the process comes back up sees every task exactly as it was left, and
  * `reconcileOnBoot` can then mark anything still `queued`/`running` as
  * `interrupted`.
+ *
+ * `better-sqlite3` (a native compiled addon) is dynamically imported here
+ * rather than statically at module scope (mirroring `@jini-ai/daemon`'s
+ * `loadRealSpawnPty`/`node-pty` pattern) — this package's root barrel
+ * re-exports this module unconditionally, so a static top-level import would
+ * force every consumer of `@jini-ai/media`, even one wanting only
+ * `renderStub`, to load the native binary at module-evaluation time. Now
+ * only an actual `createSqliteMediaTaskStore` call pays that cost, and it
+ * fails cleanly (a rejected promise) rather than crashing unrelated imports
+ * if the platform/environment lacks a usable prebuild.
  */
-export function createSqliteMediaTaskStore(dbPath: string): SqliteMediaTaskStore {
+export async function createSqliteMediaTaskStore(dbPath: string): Promise<SqliteMediaTaskStore> {
+  const { default: Database } = await import('better-sqlite3');
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
 

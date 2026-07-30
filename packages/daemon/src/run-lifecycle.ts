@@ -9,7 +9,7 @@
  * Scope boundary: this module owns the run *state machine* and its event
  * log — create, transition, emit, replay, cancellation-intent propagation,
  * idempotent start/finish, resume. It does not spawn or signal a subprocess;
- * that is `@jini/agent-runtime`'s job (extraction-plan task 7). A driver
+ * that is `@jini-ai/agent-runtime`'s job (extraction-plan task 7). A driver
  * (today: this package's tests; later: agent-runtime) calls `emit()` for
  * agent/stdout/stderr/error events, observes cancellation via
  * `onCancelRequested`, and calls `finish()` once it knows the real outcome.
@@ -25,8 +25,8 @@ import type {
   RunStartPayload,
   RunState,
   RunStatus,
-} from '@jini/protocol';
-import { RUN_PROTOCOL_VERSION, isTerminalRunState } from '@jini/protocol';
+} from '@jini-ai/protocol';
+import { RUN_PROTOCOL_VERSION, isTerminalRunState } from '@jini-ai/protocol';
 import type { EventLog, EventLogEntry, EventLogReplayResult } from './event-log.js';
 import type { InactivityWatchdog, TerminalRunOutcome } from './close-status.js';
 import { createInactivityWatchdog } from './close-status.js';
@@ -68,7 +68,7 @@ export interface FinishRunInput {
    * the researched source).
    */
   readonly resumable: boolean;
-  /** Gap 5 (session resume) — see `RunEndPayload.sessionRef`'s doc in `@jini/protocol`. Threaded straight through to the durable `'end'` entry; this module has no opinion on what it means. */
+  /** Gap 5 (session resume) — see `RunEndPayload.sessionRef`'s doc in `@jini-ai/protocol`. Threaded straight through to the durable `'end'` entry; this module has no opinion on what it means. */
   readonly sessionRef?: string;
 }
 
@@ -140,9 +140,13 @@ interface RunRecord {
   terminalWaiters: Array<(status: RunStatus) => void>;
   terminalEndEntry: EventLogEntry | undefined;
   watchdog: InactivityWatchdog | undefined;
+  /** Pending durable start append; idempotent duplicates wait for it instead of observing a ghost record. */
+  startPromise: Promise<void> | undefined;
+  /** Serializes concurrent terminal transitions while state remains non-terminal until the end append commits. */
+  finishPromise: Promise<RunStatus> | undefined;
 }
 
-/** Vocabulary-firewall bridge: `RunState` uses `'cancelled'` (extraction-plan §12 C5's own cited canary), `RunEndPayload.status` uses `'canceled'`. Both live in `@jini/protocol`, which is out of scope for this task — bridged here rather than fixed upstream. */
+/** Vocabulary-firewall bridge: `RunState` uses `'cancelled'` (extraction-plan §12 C5's own cited canary), `RunEndPayload.status` uses `'canceled'`. Both live in `@jini-ai/protocol`, which is out of scope for this task — bridged here rather than fixed upstream. */
 const TERMINAL_OUTCOME_TO_END_STATUS: Record<TerminalRunOutcome, NonNullable<RunEndPayload['status']>> = {
   succeeded: 'succeeded',
   failed: 'failed',
@@ -163,8 +167,8 @@ function toPublicStatus(record: RunRecord): RunStatus {
 }
 
 /**
- * Bridges `@jini/daemon`'s own `EventLogEntry` (`{id, event, data, recordedAt}`) to
- * `@jini/protocol`'s canonical `RunEvent` envelope. `EventLogEntry` carries no `runId` of its
+ * Bridges `@jini-ai/daemon`'s own `EventLogEntry` (`{id, event, data, recordedAt}`) to
+ * `@jini-ai/protocol`'s canonical `RunEvent` envelope. `EventLogEntry` carries no `runId` of its
  * own (the log is already scoped by the `runId` parameter every `EventLog` method takes), so
  * this is the one place that stamps it onto the outgoing envelope.
  */
@@ -185,6 +189,75 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Reads the two run-level fields the kernel persists on a run's `'start'` entry. Both are absent
+ * on a log whose start entry carried a non-record payload (or no start entry at all).
+ */
+function readStartMetadata(startEntry: EventLogEntry | undefined): {
+  contextRef: string | undefined;
+  idempotencyKey: string | undefined;
+} {
+  const startData = startEntry && isRecord(startEntry.data) ? startEntry.data : null;
+  return {
+    contextRef: typeof startData?.contextRef === 'string' ? startData.contextRef : undefined,
+    idempotencyKey: typeof startData?.idempotencyKey === 'string' ? startData.idempotencyKey : undefined,
+  };
+}
+
+/** Rebuilds the public status block for a rehydrated run from its first/last/start/end log entries. */
+function rehydratedStatus(
+  runId: string,
+  bounds: {
+    startEntry: EventLogEntry | undefined;
+    endEntry: EventLogEntry | undefined;
+    firstEntry: EventLogEntry;
+    lastEntry: EventLogEntry;
+    terminal: { state: TerminalRunOutcome; resumable: boolean } | null;
+  },
+): RunRecord['status'] {
+  return {
+    id: runId,
+    state: bounds.terminal?.state ?? 'running',
+    startedAt: bounds.startEntry?.recordedAt ?? bounds.firstEntry.recordedAt,
+    updatedAt: bounds.lastEntry.recordedAt,
+    endedAt: bounds.endEntry?.recordedAt,
+  };
+}
+
+/**
+ * Rebuilds one in-memory `RunRecord` from a run's replayed durable entries. Volatile fields
+ * (listeners, subscribers, watchdog, in-flight promises) cannot survive a restart and are reset.
+ */
+function rehydratedRunRecord(
+  runId: string,
+  entries: readonly EventLogEntry[],
+): { record: RunRecord; idempotencyKey: string | undefined; isTerminal: boolean } {
+  const startEntry = entries.find((entry) => entry.event === 'start');
+  const endEntry = [...entries].reverse().find((entry) => entry.event === 'end');
+  const firstEntry = entries[0]!;
+  const lastEntry = entries[entries.length - 1]!;
+  const terminal = endEntry === undefined ? null : terminalStateFromEndEntry(endEntry);
+  const { contextRef, idempotencyKey } = readStartMetadata(startEntry);
+  return {
+    record: {
+      contextRef,
+      status: rehydratedStatus(runId, { startEntry, endEntry, firstEntry, lastEntry, terminal }),
+      resumable: terminal?.resumable ?? false,
+      cancelRequested: false,
+      lastCancelRequest: undefined,
+      cancelListeners: new Set(),
+      subscribers: new Set(),
+      terminalWaiters: [],
+      terminalEndEntry: endEntry,
+      watchdog: undefined,
+      startPromise: undefined,
+      finishPromise: undefined,
+    },
+    idempotencyKey,
+    isTerminal: terminal !== null,
+  };
+}
+
 function terminalStateFromEndEntry(entry: EventLogEntry): { state: TerminalRunOutcome; resumable: boolean } {
   if (!isRecord(entry.data)) return { state: 'failed', resumable: false };
   const status = entry.data.status;
@@ -195,6 +268,14 @@ function terminalStateFromEndEntry(entry: EventLogEntry): { state: TerminalRunOu
 
 export interface CreateRunLifecycleInput {
   readonly eventLog: EventLog;
+  /** Host-owned sink for asynchronous lifecycle failures that cannot be returned to a caller. Defaults to `console.error`. */
+  readonly onInternalError?: (context: RunLifecycleInternalErrorContext) => void;
+}
+
+export interface RunLifecycleInternalErrorContext {
+  readonly source: 'inactivity-timeout';
+  readonly runId: string;
+  readonly error: unknown;
 }
 
 /**
@@ -257,15 +338,64 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
    * signal: null`), mirroring OD's own timeout/inactivity classification
    * (`isResumableFailure` in the researched `run-failure-classification.ts`
    * treats timeout/inactivity as one of only two resumable categories).
-   * A run that already reached a terminal state before the timer fired
-   * (a normal race with `finish()`) is left untouched.
+   *
+   * The `!record || isTerminalRunState(...)` guard below is defensive only and is currently
+   * unreachable through the public API — deliberately kept, not fake-tested, and the reason is
+   * recorded here so the next reader does not spend time trying to cover it:
+   *
+   * - `isTerminalRunState(...)`: every route to a terminal state runs through `finish()`, which
+   *   calls `record.watchdog?.cancel()` and assigns `record.status.state` in the *same synchronous
+   *   block* after its durable end append resolves. There is no interleaving point between the two,
+   *   so "watchdog still armed" and "record already terminal" cannot both hold when this fires. (If
+   *   the end append *throws*, the watchdog stays armed but the run also stays non-terminal.)
+   * - `!record`: the only `runs.delete()` is `start()`'s unwind on a failed durable start append,
+   *   which happens strictly before the watchdog is armed a few lines later. It is also required
+   *   for type-narrowing `record` before `record.status.state` is read, so it cannot simply be
+   *   dropped.
+   *
+   * Note the "start/finish race" test below does *not* exercise this guard despite its name: by the
+   * time it advances the timers, `finish()` has already cancelled the watchdog, so the callback
+   * never runs at all. It still correctly asserts that no second `finish()` happens.
    */
   async function handleInactivityTimeout(runId: string): Promise<void> {
     const record = runs.get(runId);
     if (!record || isTerminalRunState(record.status.state)) {
       return;
     }
-    await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
+    try {
+      await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: true });
+    } catch (error) {
+      const context: RunLifecycleInternalErrorContext = { source: 'inactivity-timeout', runId, error };
+      try {
+        if (input.onInternalError) {
+          input.onInternalError(context);
+        } else {
+          // eslint-disable-next-line no-console
+          console.error(`[@jini-ai/daemon] internal error (inactivity-timeout, runId=${runId})`, error);
+        }
+      } catch (sinkError) {
+        // A diagnostic sink must not turn a contained timer failure into another unhandled
+        // rejection.
+        // eslint-disable-next-line no-console
+        console.error(`[@jini-ai/daemon] internal error sink failed (inactivity-timeout, runId=${runId})`, sinkError);
+      }
+    }
+  }
+
+  /**
+   * Restores one run into the in-memory index from its durable log. Returns what the caller must do
+   * about it: `'skipped'` for a run already resident or with no usable log, otherwise whether the
+   * restored run was already terminal.
+   */
+  async function rehydrateOne(runId: string): Promise<'skipped' | 'terminal' | 'non-terminal'> {
+    if (runs.has(runId)) return 'skipped';
+    const replay = await eventLog.replay(runId, null);
+    if (replay.kind !== 'ok' || replay.entries.length === 0) return 'skipped';
+
+    const { record, idempotencyKey, isTerminal } = rehydratedRunRecord(runId, replay.entries);
+    runs.set(runId, record);
+    if (idempotencyKey !== undefined) idempotencyIndex.set(idempotencyKey, runId);
+    return isTerminal ? 'terminal' : 'non-terminal';
   }
 
   const lifecycle: RunLifecycle = {
@@ -274,40 +404,9 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       hydration = (async () => {
         const rehydratedNonTerminalRunIds: string[] = [];
         for (const runId of await eventLog.listRunIds()) {
-          if (runs.has(runId)) continue;
-          const replay = await eventLog.replay(runId, null);
-          if (replay.kind !== 'ok' || replay.entries.length === 0) continue;
-
-          const entries = replay.entries;
-          const startEntry = entries.find((entry) => entry.event === 'start');
-          const endEntry = [...entries].reverse().find((entry) => entry.event === 'end');
-          const startData = startEntry && isRecord(startEntry.data) ? startEntry.data : null;
-          const firstEntry = entries[0]!;
-          const lastEntry = entries[entries.length - 1]!;
-          const terminal = endEntry === undefined ? null : terminalStateFromEndEntry(endEntry);
-          const contextRef = typeof startData?.contextRef === 'string' ? startData.contextRef : undefined;
-          const idempotencyKey = typeof startData?.idempotencyKey === 'string' ? startData.idempotencyKey : undefined;
-          const record: RunRecord = {
-            contextRef,
-            status: {
-              id: runId,
-              state: terminal?.state ?? 'running',
-              startedAt: startEntry?.recordedAt ?? firstEntry.recordedAt,
-              updatedAt: lastEntry.recordedAt,
-              endedAt: endEntry?.recordedAt,
-            },
-            resumable: terminal?.resumable ?? false,
-            cancelRequested: false,
-            lastCancelRequest: undefined,
-            cancelListeners: new Set(),
-            subscribers: new Set(),
-            terminalWaiters: [],
-            terminalEndEntry: endEntry,
-            watchdog: undefined,
-          };
-          runs.set(runId, record);
-          if (idempotencyKey !== undefined) idempotencyIndex.set(idempotencyKey, runId);
-          if (terminal === null) rehydratedNonTerminalRunIds.push(runId);
+          if (await rehydrateOne(runId) === 'non-terminal') {
+            rehydratedNonTerminalRunIds.push(runId);
+          }
         }
 
         // A process restart cannot retain an in-memory child process or cancellation listener.
@@ -324,6 +423,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         const existingRunId = idempotencyIndex.get(startInput.idempotencyKey);
         if (existingRunId) {
           const existing = requireRun(existingRunId);
+          await existing.startPromise;
           return { run: toPublicStatus(existing), started: false };
         }
       }
@@ -345,6 +445,8 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         terminalWaiters: [],
         terminalEndEntry: undefined,
         watchdog: undefined,
+        startPromise: undefined,
+        finishPromise: undefined,
       };
       runs.set(runId, record);
       if (startInput.idempotencyKey !== undefined) {
@@ -357,7 +459,21 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         ...(startInput.agentId !== undefined ? { agentId: startInput.agentId } : {}),
         ...(startInput.idempotencyKey !== undefined ? { idempotencyKey: startInput.idempotencyKey } : {}),
       };
-      await appendEvent(runId, record, 'start', startPayload);
+      const startPromise = appendEvent(runId, record, 'start', startPayload).then(() => undefined);
+      record.startPromise = startPromise;
+      try {
+        await startPromise;
+        record.startPromise = undefined;
+      } catch (error) {
+        runs.delete(runId);
+        if (
+          startInput.idempotencyKey !== undefined &&
+          idempotencyIndex.get(startInput.idempotencyKey) === runId
+        ) {
+          idempotencyIndex.delete(startInput.idempotencyKey);
+        }
+        throw error;
+      }
 
       if (startInput.inactivityTimeoutMs !== undefined) {
         record.watchdog = createInactivityWatchdog({
@@ -384,6 +500,10 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
     async cancel(request: RunCancelRequest): Promise<RunStatus> {
       const record = requireRun(request.runId);
+      await record.startPromise;
+      if (record.finishPromise) {
+        return record.finishPromise;
+      }
       if (isTerminalRunState(record.status.state)) {
         return toPublicStatus(record);
       }
@@ -415,7 +535,8 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
     async emit(runId: string, driverInput: DriverEmittableInput): Promise<RunProtocolEvent> {
       const record = requireRun(runId);
-      if (isTerminalRunState(record.status.state)) {
+      await record.startPromise;
+      if (record.finishPromise || isTerminalRunState(record.status.state)) {
         throw new Error(
           `RunLifecycle: cannot emit "${driverInput.event}" on terminal run "${runId}" — drivers must stop emitting once finish() has been called`,
         );
@@ -426,30 +547,45 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
     async finish(finishInput: FinishRunInput): Promise<RunStatus> {
       const record = requireRun(finishInput.runId);
+      await record.startPromise;
+      if (record.finishPromise) {
+        return record.finishPromise;
+      }
       if (isTerminalRunState(record.status.state)) {
         return toPublicStatus(record);
       }
-      record.watchdog?.cancel();
-      const now = Date.now();
-      record.status.state = finishInput.status;
-      record.status.updatedAt = now;
-      record.status.endedAt = now;
-      record.resumable = finishInput.resumable;
+      const finishing = (async (): Promise<RunStatus> => {
+        const endPayload: RunEndPayload = {
+          code: finishInput.code,
+          signal: finishInput.signal,
+          status: TERMINAL_OUTCOME_TO_END_STATUS[finishInput.status],
+          resumable: finishInput.resumable,
+          ...(finishInput.sessionRef !== undefined ? { sessionRef: finishInput.sessionRef } : {}),
+        };
+        const endEntry = await eventLog.append({ runId: finishInput.runId, event: 'end', data: endPayload });
 
-      const endPayload: RunEndPayload = {
-        code: finishInput.code,
-        signal: finishInput.signal,
-        status: TERMINAL_OUTCOME_TO_END_STATUS[finishInput.status],
-        resumable: finishInput.resumable,
-        ...(finishInput.sessionRef !== undefined ? { sessionRef: finishInput.sessionRef } : {}),
-      };
-      const endEntry = await eventLog.append({ runId: finishInput.runId, event: 'end', data: endPayload });
-      record.terminalEndEntry = endEntry;
-      const endEvent = toRunEvent(finishInput.runId, endEntry);
-      notifySubscribers(record, endEvent);
+        // Commit the in-memory terminal transition only after its durable end entry exists. Until
+        // then `finishPromise` reserves the transition and blocks emits/concurrent finishes.
+        record.watchdog?.cancel();
+        record.status.state = finishInput.status;
+        record.status.updatedAt = endEntry.recordedAt;
+        record.status.endedAt = endEntry.recordedAt;
+        record.resumable = finishInput.resumable;
+        record.terminalEndEntry = endEntry;
+        const endEvent = toRunEvent(finishInput.runId, endEntry);
+        notifySubscribers(record, endEvent);
 
-      resolveTerminalWaiters(record);
-      return toPublicStatus(record);
+        resolveTerminalWaiters(record);
+        return toPublicStatus(record);
+      })();
+      record.finishPromise = finishing;
+      try {
+        return await finishing;
+      } finally {
+        if (record.finishPromise === finishing) {
+          record.finishPromise = undefined;
+        }
+      }
     },
 
     async resume(runId: string): Promise<ResumeRunResult> {
@@ -492,6 +628,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       if (!record) {
         return { kind: 'unknown-run' };
       }
+      await record.startPromise;
       // Subscribe before awaiting the durable replay. Any event appended while the replay query is
       // in flight is buffered, then delivered after the replay entries, so a reconnect cannot lose
       // the narrow replay→subscribe interval or observe the live event ahead of older history.
@@ -502,37 +639,48 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         else onEvent(event);
       };
       record.subscribers.add(subscriber);
-      const replay = await eventLog.replay(runId, options.afterCursor ?? null);
-      if (replay.kind !== 'ok') {
-        record.subscribers.delete(subscriber);
-        return replay;
-      }
-      const deliveredEventIds = new Set<string>();
-      for (const entry of replay.entries) {
-        const event = toRunEvent(runId, entry);
-        deliveredEventIds.add(event.eventId);
-        onEvent(event);
-      }
-
-      const terminal = isTerminalRunState(record.status.state);
-      if (terminal && record.terminalEndEntry) {
-        const lastDelivered = replay.entries[replay.entries.length - 1];
-        if (!lastDelivered || lastDelivered.id !== record.terminalEndEntry.id) {
-          onEvent(toRunEvent(runId, record.terminalEndEntry));
+      try {
+        const replay = await eventLog.replay(runId, options.afterCursor ?? null);
+        if (replay.kind !== 'ok') {
+          record.subscribers.delete(subscriber);
+          return replay;
         }
-      }
+        const deliveredEventIds = new Set<string>();
+        for (const entry of replay.entries) {
+          const event = toRunEvent(runId, entry);
+          deliveredEventIds.add(event.eventId);
+          onEvent(event);
+        }
 
-      for (const event of bufferedLiveEvents) {
-        if (!deliveredEventIds.has(event.eventId)) onEvent(event);
-      }
-      replaying = false;
+        for (const event of bufferedLiveEvents) {
+          if (!deliveredEventIds.has(event.eventId)) {
+            deliveredEventIds.add(event.eventId);
+            onEvent(event);
+          }
+        }
+        replaying = false;
 
-      if (terminal) {
+        const terminal = isTerminalRunState(record.status.state);
+        if (terminal && record.terminalEndEntry) {
+          const terminalEvent = toRunEvent(runId, record.terminalEndEntry);
+          if (!deliveredEventIds.has(terminalEvent.eventId)) {
+            deliveredEventIds.add(terminalEvent.eventId);
+            onEvent(terminalEvent);
+          }
+        }
+
+        if (terminal) {
+          record.subscribers.delete(subscriber);
+          return { kind: 'ok', unsubscribe: () => {} };
+        }
+
+        return { kind: 'ok', unsubscribe: () => record.subscribers.delete(subscriber) };
+      } catch (error) {
+        // Subscription is installed before durable replay to close the replay→live race. Any
+        // replay I/O or consumer callback failure must therefore remove it before propagating.
         record.subscribers.delete(subscriber);
-        return { kind: 'ok', unsubscribe: () => {} };
+        throw error;
       }
-
-      return { kind: 'ok', unsubscribe: () => record.subscribers.delete(subscriber) };
     },
   };
 

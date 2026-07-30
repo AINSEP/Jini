@@ -543,3 +543,91 @@ describe('CustomSelectOptionButton', () => {
     expect(button.disabled).toBe(true);
   });
 });
+
+describe('CustomSelect with hook override prop', () => {
+  it('uses useCustomSelect hook prop to render a forced closed state (state 1)', () => {
+    const mockToggleOpen = vi.fn();
+    const customHook = () => ({
+      idBase: 'test-select',
+      buttonRef: { current: null },
+      menuRef: { current: null },
+      open: false,
+      activeValue: '',
+      position: null,
+      selectedLabel: 'Injected Label A',
+      optionIdByValue: new Map([['opt1', 'opt1-id']]),
+      activeOptionId: undefined,
+      updatePosition: vi.fn(),
+      toggleOpen: mockToggleOpen,
+      setActiveValue: vi.fn(),
+      choose: vi.fn(),
+      onButtonKeyDown: vi.fn(),
+    });
+
+    render(
+      <CustomSelect
+        value="opt1"
+        options={[{ value: 'opt1', label: 'Option 1' }]}
+        onChange={vi.fn()}
+        ariaLabel="Select Option"
+        useCustomSelect={customHook}
+      />,
+    );
+
+    const trigger = screen.getByRole('combobox');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByText('Injected Label A')).toBeTruthy();
+    expect(screen.queryByRole('listbox')).toBeNull();
+
+    fireEvent.click(trigger);
+    expect(mockToggleOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses useCustomSelect hook prop to render a forced open state with active option (state 2)', () => {
+    const mockChoose = vi.fn();
+    const mockSetActiveValue = vi.fn();
+    const customHook = () => ({
+      idBase: 'test-select',
+      buttonRef: { current: null },
+      menuRef: { current: null },
+      open: true,
+      activeValue: 'opt2',
+      position: null,
+      selectedLabel: 'Option 1',
+      optionIdByValue: new Map([
+        ['opt1', 'opt1-id'],
+        ['opt2', 'opt2-id'],
+      ]),
+      activeOptionId: 'opt2-id',
+      updatePosition: vi.fn(),
+      toggleOpen: vi.fn(),
+      setActiveValue: mockSetActiveValue,
+      choose: mockChoose,
+      onButtonKeyDown: vi.fn(),
+    });
+
+    render(
+      <CustomSelect
+        value="opt1"
+        options={[
+          { value: 'opt1', label: 'Option 1' },
+          { value: 'opt2', label: 'Option 2' },
+        ]}
+        onChange={vi.fn()}
+        ariaLabel="Select Option"
+        portal={false}
+        useCustomSelect={customHook}
+      />,
+    );
+
+    const listbox = screen.getByRole('listbox');
+    expect(listbox).toBeTruthy();
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(options[1]!.className).toContain('active');
+    expect(options[0]!.className).not.toContain('active');
+
+    fireEvent.click(options[1]!);
+    expect(mockChoose).toHaveBeenCalledWith('opt2');
+  });
+});

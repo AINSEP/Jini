@@ -1,5 +1,5 @@
 /**
- * @module @jini/agent-runtime
+ * @module @jini-ai/agent-runtime
  *
  * Public barrel. See `foundry/docs/jini-port/extraction-plan.md` for the target
  * architecture and `source-map.md` for full provenance.
@@ -41,6 +41,7 @@ export * from './diagnostics.js';
 export * from './detection.js';
 export * from './prompt-budget.js';
 export * from './prompt-file.js';
+export * from './log-file.js';
 export * from './amr-model-cache.js';
 
 // Registry + defs.
@@ -59,11 +60,17 @@ export * from './defs/index.js';
 // narrower ACP-probe shape re-exported below. See source-map.md.
 export * from './model-registry.js';
 
-// Stream parsers.
-export { createClaudeStreamHandler } from './claude-stream.js';
+// Stream parsers. Each handler's event union is exported alongside it — previously only
+// `Record<string, unknown>` was visible to a consumer outside this package, which is how a real
+// external integration guessed a nonexistent field name (`event.text`) and silently lost every
+// streamed token instead of getting a compile error. `json-event-stream.ts`'s
+// `createJsonEventStreamHandler` is the one parser NOT given this treatment here: it is a
+// generic multi-CLI parser (`ParserKind`-dispatched, ~40 emission sites across many wire
+// formats), and typing it accurately is a larger, separate task than this pass covers.
+export { createClaudeStreamHandler, type ClaudeStreamEvent } from './claude-stream.js';
 export { createJsonEventStreamHandler } from './json-event-stream.js';
-export { createQoderStreamHandler } from './qoder-stream.js';
-export { createCopilotStreamHandler } from './copilot-stream.js';
+export { createQoderStreamHandler, type QoderEvent } from './qoder-stream.js';
+export { createCopilotStreamHandler, type CopilotStreamEvent } from './copilot-stream.js';
 
 // Ports (injected seams — see each module's doc comment for what OD logic it replaces).
 export * from './amr-profile-resolver.js';
@@ -93,7 +100,7 @@ export * from './telemetry-sink.js';
 // LLM-provider integrations (BYOK model catalogs, OAuth+PKCE, gateway helpers).
 export * from './providers/index.js';
 
-/** @jini/agent-runtime — public barrel (agent-protocol/ half).
+/** @jini-ai/agent-runtime — public barrel (agent-protocol/ half).
  * Re-exports the agent-protocol/ capability barrel's public surface (ACP +
  * pi-rpc subprocess protocol adapters over a shared JSON-line-stream core).
  * See src/agent-protocol/README.md and source-map.md for provenance.

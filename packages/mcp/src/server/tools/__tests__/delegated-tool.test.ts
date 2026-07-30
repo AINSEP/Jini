@@ -21,6 +21,12 @@ describe('createExecuteDelegatedToolTool', () => {
     expect(tool.annotations).toMatchObject({ readOnlyHint: false, title: 'Execute a Jini-registered tool' });
   });
 
+  it('types the input property as an object, so a client does not deliver the model\'s object as a JSON string', () => {
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+    const properties = (tool.inputSchema as { properties: Record<string, unknown> }).properties;
+    expect(properties.input).toMatchObject({ type: 'object', additionalProperties: true });
+  });
+
   it('requires toolId', async () => {
     const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
     await expect(tool.handler({}, ctx)).rejects.toThrow('toolId is required (string).');

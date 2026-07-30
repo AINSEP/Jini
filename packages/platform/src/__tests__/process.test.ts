@@ -156,7 +156,7 @@ const fakeStampContract: ProcessStampContract<FakeStamp> = {
   },
 };
 
-describe('@jini/platform — process — createProcessStampArgs', () => {
+describe('@jini-ai/platform — process — createProcessStampArgs', () => {
   it('encodes every stamp field as --flag=value', () => {
     expect(createProcessStampArgs<FakeStamp>({ app: 'api', namespace: 'alpha' }, fakeStampContract)).toEqual([
       '--fake-app=api',
@@ -178,7 +178,7 @@ describe('@jini/platform — process — createProcessStampArgs', () => {
   });
 });
 
-describe('@jini/platform — process — readFlagValue', () => {
+describe('@jini-ai/platform — process — readFlagValue', () => {
   it('reads both "--flag value" and inline "--flag=value" forms', () => {
     expect(readFlagValue(['--fake-app', 'ui'], '--fake-app')).toBe('ui');
     expect(readFlagValue(['--fake-app=ui'], '--fake-app')).toBe('ui');
@@ -193,7 +193,7 @@ describe('@jini/platform — process — readFlagValue', () => {
   });
 });
 
-describe('@jini/platform — process — readProcessStamp / readProcessStampFromCommand', () => {
+describe('@jini-ai/platform — process — readProcessStamp / readProcessStampFromCommand', () => {
   it('decodes a valid stamp from args and from a tokenized command line', () => {
     const args = createProcessStampArgs<FakeStamp>({ app: 'ui', namespace: 'alpha' }, fakeStampContract);
     expect(readProcessStamp(args, fakeStampContract)).toEqual({ app: 'ui', namespace: 'alpha' });
@@ -209,7 +209,7 @@ describe('@jini/platform — process — readProcessStamp / readProcessStampFrom
   });
 });
 
-describe('@jini/platform — process — matchesProcessStamp / matchesStampedProcess', () => {
+describe('@jini-ai/platform — process — matchesProcessStamp / matchesStampedProcess', () => {
   const stamp: FakeStamp = { app: 'ui', namespace: 'alpha' };
 
   it('matches when every specified criterion equals the stamp field, and unset criteria match anything', () => {
@@ -230,7 +230,7 @@ describe('@jini/platform — process — matchesProcessStamp / matchesStampedPro
   });
 });
 
-describe('@jini/platform — process — spawnBackgroundProcess', () => {
+describe('@jini-ai/platform — process — spawnBackgroundProcess', () => {
   it('spawns a detached background process and resolves its pid once it starts', async () => {
     const { pid } = await spawnBackgroundProcess({ args: ['-e', 'process.exit(0)'], command: process.execPath });
     expect(typeof pid).toBe('number');
@@ -289,7 +289,7 @@ describe('@jini/platform — process — spawnBackgroundProcess', () => {
   });
 });
 
-describe('@jini/platform — process — spawnLoggedProcess', () => {
+describe('@jini-ai/platform — process — spawnLoggedProcess', () => {
   it('spawns a non-detached process by default and returns the live handle', async () => {
     const child = await spawnLoggedProcess({ args: ['-e', 'process.exit(0)'], command: process.execPath });
     expect(typeof child.pid).toBe('number');
@@ -304,7 +304,7 @@ describe('@jini/platform — process — spawnLoggedProcess', () => {
   });
 });
 
-describe('@jini/platform — process — isProcessAlive', () => {
+describe('@jini-ai/platform — process — isProcessAlive', () => {
   it('treats non-number pids as dead', () => {
     expect(isProcessAlive(null)).toBe(false);
     expect(isProcessAlive(undefined)).toBe(false);
@@ -381,7 +381,7 @@ describe('@jini/platform — process — isProcessAlive', () => {
   });
 });
 
-describe('@jini/platform — process — waitForProcessExit', () => {
+describe('@jini-ai/platform — process — waitForProcessExit', () => {
   it('resolves true immediately when the pid is already dead', async () => {
     const spy = vi.spyOn(process, 'kill').mockImplementation(() => {
       throw Object.assign(new Error('gone'), { code: 'ESRCH' });
@@ -398,7 +398,7 @@ describe('@jini/platform — process — waitForProcessExit', () => {
   });
 });
 
-describe('@jini/platform — process — listProcessSnapshots (POSIX)', () => {
+describe('@jini-ai/platform — process — listProcessSnapshots (POSIX)', () => {
   it('enumerates real running processes via ps, including the current test process', async () => {
     if (process.platform === 'win32') return;
     const snapshots = await listProcessSnapshots();
@@ -425,7 +425,7 @@ describe('@jini/platform — process — listProcessSnapshots (POSIX)', () => {
   });
 });
 
-describe('@jini/platform — process — listProcessSnapshots (Windows)', () => {
+describe('@jini-ai/platform — process — listProcessSnapshots (Windows)', () => {
   it('wraps a single (non-array) Get-CimInstance JSON object into a one-element list', async () => {
     mockState.execFileImpl = (_command, _args, _options, callback) => {
       callback(null, JSON.stringify({ CommandLine: 'C:\\node.exe app.js', ParentProcessId: 1, ProcessId: 100 }), '');
@@ -461,7 +461,7 @@ describe('@jini/platform — process — listProcessSnapshots (Windows)', () => 
   });
 });
 
-describe('@jini/platform — process — collectProcessTreePids', () => {
+describe('@jini-ai/platform — process — collectProcessTreePids', () => {
   it('returns nothing for an empty or all-invalid root list', () => {
     expect(collectProcessTreePids([{ command: 'x', pid: 1, ppid: 0 }], [])).toEqual([]);
     expect(collectProcessTreePids([], [null, undefined])).toEqual([]);
@@ -483,7 +483,7 @@ describe('@jini/platform — process — collectProcessTreePids', () => {
   });
 });
 
-describe('@jini/platform — process — stopProcesses', () => {
+describe('@jini-ai/platform — process — stopProcesses', () => {
   it('reports alreadyStopped without calling process.kill for an empty or all-invalid pid list', async () => {
     const spy = vi.spyOn(process, 'kill');
     try {

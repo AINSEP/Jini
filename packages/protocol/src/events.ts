@@ -95,8 +95,8 @@ export type RunAgentPayload =
    * Announces a named sub-stage of a multi-step agent run beginning/ending — generic scaffolding
    * for any driver that structures its work into stages (a build pipeline, a multi-pass review,
    * a plan/execute/verify loop), not tied to any one product's own pipeline concept. Added for
-   * `@jini/agui`'s generalization of OD's `pipeline_stage_started`/`pipeline_stage_completed`
-   * events — see `packages/agui/source-map.md` for the full reasoning and two-consumer
+   * `@jini-ai/agui`'s generalization of OD's `pipeline_stage_started`/`pipeline_stage_completed`
+   * events — see `packages/agentic/source-map.md` for the full reasoning and two-consumer
    * justification. Flows through the existing `RunLifecycle.emit('agent', ...)` channel exactly
    * like `tool_use`/`tool_result` already do; no driver in this codebase produces these yet.
    */
@@ -107,14 +107,29 @@ export type RunAgentPayload =
    * opaque, caller-defined `payload`) and gets an arbitrary `value` back. Generic scaffolding for
    * "the agent needs the user to answer something mid-run" — not a UI component/data-binding
    * protocol (see the real, much larger A2UI spec at a2ui.org for that different, out-of-scope
-   * problem). Added for `@jini/agui`'s generalization of OD's `genui_surface_request`/
-   * `genui_surface_response`/`genui_surface_timeout` events — see `packages/agui/source-map.md`.
+   * problem). Added for `@jini-ai/agui`'s generalization of OD's `genui_surface_request`/
+   * `genui_surface_response`/`genui_surface_timeout` events — see `packages/agentic/source-map.md`.
    * A timeout is represented as a `surface_response` with `respondedBy: 'auto'`, mirroring OD's
    * own collapsing of its two response-shaped event kinds into one. No driver in this codebase
    * produces these yet.
    */
   | { type: 'surface_request'; surfaceId: string; surfaceKind: 'form' | 'choice' | 'confirmation' | 'oauth-prompt'; payload: unknown }
-  | { type: 'surface_response'; surfaceId: string; value: unknown; respondedBy: 'user' | 'agent' | 'auto' | 'cache' };
+  | { type: 'surface_response'; surfaceId: string; value: unknown; respondedBy: 'user' | 'agent' | 'auto' | 'cache' }
+  /**
+   * Carries one real A2UI (a2ui.org v1.0) agent→renderer envelope message verbatim — `createSurface`
+   * / `updateComponents` / `updateDataModel` / `deleteSurface` / `callFunction` / `actionResponse`,
+   * unlike `surface_request`/`surface_response` above (which are a narrower, unrelated "ask a
+   * structured question, get a value back" primitive with no component tree or data binding — see
+   * that variant's own doc, written before A2UI was implemented in this codebase, for the
+   * distinction). `message` is typed `unknown` rather than importing `@jini-ai/agentic`'s own message
+   * union deliberately: `@jini-ai/protocol` sits below every other package in the dependency graph and
+   * must not depend sideways on a feature package for this one variant's shape — the real,
+   * structural validation happens where the type IS known, in `@jini-ai/agentic/a2ui`'s own
+   * `parseAgentToRendererMessage` on the consuming side. Added for the A2UI build-then-break task;
+   * see `examples/reference-web/src/daemon.ts`'s `runA2uiDemo` for the one producer that exists
+   * today, and `examples/reference-web/src/A2uiLab.tsx` for the one consumer.
+   */
+  | { type: 'a2ui'; message: unknown };
 
 export type RunProtocolEvent =
   | RunEvent<'start', RunStartPayload>

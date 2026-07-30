@@ -37,55 +37,8 @@
  * version of this module's `{ id, label, hint, providerId, default, caps }`
  * model-catalogue entry.
  */
-import type { AgentDiagnostic } from './types.js';
+import type { AgentDefinition, CredentialStatus, ModelCatalogOption, ModelProvider } from '@jini-ai/protocol';
 
-/**
- * Where a provider stands relative to a consumer's stored credentials.
- * `available` covers providers that don't need a credential at all (a local
- * or already-authenticated integration); `configured` and `unconfigured`
- * both require one, differing only in whether it's present.
- */
-export type CredentialStatus = 'configured' | 'available' | 'unconfigured';
-
-export interface ModelProvider {
-  id: string;
-  label: string;
-  hint?: string;
-  /** False for providers that need no user-supplied credential (e.g. a local integration). */
-  credentialsRequired?: boolean;
-  docsUrl?: string;
-}
-
-/**
- * A single selectable model/reasoning-mode entry in a provider's catalogue.
- * Named `ModelCatalogOption`, not `ModelOption` — this package's
- * `agent-protocol/acp/models.ts` already owns the plain `ModelOption` name
- * for its narrower `{ id, label }` ACP model-probe shape; see this file's
- * module doc comment.
- */
-export interface ModelCatalogOption {
-  id: string;
-  label: string;
-  hint?: string;
-  providerId: string;
-  /** Marks the recommended/default-checked option within its provider group. */
-  default?: boolean;
-  caps?: string[];
-}
-
-export interface AgentDefinition {
-  id: string;
-  name: string;
-  available: boolean;
-  version?: string | null;
-  models?: ModelCatalogOption[];
-  reasoningOptions?: ModelCatalogOption[];
-  diagnostics?: AgentDiagnostic[];
-  installUrl?: string;
-  docsUrl?: string;
-  /** False hides free-text/custom model entry for agents whose CLI can't accept one. */
-  supportsCustomModel?: boolean;
-}
 
 export interface AgentModelChoice {
   model?: string;
@@ -186,3 +139,15 @@ export function effectiveAgentModelChoice(
 ): AgentModelChoice | undefined {
   return normalizeAgentModelChoice(agent, choice) ?? choice;
 }
+
+/**
+ * Model/provider/agent catalogue vocabulary. Moved to `@jini-ai/protocol` on 2026-07-29 (see that
+ * package's `agent-catalog.ts`) so a browser package can consume it without depending on this
+ * Node-only runtime. Re-exported here so every existing import keeps working unchanged.
+ */
+export type {
+  AgentDefinition,
+  CredentialStatus,
+  ModelCatalogOption,
+  ModelProvider,
+} from '@jini-ai/protocol';

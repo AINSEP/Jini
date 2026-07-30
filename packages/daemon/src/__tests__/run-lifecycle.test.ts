@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { RunProtocolEvent } from '@jini/protocol';
+import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
 import type { EventLog } from '../event-log.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
@@ -48,6 +48,29 @@ describe('RunLifecycle — start', () => {
     const a = await lifecycle.start({ contextRef: 'ctx-1', idempotencyKey: 'k1' });
     const b = await lifecycle.start({ contextRef: 'ctx-1', idempotencyKey: 'k2' });
     expect(a.run.id).not.toBe(b.run.id);
+  });
+
+  it('unwinds the run and idempotency reservation when the durable start append fails', async () => {
+    const inner = createInMemoryEventLog();
+    let failStart = true;
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'start' && failStart) throw new Error('start append failed');
+        return inner.append(input);
+      },
+    };
+    const lifecycle = createRunLifecycle({ eventLog });
+    const input = { contextRef: 'ctx-start-failure', runId: 'retryable-run', idempotencyKey: 'retryable-key' };
+
+    await expect(lifecycle.start(input)).rejects.toThrow('start append failed');
+    expect(await lifecycle.get('retryable-run')).toBeUndefined();
+
+    failStart = false;
+    await expect(lifecycle.start(input)).resolves.toMatchObject({
+      run: { id: 'retryable-run', state: 'running' },
+      started: true,
+    });
   });
 
   it('throws when starting with an explicit runId that already exists and no idempotencyKey makes it a legitimate replay', async () => {
@@ -301,6 +324,60 @@ describe('RunLifecycle — finish', () => {
     }
   });
 
+  it('serializes concurrent finish calls behind one durable end append', async () => {
+    const inner = createInMemoryEventLog();
+    let releaseEnd!: () => void;
+    const endGate = new Promise<void>((resolve) => {
+      releaseEnd = resolve;
+    });
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') await endGate;
+        return inner.append(input);
+      },
+    };
+    const lifecycle = createRunLifecycle({ eventLog });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-concurrent-finish' });
+
+    const first = lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: true });
+    const second = lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+    releaseEnd();
+
+    await expect(first).resolves.toMatchObject({ state: 'failed' });
+    await expect(second).resolves.toMatchObject({ state: 'failed' });
+    const replay = await inner.replay(run.id, null);
+    expect(replay.kind === 'ok' && replay.entries.filter((entry) => entry.event === 'end')).toHaveLength(1);
+  });
+
+  it('keeps a run retryable and resolves existing waiters after a failed durable end append', async () => {
+    const inner = createInMemoryEventLog();
+    let failEnd = true;
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end' && failEnd) throw new Error('end append failed');
+        return inner.append(input);
+      },
+    };
+    const lifecycle = createRunLifecycle({ eventLog });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-finish-failure' });
+    const waiter = lifecycle.waitForTerminal(run.id);
+
+    await expect(
+      lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: true }),
+    ).rejects.toThrow('end append failed');
+    const statusAfterFailure = await lifecycle.get(run.id);
+    expect(statusAfterFailure).toMatchObject({ state: 'running' });
+    expect(statusAfterFailure).not.toHaveProperty('endedAt');
+
+    failEnd = false;
+    await expect(
+      lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false }),
+    ).resolves.toMatchObject({ state: 'succeeded' });
+    await expect(waiter).resolves.toMatchObject({ state: 'succeeded' });
+  });
+
   it('delivers the end event live to a subscriber that is already streaming when finish() is called', async () => {
     const { lifecycle } = makeLifecycle();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -366,6 +443,43 @@ describe('RunLifecycle — cancel', () => {
     expect(status.state).toBe('succeeded');
   });
 
+  it('cancelling a run whose finish() is still committing returns that finish\'s outcome instead of recording cancel intent', async () => {
+    // `finish()` reserves the terminal transition with `finishPromise` *before* awaiting the
+    // durable end append, and the run stays non-terminal for that whole window. A `cancel()`
+    // arriving inside it must join the in-flight transition rather than latch cancellation intent
+    // onto a run that is already on its way to a different terminal state — otherwise the run
+    // would report `succeeded` while also claiming a cancel was requested.
+    const inner = createInMemoryEventLog();
+    let releaseEndAppend: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseEndAppend = resolve;
+    });
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') await gate;
+        return inner.append(input);
+      },
+    };
+    const lifecycle = createRunLifecycle({ eventLog });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-cancel-race' });
+
+    const listener = vi.fn();
+    lifecycle.onCancelRequested(run.id, listener);
+
+    const finishPromise = lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+    // Still mid-flight: the end append is gated, so the run has not committed yet.
+    expect(await lifecycle.get(run.id)).toMatchObject({ state: 'running' });
+
+    const cancelPromise = lifecycle.cancel({ runId: run.id, reason: 'too late' });
+    releaseEndAppend?.();
+
+    expect((await cancelPromise).state).toBe('succeeded');
+    expect((await finishPromise).state).toBe('succeeded');
+    // No cancellation intent was recorded, so no driver was told to tear anything down.
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it('notifies onCancelRequested listeners without itself forcing a terminal transition', async () => {
     const { lifecycle } = makeLifecycle();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -376,7 +490,7 @@ describe('RunLifecycle — cancel', () => {
 
     expect(listener).toHaveBeenCalledWith({ runId: run.id, reason: 'user requested' });
     // The kernel does not own subprocess signaling (extraction-plan task 7,
-    // @jini/agent-runtime); it is the driver's job to observe the signal and
+    // @jini-ai/agent-runtime); it is the driver's job to observe the signal and
     // call finish() once it knows the real outcome.
     expect(status.state).toBe('running');
 
@@ -620,6 +734,74 @@ describe('RunLifecycle — stream (reconnect)', () => {
     expect(delivered.map((e) => e.kind)).toEqual(['start', 'agent']);
   });
 
+  it('flushes buffered live output before exactly one end when the run finishes during replay', async () => {
+    const inner = createInMemoryEventLog();
+    let releaseReplay: (() => void) | undefined;
+    const gatedEventLog: EventLog = {
+      append: inner.append,
+      listRunIds: inner.listRunIds,
+      drop: inner.drop,
+      async replay(runId, afterCursor) {
+        const snapshot = await inner.replay(runId, afterCursor);
+        if (releaseReplay === undefined) {
+          await new Promise<void>((resolve) => {
+            releaseReplay = resolve;
+          });
+        }
+        return snapshot;
+      },
+    };
+    const lifecycle = createRunLifecycle({ eventLog: gatedEventLog });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-terminal-during-replay' });
+    const delivered: RunProtocolEvent[] = [];
+    const streamPromise = lifecycle.stream(run.id, (event) => delivered.push(event));
+
+    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'text_delta', delta: 'must arrive before end' } });
+    await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    expect(releaseReplay).toBeDefined();
+    releaseReplay!();
+    await expect(streamPromise).resolves.toMatchObject({ kind: 'ok' });
+
+    expect(delivered.map((event) => event.kind)).toEqual(['start', 'agent', 'end']);
+    expect(delivered.filter((event) => event.kind === 'end')).toHaveLength(1);
+  });
+
+  it('removes the provisional subscriber when durable replay rejects', async () => {
+    const inner = createInMemoryEventLog();
+    const replayError = new Error('durable replay failed');
+    const eventLog: EventLog = {
+      append: inner.append,
+      listRunIds: inner.listRunIds,
+      drop: inner.drop,
+      async replay() {
+        throw replayError;
+      },
+    };
+    const lifecycle = createRunLifecycle({ eventLog });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-replay-error' });
+    const subscriber = vi.fn();
+
+    await expect(lifecycle.stream(run.id, subscriber)).rejects.toBe(replayError);
+    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'status', label: 'after failed replay' } });
+
+    expect(subscriber).not.toHaveBeenCalled();
+  });
+
+  it('removes the provisional subscriber when a replay callback throws', async () => {
+    const { lifecycle } = makeLifecycle();
+    const { run } = await lifecycle.start({ contextRef: 'ctx-callback-error' });
+    const subscriber = vi.fn(() => {
+      throw new Error('consumer callback failed');
+    });
+
+    await expect(lifecycle.stream(run.id, subscriber)).rejects.toThrow('consumer callback failed');
+    expect(subscriber).toHaveBeenCalledTimes(1);
+
+    await lifecycle.emit(run.id, { event: 'agent', data: { type: 'status', label: 'after callback failure' } });
+    expect(subscriber).toHaveBeenCalledTimes(1);
+  });
+
   it('the unsubscribe handle returned for an already-terminal run is callable and a genuine no-op', async () => {
     const { lifecycle } = makeLifecycle();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -665,6 +847,96 @@ describe('RunLifecycle — inactivity watchdog', () => {
     expect(status?.state).toBe('running');
   });
 
+  it('contains and reports a durable end-append failure from the timer callback', async () => {
+    const inner = createInMemoryEventLog();
+    const appendError = new Error('event database is closed');
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') throw appendError;
+        return inner.append(input);
+      },
+    };
+    const onInternalError = vi.fn();
+    const lifecycle = createRunLifecycle({ eventLog, onInternalError });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-timeout-error', inactivityTimeoutMs: 1_000 });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(onInternalError).toHaveBeenCalledWith({
+      source: 'inactivity-timeout',
+      runId: run.id,
+      error: appendError,
+    });
+    const statusAfterFailure = await lifecycle.get(run.id);
+    expect(statusAfterFailure).toMatchObject({ state: 'running' });
+    expect(statusAfterFailure).not.toHaveProperty('endedAt');
+  });
+
+  it('logs a durable end-append failure to the console when no onInternalError sink is configured', async () => {
+    // Same containment path as the test above, but with the diagnostic sink omitted: the failure
+    // must still surface somewhere rather than vanishing into a swallowed timer rejection.
+    const inner = createInMemoryEventLog();
+    const appendError = new Error('event database is closed');
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') throw appendError;
+        return inner.append(input);
+      },
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const lifecycle = createRunLifecycle({ eventLog });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-no-sink', inactivityTimeoutMs: 1_000 });
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining(`internal error (inactivity-timeout, runId=${run.id})`),
+        appendError,
+      );
+      // Containment, not recovery: the run is left exactly as it was.
+      expect(await lifecycle.get(run.id)).toMatchObject({ state: 'running' });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('does not let a throwing onInternalError sink turn a contained timer failure into a second unhandled rejection', async () => {
+    const inner = createInMemoryEventLog();
+    const appendError = new Error('event database is closed');
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') throw appendError;
+        return inner.append(input);
+      },
+    };
+    const sinkError = new Error('telemetry sink exploded');
+    const onInternalError = vi.fn(() => {
+      throw sinkError;
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const lifecycle = createRunLifecycle({ eventLog, onInternalError });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-bad-sink', inactivityTimeoutMs: 1_000 });
+
+      // Must not reject: the watchdog callback is fire-and-forget, so a throwing sink escaping
+      // here would surface as an unhandled rejection (fatal in modern Node).
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(onInternalError).toHaveBeenCalledTimes(1);
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining(`internal error sink failed (inactivity-timeout, runId=${run.id})`),
+        sinkError,
+      );
+      expect(await lifecycle.get(run.id)).toMatchObject({ state: 'running' });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('a watchdog armed onto a run that finished during start()\'s own durable append is a no-op once it fires (start/finish race)', async () => {
     // The record is inserted into the registry (`runs.set`) *before* `start()` awaits the
     // durable append of its 'start' event, but the watchdog itself is only armed *after*
@@ -687,10 +959,11 @@ describe('RunLifecycle — inactivity watchdog', () => {
     const lifecycle = createRunLifecycle({ eventLog });
 
     const startPromise = lifecycle.start({ contextRef: 'ctx-1', runId: 'race-run', inactivityTimeoutMs: 1_000 });
-    await lifecycle.finish({ runId: 'race-run', status: 'failed', code: null, signal: null, resumable: true });
+    const finishPromise = lifecycle.finish({ runId: 'race-run', status: 'failed', code: null, signal: null, resumable: true });
 
     releaseStartAppend?.();
-    await startPromise; // resumes and arms a watchdog onto the now-terminal record
+    await startPromise; // resumes and arms a watchdog after the durable start exists
+    await finishPromise; // appends the end only after the start promise commits
 
     const finishSpy = vi.spyOn(lifecycle, 'finish');
     await vi.advanceTimersByTimeAsync(1_000); // fires the watchdog's onTimeout

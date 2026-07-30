@@ -1,12 +1,41 @@
 {
-  "name": "@jini/daemon",
-  "version": "0.1.0",
+  "name": "@jini-ai/daemon",
+  "version": "0.2.1",
+  "description": "The stateful agent daemon runtime: run lifecycle, durable event-log port, the tool-execution boundary, agent executor, terminal sessions, and routines.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/daemon" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/daemon"
+  },
+  "jini": {
+    "domain": "server",
+    "kind": "runtime",
+    "runtime": "node"
+  },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -14,11 +43,21 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/agent-runtime": "workspace:*",
-    "@jini/core": "workspace:*",
-    "@jini/platform": "workspace:*",
-    "@jini/protocol": "workspace:*",
+    "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
+    "@jini-ai/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
     "node-pty": "^1.1.0"
   },
-  "devDependencies": { "@vitest/coverage-v8": "^2.1.9" }
+  "peerDependencies": {
+    "node-pty": "^1.1.0"
+  },
+  "peerDependenciesMeta": {
+    "node-pty": {
+      "optional": true
+    }
+  }
 }

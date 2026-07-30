@@ -4,7 +4,7 @@
 // and the recent-scans history. Rendering only — every list, flag, and handler
 // is supplied by a host's connectors/extractions hooks. Connector
 // labels/byte counts come from the slice formatters. `ConnectorLogo` is
-// `@jini/ui`'s own (`features/connectors`) — it has no theme prop (that
+// `@jini-ai/ui`'s own (`features/connectors`) — it has no theme prop (that
 // concern was already dropped when the connectors canary shipped; a host
 // resolving theme-swapped logo URLs does so before handing `logoUrl` in).
 import { useMemo } from 'react';

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
 
-describe('@jini/core — redact — redactSecrets', () => {
+describe('@jini-ai/core — redact — redactSecrets', () => {
   it('passes empty input through unchanged', () => {
     expect(redactSecrets('')).toBe('');
   });
@@ -86,7 +86,7 @@ describe('@jini/core — redact — redactSecrets', () => {
   });
 });
 
-describe('@jini/core — redact — redactSecretsWithCounts', () => {
+describe('@jini-ai/core — redact — redactSecretsWithCounts', () => {
   it('returns zero counts and unchanged text for empty input', () => {
     expect(redactSecretsWithCounts('')).toEqual({ redacted: '', counts: {} });
   });

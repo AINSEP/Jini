@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../i18n/index.js';
@@ -292,5 +292,85 @@ describe('ConnectorsBrowser', () => {
     );
     expect(screen.getByText('Connecteurs')).toBeTruthy();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Connecter' })).toBeTruthy());
+  });
+});
+
+describe('ConnectorsBrowser 4-pattern hook override test suite', () => {
+  it('Pattern 1 — State 1: Catalog loading state via hook override', () => {
+    const customCatalogHook = () => ({
+      connectors: [],
+      setConnectors: vi.fn(),
+      loading: true,
+      enriched: false,
+    });
+
+    render(<ConnectorsBrowser unlocked useConnectorCatalog={customCatalogHook as any} />);
+
+    expect(screen.getByText('Loading…')).toBeInTheDocument();
+  });
+
+  it('Pattern 2 — State 2: Active catalog grid with connectors via hook override', () => {
+    const connectors = [makeConnector({ id: 'jira', name: 'Jira' })];
+    const customCatalogHook = () => ({
+      connectors,
+      setConnectors: vi.fn(),
+      loading: false,
+      enriched: true,
+    });
+
+    render(<ConnectorsBrowser unlocked useConnectorCatalog={customCatalogHook as any} />);
+
+    expect(screen.getByText('Jira')).toBeInTheDocument();
+  });
+
+  it('Pattern 3 — State 3: Active connector detail drawer state via hook override', () => {
+    const connectors = [makeConnector({ id: 'jira', name: 'Jira' })];
+    const customCatalogHook = () => ({
+      connectors,
+      setConnectors: vi.fn(),
+      loading: false,
+      enriched: true,
+    });
+
+    const customDetailHook = () => ({
+      detailConnectorId: 'jira',
+      detailConnector: connectors[0]!,
+      toolsLoaded: true,
+      toolPreviewLoading: false,
+      openDetails: vi.fn(),
+      closeDetails: vi.fn(),
+      loadMoreTools: vi.fn(),
+    });
+
+    render(
+      <ConnectorsBrowser
+        unlocked
+        useConnectorCatalog={customCatalogHook as any}
+        useConnectorDetail={customDetailHook as any}
+      />,
+    );
+
+    expect(screen.getByTestId('connector-drawer')).toBeInTheDocument();
+  });
+
+  it('Pattern 4 — State 4: Dynamic search filtering transition walkthrough using React useState inside test harness', () => {
+    const connectors = [makeConnector({ id: 'jira', name: 'Jira' }), makeConnector({ id: 'slack', name: 'Slack' })];
+    const customCatalogHook = () => ({
+      connectors,
+      setConnectors: vi.fn(),
+      loading: false,
+      enriched: true,
+    });
+
+    render(<ConnectorsBrowser unlocked useConnectorCatalog={customCatalogHook as any} />);
+
+    expect(screen.getByText('Jira')).toBeInTheDocument();
+    expect(screen.getByText('Slack')).toBeInTheDocument();
+
+    const input = screen.getByTestId('connectors-search-input');
+    fireEvent.change(input, { target: { value: 'jira' } });
+
+    expect(screen.getByText('Jira')).toBeInTheDocument();
+    expect(screen.queryByText('Slack')).toBeNull();
   });
 });

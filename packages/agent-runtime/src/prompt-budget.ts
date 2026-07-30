@@ -58,7 +58,7 @@ export function checkPromptArgvBudget(
   return { code: 'AGENT_PROMPT_TOO_LARGE', message: promptArgvBudgetMessage(def, bytes, limit), bytes, limit };
 }
 
-// Mirror of `@jini/platform`'s internal `quoteWindowsCommandArg`, kept
+// Mirror of `@jini-ai/platform`'s internal `quoteWindowsCommandArg`, kept
 // local so `checkWindowsCmdShimCommandLineBudget` can run on macOS/Linux
 // against a fake `.cmd` path in tests without forking on `process.platform`.
 // Must stay byte-for-byte identical to the platform copy — the helper's
@@ -130,7 +130,7 @@ const WINDOWS_CREATE_PROCESS_HEADROOM = 256;
 
 // Post-buildArgs guard for argv-bound adapters whose binary resolves to a
 // Windows `.cmd` / `.bat` shim. Computes the exact command line shape
-// `@jini/platform`'s `createCommandInvocation` hands to `spawn` —
+// `@jini-ai/platform`'s `createCommandInvocation` hands to `spawn` —
 // `cmd.exe /d /s /c "<quoted command + quoted args>"` — and refuses the
 // run when that line would exceed the CreateProcess limit (less a small
 // headroom). Returns the same `AGENT_PROMPT_TOO_LARGE` shape as
@@ -156,7 +156,7 @@ export function checkWindowsCmdShimCommandLineBudget(
   if (typeof resolvedBin !== 'string' || !/\.(bat|cmd)$/i.test(resolvedBin)) return null;
   const argList = Array.isArray(args) ? args : [];
   const inner = [resolvedBin, ...argList].map(quoteForWindowsCmdShim).join(' ');
-  // `cmd.exe /d /s /c "<inner>"` — same shape `@jini/platform`'s
+  // `cmd.exe /d /s /c "<inner>"` — same shape `@jini-ai/platform`'s
   // `createCommandInvocation` builds; the leading 'cmd.exe ' + '/d /s /c '
   // framing plus the two outer quote chars rounds out the full command
   // line.

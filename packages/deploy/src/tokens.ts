@@ -1,4 +1,4 @@
-import { manyToken } from '@jini/core';
+import { manyToken } from '@jini-ai/core';
 import { DeployError, type DeployFile, type DeployPublishResult, type DeployTarget, type JsonObject } from './types.js';
 
 /**
@@ -14,7 +14,7 @@ import { DeployError, type DeployFile, type DeployPublishResult, type DeployTarg
  * ```
  *
  * A pack then resolves `c.getMany(DeployTargetToken)` to get every bound
- * target without this package (or `@jini/core`) needing to know how many
+ * target without this package (or `@jini-ai/core`) needing to know how many
  * providers exist or which ones a given host chose.
  */
 export const DeployTargetToken = manyToken<DeployTarget>('jini.deployTarget');
@@ -34,7 +34,7 @@ export interface DeployPublishToolInput {
  * `deploy.publish` as a plain async function.
  *
  * This is deliberately **not** wired into a real tool-execution boundary
- * yet — `@jini/core`'s `ToolRegistry`/`ToolExecutor` (extraction-plan.md §8
+ * yet — `@jini-ai/core`'s `ToolRegistry`/`ToolExecutor` (extraction-plan.md §8
  * task 6, §2.5) doesn't exist yet. Once it does, the intended shape is:
  *
  * ```ts

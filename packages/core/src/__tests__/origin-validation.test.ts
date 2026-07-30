@@ -20,7 +20,7 @@ const CONFIG: OriginValidationEnvConfig = {
   bindHostEnvVar: 'FAKE_BIND_HOST',
 };
 
-describe('@jini/core — origin-validation — configuredAllowedOrigins/Hosts', () => {
+describe('@jini-ai/core — origin-validation — configuredAllowedOrigins/Hosts', () => {
   it('is empty when unset or blank', () => {
     expect(configuredAllowedOrigins(CONFIG, {})).toEqual([]);
     expect(configuredAllowedOrigins(CONFIG, { [CONFIG.allowedOriginsEnvVar]: '   ' })).toEqual([]);
@@ -41,7 +41,7 @@ describe('@jini/core — origin-validation — configuredAllowedOrigins/Hosts', 
   });
 });
 
-describe('@jini/core — origin-validation — allowedBrowserPorts', () => {
+describe('@jini-ai/core — origin-validation — allowedBrowserPorts', () => {
   it('includes the primary port only when webPort is unset or equal', () => {
     expect(allowedBrowserPorts(CONFIG, 3000, {})).toEqual([3000]);
     expect(allowedBrowserPorts(CONFIG, 3000, { [CONFIG.webPortEnvVar]: '3000' })).toEqual([3000]);
@@ -57,7 +57,7 @@ describe('@jini/core — origin-validation — allowedBrowserPorts', () => {
   });
 });
 
-describe('@jini/core — origin-validation — parseHostHeader', () => {
+describe('@jini-ai/core — origin-validation — parseHostHeader', () => {
   it('returns null for a missing or unparseable header', () => {
     expect(parseHostHeader(undefined)).toBeNull();
     expect(parseHostHeader('   ')).toBeNull();
@@ -81,7 +81,7 @@ describe('@jini/core — origin-validation — parseHostHeader', () => {
   });
 });
 
-describe('@jini/core — origin-validation — isPrivateIpv4', () => {
+describe('@jini-ai/core — origin-validation — isPrivateIpv4', () => {
   it('accepts the three RFC1918 ranges and link-local', () => {
     expect(isPrivateIpv4('10.0.0.1')).toBe(true);
     expect(isPrivateIpv4('172.16.0.1')).toBe(true);
@@ -100,7 +100,7 @@ describe('@jini/core — origin-validation — isPrivateIpv4', () => {
   });
 });
 
-describe('@jini/core — origin-validation — isIpLiteralHostname', () => {
+describe('@jini-ai/core — origin-validation — isIpLiteralHostname', () => {
   it('accepts a bracketed literal and a dotted-quad', () => {
     expect(isIpLiteralHostname('[::1]')).toBe(true);
     expect(isIpLiteralHostname('10.0.0.1')).toBe(true);
@@ -115,7 +115,7 @@ describe('@jini/core — origin-validation — isIpLiteralHostname', () => {
   });
 });
 
-describe('@jini/core — origin-validation — isLoopbackOrPrivateLanHost', () => {
+describe('@jini-ai/core — origin-validation — isLoopbackOrPrivateLanHost', () => {
   it('recognizes every loopback/unspecified spelling and private ranges, case-insensitively', () => {
     for (const host of ['localhost', '127.0.0.1', '::1', '[::1]', '0.0.0.0', '::', 'LOCALHOST', '10.1.2.3']) {
       expect(isLoopbackOrPrivateLanHost(host)).toBe(true);
@@ -132,7 +132,7 @@ describe('@jini/core — origin-validation — isLoopbackOrPrivateLanHost', () =
   });
 });
 
-describe('@jini/core — origin-validation — isAllowedBrowserHost', () => {
+describe('@jini-ai/core — origin-validation — isAllowedBrowserHost', () => {
   it('rejects an unparseable host header', () => {
     expect(isAllowedBrowserHost(CONFIG, 'a b', [3000], '127.0.0.1', [])).toBe(false);
   });
@@ -167,7 +167,7 @@ describe('@jini/core — origin-validation — isAllowedBrowserHost', () => {
   });
 });
 
-describe('@jini/core — origin-validation — isAllowedBrowserOrigin', () => {
+describe('@jini-ai/core — origin-validation — isAllowedBrowserOrigin', () => {
   it('accepts an explicitly allow-listed origin string', () => {
     expect(
       isAllowedBrowserOrigin(CONFIG, 'https://proxy.example', 'proxy.example', [3000], '127.0.0.1', [
@@ -225,7 +225,7 @@ describe('@jini/core — origin-validation — isAllowedBrowserOrigin', () => {
   });
 });
 
-describe('@jini/core — origin-validation — isLocalSameOrigin', () => {
+describe('@jini-ai/core — origin-validation — isLocalSameOrigin', () => {
   it('allows a same-origin GET with no Origin header when the host is locally served', () => {
     expect(isLocalSameOrigin(CONFIG, { headers: { host: 'localhost:3000' } }, 3000, {})).toBe(true);
   });

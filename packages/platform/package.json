@@ -1,18 +1,51 @@
 {
-  "name": "@jini/platform",
-  "version": "0.1.0",
+  "name": "@jini-ai/platform",
+  "version": "0.1.2",
+  "description": "Generic OS/platform primitives: process exec and lifecycle, filesystem containment, HTTP readiness polling, toolchain discovery, blob storage, AWS signing, and an SSRF-safe asset cache.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/platform" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/platform"
+  },
+  "jini": {
+    "domain": "platform",
+    "kind": "abstraction",
+    "runtime": "node"
+  },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "dependencies": { "undici": "^7.25.0" },
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "dependencies": {
+    "undici": "^7.25.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
-  "devDependencies": { "@vitest/coverage-v8": "^2.1.9" }
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9"
+  }
 }

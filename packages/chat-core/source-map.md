@@ -34,7 +34,48 @@ below) rather than trusting the line-count/coupling summary blindly.
 | `src/artifacts/pointer.ts` | `apps/web/src/artifacts/pointer.ts` (81 lines) | Verbatim logic (`resolveHtmlPointerArtifactTarget`). Uses `TextEncoder` (a WHATWG/ECMA-402 global available in both browser and Node runtimes, not a DOM/browser-only API) — not on the forbidden-globals list (`window`/`document`/`fetch`/`EventSource`/`localStorage`/`sessionStorage`/`XMLHttpRequest`/`WebSocket`) and kept as-is. |
 | `src/artifacts/index.ts` | *(new — not a 1:1 origin file)* | Barrel for the `artifacts/*` module group, re-exporting `types`/`parser`/`strip`/`validate`/`manifest`/`recover`/`pointer` but deliberately omitting `markdown-context` (internal only). |
 | `src/transcript.ts` | `apps/web/src/providers/daemon.ts` (pure slice, lines ~74-260 of 1521; the file's SSE/fetch transport — `streamViaDaemon`, `DaemonStreamHandlers`, everything importing `@open-design/contracts`/`./anthropic`/`./sse` — was **not** touched or ported) | See "Transcript generalization" below for the full accounting of what changed and why; this file needed the most adaptation of anything in this package. |
+| `src/agentic/chat-capabilities.ts` | *(new 2026-07-25 — not ported from OD)* | See "Agent-control vocabulary" below. |
 | `src/index.ts` | *(new — barrel)* | Re-exports every module above. |
+
+## Agent-control vocabulary (`src/agentic/`) — mostly moved to `@jini/agentic` on 2026-07-26
+
+Added 2026-07-25 as new work (no OD provenance). On 2026-07-26, everything in this folder except
+`chat-capabilities.ts` moved to `@jini/agentic` — `capability.ts` (`CapabilityDef`,
+`availableCapabilities`), `page-capabilities.ts` (`PAGE_CAPABILITIES`), `element-handles.ts` (the
+`data-agent-*` convention), `guards.ts` (`findFieldFillRefusal`/`normalizeAgentLabel`),
+`page-driver.ts`/`page-executor.ts` (the `PageDriver` port and its policy gate), and the three
+protocol projections (`ag-ui.ts`, `mcp-ui.ts`, `webmcp.ts`). See
+`ADS-memory/reports/proposals/PLAN-jini-agentic-extraction-2026-07-26.md` and
+`packages/agentic/source-map.md` for the extraction and the full file map.
+
+**What stayed, and why.** `chat-capabilities.ts` — the seven `chat.*` capabilities
+(`chat.send_message`, `chat.set_draft`, `chat.select_agent`, `chat.cancel_run`,
+`chat.reset_conversation`, `chat.set_working_directory`, `chat.get_state`) — is a genuine chat
+product surface, not vocabulary, and this package now depends on `@jini/agentic` for the
+`CapabilityDef` type rather than the other way around. This is deliberate: if everything had
+moved, the vocabulary/product boundary the extraction exists to create would have been fake. The
+original reasons this folder existed at all (below) now describe `@jini/agentic`, not this
+package:
+
+1. A server-side host (an HTTP route table, an MCP stdio server) must be able to read the same
+   manifest without pulling a browser component graph into its process. `chat-react` has a
+   single `.` export that reaches `@jini/ui` → `@excalidraw/excalidraw`, `lexical`, `micromark`.
+2. `chat-react` is one framework binding. A Vue or Svelte sibling must read identical
+   definitions, or the surfaces drift.
+
+**Vocabulary settled here (pre-2026-07-26, still true):** `tool` stays reserved for the engine's
+own `ToolRegistry`/`ToolExecutor` nouns; anything an outside caller asks a *frontend* to do is a
+**capability**. The first draft had forked this across four files (`ChatPaneAgentToolDef` next
+to `capabilityId`), which is why `chat-react`'s older names still carry `@deprecated`.
+
+**Entry points, updated.** This package's `.` export no longer carries a `./agentic` subpath —
+removed in the 2026-07-26 extraction, since the folder now only holds one chat-specific data
+module rather than a slice worth publishing separately. An external consumer that wants only the
+vocabulary now depends on `@jini/agentic` directly.
+
+**Not here:** how an action reaches a page. That is a transport concern — same-document in a
+real site, `postMessage` when a host embeds an untrusted preview in a sandboxed frame. The
+verbs are identical either way, which is the point of keeping them transport-free.
 
 ## Transcript generalization (`src/transcript.ts`)
 

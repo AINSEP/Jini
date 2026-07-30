@@ -1,15 +1,80 @@
 {
-  "name": "@jini/capability-providers",
-  "version": "0.1.0",
+  "name": "@jini-ai/capability-providers",
+  "version": "0.1.2",
+  "description": "Swappable capability-provider ports (auth, storage, payments, db, realtime) as interfaces and DI tokens only; concrete adapters live behind ./adapters/* subpaths.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/capability-providers" },
-  "type": "module",
-  "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" },
-    "./unsafe-reference": { "types": "./dist/unsafe-reference/index.d.ts", "import": "./dist/unsafe-reference/index.js" }
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/capability-providers"
   },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "jini": {
+    "domain": "capability",
+    "kind": "provider-adapters",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./unsafe-reference": "universal",
+      "./adapters/ws": "node",
+      "./adapters/sqlite": "node",
+      "./adapters/blob-storage": "node",
+      "./adapters/jwt-auth": "node",
+      "./adapters/stripe": "universal"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./unsafe-reference": {
+      "types": "./dist/unsafe-reference/index.d.ts",
+      "import": "./dist/unsafe-reference/index.js",
+      "default": "./dist/unsafe-reference/index.js"
+    },
+    "./adapters/ws": {
+      "types": "./dist/adapters/ws/index.d.ts",
+      "import": "./dist/adapters/ws/index.js",
+      "default": "./dist/adapters/ws/index.js"
+    },
+    "./adapters/sqlite": {
+      "types": "./dist/adapters/sqlite/index.d.ts",
+      "import": "./dist/adapters/sqlite/index.js",
+      "default": "./dist/adapters/sqlite/index.js"
+    },
+    "./adapters/blob-storage": {
+      "types": "./dist/adapters/blob-storage/index.d.ts",
+      "import": "./dist/adapters/blob-storage/index.js",
+      "default": "./dist/adapters/blob-storage/index.js"
+    },
+    "./adapters/jwt-auth": {
+      "types": "./dist/adapters/jwt-auth/index.d.ts",
+      "import": "./dist/adapters/jwt-auth/index.js",
+      "default": "./dist/adapters/jwt-auth/index.js"
+    },
+    "./adapters/stripe": {
+      "types": "./dist/adapters/stripe/index.d.ts",
+      "import": "./dist/adapters/stripe/index.js",
+      "default": "./dist/adapters/stripe/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -17,14 +82,26 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/core": "workspace:*",
-    "@jini/platform": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*"
+  },
+  "peerDependencies": {
     "better-sqlite3": "^11.10.0",
     "ws": "^8.18.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/ws": "^8.18.0",
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "^11.10.0",
+    "ws": "^8.18.0"
   }
 }

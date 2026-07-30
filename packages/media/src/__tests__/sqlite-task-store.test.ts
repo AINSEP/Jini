@@ -18,10 +18,10 @@ let dir: string;
 let dbPath: string;
 let store: SqliteMediaTaskStore;
 
-beforeEach(() => {
+beforeEach(async () => {
   dir = mkdtempSync(join(tmpdir(), 'jini-media-task-store-'));
   dbPath = join(dir, 'media-tasks.db');
-  store = createSqliteMediaTaskStore(dbPath);
+  store = await createSqliteMediaTaskStore(dbPath);
 });
 
 afterEach(async () => {
@@ -258,7 +258,7 @@ describe('createSqliteMediaTaskStore — durability across a simulated process r
     await store.create({ id: 't1', ownerRef: 'run-1', surface: 'image', model: 'gpt-image-2' });
     await store.close();
 
-    const reopened = createSqliteMediaTaskStore(dbPath);
+    const reopened = await createSqliteMediaTaskStore(dbPath);
     const task = await reopened.get('t1');
     expect(task).toMatchObject({ id: 't1', ownerRef: 'run-1', surface: 'image', model: 'gpt-image-2', status: 'queued' });
     await reopened.close();
@@ -273,7 +273,7 @@ describe('createSqliteMediaTaskStore — durability across a simulated process r
     await store.update('job-1', { progress: ['submitted', 'polling attempt 3'] });
     await store.close(); // process "dies" here — no graceful shutdown call beyond releasing the file handle.
 
-    const revived = createSqliteMediaTaskStore(dbPath);
+    const revived = await createSqliteMediaTaskStore(dbPath);
     const beforeReconcile = await revived.get('job-1');
     expect(beforeReconcile?.status).toBe('running');
     expect(beforeReconcile?.progress).toEqual(['submitted', 'polling attempt 3']);
@@ -290,7 +290,7 @@ describe('createSqliteMediaTaskStore — durability across a simulated process r
     await store.create({ id: 't1', ownerRef: 'run-1', status: 'done' });
     await store.close();
 
-    const reopened = createSqliteMediaTaskStore(dbPath);
+    const reopened = await createSqliteMediaTaskStore(dbPath);
     await expect(reopened.update('t1', { status: 'running' })).rejects.toThrow(/Invalid media task transition/);
     await reopened.close();
   });
@@ -301,7 +301,7 @@ describe('createSqliteMediaTaskStore — durability across a simulated process r
     await store.update('b', { status: 'done', endedAt: 10 });
     await store.close();
 
-    const reopened = createSqliteMediaTaskStore(dbPath);
+    const reopened = await createSqliteMediaTaskStore(dbPath);
     expect((await reopened.listByOwner('run-1')).map((t) => t.id)).toEqual(['a']);
     expect((await reopened.listByOwner('run-2', { includeTerminal: true })).map((t) => t.id)).toEqual(['b']);
     await reopened.close();

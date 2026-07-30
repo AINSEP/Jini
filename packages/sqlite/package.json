@@ -1,12 +1,41 @@
 {
-  "name": "@jini/sqlite",
-  "version": "0.1.0",
+  "name": "@jini-ai/sqlite",
+  "version": "0.1.2",
+  "description": "better-sqlite3-backed persistence adapters for @jini-ai/daemon’s ports: durable event log, backend selection, schema migration, and database inspection.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/sqlite" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/sqlite"
+  },
+  "jini": {
+    "domain": "server",
+    "kind": "persistence-adapter",
+    "runtime": "node"
+  },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -14,7 +43,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/daemon": "workspace:*",
+    "@jini-ai/protocol": "workspace:*",
     "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {

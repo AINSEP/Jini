@@ -6,9 +6,9 @@ projects with an agent.
 ## Runnable hosts
 
 - [`reference-web/`](reference-web/README.md) — the Jini Playground Vite + React host. It
-  connects `@jini/chat-react` to a real local daemon over HTTP and SSE.
+  connects `@jini-ai/chat-react` to a real local daemon over HTTP and SSE.
 - [`reference-desktop/`](reference-desktop/README.md) — the Electron shell around that
-  same renderer, composed through `@jini/desktop-host`.
+  same renderer, composed through `@jini-ai/desktop-host`.
 
 Run both hosts from the repository root:
 

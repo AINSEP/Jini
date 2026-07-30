@@ -325,7 +325,7 @@ commit. Two note-worthy layout differences from what the brief anticipated:
 | `src/mcp.ts` | `runtimes/core/mcp.ts` | De-branded, and narrowed to the genuinely generic half. Origin `buildLiveArtifactsMcpServersForAgent` hardcoded a product-branded server name, a product-branded default `command`, and an args tail baked in — i.e. it injected exactly one product's own MCP feature. Renamed to `buildAcpMcpServersForAgent`; `name`/`command`/`args` are now fully caller-supplied with no product-branded default. Kept: the actual generic mechanism — gate on `mcpDiscovery === 'mature-acp'`, and shape the `env` field as an array (`[{name,value}]`) or a map (`{KEY:value}`) per `def.acpMcpEnvFormat`, since different ACP implementations expect different shapes there. |
 | `src/executables.ts` | `runtimes/core/executables.ts` | De-branded + sandbox dependency dropped. `wellKnownUserToolchainBins` import swapped to `@jini/platform`. Origin read two product-prefixed env vars directly and called `resolveSandboxRuntimeConfigFromEnv` from OD's daemon-level `sandbox-mode.ts` (out of this package's charter). Replaced with `configureExecutableResolutionEnv({ agentHomeEnvVar, resourceRootEnvVar })` — an injectable pair of env-var names defaulting to `AGENT_RUNTIME_HOME` / `AGENT_RUNTIME_RESOURCE_ROOT` — and the sandbox-mode integration is simply not present (no equivalent kept; a host needing sandboxed detection-home scoping can still set the agent-home override env var, which achieves the same practical effect for detection purposes). |
 | `src/role-marker-guard.ts` | top-level `apps/daemon/src/role-marker-guard.ts` (not under `runtimes/`, but consumed by `claude-stream.ts`) | Verbatim. Self-contained fabricated-role-marker (`## user`/`## assistant`) detector; no product coupling found. |
-| `src/claude-stream.ts` | `runtimes/stream/claude-stream.ts` | Verbatim except the `role-marker-guard` import path (now same-package instead of two directories up), plus four coverage-driven dead-branch removals made 2026-07-18 — see "Coverage-driven refactors" below. |
+| `src/claude-stream.ts` | `runtimes/stream/claude-stream.ts` | Ported with the `role-marker-guard` import path moved into this package, four coverage-driven dead-branch removals made 2026-07-18, and a 2026-07-23 live-wire correction that accepts terminal stop reasons from the assistant wrapper, partial `message_delta`, or final result frame. See "Coverage-driven refactors" and "Live Claude stream correction" below. |
 | `src/json-event-stream.ts` | `runtimes/stream/json-event-stream.ts` | Verbatim. Zero imports in the origin. |
 | `src/qoder-stream.ts` | `runtimes/stream/qoder-stream.ts` | Verbatim. Only import is `node:buffer`. |
 | `src/copilot-stream.ts` | top-level `apps/daemon/src/copilot-stream.ts` (not under `runtimes/`; r1 recon notes Jini's own daemon relocated this file under `runtimes/`, mirrored here) | Verbatim. Zero imports in the origin. |
@@ -434,6 +434,25 @@ contract composer (OD's "research" feature) — every one of them product-specif
 them a generic prompt-composition mechanism. Per the task's explicit instruction ("do NOT
 lift the OD logic itself"), none of it is ported; `PromptAugmenter` is the injection seam in
 full.
+
+### Live Claude stream correction (2026-07-23)
+
+A live daemon smoke test against Claude Code 2.1.201 exposed two terminal wire
+shapes that the synthetic parser corpus did not cover. The top-level
+`assistant` wrapper can carry `stop_reason: null`; the actual reason may arrive
+on a partial `stream_event`/`message_delta`, or, for a Haiku run observed during
+the same verification, only on the final top-level `result` frame. In the latter
+case Jini received the complete answer and usage while the subprocess stayed
+alive because `AgentExecutor` never saw `turn_end` and therefore never closed
+stream-json stdin.
+
+`claude-stream.ts` now emits a deduplicated `turn_end` from all three accepted
+locations: assistant wrapper, partial message delta, and final result. Parser
+tests cover both live-discovered fallbacks and duplicate combinations; the
+daemon executor suite replays the result-only shape and asserts stdin closes.
+The broader false-confidence boundary and required captured-trace/live-canary
+coverage are retained in
+`ADS-memory/reports/live-validation-test-gap-ledger-2026-07-23.md`.
 
 ### Coverage-driven refactors (2026-07-18)
 
@@ -1194,3 +1213,96 @@ convention (mirroring `anthropic-messages.test.ts`/`openai-chat.test.ts` exactly
 executed** — this session operated under a standing restriction on running the test runner (an
 unresolved incident from a prior session); `tsc --noEmit` passing on the test files (real imports,
 real exported type names, no `any`-typed escape hatches) is the available signal in its place.
+
+## 2026-07-29 addition — spawn-orchestration fields on `RuntimeAgentDef` (+ `log-file.ts`)
+
+Three new optional `RuntimeAgentDef` fields, plus one new module, that let a *caller* drive an
+adapter with process-global side effects or unsafe-to-stream stdout — without the caller needing to
+know which adapter it is. Written for antigravity (`agy`), the last def
+`@jini-ai/daemon`'s `AgentExecutor` could not run; the full design rationale, the OD ground truth,
+and the alternatives rejected live in **`packages/daemon/source-map.md`'s 2026-07-29 addition**. This
+entry records only what changed inside this package.
+
+| field | shape | consumed by |
+|---|---|---|
+| `needsAgentLogFile?: boolean` | flag | caller stages a temp path → `RuntimeContext.agentLogFilePath` before `buildArgs`. Same opt-in shape as `promptViaFile`. |
+| `stdoutPolicy?: RuntimeStdoutPolicy` | `{buffering:'live'}` \| `{buffering:'until-close'; sanitize?}` | a caller driving raw stdout with no structured parser (`streamFormat: 'plain'`). |
+| `runtimeLock?: RuntimeLock` | `{acquire(ctx) => Promise<RuntimeLockHold>}` | caller holds it across `buildArgs` → spawn → CLI-reads-the-side-effect. |
+
+Supporting types, all `export type` in `types.ts` (which therefore stays legitimately in this
+package's coverage `exclude` list — re-verified with the same
+`grep -nE '^(export )?(const|function|class|let|var) '` the exclusion comment cites, still zero
+runtime declarations): `RuntimeStdoutPolicy`, `RuntimeLock`, `RuntimeLockHold`,
+`RuntimeLockAcquireContext`, `RuntimeLockHandoffContext`.
+
+`RuntimeStdoutPolicy` is a **discriminated union rather than two flat fields** so a def cannot
+declare a `sanitize` the caller has no safe point to apply (a pattern to redact can straddle two
+stdout chunks — the whole reason the buffered mode exists). `RuntimeLock` deliberately exposes no
+`ChildProcess`: `RuntimeLockHandoffContext` carries the staged log path, the model, and process exit
+as an `AbortSignal`, which is everything a handoff detector needs and nothing that would let a def
+signal or write to the child. Both calls are argued in full in the daemon-side entry.
+
+**`DetectedAgent` / `detection.ts#stripFns` now strip all three** — a real latent leak, not tidiness.
+`stripFns` builds its result by spreading `...rest`, so any new `RuntimeAgentDef` field is published
+into the registry API response by default; `stdoutPolicy`/`runtimeLock` carry closures, which
+`JSON.stringify` drops while keeping their wrappers, so the response would have advertised a
+misleading `{"buffering":"until-close"}` / `{}`. New `detection.test.ts` case asserts on the
+serialized projection, not just the object.
+
+### `src/log-file.ts` (new — no OD source file)
+
+`prepareAgentLogFile(def, label) => Promise<PreparedAgentLogFile | null>`, the deliberate sibling of
+`prompt-file.ts`: same `{path, cleanup}` shape, same `mkdtemp`-per-run isolation, same
+`[^A-Za-z0-9_.-] → '-'` + 80-char label sanitization, same "returns `null` for a def that did not opt
+in, and accepts `null`/`undefined` so a caller can call it unconditionally" contract. OD has no
+equivalent module — its daemon derived antigravity's `--log-file` path inline in `server.ts`;
+extracting it here makes the staging independently testable and means a second adapter with a
+log-file flag needs no new code.
+
+One substantive divergence from `prompt-file.ts`, called out in the module doc: **it does not write
+the file.** The direction of travel is inverted — the prompt file is input the caller authors for the
+CLI to read; the log file is output the CLI authors for the caller to read. Only the containing
+directory is created, and `mkdtemp`'s `0o700` is the real confidentiality control here since the CLI,
+not this module, chooses the log file's own mode. Barrel: `index.ts` re-exports `./log-file.js`
+directly after `./prompt-file.js`.
+
+### `src/defs/antigravity.ts`
+
+Sets all three fields, plus two new exports:
+
+- **`redactAntigravityAuthUrls(fullText)`** — the `sanitize` for `stdoutPolicy`. `agy -p` prints an
+  OAuth sign-in URL to stdout and exits **0** when its keyring entry is missing, so a live-streaming
+  driver shows that URL to the user as the model's reply. The shape is not guessed: it is the same
+  text this package's own `auth.ts#isAntigravityAuthFailureText` already classifies (`Authentication
+  required. Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth?client_id=…&
+  redirect_uri=antigravity-redirect`, captured from agy v1.0.3). Redacts (a) any URL on
+  `accounts.google.com`, host-anchored so an upstream path change still redacts, and (b) any absolute
+  URL carrying an OAuth/bearer query parameter, so a change of identity provider degrades to
+  "redacted" rather than "leaked". Scoped to redaction only — it does **not** classify the run as an
+  auth failure or substitute guidance text; `classifyAgentAuthFailure`/`antigravityAuthGuidance`
+  already own that, and conflating them would have this def rewriting assistant output into
+  instructions.
+- **`antigravityModelLock`** — a **thin adapter** wrapping the pre-existing, separately-tested
+  `acquireAntigravityModelLock` / `waitForAgyToReadModel` pair into the `RuntimeLock` shape. No new
+  serialization logic. Its one policy decision: return an inert hold, without joining the chain, when
+  no concrete model was selected — mirroring `buildArgs`' own `options.model && options.model !==
+  DEFAULT_MODEL_OPTION.id` guard (the lock guards *that* write), and matching OD, which serialises
+  only **non-default** antigravity spawns. `waitForHandoff` resolves on the observed propagation
+  line, and otherwise defers to process exit, because `waitForAgyToReadModel`'s own doc is explicit
+  that a `false` return means "stopped polling", never "agy didn't read the file".
+- Module-local `waitUntilAborted(signal)` replaces what would otherwise be a never-settling
+  `new Promise(() => {})` on the defer-to-exit paths — a long-lived daemon would otherwise accumulate
+  one permanently-pending promise plus its captured closure per run.
+
+**Verified this session** (test runner *was* run — the prior section's restriction no longer applies):
+`pnpm exec tsc -p tsconfig.json --noEmit` clean; `pnpm run build` clean; full package suite
+**1822 → 1845 tests, 98 files, all passing**; coverage **99.96 / 99.95 / 100 / 99.96**
+(statements/branches/functions/lines) — identical to the figure the 2026-07-22 audit-fix entry
+recorded, i.e. the two documented deliberately-uncovered branches are still the only ones.
+`src/log-file.ts`, `src/defs/antigravity.ts` and `src/detection.ts` are each at **100% on all four
+metrics**. New/extended tests: `src/__tests__/log-file.test.ts` (9, incl. the `0o700`-directory and
+"the file is deliberately not pre-created" assertions, and a `../../etc/passwd` label proving the
+staged directory is still a direct child of `os.tmpdir()`), `defs/__tests__/antigravity.test.ts`
+(+23: the real captured auth-prompt fixture, an "ordinary links stay byte-identical" negative case,
+and the lock's inert/serializing/handoff/defer-to-exit paths), `__tests__/detection.test.ts` (+1, the
+`stripFns` projection). Repo-root `pnpm guard`: clean.

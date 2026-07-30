@@ -112,6 +112,7 @@ describe('createClaudeStreamHandler', () => {
       'tool_use',
       'turn_end',
       'tool_result',
+      'turn_end',
       'usage',
     ]);
 
@@ -135,7 +136,9 @@ describe('createClaudeStreamHandler', () => {
       isError: false,
     });
 
-    const usage = events[6]!;
+    expect(events[6]).toEqual({ type: 'turn_end', stopReason: 'end_turn' });
+
+    const usage = events[7]!;
     expect(usage.usage).toEqual({ input_tokens: 120, output_tokens: 40 });
     expect(usage.costUsd).toBe(0.002);
     expect(usage.stopReason).toBe('end_turn');
@@ -173,6 +176,76 @@ describe('createClaudeStreamHandler', () => {
     const toolUseEvents = events.filter((e) => e.type === 'tool_use');
     expect(toolUseEvents).toHaveLength(1);
     expect(toolUseEvents[0]?.input).toEqual({ path: 'a.html' });
+  });
+
+  it('emits turn_end from a partial-stream message_delta when the assistant wrapper has a null stop reason', () => {
+    const events = run([
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg_partial' } },
+      },
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg_partial',
+          content: [{ type: 'text', text: 'done' }],
+          stop_reason: null,
+        },
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+          usage: { output_tokens: 4 },
+        },
+      },
+    ]);
+
+    expect(events.filter((event) => event.type === 'turn_end')).toEqual([
+      { type: 'turn_end', stopReason: 'end_turn' },
+    ]);
+  });
+
+  it('does not end the turn on a message_delta that carries no stop reason', () => {
+    // Anthropic sends `message_delta` for running usage totals too, with `stop_reason: null` until
+    // the turn actually finishes. Treating any `message_delta` as terminal would truncate the turn
+    // mid-stream, and the dedupe guard would then swallow the real end.
+    const events = run([
+      { type: 'stream_event', event: { type: 'message_start', message: { id: 'msg_no_stop' } } },
+      { type: 'stream_event', event: { type: 'message_delta', delta: { stop_reason: null }, usage: { output_tokens: 2 } } },
+      { type: 'stream_event', event: { type: 'message_delta', delta: { usage: { output_tokens: 4 } } } },
+    ]);
+
+    expect(events.filter((event) => event.type === 'turn_end')).toEqual([]);
+  });
+
+  it('deduplicates turn_end when both assistant and message_delta carry the same stop reason', () => {
+    const events = run([
+      {
+        type: 'stream_event',
+        event: { type: 'message_start', message: { id: 'msg_duplicate_end' } },
+      },
+      {
+        type: 'assistant',
+        message: {
+          id: 'msg_duplicate_end',
+          content: [{ type: 'text', text: 'done' }],
+          stop_reason: 'end_turn',
+        },
+      },
+      {
+        type: 'stream_event',
+        event: {
+          type: 'message_delta',
+          delta: { stop_reason: 'end_turn' },
+        },
+      },
+    ]);
+
+    expect(events.filter((event) => event.type === 'turn_end')).toEqual([
+      { type: 'turn_end', stopReason: 'end_turn' },
+    ]);
   });
 
   it('emits a raw event for a malformed JSON line instead of throwing', () => {
@@ -246,12 +319,72 @@ describe('createClaudeStreamHandler', () => {
   describe('result stop-reason preference', () => {
     it('prefers stop_reason over terminal_reason', () => {
       const events = run([{ type: 'result', stop_reason: 'end_turn', terminal_reason: 'ignored' }]);
-      expect(events[0]).toMatchObject({ stopReason: 'end_turn' });
+      expect(events).toEqual([
+        { type: 'turn_end', stopReason: 'end_turn' },
+        {
+          type: 'usage',
+          usage: null,
+          costUsd: null,
+          durationMs: null,
+          stopReason: 'end_turn',
+        },
+      ]);
     });
 
     it('falls back to terminal_reason when stop_reason is absent', () => {
       const events = run([{ type: 'result', terminal_reason: 'timeout' }]);
-      expect(events[0]).toMatchObject({ stopReason: 'timeout' });
+      expect(events[0]).toEqual({ type: 'turn_end', stopReason: 'timeout' });
+      expect(events[1]).toMatchObject({ type: 'usage', stopReason: 'timeout' });
+    });
+
+    it('uses result as the terminal fallback when assistant and partial frames carry no stop reason', () => {
+      const events = run([
+        {
+          type: 'stream_event',
+          event: { type: 'message_start', message: { id: 'msg_result_fallback' } },
+        },
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg_result_fallback',
+            content: [{ type: 'text', text: 'JINI_WIRING_OK' }],
+            stop_reason: null,
+          },
+        },
+        {
+          type: 'result',
+          stop_reason: 'end_turn',
+          terminal_reason: 'completed',
+        },
+      ]);
+
+      expect(events.filter((event) => event.type === 'turn_end')).toEqual([
+        { type: 'turn_end', stopReason: 'end_turn' },
+      ]);
+    });
+
+    it('deduplicates result fallback after a terminal partial message_delta', () => {
+      const events = run([
+        {
+          type: 'stream_event',
+          event: { type: 'message_start', message: { id: 'msg_result_duplicate' } },
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'message_delta',
+            delta: { stop_reason: 'end_turn' },
+          },
+        },
+        {
+          type: 'result',
+          stop_reason: 'end_turn',
+        },
+      ]);
+
+      expect(events.filter((event) => event.type === 'turn_end')).toEqual([
+        { type: 'turn_end', stopReason: 'end_turn' },
+      ]);
     });
 
     it('defaults stopReason/usage/cost/duration to null when the result carries none', () => {

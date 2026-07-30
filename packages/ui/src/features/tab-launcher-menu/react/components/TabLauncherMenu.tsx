@@ -10,6 +10,8 @@ export interface TabLauncherMenuProps<TActionCtx = void> extends UseTabLauncherM
   searchPlaceholder?: string;
   renderIcon?: (iconName: string | undefined) => ReactNode;
   renderSearchIcon?: () => ReactNode;
+  /** Custom hook override for dependency injection / testing. */
+  useTabLauncherMenu?: typeof useTabLauncherMenu;
 }
 
 /**
@@ -32,10 +34,11 @@ export function TabLauncherMenu<TActionCtx = void>({
   searchPlaceholder,
   renderIcon,
   renderSearchIcon,
+  useTabLauncherMenu: useTabLauncherMenuHook = useTabLauncherMenu,
   ...options
 }: TabLauncherMenuProps<TActionCtx>) {
   const t = useT();
-  const menu = useTabLauncherMenu(options);
+  const menu = useTabLauncherMenuHook(options);
 
   useEffect(() => {
     const el = menu.containerRef.current?.querySelector<HTMLElement>(`[data-selectable-idx="${menu.selected}"]`);

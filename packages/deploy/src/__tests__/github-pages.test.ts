@@ -69,7 +69,7 @@ describe('GitHubPagesDeployTarget.publish', () => {
         const body = JSON.parse(String(init?.body));
         expect(body.parents).toEqual([]);
         expect(body.tree).toBe('tree-sha-1');
-        expect(body.message).toBe('Deploy My Demo Site via @jini/deploy');
+        expect(body.message).toBe('Deploy My Demo Site via @jini-ai/deploy');
         return jsonResponse(201, { sha: 'commit-sha-1' });
       }
       if (method === 'POST' && url.endsWith('/git/refs')) {
@@ -572,7 +572,7 @@ describe('GitHubPagesDeployTarget.publish', () => {
       if (method === 'POST' && url.endsWith('/git/trees')) return jsonResponse(201, { sha: 'tree-sha' });
       if (method === 'POST' && url.endsWith('/git/commits')) {
         const body = JSON.parse(String(init?.body));
-        expect(body.message).toBe('Deploy site via @jini/deploy');
+        expect(body.message).toBe('Deploy site via @jini-ai/deploy');
         return jsonResponse(201, { sha: 'commit-sha' });
       }
       if (method === 'POST' && url.endsWith('/git/refs')) return jsonResponse(201, { ref: 'refs/heads/gh-pages', object: { sha: 'commit-sha', type: 'commit' } });

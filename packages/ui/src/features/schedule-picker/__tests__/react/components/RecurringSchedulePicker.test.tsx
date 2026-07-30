@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { RecurringSchedulePicker } from '../../../react/components/RecurringSchedulePicker.js';
@@ -96,5 +97,101 @@ describe('RecurringSchedulePicker', () => {
     await userEvent.click(screen.getByRole('button', { name: /Quotidien/ }));
     expect(screen.getByText('Heure')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Terminé' })).toBeInTheDocument();
+  });
+});
+
+describe('RecurringSchedulePicker 4-pattern hook override test suite', () => {
+  const sampleValue: ScheduleValue = { kind: 'hourly', minute: 15 };
+
+  it('Pattern 1 — State 1: Closed popover state via hook override', () => {
+    const customHook = () => ({
+      containerRef: { current: null },
+      open: false,
+      toggleOpen: vi.fn(),
+      state: { kind: 'hourly' as const, minute: 15, weekday: 0, time: '09:00', timezone: 'UTC' },
+      timezones: ['UTC'],
+      setKind: vi.fn(),
+      setWeekday: vi.fn(),
+      setMinute: vi.fn(),
+      setTime: vi.fn(),
+      setTimezone: vi.fn(),
+      commit: vi.fn(),
+    });
+
+    render(
+      <RecurringSchedulePicker
+        value={sampleValue}
+        onChange={vi.fn()}
+        useRecurringSchedulePicker={customHook as any}
+      />,
+    );
+
+    expect(screen.queryByRole('tablist')).toBeNull();
+  });
+
+  it('Pattern 2 — State 2: Open popover state via hook override', () => {
+    const customHook = () => ({
+      containerRef: { current: null },
+      open: true,
+      toggleOpen: vi.fn(),
+      state: { kind: 'daily' as const, minute: 0, weekday: 0, time: '09:00', timezone: 'UTC' },
+      timezones: ['UTC'],
+      setKind: vi.fn(),
+      setWeekday: vi.fn(),
+      setMinute: vi.fn(),
+      setTime: vi.fn(),
+      setTimezone: vi.fn(),
+      commit: vi.fn(),
+    });
+
+    render(
+      <RecurringSchedulePicker
+        value={{ kind: 'daily', time: '09:00', timezone: 'UTC' }}
+        onChange={vi.fn()}
+        useRecurringSchedulePicker={customHook as any}
+      />,
+    );
+
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Done' })).toBeInTheDocument();
+  });
+
+  it('Pattern 3 — State 3: Weekly state with weekday grid via hook override', () => {
+    const customHook = () => ({
+      containerRef: { current: null },
+      open: true,
+      toggleOpen: vi.fn(),
+      state: { kind: 'weekly' as const, minute: 0, weekday: 1, time: '09:00', timezone: 'UTC' },
+      timezones: ['UTC'],
+      setKind: vi.fn(),
+      setWeekday: vi.fn(),
+      setMinute: vi.fn(),
+      setTime: vi.fn(),
+      setTimezone: vi.fn(),
+      commit: vi.fn(),
+    });
+
+    render(
+      <RecurringSchedulePicker
+        value={{ kind: 'weekly', weekday: 1, time: '09:00', timezone: 'UTC' }}
+        onChange={vi.fn()}
+        useRecurringSchedulePicker={customHook as any}
+      />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Mon' })).toBeInTheDocument();
+  });
+
+  it('Pattern 4 — State 4: Dynamic schedule value transition walkthrough using React useState inside test harness', () => {
+    function DynamicScheduleHarness() {
+      const [schedule, setSchedule] = useState<ScheduleValue>({ kind: 'hourly', minute: 0 });
+      return <RecurringSchedulePicker value={schedule} onChange={setSchedule} />;
+    }
+
+    render(<DynamicScheduleHarness />);
+
+    expect(screen.getByRole('button', { name: /Hourly at/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Hourly at/ }));
+    expect(screen.getByRole('tablist')).toBeInTheDocument();
   });
 });

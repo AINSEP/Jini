@@ -71,3 +71,58 @@ describe('createDefaultRunStartHandler', () => {
     await expect(handler({ request: { contextRef: 'ctx-4' }, run: { id: 'run-4' } })).rejects.toThrow('spawn failed');
   });
 });
+
+describe('createDefaultRunStartHandler — optional executor passthroughs', () => {
+  const base = { agentId: 'claude', prompt: 'hi', cwd: '/work' } as const;
+
+  // The regression this exists to prevent: a host that had been calling AgentExecutor.run() by hand
+  // with permissionMode: 'restricted' and then adopts this handler must be able to keep that posture.
+  // Before ResolvedRunInput carried the field, adopting the handler silently dropped it and every run
+  // began auto-approving.
+  it('forwards permissionMode to the executor', async () => {
+    const { executor, calls } = fakeExecutor();
+    const handler = createDefaultRunStartHandler({
+      agentExecutor: executor,
+      resolveRunInput: () => ({ ...base, permissionMode: 'restricted' as const }),
+    });
+
+    await handler({ request: { contextRef: 'ctx-1' }, run: { id: 'run-1' } });
+
+    expect(calls[0]!.permissionMode).toBe('restricted');
+  });
+
+  it('forwards model, reasoning, and credentialEnv', async () => {
+    const { executor, calls } = fakeExecutor();
+    const handler = createDefaultRunStartHandler({
+      agentExecutor: executor,
+      resolveRunInput: () => ({
+        ...base,
+        model: 'some-model',
+        reasoning: 'high',
+        credentialEnv: { ANTHROPIC_API_KEY: 'sk-test' },
+      }),
+    });
+
+    await handler({ request: { contextRef: 'ctx-1' }, run: { id: 'run-1' } });
+
+    expect(calls[0]).toMatchObject({
+      model: 'some-model',
+      reasoning: 'high',
+      credentialEnv: { ANTHROPIC_API_KEY: 'sk-test' },
+    });
+  });
+
+  // Absent must stay absent, not become an explicit `undefined`: for permissionMode the executor
+  // treats absence as "use the def's own auto-approve default", so the two are not equivalent.
+  it('omits every optional passthrough the resolver did not supply', async () => {
+    const { executor, calls } = fakeExecutor();
+    const handler = createDefaultRunStartHandler({
+      agentExecutor: executor,
+      resolveRunInput: () => ({ ...base }),
+    });
+
+    await handler({ request: { contextRef: 'ctx-1' }, run: { id: 'run-1' } });
+
+    expect(Object.keys(calls[0]!).sort()).toEqual(['agentId', 'cwd', 'prompt', 'runId']);
+  });
+});

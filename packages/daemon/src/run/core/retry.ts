@@ -113,7 +113,7 @@ export type RunRetryPolicyDecision =
 /**
  * Classifies a terminated child process's raw `code`/`signal` into the `process_exit` category
  * this module's own policy understands — the only signal cheaply available to
- * `@jini/daemon`'s `ClassifyFailure` port (see `agent-executor.ts`'s `FailureClassificationContext`
+ * `@jini-ai/daemon`'s `ClassifyFailure` port (see `agent-executor.ts`'s `FailureClassificationContext`
  * doc for why richer signal, like a detected 429 or protocol error, isn't available there without
  * new stderr/stdout buffering machinery this pass deliberately does not add).
  * @param code - The child process's exit code, or `null` if it was terminated by a signal.
@@ -132,7 +132,7 @@ export function classifyProcessExitFailure(code: number | null, signal: string |
 }
 
 /**
- * `@jini/daemon`'s `ClassifyFailure` port needs a plain `boolean`, not a full
+ * `@jini-ai/daemon`'s `ClassifyFailure` port needs a plain `boolean`, not a full
  * {@link RunRetryPolicyDecision} — gap 4 only sets a failed run's `resumable` flag (informational
  * metadata a host reads for its own later follow-up run, see `RunEndPayload.sessionRef`'s own doc),
  * it does not schedule an automatic in-process retry the way {@link decideSafeRunRetry}'s full
@@ -180,48 +180,66 @@ function normalizeMaxAttempts(maxAttempts: number | undefined): number {
   return Math.floor(maxAttempts);
 }
 
+/**
+ * Categories whose transience is decided by the failure *detail*: the listed details are the
+ * presumptively-transient ones, and any other detail (including `undefined`) suppresses with
+ * `non_retryable_category`. A category absent from this table is not detail-gated.
+ *
+ * `process_exit`'s `signal_killed` entry was added 2026-07-22 (gap 4's real default classifier —
+ * see {@link classifyProcessExitFailure}): a process terminated by an OS signal
+ * (SIGKILL/SIGTERM/etc) was never the agent's own choice to fail — an OOM-kill or an infra-level
+ * eviction is the common real-world cause, and both are presumptively transient. A plain non-zero
+ * exit code, by contrast, is the agent's own process deciding to fail (a config problem, a
+ * deterministic bug) and is not retried here.
+ */
+const TRANSIENT_DETAILS_BY_CATEGORY: Partial<
+  Record<RunFailureCategory, ReadonlySet<RunFailureDetail | undefined>>
+> = {
+  rate_limit: new Set(['rate_limit_429']),
+  upstream_unavailable: new Set([
+    'stream_disconnected',
+    'upstream_5xx',
+    'provider_high_demand',
+    'provider_routing_error',
+    'network_error',
+  ]),
+  process_exit: new Set([
+    'agent_protocol_error',
+    'qoder_stop_sequence',
+    'session_resume_expired',
+    'stream_error',
+    'fatal_rpc_error',
+    'signal_killed',
+  ]),
+};
+
+/**
+ * Categories whose transience is decided by the failure *stage* instead: the listed stages are the
+ * ones at which a retry is safe, and any other stage suppresses with `unsafe_failure_stage`.
+ * `empty_output` lists `undefined` explicitly because an unknown stage is treated as safe there
+ * (the run produced nothing, so nothing can be duplicated), whereas `timeout` requires a positively
+ * known `first_token_wait` stage.
+ */
+const SAFE_STAGES_BY_CATEGORY: Partial<
+  Record<RunFailureCategory, ReadonlySet<RunFailureStage | undefined>>
+> = {
+  empty_output: new Set([undefined, 'first_token_wait']),
+  timeout: new Set(['first_token_wait']),
+};
+
 function transientSuppressedReason(
   category: RunFailureCategory | undefined,
   detail: RunFailureDetail | undefined,
   stage: RunFailureStage | undefined,
 ): RunRetrySuppressedReason | null {
   if (category === undefined) return 'missing_failure_signal';
-  if (category === 'rate_limit') {
-    return detail === 'rate_limit_429' ? null : 'non_retryable_category';
+  const transientDetails = TRANSIENT_DETAILS_BY_CATEGORY[category];
+  if (transientDetails !== undefined) {
+    return transientDetails.has(detail) ? null : 'non_retryable_category';
   }
-  if (category === 'upstream_unavailable') {
-    return detail === 'stream_disconnected' ||
-      detail === 'upstream_5xx' ||
-      detail === 'provider_high_demand' ||
-      detail === 'provider_routing_error' ||
-      detail === 'network_error'
-      ? null
-      : 'non_retryable_category';
-  }
-  if (category === 'empty_output') {
-    return stage === undefined || stage === 'first_token_wait'
-      ? null
-      : 'unsafe_failure_stage';
-  }
-  if (category === 'timeout') {
-    return stage === 'first_token_wait'
-      ? null
-      : 'unsafe_failure_stage';
-  }
-  if (category === 'process_exit') {
-    // `signal_killed` added 2026-07-22 (gap 4's real default classifier — see `classifyProcessExitFailure`
-    // below): a process terminated by an OS signal (SIGKILL/SIGTERM/etc) was never the agent's own
-    // choice to fail — an OOM-kill or an infra-level eviction is the common real-world cause, and
-    // both are presumptively transient. A plain non-zero exit code, by contrast, is the agent's own
-    // process deciding to fail (a config problem, a deterministic bug) and is not retried here.
-    return detail === 'agent_protocol_error' ||
-      detail === 'qoder_stop_sequence' ||
-      detail === 'session_resume_expired' ||
-      detail === 'stream_error' ||
-      detail === 'fatal_rpc_error' ||
-      detail === 'signal_killed'
-      ? null
-      : 'non_retryable_category';
+  const safeStages = SAFE_STAGES_BY_CATEGORY[category];
+  if (safeStages !== undefined) {
+    return safeStages.has(stage) ? null : 'unsafe_failure_stage';
   }
   return 'non_retryable_category';
 }

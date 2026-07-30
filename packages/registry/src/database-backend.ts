@@ -17,7 +17,7 @@ import {
   type RegistryPublishRequest,
   type RegistryTrust,
   type RegistryYankOutcome,
-} from '@jini/protocol';
+} from '@jini-ai/protocol';
 import { assertValidPublishRequest, StaticRegistryBackend } from './static-backend.js';
 import type { RegistryTrustRoot } from './trust.js';
 

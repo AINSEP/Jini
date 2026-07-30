@@ -1,27 +1,42 @@
 {
   "name": "@jini-app/reference-web",
-  "version": "0.0.0",
+  "version": "0.0.2",
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && vite build --config vite.mcpui-view.config.ts",
+    "build:mcpui-view": "vite build --config vite.mcpui-view.config.ts",
     "daemon": "tsx src/daemon.ts",
     "dev": "vite --host 127.0.0.1 --port 4173",
+    "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@jini/chat-core": "workspace:*",
-    "@jini/chat-react": "workspace:*",
-    "@jini/daemon": "workspace:*",
-    "@jini/node-host": "workspace:*",
-    "@jini/protocol": "workspace:*",
+    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/chat-core": "workspace:*",
+    "@jini-ai/chat-react": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/daemon": "workspace:*",
+    "@jini-ai/http-kit": "workspace:*",
+    "@jini-ai/mcp": "workspace:*",
+    "@jini-ai/media": "workspace:*",
+    "@jini-ai/memory": "workspace:*",
+    "@jini-ai/server": "workspace:*",
+    "@jini-ai/protocol": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
   "devDependencies": {
+    "@mcp-b/webmcp-polyfill": "^4.0.0",
+    "@modelcontextprotocol/ext-apps": "^1.7.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "vite": "^8.1.5"
+    "tsx": "^4.19.0",
+    "vite": "^8.1.5",
+    "vite-plugin-singlefile": "^2.3.0",
+    "vitest": "^2.1.0",
+    "zod": "^4.0.0"
   }
 }

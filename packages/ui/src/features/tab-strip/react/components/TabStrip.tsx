@@ -22,6 +22,8 @@ export interface TabStripProps {
   trailing?: ReactNode | undefined;
   ariaLabel?: string | undefined;
   className?: string | undefined;
+  /** Custom hook override for dependency injection / testing. */
+  useTabStripDragReorder?: typeof useTabStripDragReorder;
 }
 
 /**
@@ -51,8 +53,9 @@ export function TabStrip({
   trailing,
   ariaLabel,
   className,
+  useTabStripDragReorder: useTabStripDragReorderHook = useTabStripDragReorder,
 }: TabStripProps) {
-  const { draggingTabId, dragOverTarget, stripRef, stripDragProps, getItemDragProps } = useTabStripDragReorder({
+  const { draggingTabId, dragOverTarget, stripRef, stripDragProps, getItemDragProps } = useTabStripDragReorderHook({
     tabs,
     onReorder,
     reorderTiming,

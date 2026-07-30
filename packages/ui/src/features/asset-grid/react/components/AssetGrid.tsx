@@ -46,6 +46,9 @@ export interface AssetGridProps<TAsset extends AssetGridItem> {
   searchDebounceMs?: number;
   liveUpdateCoalesceMs?: number;
   initialViewMode?: AssetGridViewMode;
+  /** Custom hook overrides for dependency injection / testing. */
+  useWiredAssetGridData?: typeof useWiredAssetGridData;
+  useAssetGridSelection?: typeof useAssetGridSelection;
 }
 
 /**
@@ -73,6 +76,8 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   searchDebounceMs = DEFAULT_SEARCH_DEBOUNCE_MS,
   liveUpdateCoalesceMs,
   initialViewMode = 'grid',
+  useWiredAssetGridData: useWiredAssetGridDataHook = useWiredAssetGridData,
+  useAssetGridSelection: useAssetGridSelectionHook = useAssetGridSelection,
 }: AssetGridProps<TAsset>) {
   const t = useT();
 
@@ -88,7 +93,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   // in-memory fake) is resolved by each wirer independently — neither this
   // component nor the real `useAssetGridData`/`useAssetGridLiveUpdates`
   // hooks import `dependencies.ts` themselves.
-  const { assets, setAssets, loading, reload } = useWiredAssetGridData({
+  const { assets, setAssets, loading, reload } = useWiredAssetGridDataHook({
     dependencies,
     active,
     kind,
@@ -108,7 +113,7 @@ export function AssetGrid<TAsset extends AssetGridItem>({
     coalesceMs: liveUpdateCoalesceMs,
   });
 
-  const { selectedIds, setSelectedIds, toggleOne, rangeTo, selectAll, clearSelection } = useAssetGridSelection(assets);
+  const { selectedIds, setSelectedIds, toggleOne, rangeTo, selectAll, clearSelection } = useAssetGridSelectionHook(assets);
   const containerRef = useRef<HTMLDivElement>(null);
   const { band, dragging, onMouseDown } = useRubberBandDrag({ containerRef, selectedIds, setSelectedIds });
 

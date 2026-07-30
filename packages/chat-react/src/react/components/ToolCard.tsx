@@ -15,13 +15,13 @@
  * card and its `op-generic`-shaped answer-recovery parsing are intentionally
  * NOT ported: that mechanism only exists in OD's persisted chat history
  * pre-dating the `<question-form>` flow, which is out of scope for a fresh
- * `@jini/chat-react` consumer — an unrecognized tool name (including
+ * `@jini-ai/chat-react` consumer — an unrecognized tool name (including
  * `AskUserQuestion`) falls through to `GenericCard`, which is a correct,
  * generic rendering for it.
  */
-import { useState } from 'react';
-import type { AgentEvent } from '@jini/chat-core';
-import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '@jini/chat-core';
+import { useState, type ReactNode } from 'react';
+import type { AgentEvent } from '@jini-ai/chat-core';
+import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '@jini-ai/chat-core';
 import { useT } from '../hooks/context.js';
 import { getToolRenderer } from '../../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
@@ -43,30 +43,197 @@ export interface ToolCardProps {
   onRequestOpenFile?: (name: string) => void;
 }
 
+/** A Jini registry tool id: dotted, lowercase, snake_case segments — `page.fill`, `daemon.db.vacuum`, `chat.send_message`. Never matches an agent-vendor tool name (`Bash`, `Write`, `mcp__jini__execute_delegated_tool`), which is the point — this is how a canonical delegated-tool event is told apart from everything else. */
+const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
+
+const EXECUTE_DELEGATED_TOOL_NAMES = new Set(['execute_delegated_tool', 'mcp__jini__execute_delegated_tool']);
+const SEARCH_TOOLS_NAMES = new Set(['search_tools', 'mcp__jini__search_tools']);
+const DESCRIBE_TOOL_NAMES = new Set(['describe_tool', 'mcp__jini__describe_tool']);
+
 export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile }: ToolCardProps) {
   const name = use.name;
   const isStreaming = runStreaming ?? false;
   const isSucceeded = runSucceeded ?? false;
+  const content = renderToolCardBody(name, use, result, isStreaming, isSucceeded, { projectFileNames, onRequestOpenFile });
+  if (content === null) return null;
+  // Tagged once here, at the single dispatch point every branch below funnels through, rather than
+  // in each of the dozen card variants — one place to keep correct, and every variant (including a
+  // host's own custom-registered renderer) gets it automatically. `use.id` is this tool call's own
+  // stable identifier (unique per call within a message), never reused, so this handle is never
+  // ambiguous the way a repeated literal handle would be.
+  return (
+    <div data-agent-element={`tool-call-${use.id}`} data-agent-role="region" data-agent-label={`A ${humanizeToolId(name)} tool call the AI made`}>
+      {content}
+    </div>
+  );
+}
+
+function renderToolCardBody(
+  name: string,
+  use: ToolUseEvent,
+  result: ToolResultEvent | undefined,
+  isStreaming: boolean,
+  isSucceeded: boolean,
+  fileCtx: FileToolCtx,
+): ReactNode {
   const custom = getToolRenderer(name);
   if (custom) {
     try {
       const node = custom(toRenderProps(use, result, isStreaming, isSucceeded));
-      if (node !== undefined && node !== null && node !== false) return <>{node}</>;
+      if (node !== undefined && node !== null && node !== false) return node;
     } catch (err) {
       console.error(`[ToolCard] custom renderer for "${name}" threw; falling back`, err);
     }
   }
-  const ctx: FileToolCtx = { projectFileNames, onRequestOpenFile };
+
+  // `execute_delegated_tool` is a transport wrapper: `@jini-ai/daemon`'s `delegated-tool-bridge.ts`
+  // always emits a second, canonical `tool_use` named after the real Jini tool id (`page.fill`,
+  // not `execute_delegated_tool`) alongside it — before calling `ToolExecutor`, so it exists even
+  // when the call fails at the tool-execution layer. Showing both floods the pane with the same
+  // action twice. Suppressed only on a *successful* result: a wrapper-level failure (a genuine
+  // transport error, not a tool-execution failure — those come back as a normal 'completed' result
+  // with status:'failed' inside it) has no matching canonical row to fall back on, so it must stay
+  // visible rather than disappear silently.
+  if (EXECUTE_DELEGATED_TOOL_NAMES.has(name) && result && !result.isError) return null;
+
   if (isTodoWriteToolName(name)) return <TodoCard todos={parseTodoWriteInput(use.input)} runStreaming={isStreaming} />;
-  if (name === 'Write' || name === 'write' || name === 'create_file') return <FileWriteCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={ctx} />;
-  if (name === 'Edit' || name === 'str_replace_edit') return <FileEditCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={ctx} />;
-  if (name === 'Read' || name === 'read_file') return <FileReadCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={ctx} />;
+  if (name === 'Write' || name === 'write' || name === 'create_file') return <FileWriteCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
+  if (name === 'Edit' || name === 'str_replace_edit') return <FileEditCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
+  if (name === 'Read' || name === 'read_file') return <FileReadCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
   if (name === 'Bash') return <BashCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'Glob' || name === 'list_files') return <GlobCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'Grep') return <GrepCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'WebFetch' || name === 'web_fetch') return <WebFetchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'WebSearch' || name === 'web_search') return <WebSearchCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+  if (JINI_TOOL_ID_PATTERN.test(name) || EXECUTE_DELEGATED_TOOL_NAMES.has(name)) {
+    // The unsuppressed (failed-wrapper) case falls through here too: `name` is still
+    // `execute_delegated_tool`, so `jiniToolIdFromInput` recovers the real id from
+    // `{toolId, input}` instead of `DelegatedToolCard` receiving its own wrapper name as the title.
+    return <DelegatedToolCard name={name} input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+  }
+  if (SEARCH_TOOLS_NAMES.has(name)) return <SearchToolsCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+  if (DESCRIBE_TOOL_NAMES.has(name)) return <DescribeToolCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   return <GenericCard name={name} input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
+}
+
+/** `"page.fill"` -> `"Page Fill"`, `"daemon.db.vacuum"` -> `"Daemon Db Vacuum"`. Cosmetic only — never used to make a routing decision. */
+function humanizeToolId(id: string): string {
+  return id
+    .split('.')
+    .map((segment) => segment.split('_').map((word) => (word ? word[0]!.toUpperCase() + word.slice(1) : word)).join(' '))
+    .join(' ');
+}
+
+/** The one argument that best identifies *what* a call acted on, for the card's collapsed summary — an element handle, a page id, or (for tools with neither) whatever the first string-valued argument is. */
+function primaryTarget(input: unknown): string | undefined {
+  if (input == null || typeof input !== 'object') return undefined;
+  const obj = input as Record<string, unknown>;
+  for (const key of ['element', 'page', 'handle', 'toolId', 'id']) {
+    const v = obj[key];
+    if (typeof v === 'string' && v) return v;
+  }
+  for (const v of Object.values(obj)) {
+    if (typeof v === 'string' && v) return v;
+  }
+  return undefined;
+}
+
+interface DelegatedToolCardProps extends CardProps {
+  name: string;
+}
+
+/**
+ * A card for one `page.*`/`daemon.db.*`/`chat.*`/… call — the canonical event
+ * `delegated-tool-bridge.ts` emits, named after the real Jini tool id. Collapsed by default with a
+ * title of the shape "Tool call · Page Fill · signup-name-input", matching every other card's
+ * accordion pattern rather than the raw `execute_delegated_tool{"toolId":...,"input":{...}}` JSON
+ * blob this replaces.
+ */
+function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: DelegatedToolCardProps) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  // Wrapper form (only reached on a failed wrapper call, per ToolCard's suppression comment):
+  // the real id and args are nested under {toolId, input}, not `input` itself.
+  const wrapper = (input ?? {}) as { toolId?: string; input?: unknown };
+  const toolId = EXECUTE_DELEGATED_TOOL_NAMES.has(name) ? (wrapper.toolId ?? name) : name;
+  const args = EXECUTE_DELEGATED_TOOL_NAMES.has(name) ? wrapper.input : input;
+  const target = primaryTarget(args);
+  const isRunning = runStreaming && !result;
+  return (
+    <div className="op-card op-jini-tool">
+      <button type="button" className="op-card-head" onClick={() => setOpen((o) => !o)}>
+        <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
+        <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Tool call')} · {humanizeToolId(toolId)}</span>
+        {target ? <span className="op-meta">{target}</span> : null}
+        <span className="op-expand-chev" aria-hidden>
+          <Icon name={open ? 'chevron-down' : 'chevron-right'} size={11} />
+        </span>
+      </button>
+      <div className={`accordion-collapsible${open ? ' open' : ''}`}>
+        <div className="accordion-collapsible-inner">
+          <div className="op-card-detail">
+            <pre className="op-command">{JSON.stringify(args ?? {})}</pre>
+            {result?.content ? <pre className="op-output">{truncate(result.content, 2000)}</pre> : null}
+          </div>
+        </div>
+      </div>
+      <FileErrorDetail result={result} />
+    </div>
+  );
+}
+
+function SearchToolsCard({ input, result, runStreaming, runSucceeded }: CardProps) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const obj = (input ?? {}) as { query?: string; limit?: number };
+  const isRunning = runStreaming && !result;
+  return (
+    <div className="op-card op-jini-tool">
+      <button type="button" className="op-card-head" onClick={() => setOpen((o) => !o)}>
+        <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
+        <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Search tools')}</span>
+        {obj.query ? <span className="op-meta">{obj.query}</span> : null}
+        <span className="op-expand-chev" aria-hidden>
+          <Icon name={open ? 'chevron-down' : 'chevron-right'} size={11} />
+        </span>
+      </button>
+      <div className={`accordion-collapsible${open ? ' open' : ''}`}>
+        <div className="accordion-collapsible-inner">
+          <div className="op-card-detail">
+            {result?.content ? <pre className="op-output">{truncate(result.content, 2000)}</pre> : null}
+          </div>
+        </div>
+      </div>
+      <FileErrorDetail result={result} />
+    </div>
+  );
+}
+
+function DescribeToolCard({ input, result, runStreaming, runSucceeded }: CardProps) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const obj = (input ?? {}) as { id?: string };
+  const isRunning = runStreaming && !result;
+  return (
+    <div className="op-card op-jini-tool">
+      <button type="button" className="op-card-head" onClick={() => setOpen((o) => !o)}>
+        <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
+        <span className={`op-title${isRunning ? ' shimmer-text' : ''}`}>{t('Describe tool')}</span>
+        {obj.id ? <span className="op-meta">{obj.id}</span> : null}
+        <span className="op-expand-chev" aria-hidden>
+          <Icon name={open ? 'chevron-down' : 'chevron-right'} size={11} />
+        </span>
+      </button>
+      <div className={`accordion-collapsible${open ? ' open' : ''}`}>
+        <div className="accordion-collapsible-inner">
+          <div className="op-card-detail">
+            {result?.content ? <pre className="op-output">{truncate(result.content, 2000)}</pre> : null}
+          </div>
+        </div>
+      </div>
+      <FileErrorDetail result={result} />
+    </div>
+  );
 }
 
 interface FileToolCtx {

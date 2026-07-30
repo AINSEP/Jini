@@ -1,6 +1,18 @@
 # Proposal: deny-by-default environment allowlist for agent subprocesses (SEC-001)
 
-**Status:** Proposal only — not implemented. Requires human/architect sign-off before any code change, per the security review's explicit "Human sign-off required: Yes" on SEC-001 and this task's own scope boundary.
+**Status: Implemented 2026-07-28** (commit `575b50602`, `packages/daemon/src/agent-executor.ts`'s
+`BASELINE_AGENT_ENV_KEYS`/`buildAgentEnv`), following the shape sketched below almost exactly —
+hardcoded baseline list (open question 1, resolved in favor of the simpler/harder-to-widen
+option), `credentialEnv` added to `AgentExecutorRunInput` (open question 2's seam, still unwired
+to any real credential-resolution story — that larger design question remains open). `input.env`
+keeps its escape-hatch meaning per §4. Four new tests cover the five points in "What the test
+evidence should look like" (point 4, the daemon's-own-token sentinel, is still N/A — no concrete
+bearer-token constant exists yet in `create-local-node-daemon.ts`). Human sign-off for this
+implementation came via the user directly, during npm-publish prep, choosing "patch first, then
+publish" when this gap was flagged as blocking a public release — not a separate architect review
+pass. Original proposal text preserved below for the record.
+
+~~**Status:** Proposal only — not implemented. Requires human/architect sign-off before any code change, per the security review's explicit "Human sign-off required: Yes" on SEC-001 and this task's own scope boundary.~~
 
 **Finding:** `ADS-memory/reports/security/SEC-backend-coverage-push-2026-07-20.md`, SEC-001 (High).
 

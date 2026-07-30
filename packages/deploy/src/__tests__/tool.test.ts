@@ -1,5 +1,5 @@
-import { createToolExecutor } from '@jini/daemon';
-import { createToolRegistry, type Principal, type ToolExecutionContext } from '@jini/core';
+import { createToolExecutor } from '@jini-ai/daemon';
+import { createToolRegistry, type Principal, type ToolExecutionContext } from '@jini-ai/core';
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_DEPLOY_PUBLISH_ROLE,

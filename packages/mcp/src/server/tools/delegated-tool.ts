@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/server/tools/delegated-tool
+ * @module @jini-ai/mcp/server/tools/delegated-tool
  *
  * `execute_delegated_tool` — the MCP-callback half of gap 3's continuation transport (see
  * `packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1" addition and this
@@ -26,7 +26,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
-import { requireString, type McpToolDef } from '../tool-protocol.js';
+import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 
 /** Response shape `POST /api/delegated-tool-calls` (`packages/http/src/delegated-tools.ts`) returns. */
 interface DelegatedToolExecuteResponse {
@@ -62,7 +62,19 @@ export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedTo
           description: 'Jini registry tool id to invoke. Required.',
         },
         input: {
-          description: 'Arbitrary JSON-serializable input for the tool. Optional; omit for a tool that takes no input.',
+          // `type` is load-bearing, not decoration. Declared without one, an MCP client has no
+          // signal that this property carries structured data, and at least one real client
+          // (Claude Code, observed 2026-07-26) then delivers the model's object as a raw JSON
+          // *string* — which every Jini tool rejects, because a tool's input is a record or
+          // absent (`@jini-ai/daemon`'s `toCapabilityInput` refuses a string by name rather than
+          // coercing it). The effect was that only no-input tools were callable at all.
+          //
+          // Object-only is narrower than "arbitrary JSON" and deliberately so: it is exactly
+          // what every registered tool accepts today, it matches MCP's own convention that tool
+          // arguments are objects, and widening it later (a union type, say) is additive.
+          type: 'object',
+          additionalProperties: true,
+          description: 'JSON object of input fields for the tool. Optional; omit for a tool that takes no input. Must be an object, not a JSON-encoded string.',
         },
       },
       required: ['toolId'],
@@ -83,9 +95,7 @@ export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedTo
         toolId: args.toolId,
         input: args.input,
       };
-      const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, {
-        fetchImpl: ctx.fetchImpl,
-      });
+      const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, daemonCallOptions(ctx));
       return data.result;
     },
   };

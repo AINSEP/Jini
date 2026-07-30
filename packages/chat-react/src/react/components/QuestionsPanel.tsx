@@ -17,7 +17,7 @@
  * kept close to the original; every user-facing string wrapped in `useT()`.
  */
 import { useRef, useState } from 'react';
-import type { QuestionForm as QuestionFormType } from '@jini/chat-core';
+import type { QuestionForm as QuestionFormType } from '@jini-ai/chat-core';
 import { useT } from '../hooks/context.js';
 import { QuestionForm, type QuestionFormHandle } from './QuestionForm.js';
 

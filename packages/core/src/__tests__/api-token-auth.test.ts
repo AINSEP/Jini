@@ -13,7 +13,7 @@ const CONFIG: ApiTokenAuthEnvConfig = {
   disableEnvVar: 'FAKE_DISABLE_API_AUTH',
 };
 
-describe('@jini/core — api-token-auth — isTruthyEnvFlag', () => {
+describe('@jini-ai/core — api-token-auth — isTruthyEnvFlag', () => {
   it('recognizes truthy spellings case-insensitively and trims whitespace', () => {
     for (const value of ['1', 'true', 'TRUE', ' yes ', 'On']) {
       expect(isTruthyEnvFlag(value)).toBe(true);
@@ -27,21 +27,21 @@ describe('@jini/core — api-token-auth — isTruthyEnvFlag', () => {
   });
 });
 
-describe('@jini/core — api-token-auth — isApiAuthDisabled', () => {
+describe('@jini-ai/core — api-token-auth — isApiAuthDisabled', () => {
   it('is false by default and true when the disable flag is set', () => {
     expect(isApiAuthDisabled(CONFIG, {})).toBe(false);
     expect(isApiAuthDisabled(CONFIG, { [CONFIG.disableEnvVar]: '1' })).toBe(true);
   });
 });
 
-describe('@jini/core — api-token-auth — apiTokenFromEnv', () => {
+describe('@jini-ai/core — api-token-auth — apiTokenFromEnv', () => {
   it('returns the trimmed token, or empty string when unset', () => {
     expect(apiTokenFromEnv(CONFIG, {})).toBe('');
     expect(apiTokenFromEnv(CONFIG, { [CONFIG.tokenEnvVar]: '  secret-token  ' })).toBe('secret-token');
   });
 });
 
-describe('@jini/core — api-token-auth — isApiTokenMiddlewareEnabled', () => {
+describe('@jini-ai/core — api-token-auth — isApiTokenMiddlewareEnabled', () => {
   it('is disabled when no token is configured', () => {
     expect(isApiTokenMiddlewareEnabled(CONFIG, {})).toBe(false);
   });

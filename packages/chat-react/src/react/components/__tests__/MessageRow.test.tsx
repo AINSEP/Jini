@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
-import type { ChatMessage } from '@jini/chat-core';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ChatMessage } from '@jini-ai/chat-core';
+import { clearExtEventRenderers, registerExtEventRenderer } from '../../../ext-event-renderer-registry.js';
 import { MessageRow } from '../MessageRow.js';
 
 describe('MessageRow', () => {
@@ -56,6 +57,20 @@ describe('MessageRow', () => {
     const message: ChatMessage = { id: 'a5', role: 'assistant', content: '', runStatus: 'running' };
     render(<MessageRow message={message} runStreaming />);
     expect(screen.getByText('Thinking…')).toBeInTheDocument();
+  });
+
+  it('tags each message for agent inspection, distinctly per role and message id', () => {
+    const userMessage: ChatMessage = { id: 'u-9', role: 'user', content: 'hi' };
+    const { container: userContainer } = render(<MessageRow message={userMessage} />);
+    const userEl = userContainer.querySelector('[data-agent-element="chat-message-u-9"]');
+    expect(userEl).toHaveAttribute('data-agent-role', 'region');
+    expect(userEl).toHaveAttribute('data-agent-label', 'A message from the user');
+
+    const assistantMessage: ChatMessage = { id: 'a-9', role: 'assistant', content: 'hi back', runStatus: 'succeeded' };
+    const { container: assistantContainer } = render(<MessageRow message={assistantMessage} />);
+    const assistantEl = assistantContainer.querySelector('[data-agent-element="chat-message-a-9"]');
+    expect(assistantEl).toHaveAttribute('data-agent-role', 'region');
+    expect(assistantEl).toHaveAttribute('data-agent-label', 'A reply from the assistant');
   });
 
   it('shows a failure indicator for a failed run', () => {
@@ -123,5 +138,152 @@ describe('MessageRow', () => {
     render(<MessageRow message={message} runSucceeded projectFileNames={new Set(['known.txt'])} onRequestOpenFile={onRequestOpenFile} />);
     await userEvent.click(screen.getByRole('button', { name: 'Open' }));
     expect(onRequestOpenFile).toHaveBeenCalledWith('known.txt');
+  });
+
+  describe('usage summary line', () => {
+    it('renders duration, output tokens, and cost from the message\'s usage event', () => {
+      const message: ChatMessage = {
+        id: 'u1',
+        role: 'assistant',
+        content: 'Done.',
+        events: [{ kind: 'usage', inputTokens: 26, outputTokens: 2612, costUsd: 0.4028355, durationMs: 46220 }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      const usageText = document.querySelector('.jini-message-usage')?.textContent;
+      expect(usageText).toContain('Done');
+      expect(usageText).toContain('46s');
+      expect(usageText).toContain('2612 out');
+      expect(usageText).toContain('$0.4028');
+    });
+
+    it('formats a duration over a minute as "Xm Ys"', () => {
+      const message: ChatMessage = {
+        id: 'u2',
+        role: 'assistant',
+        content: '',
+        events: [{ kind: 'usage', durationMs: 389000 }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText(/6m 29s/)).toBeInTheDocument();
+    });
+
+    it('renders only the fields the usage event actually carries, never a fabricated zero', () => {
+      const message: ChatMessage = {
+        id: 'u3',
+        role: 'assistant',
+        content: '',
+        events: [{ kind: 'usage', costUsd: 0.01 }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText(/\$0\.0100/)).toBeInTheDocument();
+      expect(screen.queryByText(/out/)).not.toBeInTheDocument();
+    });
+
+    it('renders nothing when the usage event carries no displayable field', () => {
+      const message: ChatMessage = { id: 'u4', role: 'assistant', content: 'hi', events: [{ kind: 'usage' }], runStatus: 'succeeded' };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-usage')).toBeNull();
+    });
+
+    it('renders nothing when there is no usage event at all', () => {
+      const message: ChatMessage = { id: 'u5', role: 'assistant', content: 'hi', runStatus: 'succeeded' };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-usage')).toBeNull();
+    });
+
+    it('uses the last usage event when more than one is present', () => {
+      const message: ChatMessage = {
+        id: 'u6',
+        role: 'assistant',
+        content: '',
+        events: [
+          { kind: 'usage', costUsd: 0.01 },
+          { kind: 'usage', costUsd: 0.99 },
+        ],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText(/\$0\.9900/)).toBeInTheDocument();
+      expect(screen.queryByText(/\$0\.0100/)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('ext events', () => {
+    afterEach(() => clearExtEventRenderers());
+
+    it('dispatches a kind:ext event group to its registered renderer, passing every event and runId', () => {
+      const seen: unknown[] = [];
+      registerExtEventRenderer('a2ui', (props) => {
+        seen.push(props);
+        return <div data-testid="a2ui-rendered">{props.events.length} events</div>;
+      });
+      const message: ChatMessage = {
+        id: 'e1',
+        role: 'assistant',
+        content: '',
+        runId: 'run-123',
+        events: [
+          { kind: 'ext', name: 'a2ui', data: { step: 1 } },
+          { kind: 'ext', name: 'a2ui', data: { step: 2 } },
+        ],
+        runStatus: 'running',
+      };
+      render(<MessageRow message={message} runStreaming runSucceeded={false} />);
+      expect(screen.getByTestId('a2ui-rendered')).toHaveTextContent('2 events');
+      expect(seen).toEqual([
+        { name: 'a2ui', events: [{ step: 1 }, { step: 2 }], runStreaming: true, runSucceeded: false, runId: 'run-123' },
+      ]);
+    });
+
+    it('renders nothing for an ext event whose name has no registered renderer', () => {
+      const message: ChatMessage = {
+        id: 'e2',
+        role: 'assistant',
+        content: 'hi',
+        events: [{ kind: 'ext', name: 'unregistered_kind', data: {} }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-ext-events')?.textContent).toBe('');
+    });
+
+    it('renders nothing when the registered renderer itself returns null/false/undefined', () => {
+      registerExtEventRenderer('quiet', () => null);
+      const message: ChatMessage = {
+        id: 'e3',
+        role: 'assistant',
+        content: '',
+        events: [{ kind: 'ext', name: 'quiet', data: {} }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(document.querySelector('.jini-message-ext-events')?.textContent).toBe('');
+    });
+
+    it('confines a throwing ext-event renderer to its own group instead of crashing the whole row', () => {
+      // Registered the same way a real hooks-based renderer is (`(props) => <SomeComponent ... />`,
+      // per this registry's own module doc) so the throw happens during React's reconciliation of
+      // the returned element — same place a real render-phase or effect-phase throw from e.g.
+      // `A2uiSurfaceCard` would land — not synchronously inside `MessageRow`'s own render body.
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      function ThrowingRenderer(): never {
+        throw new Error('malformed data-model path');
+      }
+      registerExtEventRenderer('a2ui', () => <ThrowingRenderer />);
+      const message: ChatMessage = {
+        id: 'e4',
+        role: 'assistant',
+        content: 'still here',
+        events: [{ kind: 'ext', name: 'a2ui', data: {} }],
+        runStatus: 'succeeded',
+      };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByText('still here')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: malformed data-model path');
+      consoleError.mockRestore();
+    });
   });
 });

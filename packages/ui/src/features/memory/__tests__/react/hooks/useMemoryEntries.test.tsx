@@ -1023,7 +1023,7 @@ describe('useMemoryEntries — onCopyPath', () => {
   });
 
   it("surfaces a loadError (not a claimed success) when copyToClipboard resolves false on total failure", async () => {
-    // @jini/ui's copyToClipboard falls back from the Clipboard API to
+    // @jini-ai/ui's copyToClipboard falls back from the Clipboard API to
     // document.execCommand('copy') and resolves `false` (never rejects) when
     // BOTH paths fail. onCopyPath must branch on that boolean, not on a
     // caught rejection.

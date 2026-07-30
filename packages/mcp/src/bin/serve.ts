@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * @module @jini/mcp/bin/serve
+ * @module @jini-ai/mcp/bin/serve
  *
  * The bootable `jini-mcp` binary (`package.json`'s `"bin": { "jini-mcp": "./dist/bin/serve.js" }`)
  * — the real executable entry point gap 3's MCP-callback continuation-transport spike needed and
@@ -10,14 +10,14 @@
  * script a client (Claude Code) spawns as its own child subprocess and talks to over that child's
  * stdin/stdout — but until this file, nothing in this package actually was that script.
  *
- * Follows `@jini/cli/main.ts`'s established shape for a bootable, side-effect-guarded, `#!/usr/bin/env
+ * Follows `@jini-ai/cli/main.ts`'s established shape for a bootable, side-effect-guarded, `#!/usr/bin/env
  * node` entry point: a named, fully-dependency-injected `serve()` export (importable for tests, or
  * for a consumer building its own bin wrapper around it) plus a bottom-of-file guard that only
  * calls it for real when this module is the actual process entrypoint — mirrors that file's own
  * `isMainModule` check (Node's ESM equivalent of the CommonJS `require.main === module` idiom).
  * Deliberately **not** re-exported from `../index.ts`: that barrel is a plain library dependency, and
  * this file's whole purpose is a `process.env`-reading, stdio-serving, potentially `process.exit`-
- * calling side effect — bundling it into the library barrel would mean `import '@jini/mcp'` could
+ * calling side effect — bundling it into the library barrel would mean `import '@jini-ai/mcp'` could
  * start behaving like a spawned MCP server.
  *
  * **Scope: what this process is spawned to do.** One `jini-mcp` process serves exactly one run for
@@ -29,8 +29,8 @@
  * other tool this server hosts (`RUN_TOOLS`, `../server/tools/run-tools.js`) is run-agnostic and
  * needed no such scoping.
  *
- * **Daemon-URL resolution** mirrors `@jini/cli/main.ts`'s own posture: no baked-in default, just
- * `resolveDaemonUrl` (`@jini/cli`) wired to a `--daemon-url`-shaped precedence chain — except this
+ * **Daemon-URL resolution** mirrors `@jini-ai/cli/main.ts`'s own posture: no baked-in default, just
+ * `resolveDaemonUrl` (`@jini-ai/cli`) wired to a `--daemon-url`-shaped precedence chain — except this
  * process has no argv to parse (an MCP client launches it with a fixed `command`/`args`/`env`, not
  * interactive flags), so only the env-var step applies: {@link DAEMON_URL_ENV_VAR}. When unset,
  * `resolveDaemonUrl` throws, and this file's own top-level error boundary turns that into a clean
@@ -38,17 +38,29 @@
  */
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { resolveDaemonUrl as resolveDaemonUrlDefault, type ResolveDaemonUrlOptions } from '@jini/cli';
+import { resolveDaemonUrl as resolveDaemonUrlDefault, type ResolveDaemonUrlOptions } from '@jini-ai/cli';
 import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerOptions } from '../server/tool-server.js';
 import type { McpToolDef } from '../server/tool-protocol.js';
 import { RUN_TOOLS } from '../server/tools/run-tools.js';
+import { TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
 import { createExecuteDelegatedToolTool } from '../server/tools/delegated-tool.js';
 import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
 
 /** The one run this process is scoped to for its entire lifetime. Set by the spawning daemon, never by the MCP client. */
 export const RUN_ID_ENV_VAR = 'JINI_RUN_ID';
-/** Checked (only) when resolving the daemon HTTP base URL — see `resolveDaemonUrl`'s own docs; matches `@jini/cli/main.ts`'s identically-named constant. */
+/** Checked (only) when resolving the daemon HTTP base URL — see `resolveDaemonUrl`'s own docs; matches `@jini-ai/cli/main.ts`'s identically-named constant. */
 export const DAEMON_URL_ENV_VAR = 'JINI_DAEMON_URL';
+/**
+ * Bearer credential for this process's daemon callbacks, set by the spawning daemon when it issued
+ * one (see `@jini-ai/daemon`'s `McpJsonInjectionOptions.credential`).
+ *
+ * **Optional, unlike {@link RUN_ID_ENV_VAR}.** A daemon whose `/api` surface trusts loopback issues
+ * no credential, and this process must keep working against one exactly as before — so an unset
+ * value means "send no `Authorization` header", never a startup failure. When a daemon *does*
+ * require a credential and none was delivered, that daemon's own gate answers 401; refusing to boot
+ * here instead would be guessing at a policy this process cannot observe.
+ */
+export const DAEMON_TOKEN_ENV_VAR = 'JINI_DAEMON_TOKEN';
 
 const SERVER_NAME = 'jini-mcp';
 const SERVER_VERSION = '0.0.0';
@@ -64,7 +76,7 @@ export interface ServeDeps {
   readonly writeErr?: (text: string) => void;
   /** @default process.exit; inject for tests (must not return) */
   readonly exit?: (code: number) => never;
-  /** @default the real @jini/cli resolveDaemonUrl */
+  /** @default the real @jini-ai/cli resolveDaemonUrl */
   readonly resolveDaemonUrl?: typeof resolveDaemonUrlDefault;
   /** @default the real createMcpToolServer */
   readonly createMcpToolServer?: typeof createMcpToolServerDefault;
@@ -110,11 +122,20 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
 
   const tools: readonly McpToolDef[] = [
     ...RUN_TOOLS,
+    ...TOOL_CATALOG_TOOLS,
     createExecuteDelegatedToolTool({
       runId,
       ...(deps.generateToolUseId !== undefined ? { generateToolUseId: deps.generateToolUseId } : {}),
     }),
   ];
+
+  // Absent credential => no `authHeaders` at all => byte-identical request headers to before this
+  // env var existed. See DAEMON_TOKEN_ENV_VAR's doc for why an unset value is not a startup failure.
+  const credential = env[DAEMON_TOKEN_ENV_VAR];
+  const authHeaders =
+    typeof credential === 'string' && credential.length > 0
+      ? { Authorization: `Bearer ${credential}` }
+      : undefined;
 
   const serverOptions: McpToolServerOptions = {
     name: SERVER_NAME,
@@ -123,6 +144,7 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
     resources: KERNEL_RESOURCES,
     resolveBaseUrl,
     instructions: INSTRUCTIONS,
+    ...(authHeaders !== undefined ? { authHeaders } : {}),
     ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
     ...(deps.stdin !== undefined ? { stdin: deps.stdin } : {}),
     ...(deps.stdout !== undefined ? { stdout: deps.stdout } : {}),
@@ -139,7 +161,7 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
 
 // Only run for real when this module is the actual process entrypoint (`node dist/bin/serve.js`,
 // or the `jini-mcp` bin shim pnpm/npm links to it) — not merely imported, e.g. by this file's own
-// tests importing the named `serve` export above. Mirrors `@jini/cli/main.ts`'s identical guard.
+// tests importing the named `serve` export above. Mirrors `@jini-ai/cli/main.ts`'s identical guard.
 const isMainModule = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMainModule) {
   await serve();

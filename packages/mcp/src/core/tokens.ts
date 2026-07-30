@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/core/tokens
+ * @module @jini-ai/mcp/core/tokens
  * Persistent, 0600-guarded OAuth-token store for remote MCP servers, keyed by
  * server id, with expiry checks. The durable counterpart to `oauth`'s live flow.
  * Part of the MCP `core` kernel; depends on no sibling subdirectory.

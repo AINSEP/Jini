@@ -190,6 +190,49 @@ describe('runAzureToolTurn', () => {
     expect(body.max_completion_tokens).toBeUndefined();
   });
 
+  it('forwards an explicit temperature and omits the field entirely when the caller sets none', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', temperature: 0.2, messages: baseMessages, onEvent: () => {} });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).temperature).toBe(0.2);
+
+    // Omitted rather than sent as null/undefined: some deployments reject an explicit null, and a
+    // reasoning deployment rejects the parameter outright.
+    fetchMock.mockClear();
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', messages: baseMessages, onEvent: () => {} });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).not.toHaveProperty('temperature');
+  });
+
+  it('sends temperature 0 rather than treating it as absent', async () => {
+    // `0` is the most useful value a caller can pick and the easiest to lose to a truthiness check.
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+    vi.stubGlobal('fetch', fetchMock);
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', temperature: 0, messages: baseMessages, onEvent: () => {} });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).temperature).toBe(0);
+  });
+
+  it('forwards a non-empty tools array verbatim, and omits the field for an empty one', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+    vi.stubGlobal('fetch', fetchMock);
+    const tools = [{ type: 'function' as const, function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } } }];
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', tools, messages: baseMessages, onEvent: () => {} });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body).tools).toEqual(tools);
+
+    // Azure rejects `tools: []` with a 400, so an empty list must be indistinguishable from no list.
+    fetchMock.mockClear();
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', tools: [], messages: baseMessages, onEvent: () => {} });
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).not.toHaveProperty('tools');
+  });
+
+  it('passes a caller AbortSignal through to fetch so a cancelled turn actually cancels the request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+    vi.stubGlobal('fetch', fetchMock);
+    const controller = new AbortController();
+    await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', signal: controller.signal, messages: baseMessages, onEvent: () => {} });
+    expect(fetchMock.mock.calls[0]![1].signal).toBe(controller.signal);
+  });
+
   it('retries once with max_completion_tokens when the deployment rejects the legacy max_tokens field with a 400 — matches OD\'s real [proxy:azure] retry', async () => {
     const unsupportedParamError = 'Unsupported parameter: \'max_tokens\' is not supported with this model. Use \'max_completion_tokens\' instead.';
     const fetchMock = vi

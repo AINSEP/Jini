@@ -49,6 +49,8 @@ export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
   /** Overrides the default relative-time formatter
    *  (`relativeCommentTimeTranslation` + `t()`). */
   formatTimestamp?: (timestampMs: number) => string;
+  /** Custom hook override for dependency injection / testing. */
+  useCommentReorder?: typeof useCommentReorder;
 }
 
 /**
@@ -85,11 +87,12 @@ export function CommentSidePanel<TComment extends ViewerCommentBase>({
   getCommentAttachments,
   resolveAttachmentUrl,
   formatTimestamp,
+  useCommentReorder: useCommentReorderHook = useCommentReorder,
 }: CommentSidePanelProps<TComment>) {
   const t = useT();
   const [newCommentDraft, setNewCommentDraft] = useState('');
   const orderedIds = comments.map((comment) => comment.id);
-  const reorder = useCommentReorder(orderedIds, onReorder);
+  const reorder = useCommentReorderHook(orderedIds, onReorder);
   const visibleSelectedIds = visibleSelectedCommentIds(comments, selectedIds);
   const selectedCount = visibleSelectedIds.size;
   const allSelected = comments.length > 0 && selectedCount === comments.length;

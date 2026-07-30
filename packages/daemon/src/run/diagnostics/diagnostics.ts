@@ -3,7 +3,7 @@
 /**
  * Scrubs secrets/PII from a stream tail before it is stored or emitted. The
  * engine provides the tail-collection mechanism but takes no opinion on the
- * scrubbing policy: a consumer injects its own redactor (e.g. `@jini/core`'s
+ * scrubbing policy: a consumer injects its own redactor (e.g. `@jini-ai/core`'s
  * `redactSecrets`). Defaults to identity so a caller that has already scrubbed —
  * or genuinely wants the raw tail — need not pass one.
  */
@@ -184,6 +184,165 @@ export function collectStdoutTailSummary(
   return collectStreamTailSummary(events, 'stdout', readStdoutChunk, redact);
 }
 
+/** The set of `rpc_close_reason` strings a `runtime_close` diagnostic may legitimately carry. */
+const RECOGNIZED_CLOSE_REASONS: ReadonlySet<string> = new Set<RunCloseReason>([
+  'exit_0',
+  'exit_nonzero',
+  'signal',
+  'cancel_requested',
+  'stream_error',
+  'fatal_rpc_error',
+  'empty_output',
+  'unknown',
+]);
+
+/** Coerces an event's `data` to a property bag so `data.type` probing never throws on a scalar/array payload. */
+function eventDataRecord(data: unknown): Record<string, unknown> {
+  return data && typeof data === 'object' ? data as Record<string, unknown> : {};
+}
+
+/**
+ * Reads the authoritative close reason a driver recorded on a `runtime_close` diagnostic event,
+ * or `null` when this event carries none (or carries an unrecognized value).
+ */
+function readRecordedCloseReason(
+  event: RunEventForDiagnostics,
+  data: Record<string, unknown>,
+): RunCloseReason | null {
+  if (event.event !== 'diagnostic' || data.type !== 'runtime_close') return null;
+  const reason = data.rpc_close_reason;
+  if (typeof reason !== 'string') return null;
+  return RECOGNIZED_CLOSE_REASONS.has(reason) ? reason as RunCloseReason : null;
+}
+
+/** True when this event is a non-empty streamed text/thinking delta — i.e. output a user actually saw. */
+function hasVisibleTextDelta(data: Record<string, unknown>): boolean {
+  if (data.type !== 'text_delta' && data.type !== 'thinking_delta') return false;
+  return typeof data.delta === 'string' && data.delta.length > 0;
+}
+
+/** Mutable accumulator threaded through a single pass over a run's event list. */
+interface RunEventObservations {
+  stderr: string;
+  stdout: string;
+  hasErrorEvent: boolean;
+  userVisibleOutputSeen: boolean;
+  toolCallSeen: boolean;
+  artifactWriteSeen: boolean;
+  liveArtifactSeen: boolean;
+  recordedCloseReason: RunCloseReason | null;
+  resumeAutoReseeded: boolean;
+}
+
+/** Accumulates the raw stderr/stdout text carried by this event, if it is a stream chunk. */
+function accumulateStreamChunk(observed: RunEventObservations, event: RunEventForDiagnostics): void {
+  if (event.event === 'stderr') {
+    const chunk = readStderrChunk(event.data);
+    if (chunk) observed.stderr += chunk;
+    return;
+  }
+  if (event.event === 'stdout') {
+    const chunk = readStdoutChunk(event.data);
+    if (chunk) {
+      observed.stdout += chunk;
+      observed.userVisibleOutputSeen = true;
+    }
+  }
+}
+
+/** Latches the observed-behavior flags (visible output, tool calls, artifacts, resume re-seed) for one event. */
+function accumulateObservedFlags(
+  observed: RunEventObservations,
+  event: RunEventForDiagnostics,
+  data: Record<string, unknown>,
+): void {
+  if (hasVisibleTextDelta(data)) observed.userVisibleOutputSeen = true;
+  if (data.type === 'tool_use') observed.toolCallSeen = true;
+  if (data.type === 'artifact') observed.artifactWriteSeen = true;
+  if (data.type === 'live_artifact' || event.event === 'live_artifact') {
+    observed.liveArtifactSeen = true;
+  }
+  if (event.event === 'diagnostic' && data.type === 'agent_resume_auto_reseed') {
+    observed.resumeAutoReseeded = true;
+  }
+}
+
+/** Folds one event into the accumulator. */
+function accumulateEvent(observed: RunEventObservations, event: RunEventForDiagnostics): void {
+  if (event.event === 'error') observed.hasErrorEvent = true;
+  accumulateStreamChunk(observed, event);
+  const data = eventDataRecord(event.data);
+  accumulateObservedFlags(observed, event, data);
+  const closeReason = readRecordedCloseReason(event, data);
+  if (closeReason) observed.recordedCloseReason = closeReason;
+}
+
+/**
+ * Single pass over a run's event list collecting every diagnostic signal the analytics payload
+ * needs. Seeded with the daemon-supplied artifact flags so an event stream that never mentions an
+ * artifact still reports what finalization already knew.
+ */
+function scanRunEvents(
+  events: RunEventForDiagnostics[],
+  seed: { artifactWriteSeen: boolean; liveArtifactSeen: boolean },
+): RunEventObservations {
+  const observed: RunEventObservations = {
+    stderr: '',
+    stdout: '',
+    hasErrorEvent: false,
+    userVisibleOutputSeen: false,
+    toolCallSeen: false,
+    artifactWriteSeen: seed.artifactWriteSeen,
+    liveArtifactSeen: seed.liveArtifactSeen,
+    recordedCloseReason: null,
+    resumeAutoReseeded: false,
+  };
+  for (const event of events) {
+    accumulateEvent(observed, event);
+  }
+  return observed;
+}
+
+/** Picks the single most informative signal available about why the run ended, in priority order. */
+function resolveDiagnosticSource(signals: {
+  hasErrorEvent: boolean;
+  stderrPresent: boolean;
+  signal: string | null | undefined;
+  exitCode: number | null | undefined;
+}): RunDiagnosticSource {
+  if (signals.hasErrorEvent) return 'error_event';
+  if (signals.stderrPresent) return 'stderr';
+  if (signals.signal) return 'signal';
+  if (typeof signals.exitCode === 'number') return 'exit_code';
+  return 'unknown';
+}
+
+/**
+ * Resolves the mechanism that closed the run. A reason a driver explicitly recorded always wins;
+ * otherwise the daemon's own finalization flags are consulted in priority order, falling back to
+ * the raw process exit signal/code.
+ */
+function resolveRpcCloseReason(
+  recordedCloseReason: RunCloseReason | null,
+  signals: {
+    cancelRequested?: boolean;
+    fatalRpcErrorSeen?: boolean;
+    streamErrorSeen?: boolean;
+    emptyOutputFailure?: boolean;
+    signal?: string | null;
+    exitCode?: number | null;
+  },
+): RunCloseReason {
+  if (recordedCloseReason) return recordedCloseReason;
+  if (signals.cancelRequested === true) return 'cancel_requested';
+  if (signals.fatalRpcErrorSeen === true) return 'fatal_rpc_error';
+  if (signals.streamErrorSeen === true) return 'stream_error';
+  if (signals.emptyOutputFailure === true) return 'empty_output';
+  if (signals.signal) return 'signal';
+  if (typeof signals.exitCode !== 'number') return 'unknown';
+  return signals.exitCode === 0 ? 'exit_0' : 'exit_nonzero';
+}
+
 /**
  * Produces the full `RunDiagnosticsAnalytics` payload for a completed run by scanning its event stream
  * and combining observed flags (tool calls, artifact writes, first token) with process-level signals.
@@ -202,97 +361,32 @@ export function summarizeRunDiagnosticsForAnalytics(args: {
   artifactWriteSeen?: boolean;
   liveArtifactSeen?: boolean;
 }): RunDiagnosticsAnalytics {
-  const events = args.events ?? [];
-  let stderr = '';
-  let stdout = '';
-  let userVisibleOutputSeen = false;
-  let toolCallSeen = false;
-  let artifactWriteSeen = args.artifactWriteSeen === true;
-  let liveArtifactSeen = args.liveArtifactSeen === true;
-  let recordedCloseReason: RunCloseReason | null = null;
-  let resumeAutoReseeded = false;
-  for (const event of events) {
-    if (event.event === 'stderr') {
-      const chunk = readStderrChunk(event.data);
-      if (chunk) stderr += chunk;
-    }
-    if (event.event === 'stdout') {
-      const chunk = readStdoutChunk(event.data);
-      if (chunk) {
-        stdout += chunk;
-        userVisibleOutputSeen = true;
-      }
-    }
-    const data = event.data && typeof event.data === 'object'
-      ? event.data as Record<string, unknown>
-      : {};
-    if (data.type === 'text_delta' || data.type === 'thinking_delta') {
-      const delta = typeof data.delta === 'string' ? data.delta : '';
-      if (delta.length > 0) userVisibleOutputSeen = true;
-    }
-    if (data.type === 'tool_use') toolCallSeen = true;
-    if (event.event === 'diagnostic' && data.type === 'agent_resume_auto_reseed') {
-      resumeAutoReseeded = true;
-    }
-    if (data.type === 'artifact') artifactWriteSeen = true;
-    if (data.type === 'live_artifact' || event.event === 'live_artifact') {
-      liveArtifactSeen = true;
-    }
-    if (
-      event.event === 'diagnostic' &&
-      data.type === 'runtime_close' &&
-      typeof data.rpc_close_reason === 'string'
-    ) {
-      const reason = data.rpc_close_reason;
-      if (
-        reason === 'exit_0' ||
-        reason === 'exit_nonzero' ||
-        reason === 'signal' ||
-        reason === 'cancel_requested' ||
-        reason === 'stream_error' ||
-        reason === 'fatal_rpc_error' ||
-        reason === 'empty_output' ||
-        reason === 'unknown'
-      ) {
-        recordedCloseReason = reason;
-      }
-    }
-  }
-  const stderrLineCount = countLines(stderr);
-  const stdoutLineCount = countLines(stdout);
-  const hasErrorEvent = events.some((event) => event.event === 'error');
+  const observed = scanRunEvents(args.events ?? [], {
+    artifactWriteSeen: args.artifactWriteSeen === true,
+    liveArtifactSeen: args.liveArtifactSeen === true,
+  });
+  const stderrLineCount = countLines(observed.stderr);
+  const stdoutLineCount = countLines(observed.stdout);
   const stderrPresent = stderrLineCount > 0;
   const stdoutPresent = stdoutLineCount > 0;
 
-  let diagnosticSource: RunDiagnosticSource = 'unknown';
-  if (hasErrorEvent) diagnosticSource = 'error_event';
-  else if (stderrPresent) diagnosticSource = 'stderr';
-  else if (args.signal) diagnosticSource = 'signal';
-  else if (typeof args.exitCode === 'number') diagnosticSource = 'exit_code';
-
-  let rpcCloseReason: RunCloseReason = 'unknown';
-  if (recordedCloseReason) rpcCloseReason = recordedCloseReason;
-  else if (args.cancelRequested === true) rpcCloseReason = 'cancel_requested';
-  else if (args.fatalRpcErrorSeen === true) rpcCloseReason = 'fatal_rpc_error';
-  else if (args.streamErrorSeen === true) rpcCloseReason = 'stream_error';
-  else if (args.emptyOutputFailure === true) rpcCloseReason = 'empty_output';
-  else if (args.signal) rpcCloseReason = 'signal';
-  else if (typeof args.exitCode === 'number') {
-    rpcCloseReason = args.exitCode === 0 ? 'exit_0' : 'exit_nonzero';
-  }
-
   return {
-    diagnostic_source: diagnosticSource,
+    diagnostic_source: resolveDiagnosticSource({
+      hasErrorEvent: observed.hasErrorEvent,
+      stderrPresent,
+      signal: args.signal,
+      exitCode: args.exitCode,
+    }),
     stderr_present: stderrPresent,
     stderr_line_count_bucket: stderrLineCountBucket(stderrLineCount),
     stdout_present: stdoutPresent,
     stdout_line_count_bucket: stderrLineCountBucket(stdoutLineCount),
-    rpc_close_reason: rpcCloseReason,
+    rpc_close_reason: resolveRpcCloseReason(observed.recordedCloseReason, args),
     first_token_seen: args.firstTokenSeen === true,
-    user_visible_output_seen: userVisibleOutputSeen,
-    tool_call_seen: toolCallSeen,
-    artifact_write_seen: artifactWriteSeen,
-    live_artifact_seen: liveArtifactSeen,
-    resume_auto_reseeded: resumeAutoReseeded,
+    user_visible_output_seen: observed.userVisibleOutputSeen,
+    tool_call_seen: observed.toolCallSeen,
+    artifact_write_seen: observed.artifactWriteSeen,
+    live_artifact_seen: observed.liveArtifactSeen,
+    resume_auto_reseeded: observed.resumeAutoReseeded,
   };
 }

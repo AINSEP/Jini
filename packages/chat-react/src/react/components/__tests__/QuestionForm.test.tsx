@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { DirectionCard, FormQuestion, QuestionForm as QuestionFormType } from '@jini/chat-core';
+import type { DirectionCard, FormQuestion, QuestionForm as QuestionFormType } from '@jini-ai/chat-core';
 import { QuestionForm, type QuestionFormHandle } from '../QuestionForm.js';
 
 const form: QuestionFormType = {

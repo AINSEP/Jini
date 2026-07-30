@@ -1,13 +1,13 @@
 import type { LookupFunction } from 'node:net';
 import { Agent } from 'undici';
-import { assertSafePublicUrl, AssetCacheError, createValidatingLookup } from '@jini/platform';
+import { assertSafePublicUrl, AssetCacheError, createValidatingLookup } from '@jini-ai/platform';
 import type { DeployLinkStatus, DeploymentUrlCheck } from './types.js';
 
 /**
  * SEC-003: reachability probes fetch a *provider-returned* URL/alias
  * (Vercel/Cloudflare deployment `url`/`alias`/`aliases[]`), so a compromised or
  * malicious provider response is a live SSRF vector — the same trust-boundary
- * shape `@jini/platform`'s asset-cache solves for a caller-supplied media URL.
+ * shape `@jini-ai/platform`'s asset-cache solves for a caller-supplied media URL.
  * Reused here rather than reinvented (see
  * ADS-memory/reports/security/SEC-backend-coverage-push-2026-07-20.md, SEC-003,
  * which cites asset-cache as "a good model for deploy reachability"):

@@ -1,5 +1,7 @@
 node_modules/
 dist/
+dist-tarballs/
+dist-mcpui-view/
 *.tsbuildinfo
 .tmp/
 coverage/
@@ -8,12 +10,26 @@ coverage/
 .env
 .env.local
 
+# npm publish auth token (see scripts/publish-all.ts) — never committed, never part of any
+# package's published `files`.
+.npmrc
+
 # Local Jini daemon state and browser automation snapshots
 .jini/
 .playwright-mcp/
 
-# Claude Code harness-local session state (worktrees, one-time init flags)
-.claude/
+# Written into a run's cwd at spawn by @jini/daemon's mcpJsonInjection (the jini-mcp bridge entry).
+# Per-run generated config, not project source — see packages/daemon/src/agent-executor.ts.
+.mcp.json
+
+# Claude Code harness-local session state (worktrees, one-time init flags).
+# Contents are excluded rather than the directory itself: git cannot re-include a path whose
+# parent directory is excluded, and `.claude/agents/` below must stay trackable.
+.claude/*
+# Agent definitions and skills are shared project config, not session state — AGENTS.md names
+# `sidekick` as a startup step, so these have to survive a fresh clone.
+!.claude/agents/
+!.claude/skills/
 
 # project-runner local execution state (leases/sandboxes are ephemeral; ledger tasks are committed)
 foundry/automation/project-runner/leases/
@@ -24,3 +40,17 @@ foundry/automation/project-runner/.sandbox/
 **/.codegraph/
 **/.code-review-graph/
 .codebase-memory/
+# understand-anything: the graph itself IS committed (AGENTS.md names it as one of the three
+# indexes to query before `rg`, so it has to survive a fresh clone). It is cheap despite the raw
+# byte count — both JSON files are pretty-printed, so they gzip ~6x and delta well between
+# re-indexes. Only the run scratch is excluded.
+.understand-anything/tmp/
+.understand-anything/intermediate/
+
+# Raw peer-agent transcripts from swarm runs. Only the curated CTX-*.md write-ups are retained;
+# the raw jsonl/stderr dumps they were distilled from are scratch.
+ADS-memory/reports/swarm-consensus/context/peer-*
+ADS-memory/tmp/
+
+# One-off scratch harnesses (hardcoded absolute paths, not runnable on another machine)
+examples/*/scratch-*.ts

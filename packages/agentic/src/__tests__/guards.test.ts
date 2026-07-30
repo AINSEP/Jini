@@ -1,0 +1,216 @@
+import { describe, expect, it } from 'vitest';
+
+import {
+  MAX_AGENT_LABEL_LENGTH,
+  describeFieldReadRefusal,
+  describeFieldRefusal,
+  findFieldFillRefusal,
+  findFieldReadRefusal,
+  normalizeAgentLabel,
+} from '../index.js';
+
+describe('findFieldFillRefusal', () => {
+  it('allows a field whose autocomplete is present but harmless', () => {
+    // The loop must fall through when every token is benign, rather than only being exercised
+    // by the absent-autocomplete path.
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'off' })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'section-a given-name' })).toBeNull();
+  });
+
+  it('allows an ordinary text field', () => {
+    expect(findFieldFillRefusal({ type: 'text', name: 'task' })).toBeNull();
+    expect(findFieldFillRefusal({})).toBeNull();
+  });
+
+  it('refuses credential, payment and one-time-code fields', () => {
+    expect(findFieldFillRefusal({ type: 'password' })).toBe('denied-type');
+    expect(findFieldFillRefusal({ type: 'PASSWORD' })).toBe('denied-type');
+    expect(findFieldFillRefusal({ type: 'hidden' })).toBe('denied-type');
+    expect(findFieldFillRefusal({ type: 'file' })).toBe('denied-type');
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'cc-number' })).toBe('denied-autocomplete');
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'section-a cc-csc' })).toBe('denied-autocomplete');
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'one-time-code' })).toBe('denied-autocomplete');
+  });
+
+  it('catches a comma-separated autocomplete value, not just a space-separated one', () => {
+    // Regression: `autocomplete.split(/\s+/)` turned "new-password,current-password" into one
+    // unrecognized token, so a comma-joined value (spec-invalid HTML, but markup an
+    // attacker-controlled page can trivially emit) bypassed the guard for both a password token
+    // and a card token.
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'new-password,current-password' }))
+      .toBe('denied-autocomplete');
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'cc-number,cc-csc' })).toBe('denied-autocomplete');
+    // Still sound for the ordinary space-separated, section-scoped grammar.
+    expect(findFieldFillRefusal({ type: 'text', autocomplete: 'section-blue shipping cc-number' }))
+      .toBe('denied-autocomplete');
+  });
+
+  it('refuses a secret-looking field even when type and autocomplete are innocent', () => {
+    // The case an allowlist alone misses: the field carries a handle and looks like plain text.
+    expect(findFieldFillRefusal({ type: 'text', name: 'csrf_token' })).toBe('suspicious-name');
+    expect(findFieldFillRefusal({ type: 'text', id: 'user-apikey' })).toBe('suspicious-name');
+    expect(findFieldFillRefusal({ type: 'text', name: 'cardnumber' })).toBe('suspicious-name');
+  });
+
+  it('sees through the separator a field name happens to use', () => {
+    // These are the same field under three conventions, and the guard has to agree about all
+    // three. It previously matched only the run-together spelling, which is the rarest one.
+    for (const name of ['card-number', 'card_number', 'cardNumber']) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBe('suspicious-name');
+    }
+    for (const name of ['api_key', 'api-key', 'apiKey', 'credit_card', 'one.time.otp']) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBe('suspicious-name');
+    }
+    // Squashing separators must not start refusing ordinary fields.
+    for (const name of ['full-name', 'work_email', 'teamSize', 'street-address']) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBeNull();
+    }
+  });
+
+  it('folds a fullwidth homoglyph before squashing, instead of deleting it', () => {
+    // Regression: squashSeparators used to delete any non-ASCII character rather than fold it,
+    // so replacing one letter of "password" with its fullwidth look-alike left "assword" behind
+    // — a real letter short of matching. Fullwidth forms fold to plain ASCII under NFKC.
+    expect(findFieldFillRefusal({ type: 'text', name: 'ｐassword' })).toBe('suspicious-name');
+    // An accented look-alike folds the same way once its combining mark is stripped.
+    expect(findFieldFillRefusal({ type: 'text', name: 'pásswörd' })).toBe('suspicious-name');
+  });
+
+  it('KNOWN LIMITATION: a Cyrillic look-alike still bypasses the guard', () => {
+    // Not a passing guarantee — the opposite. NFKC has no cross-script confusables table:
+    // Cyrillic а (U+0430) stays a distinct codepoint from Latin a after NFKC, so this still
+    // squashes to something other than "password" and is NOT caught. Closing this needs an
+    // explicit confusables-folding table (e.g. Unicode TR39's), not attempted here.
+    const cyrillicLookalike = `pаssword`; // Cyrillic а (U+0430), not Latin a (U+0061)
+    expect(findFieldFillRefusal({ type: 'text', name: cyrillicLookalike })).toBeNull();
+  });
+
+  it('still refuses a zero-width character inserted into a trigger word', () => {
+    // Contrast with the homoglyph case: deleting a zero-width character (rather than a visible
+    // look-alike) leaves the real letters intact, so this was never broken. Kept here so a
+    // future refactor of squashSeparators cannot regress it silently.
+    expect(findFieldFillRefusal({ type: 'text', name: 'pass​word' })).toBe('suspicious-name');
+  });
+
+  it('reads sensitivity from accessibleLabel when name/id carry none at all', () => {
+    // The case an allowlist and a name/id check both miss: a form builder or CMS emitting
+    // name="field_47" next to a visible "Card number" label. Before accessibleLabel was wired
+    // into the guard, this field was invisible to it.
+    expect(findFieldFillRefusal({ type: 'text', name: 'field_47' })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', name: 'field_47', accessibleLabel: 'Card number' }))
+      .toBe('suspicious-name');
+    expect(findFieldReadRefusal({ type: 'text', id: 'f1', accessibleLabel: 'Auth token' }))
+      .toBe('suspicious-name');
+    // Separator conventions in the label are squashed identically to name/id.
+    expect(findFieldFillRefusal({ type: 'text', accessibleLabel: 'CVV Code' })).toBe('suspicious-name');
+  });
+
+  it('does not refuse ordinary fields that happen to contain pin/pan as a substring', () => {
+    // Guards against a future edit adding bare "pin" or "pan" to SUSPICIOUS_NAME: both are real
+    // PCI/banking terms, but as bare substrings they collide with ordinary field names once
+    // separators are squashed out — "shipping" contains "pin", "company" contains "pan".
+    expect(findFieldFillRefusal({ type: 'text', name: 'shipping_address' })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', name: 'company_name' })).toBeNull();
+    expect(findFieldReadRefusal({ type: 'text', id: 'shipping-address' })).toBeNull();
+    expect(findFieldReadRefusal({ type: 'text', accessibleLabel: 'Company name' })).toBeNull();
+  });
+
+  it('catches the additional credential/payment/recovery spellings', () => {
+    for (const name of [
+      'cc-number', 'card_num', 'account_number', 'routing_number', 'iban', 'sort_code',
+      'security_code', 'passphrase', 'private_key', 'client_secret', 'access_key', 'secret_key',
+      'recovery_code', 'backup_code', 'mfa_code',
+    ]) {
+      expect(findFieldFillRefusal({ type: 'text', name })).toBe('suspicious-name');
+    }
+  });
+
+  it('refuses fields the user could not type into either', () => {
+    expect(findFieldFillRefusal({ type: 'text', readOnly: true })).toBe('read-only');
+    expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');
+  });
+
+  it('refuses controls that hold no text, pointing at the verb that does work', () => {
+    // Filling a checkbox sets the string it submits when ticked and leaves `checked` alone — a
+    // write that succeeds and accomplishes nothing, which a caller never retries.
+    for (const type of ['checkbox', 'radio', 'submit', 'reset', 'button']) {
+      expect(findFieldFillRefusal({ type, name: 'agree' })).toBe('not-text');
+    }
+    expect(describeFieldRefusal('not-text')).toMatch(/click verb/);
+    // Reading one is fine — only writing is meaningless.
+    expect(findFieldReadRefusal({ type: 'checkbox', name: 'agree' })).toBeNull();
+  });
+
+  it('still allows the value-bearing input types that are not plain text', () => {
+    for (const type of ['range', 'color', 'date', 'time', 'number', 'select']) {
+      expect(findFieldFillRefusal({ type, name: 'f' })).toBeNull();
+    }
+  });
+
+  it('is the read guard plus the two refusals that are only about writing', () => {
+    // Anything an agent may not read is certainly not something it may overwrite...
+    expect(findFieldReadRefusal({ type: 'password' })).toBe('denied-type');
+    expect(findFieldFillRefusal({ type: 'password' })).toBe('denied-type');
+    // ...but read-only and disabled say nothing about whether the value is a secret, so reading
+    // one back is fine. Conflating the two would hide ordinary values for no benefit.
+    expect(findFieldReadRefusal({ type: 'text', readOnly: true })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', readOnly: true })).toBe('read-only');
+    expect(findFieldReadRefusal({ type: 'text', disabled: true })).toBeNull();
+    expect(findFieldFillRefusal({ type: 'text', disabled: true })).toBe('disabled');
+  });
+
+  it('describes every read refusal it can return, in read terms', () => {
+    const refusals = [
+      findFieldReadRefusal({ type: 'hidden' }),
+      findFieldReadRefusal({ autocomplete: 'cc-csc' }),
+      findFieldReadRefusal({ name: 'auth_token' }),
+    ];
+    for (const refusal of refusals) {
+      expect(refusal).not.toBeNull();
+      expect(describeFieldReadRefusal(refusal!).length).toBeGreaterThan(5);
+    }
+    expect(describeFieldReadRefusal('denied-type')).toMatch(/readable/);
+  });
+
+  it('describes every refusal it can return', () => {
+    const refusals = [
+      findFieldFillRefusal({ type: 'password' }),
+      findFieldFillRefusal({ autocomplete: 'cc-exp' }),
+      findFieldFillRefusal({ name: 'secret' }),
+      findFieldFillRefusal({ readOnly: true }),
+      findFieldFillRefusal({ disabled: true }),
+    ];
+    for (const refusal of refusals) {
+      expect(refusal).not.toBeNull();
+      expect(describeFieldRefusal(refusal!).length).toBeGreaterThan(5);
+    }
+  });
+});
+
+describe('normalizeAgentLabel', () => {
+  it('collapses whitespace and reports untruncated text', () => {
+    expect(normalizeAgentLabel('  Water   the\n window plants ')).toEqual({
+      text: 'Water the window plants',
+      truncated: false,
+    });
+  });
+
+  it('strips control characters and bidirectional overrides', () => {
+    // U+202E flips rendering order, so page text can read differently from how it displays.
+    const hostile = 'Delete\u202Eaccount\u0007 \u200B now';
+    const { text } = normalizeAgentLabel(hostile);
+    expect(text).not.toMatch(/[\u0000-\u001F\u200B-\u200F\u202A-\u202E]/);
+    expect(text).toBe('Delete account now');
+  });
+
+  it('caps long labels and flags the truncation', () => {
+    const long = 'a'.repeat(MAX_AGENT_LABEL_LENGTH + 50);
+    const result = normalizeAgentLabel(long);
+    expect(result.text).toHaveLength(MAX_AGENT_LABEL_LENGTH);
+    expect(result.truncated).toBe(true);
+  });
+
+  it('honors a custom cap', () => {
+    expect(normalizeAgentLabel('abcdef', 3)).toEqual({ text: 'abc', truncated: true });
+  });
+});

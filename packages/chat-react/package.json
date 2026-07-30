@@ -1,23 +1,57 @@
 {
-  "name": "@jini/chat-react",
-  "version": "0.1.0",
+  "name": "@jini-ai/chat-react",
+  "version": "0.2.1",
+  "description": "React bindings for a chat/artifact frontend: headless hooks, presentational components, and composition slots over @jini-ai/chat-core.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/chat-react" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/chat-react"
+  },
+  "jini": {
+    "domain": "chat",
+    "kind": "react-adapter",
+    "runtime": "browser"
+  },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "clean": "node scripts/clean-dist.mjs",
+    "build": "pnpm run clean && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/agent-runtime": "workspace:*",
-    "@jini/chat-core": "workspace:*",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/chat-core": "workspace:*",
+    "@jini-ai/protocol": "workspace:*",
+    "@jini-ai/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
@@ -26,6 +60,8 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitest/coverage-v8": "^2.1.9",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }

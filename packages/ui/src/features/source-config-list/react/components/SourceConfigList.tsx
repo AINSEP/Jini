@@ -16,6 +16,9 @@ export interface SourceConfigListProps<TSource extends SourceConfigItem> {
   subtitle?: string;
   emptyMessage?: string;
   addLabel?: string;
+  /** Custom hook overrides for dependency injection / testing. */
+  useWiredSourceConfigList?: typeof useWiredSourceConfigList;
+  useWiredSourceConfigAddForm?: typeof useWiredSourceConfigAddForm;
 }
 
 /**
@@ -37,9 +40,11 @@ export function SourceConfigList<TSource extends SourceConfigItem>({
   subtitle,
   emptyMessage,
   addLabel,
+  useWiredSourceConfigList: useWiredSourceConfigListHook = useWiredSourceConfigList,
+  useWiredSourceConfigAddForm: useWiredSourceConfigAddFormHook = useWiredSourceConfigAddForm,
 }: SourceConfigListProps<TSource>) {
-  const list = useWiredSourceConfigList<TSource>({ dependencies });
-  const addForm = useWiredSourceConfigAddForm<TSource>({
+  const list = useWiredSourceConfigListHook<TSource>({ dependencies });
+  const addForm = useWiredSourceConfigAddFormHook<TSource>({
     dependencies,
     fieldSpecs,
     onAdded: list.addSourceToList,

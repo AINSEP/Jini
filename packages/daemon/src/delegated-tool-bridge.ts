@@ -6,7 +6,7 @@
  * enforces Jini's registry policy, confirmation, timeout, cancellation, and
  * audit trail before any registered handler runs.
  */
-import type { Principal, RunRef } from '@jini/core';
+import type { Principal, RunRef } from '@jini-ai/core';
 import type { RunLifecycle } from './run-lifecycle.js';
 import type { ToolExecutionResult, ToolExecutor } from './tool-executor.js';
 

@@ -37,7 +37,7 @@
  * (`succeeded`/`failed`/`running`/`queued`/`canceled`) are two different,
  * non-identical instantiations of this same shape — see
  * `packages/ui/source-map.md` for the note on reconciling either against
- * `@jini/protocol`'s own `RunState` later (explicitly out of scope here).
+ * `@jini-ai/protocol`'s own `RunState` later (explicitly out of scope here).
  */
 export interface ResourceStatusOption {
   value: string;

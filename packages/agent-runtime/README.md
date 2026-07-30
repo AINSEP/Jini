@@ -1,4 +1,4 @@
-# `@jini/agent-runtime`
+# `@jini-ai/agent-runtime`
 
 Runtime-side content and execution code for agent-driven artifact
 generation: brand-agnostic craft knowledge and portable skill packages
@@ -20,7 +20,7 @@ The provider/model/agent-picker vocabulary (`ModelProvider`,
 of pure helpers (credential-status resolution, model-list merging, a stable
 model-catalogue cache key, model-choice normalization against a live
 catalogue) for any consumer building a "pick a model/agent" UI — e.g.
-`@jini/chat-react`'s `features/model-picker/` slice. Distinct from
+`@jini-ai/chat-react`'s `features/model-picker/` slice. Distinct from
 `src/registry.ts` (the static `BASE_AGENT_DEFS` CLI-adapter catalog). See
 `source-map.md` for full provenance.
 

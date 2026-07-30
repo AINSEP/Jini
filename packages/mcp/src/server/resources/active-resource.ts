@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/server/resources/active-resource
+ * @module @jini-ai/mcp/server/resources/active-resource
  *
  * The one MCP *resource* this package ships: a read-only pointer to
  * `GET /api/active` (`packages/http/src/active-context.ts`'s `getActiveRoute`)
@@ -18,13 +18,14 @@
  * same way (both require a Skill/DesignSystem noun this kernel doesn't have).
  *
  * Security posture matches every other tool/resource in this package: no
- * separate authorization mechanism here — whatever `@jini/http`'s
+ * separate authorization mechanism here — whatever `@jini-ai/http-kit`'s
  * same-origin guard / bearer-auth middleware already enforces on
  * `GET /api/active` is the only gate a read of this resource passes
  * through.
  */
 import { getDaemonJson } from '../daemon-client.js';
 import type { McpResourceDef } from '../resource-protocol.js';
+import { daemonCallOptions } from '../tool-protocol.js';
 
 interface ActiveContextPayload {
   readonly active: boolean;
@@ -45,7 +46,7 @@ export const activeContextResource: McpResourceDef = {
     'The resource (resourceRef) plus optional detail the caller last recorded as its current focus via POST /api/active — the same generic, product-neutral pointer the get_active_context tool proxies, exposed here as an attachable MCP resource instead of a tool call.',
   mimeType: 'application/json',
   read: async (ctx) => {
-    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', { fetchImpl: ctx.fetchImpl });
+    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', daemonCallOptions(ctx));
     return { text: JSON.stringify(data, null, 2) };
   },
 };

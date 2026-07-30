@@ -4,8 +4,8 @@
  * every later increment depends on" — see
  * `ADS-memory/reports/swarm-consensus/runs/20260722T023000Z-consensus-report.md`'s
  * Final Recommendation). Deliberately a new, minimal vocabulary: no
- * `provenance`/`trust` concept existed anywhere in `@jini/protocol` or
- * `@jini/daemon` before this.
+ * `provenance`/`trust` concept existed anywhere in `@jini-ai/protocol` or
+ * `@jini-ai/daemon` before this.
  *
  * `trust` exists for gap 3 (capability-routed transport, not yet built): the
  * debate's Final Recommendation requires "structured/JSON-escaped framing

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CapabilityRegistryToken, MediaPolicyToken, MediaTaskStoreToken } from '../tokens.js';
 
-describe('@jini/media tokens', () => {
+describe('@jini-ai/media tokens', () => {
   it('are one-cardinality tokens with the jini.media.* namespace and version 1', () => {
     for (const t of [CapabilityRegistryToken, MediaTaskStoreToken, MediaPolicyToken]) {
       expect(t.cardinality).toBe('one');

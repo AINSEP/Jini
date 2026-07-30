@@ -1,13 +1,44 @@
 {
-  "name": "@jini/cli",
-  "version": "0.1.0",
+  "name": "@jini-ai/cli",
+  "version": "0.1.2",
+  "description": "CLI transport shell for driving a Jini daemon over HTTP: flag parsing, daemon-URL resolution, local daemon discovery, and a pluggable command registry.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/cli" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/cli"
+  },
+  "jini": {
+    "domain": "server",
+    "kind": "cli",
+    "runtime": "node"
+  },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "bin": { "jini": "./dist/main.js" },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "jini": "./dist/main.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json && chmod +x dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -15,7 +46,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/core": "workspace:*",
-    "@jini/sidecar": "workspace:*"
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/sidecar": "workspace:*"
   }
 }

@@ -5639,3 +5639,57 @@ text renders.
   all green** — no regression in any pre-existing test.
 - `pnpm guard` (repo root): `[guard] ok (skeleton — rules pending
   implementation during extraction)` — no boundary violations introduced.
+
+## Section: `features/rich-text-input/` renamed to `features/lexical-rich-text-editor/` (2026-07-26)
+
+**Why:** `rich-text-input` named the *kind* of thing (a rich-text input)
+rather than *which* engine backs it, and this feature is not a general
+rich-text input — it is Lexical specifically. Its public surface is
+Lexical-shaped (`mention-node.ts` subclasses Lexical's `TextNode`; `rules.ts`
+and six hooks are written against Lexical's selection API), so the old name
+promised an engine-neutrality it never had. The new name says what it is.
+
+**Correction (same day):** this entry originally justified the rename as
+"a second, TipTap-based editor is being added as a sibling in a follow-up
+dispatch." That is no longer true and the sibling was never built. The TipTap
+feature was dropped on the observation that `RichTextInput` currently has
+**zero consumers** — nothing outside its own directory imports it, in any
+package or example — so adding a second rich-text framework would have
+multiplied a cost nothing was yet paying. The engine choice belongs to the
+first consumer that actually needs an editor, judged against its real
+requirements. The rename stands on its own merits, above.
+
+**What moved:** `git mv packages/ui/src/features/rich-text-input/ →
+packages/ui/src/features/lexical-rich-text-editor/` — directory contents,
+all files, and git history unchanged; purely a path rename, no behavior
+change. Every entry above this one that mentions `features/rich-text-input/`
+describes the tree **as it existed on the date of that entry** and is left
+as-is — this is the only entry that should be read as "the directory has
+since moved."
+
+**What did not move:** the public component name `RichTextInput`, the
+`RichTextTriggerConfig`/`RichTextTriggerAnchor`/`RichTextTriggerMatch`/
+`RichTextInputHandle` types, and the `--rich-text-mention-color`-style CSS
+custom property naming convention are unchanged. Those names describe the
+*component's* public API, not the feature directory, and the task that did
+this rename was explicitly instructed not to touch them. Internal
+component-scoped strings that mirror the component name rather than the
+directory (the `rich-text-input` Lexical namespace default, the
+`rich-text-input`/`rich-text-input-editable`/`rich-text-input-placeholder`
+CSS class names, the `[rich-text-input]` console-error tag, and the
+`DEFAULT_TEST_ID`/`getByTestId('rich-text-input')` pair) were left alone for
+the same reason.
+
+**Updated for the rename:** every relative import inside the moved directory
+was untouched (git mv preserves internal relative structure); the package
+was checked and does **not** re-export this feature from
+`packages/ui/src/index.ts`, so no barrel edit was needed there.
+`packages/ui/vitest.config.ts`'s coverage-exclude comment/path for
+`types.ts` and `packages/ui/README.md`'s "Internal structure"/"Status"
+mentions of the directory were updated to the new name.
+
+**Left for the dispatching agent to handle, out of this package's scope:**
+`packages/chat-react/src/agent-bridge/dom-page-driver.ts`'s doc comment
+(verified 2026-07-26, referencing `packages/ui/src/features/rich-text-input/`
+by path in prose) mentions the old path and was not edited — `chat-react` is
+owned by a sibling agent concurrently, per this task's scope rule.

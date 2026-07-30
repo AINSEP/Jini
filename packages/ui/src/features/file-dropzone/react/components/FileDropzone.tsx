@@ -58,6 +58,9 @@ export interface FileDropzoneProps {
   onBrowseFolder?: () => void;
   /** A host-injected secondary affordance rendered below the zone (e.g. "Select from library"). Renders only when supplied — replaces the origin's product-specific feature-flag gate with plain prop presence. */
   secondaryAction?: FileDropzoneSecondaryAction;
+  /** Custom hook overrides for dependency injection / testing. */
+  useFileDropzone?: typeof useFileDropzone;
+  useFileDropzonePreviews?: typeof useFileDropzonePreviews;
 }
 
 /**
@@ -87,12 +90,14 @@ export function FileDropzone({
   onProcessingStart,
   onBrowseFolder,
   secondaryAction,
+  useFileDropzone: useFileDropzoneHook = useFileDropzone,
+  useFileDropzonePreviews: useFileDropzonePreviewsHook = useFileDropzonePreviews,
 }: FileDropzoneProps) {
   const t = useT();
   const [lightboxFile, setLightboxFile] = useState<File | null>(null);
 
-  const dropzone = useFileDropzone({ onFiles, onZoneClick, onError, onProcessingStart, enablePaste });
-  const previews = useFileDropzonePreviews(files ?? NO_FILES);
+  const dropzone = useFileDropzoneHook({ onFiles, onZoneClick, onError, onProcessingStart, enablePaste });
+  const previews = useFileDropzonePreviewsHook(files ?? NO_FILES);
 
   useGlobalKeydown(
     (event) => {

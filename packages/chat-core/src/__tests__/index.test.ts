@@ -10,10 +10,10 @@ import {
   stripArtifact,
   type AgentEvent,
   type ChatMessage,
-  type RunStatus,
+  type ChatRunStatus,
 } from '../index.js';
 
-describe('@jini/chat-core barrel', () => {
+describe('@jini-ai/chat-core barrel', () => {
   it('re-exports the full public surface from a single entry point', () => {
     expect(typeof stripArtifact).toBe('function');
     expect(typeof dedupeToolUsesById).toBe('function');
@@ -39,7 +39,7 @@ describe('@jini/chat-core barrel', () => {
       events,
       runStatus: 'succeeded',
     };
-    const status: RunStatus = message.runStatus ?? 'queued';
+    const status: ChatRunStatus = message.runStatus ?? 'queued';
     expect(isTerminalRunStatus(status)).toBe(true);
     expect(dedupeToolUsesById(events)).toHaveLength(events.length); // no duplicates present
 
@@ -47,7 +47,7 @@ describe('@jini/chat-core barrel', () => {
     expect(buildTranscript(history)).toBe('## user\nsummarize the readme\n\n## assistant\nHere is a summary.');
   });
 
-  it('RUN_STATUSES/isTerminalRunStatus agree on which states are terminal', () => {
+  it('CHAT_RUN_STATUSES/isTerminalRunStatus agree on which states are terminal', () => {
     expect(isTerminalRunStatus('queued')).toBe(false);
     expect(isTerminalRunStatus('running')).toBe(false);
     expect(isTerminalRunStatus('succeeded')).toBe(true);

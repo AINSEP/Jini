@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/server/tool-server
+ * @module @jini-ai/mcp/server/tool-server
  *
  * `createMcpToolServer` — the generic stdio MCP server hosting mechanism.
  * Ported from the *mechanism* of OD's `apps/daemon/src/mcp.ts` `runMcpStdio`
@@ -86,7 +86,7 @@ export interface McpToolServerOptions {
   readonly tools: readonly McpToolDef[];
   /** The bounded, explicit read-only resource list this server hosts. Duplicate uris throw at construction time. Omit (or pass an empty array) for a tools-only server — `capabilities.resources` is only advertised when this is non-empty. */
   readonly resources?: readonly McpResourceDef[];
-  /** Resolves the daemon HTTP base URL once, at the start of {@link McpToolServerHandle.run}. May be sync or async (e.g. wraps `@jini/cli`'s `resolveDaemonUrl`). */
+  /** Resolves the daemon HTTP base URL once, at the start of {@link McpToolServerHandle.run}. May be sync or async (e.g. wraps `@jini-ai/cli`'s `resolveDaemonUrl`). */
   readonly resolveBaseUrl: () => Promise<string> | string;
   /** Free-text guidance surfaced to the MCP client alongside the tool list. Optional — omit for a caller with nothing to add beyond each tool's own `description`. */
   readonly instructions?: string;
@@ -94,6 +94,12 @@ export interface McpToolServerOptions {
   readonly idleMs?: number;
   /** Defaults to the global `fetch`; threaded into every tool call's {@link McpToolContext}. */
   readonly fetchImpl?: typeof fetch;
+  /**
+   * Headers attached to every daemon call this server's tools and resources make — in practice the
+   * bearer credential the spawning daemon issued for this run. Omit for a daemon whose `/api` surface
+   * does not require one; omitting is the pre-existing behavior.
+   */
+  readonly authHeaders?: Readonly<Record<string, string>>;
   /** Defaults to `process.stdin`; inject for tests (or an alternate stdio pair). */
   readonly stdin?: Readable;
   /** Defaults to `process.stdout`; inject for tests. */
@@ -141,6 +147,7 @@ export function createMcpToolServer(options: McpToolServerOptions): McpToolServe
       const ctx: McpToolContext = {
         baseUrl: String(resolvedBaseUrl).replace(/\/$/, ''),
         fetchImpl: options.fetchImpl ?? fetch,
+        ...(options.authHeaders !== undefined ? { authHeaders: options.authHeaders } : {}),
       };
 
       let closeTransportForIdle: (() => void) | null = null;

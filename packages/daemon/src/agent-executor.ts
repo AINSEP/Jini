@@ -3,15 +3,15 @@
  * missing piece: *"It does not spawn or signal a subprocess... A driver...
  * calls `emit()` for agent/stdout/stderr/error events, observes cancellation
  * via `onCancelRequested`, and calls `finish()` once it knows the real
- * outcome."* This module is that driver — it wires `@jini/agent-runtime`'s
+ * outcome."* This module is that driver — it wires `@jini-ai/agent-runtime`'s
  * registry/launch-resolution/stream-parsers (previously a complete but
  * disconnected library, zero callers anywhere outside its own package) into
  * a real `node:child_process` spawn, feeding both `RunLifecycle.emit()` and
- * this package's own `@jini/protocol` event envelope.
+ * this package's own `@jini-ai/protocol` event envelope.
  *
- * ## v1 scope: 23 of 24 registered agent defs
+ * ## v1 scope: all 24 registered agent defs
  *
- * `@jini/agent-runtime`'s registry ships 24 built-in defs across four
+ * `@jini-ai/agent-runtime`'s registry ships 24 built-in defs across four
  * `streamFormat` families. The JSON-stream-parser family — the four
  * `createXStreamHandler`-shaped parsers (`claude-stream-json`,
  * `json-event-stream`, `copilot-stream-json`, `qoder-stream-json`), covering
@@ -25,14 +25,14 @@
  * `mapPiRpcEvent` `send()` call site — no new translation code was needed),
  * so only the driver wiring (spawn → attach → cancel → finish) was new for it.
  *
- * 4 of the 5 `streamFormat: 'plain'` defs — grok-build, aider, deepseek,
- * qwen — are also driven, per
+ * All 5 `streamFormat: 'plain'` defs — grok-build, aider, deepseek, qwen,
+ * antigravity — are also driven, per
  * `ADS-memory/reports/proposals/PROP-plain-format-agent-driving-2026-07-21.md`'s
- * recommended "Option B": no structured stream parser at all. Every raw
- * `child.stdout` chunk is forwarded verbatim as a `text_delta` `'agent'`
- * event, live, as it arrives — never buffered until close (see
- * `wireChildLifecycle`'s `streamFormat === 'plain'` branch). Prompt delivery
- * across the 4 is not uniform: qwen already fit the pre-existing stdin-only
+ * recommended "Option B": no structured stream parser at all. By default
+ * every raw `child.stdout` chunk is forwarded verbatim as a `text_delta`
+ * `'agent'` event, live, as it arrives (see `wireChildLifecycle`'s
+ * `streamFormat === 'plain'` branch). Prompt delivery across the 5 is not
+ * uniform: qwen and antigravity already fit the pre-existing stdin-only
  * guard; grok-build stages the prompt to a temp file via
  * `preparePromptFileForAgent` (its path threaded into `buildArgs` through a
  * `RuntimeContext`, cleaned up after the child exits on every path,
@@ -41,16 +41,27 @@
  * Windows CreateProcess command-line-expansion guards
  * (`checkWindowsCmdShimCommandLineBudget`/`checkWindowsDirectExeCommandLineBudget`).
  *
- * The 5th plain def, **antigravity, is deliberately still rejected.** It
- * needs two concerns unrelated to `streamFormat: 'plain'` itself — buffering
- * stdout until close so a leaked OAuth URL can be suppressed before it
- * reaches the client, and a cross-run lock serializing writes to its shared
- * `settings.json` model-selection file — that the proposal doc explicitly
- * scoped out to its own follow-up (see that doc's §2c/§3). `run()` guards it
- * with its own `def.id === 'antigravity'` check, ahead of (and independent
- * of) the generic plain-format prompt-delivery/dispatch logic. `run()`
- * rejects cleanly (never a bare throw) with an `AgentExecutorError` for any
- * def outside the supported 23 — see `isSupportedStreamFormat`.
+ * ## Antigravity's two extra needs, met declaratively
+ *
+ * Antigravity was the one def this driver rejected outright, for two reasons
+ * the proposal doc (§2c) scoped out to a follow-up: `agy` can print an OAuth
+ * sign-in URL to stdout and *still exit 0*, so live streaming leaks it; and
+ * its model choice is written into one process-global `settings.json` that
+ * `agy` reads on its own startup, so two concurrent runs race on it.
+ *
+ * Both are now met through **declarative `RuntimeAgentDef` fields this driver
+ * reads generically** — `needsAgentLogFile`, `stdoutPolicy`, `runtimeLock` —
+ * not a `def.id === 'antigravity'` branch. That mirrors how all 14 of the
+ * def's other optional behavior flags (`promptViaFile`, `authProbe`,
+ * `capturesSessionIdFromStream`, …) already work, and it is a deliberate
+ * divergence from OD's own `server.ts`, which hardcodes `def.id ===
+ * 'antigravity'` twice. The three fields are no-ops for the other 23 defs,
+ * none of which declares any of them — so nothing else's behavior changed.
+ *
+ * `run()` still rejects cleanly (never a bare throw) with an
+ * `AgentExecutorError` for any def whose `streamFormat` or prompt-delivery
+ * shape this driver does not implement — see `isSupportedStreamFormat` and
+ * `assessAgentExecutorCompatibility`.
  *
  * ## Invariant
  *
@@ -70,9 +81,9 @@
  * byte-identical to pre-gap-4 behavior — every `'failed'` outcome
  * resumable:false). OD's ~20-vendor-CLI text-matching failure classifier was
  * deliberately never ported (see `run/core/failure-taxonomy.ts`'s own doc and
- * `source-map.md`). The real zero-config classifier lives in `@jini/daemon`'s
+ * `source-map.md`). The real zero-config classifier lives in `@jini-ai/daemon`'s
  * `run/core/retry.ts` (`resumableFromProcessExit`/`classifyProcessExitFailure`)
- * and is wired in by `@jini/node-host`'s `createLocalNodeDaemon` — see that
+ * and is wired in by `@jini-ai/server`'s `createLocalNodeDaemon` — see that
  * package's own source-map.md, and `run/core/retry.ts`'s own doc for the
  * classification policy and its 2026-07-22 merge-time reconciliation against
  * a second, independently-built (and rejected) classifier that once lived in
@@ -81,9 +92,9 @@
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { promises as fsPromises } from 'node:fs';
 import { join } from 'node:path';
-import { redactSecrets } from '@jini/core';
-import type { Principal, RunRef } from '@jini/core';
-import type { JournalEntry, RunAgentPayload, RunErrorPayload } from '@jini/protocol';
+import { redactSecrets } from '@jini-ai/core';
+import type { Principal, RunRef } from '@jini-ai/core';
+import type { JournalEntry, RunAgentPayload, RunErrorPayload } from '@jini-ai/protocol';
 import {
   applyAgentLaunchEnv,
   createClaudeStreamHandler,
@@ -97,15 +108,18 @@ import {
   checkPromptArgvBudget,
   checkWindowsCmdShimCommandLineBudget,
   checkWindowsDirectExeCommandLineBudget,
+  prepareAgentLogFile,
   preparePromptFileForAgent,
   type AcpPermissionHandler,
   type AcpSessionController,
   type AgentLaunchResolution,
   type PiRpcSession,
+  type PreparedAgentLogFile,
   type PreparedPromptFile,
   type RuntimeAgentDef,
   type RuntimeContext,
-} from '@jini/agent-runtime';
+  type RuntimeLockHold,
+} from '@jini-ai/agent-runtime';
 import {
   collectProcessTreePids,
   createCommandInvocation,
@@ -113,7 +127,7 @@ import {
   stopProcesses,
   type ProcessSnapshot,
   type StopProcessesResult,
-} from '@jini/platform';
+} from '@jini-ai/platform';
 import { classifyRunCloseStatus } from './close-status.js';
 import { resolveContinuationTransport } from './continuation/continuation-transport.js';
 import type { RunByteJournal } from './continuation/journal.js';
@@ -123,7 +137,7 @@ import type { ToolExecutor } from './tool-executor.js';
 import type { RunLifecycle } from './run-lifecycle.js';
 
 /**
- * A parsed, loosely-typed event as produced by one of `@jini/agent-runtime`'s
+ * A parsed, loosely-typed event as produced by one of `@jini-ai/agent-runtime`'s
  * four stream-parser factories — each parser's `onEvent` callback receives
  * `Record<string, unknown>` with a `type` discriminant, not a typed union.
  */
@@ -169,6 +183,73 @@ export function isSupportedStreamFormat(value: string): value is SupportedStream
 }
 
 /**
+ * Whether `run()` can drive a given def, and — when it can — its `streamFormat` already narrowed for
+ * the dispatch logic that follows. The narrowing rides along deliberately: it is what lets `run()`
+ * delegate every compatibility guard here without then re-checking the format to satisfy the type
+ * system, which would leave an unreachable branch behind.
+ */
+export type AgentExecutorCompatibility =
+  | { readonly supported: true; readonly streamFormat: SupportedStreamFormat }
+  | { readonly supported: false; readonly reason: string };
+
+/**
+ * The single source of truth for whether this executor can drive a def.
+ *
+ * It exists because that knowledge was previously reachable only by *calling* `run()` and inspecting
+ * the failure. Anything that lists agents for a user to pick from — a discovery route, an agent
+ * picker, a CLI healthcheck — needs the same answer *before* a run exists, and had no way to ask it.
+ * The observable symptom was a consumer advertising an agent that its own executor then rejected the
+ * instant it was selected.
+ *
+ * `run()` consumes this rather than re-checking the conditions itself, so the discovery-time answer
+ * and the run-time guards cannot disagree. A predicate that merely duplicated the guards would be
+ * the same bug in a second location.
+ *
+ * @param def - The def to assess. Must be the **full** `RuntimeAgentDef`, not a projected
+ * `DetectedAgent`: that type omits `maxPromptArgBytes`, one of the three prompt-delivery signals
+ * checked here, so the argv-bound defs (`aider`, `deepseek`) would be misjudged as unsupported.
+ * @returns A discriminated result — see {@link AgentExecutorCompatibility}. The `reason` text is
+ * operator-facing and is what `run()` reports as its `AGENT_RUNTIME_UNSUPPORTED` message.
+ * @complexity O(1) — fixed field checks.
+ * @overallScore 100/100
+ */
+export function assessAgentExecutorCompatibility(def: RuntimeAgentDef): AgentExecutorCompatibility {
+  const streamFormat = def.streamFormat;
+  if (!isSupportedStreamFormat(streamFormat)) {
+    return {
+      supported: false,
+      reason: `AgentExecutor: agent "${def.id}" has streamFormat "${streamFormat}", which is not implemented in v1 — only ${SUPPORTED_STREAM_FORMATS.join(', ')} are supported`,
+    };
+  }
+  if (
+    streamFormat !== 'acp-json-rpc' &&
+    def.promptViaStdin !== true &&
+    def.promptViaFile !== true &&
+    typeof def.maxPromptArgBytes !== 'number'
+  ) {
+    return {
+      supported: false,
+      reason: `AgentExecutor: agent "${def.id}" does not deliver its prompt via stdin, a staged prompt file, or a byte-budgeted argv — v1 has no other prompt delivery path`,
+    };
+  }
+  return { supported: true, streamFormat };
+}
+
+/**
+ * Whether `run()` can actually drive this def — the discovery-time counterpart to the guards inside
+ * `run()`, so a consumer never offers a user an agent that fails the moment it is selected.
+ *
+ * @param def - The full `RuntimeAgentDef`; see {@link assessAgentExecutorCompatibility} for why a
+ * projected `DetectedAgent` is not sufficient.
+ * @returns `true` when this executor would attempt the run.
+ * @complexity O(1).
+ * @overallScore 100/100
+ */
+export function isAgentExecutorSupported(def: RuntimeAgentDef): boolean {
+  return assessAgentExecutorCompatibility(def).supported;
+}
+
+/**
  * Selects and constructs the real stream-parser handler for a supported
  * `streamFormat`. `json-event-stream` additionally dispatches on
  * `def.eventParser` (the parser's own internal `kind` switch — e.g.
@@ -211,7 +292,7 @@ function createStreamHandlerForDef(
  * produce plus defensively malformed/non-record input.
  *
  * `'agent'`'s optional `sessionId` (gap 5, session resume — see
- * `RunEndPayload.sessionRef`'s doc in `@jini/protocol`) is a daemon-internal
+ * `RunEndPayload.sessionRef`'s doc in `@jini-ai/protocol`) is a daemon-internal
  * side channel, not part of the `RunAgentPayload` wire payload itself:
  * OpenCode's `sessionID`/Codex's `thread_id`/Qoder's and Claude's
  * `session_id` all arrive on a `'status'` event alongside fields
@@ -420,6 +501,40 @@ export interface AgentExecutorRunInput {
   readonly agentId: string;
   readonly prompt: string;
   readonly cwd: string;
+  /** Optional host-selected model id, forwarded to every runtime transport. */
+  readonly model?: string;
+  /** Optional host-selected reasoning effort, forwarded to runtime argv builders. */
+  readonly reasoning?: string;
+  /**
+   * Forwarded verbatim to `RuntimeBuildOptions.permissionMode` (see `@jini-ai/agent-runtime`'s
+   * `types.ts`). Every def that has an auto-approve flag (`bypassPermissions` / `--yolo` /
+   * `--dangerously-skip-permissions`) uses it by default when this is omitted — unchanged
+   * behavior, since there is no TTY on a spawned subprocess to answer an interactive prompt.
+   * A host that wants a run to NOT auto-approve every action passes `'restricted'` here.
+   */
+  readonly permissionMode?: 'bypass' | 'restricted';
+  /** Host-validated image files forwarded through argv, ACP, or pi-rpc. */
+  readonly imagePaths?: readonly string[];
+  /** Additional host-validated directories the runtime may read. */
+  readonly extraAllowedDirs?: readonly string[];
+  /** Trusted root that must contain pi-rpc image paths after realpath resolution. */
+  readonly uploadRoot?: string;
+  /**
+   * Credential(s) this run's selected agent/provider needs (e.g. `{ ANTHROPIC_API_KEY: '...' }`),
+   * delegated explicitly by the host and merged into the baseline-allowlisted env below. Never
+   * read implicitly from `process.env` — see SEC-001.
+   */
+  readonly credentialEnv?: Record<string, string>;
+  /**
+   * Explicit escape hatch: when supplied, used verbatim as the spawned subprocess's entire
+   * environment (no allowlist filtering) — for tests and hosts that have already done their own
+   * scoping. When omitted (the default), the subprocess gets only `BASELINE_AGENT_ENV_KEYS` from
+   * the host's real env plus `credentialEnv`, never a full `process.env` passthrough. A spawned
+   * coding-agent CLI is prompt-influenced and must be treated as potentially adversarial; it must
+   * not inherit secrets the daemon process happens to hold for unrelated reasons. See SEC-001
+   * (`ADS-memory/reports/proposals/PROP-agent-subprocess-env-allowlist-2026-07-21.md`) and locked
+   * architecture decision C8 (`foundry/docs/jini-port/extraction-plan.md`).
+   */
   readonly env?: NodeJS.ProcessEnv;
 }
 
@@ -444,7 +559,8 @@ function errorMessage(err: unknown): string {
  * Drops `undefined` values so `NodeJS.ProcessEnv` (whose values are
  * `string | undefined`) can feed `resolveAgentLaunch`'s
  * `Record<string, string>` parameter.
- * @param env - The source environment (typically `input.env ?? process.env`).
+ * @param env - The source environment (the caller-supplied `input.env` escape hatch — the
+ * default path builds its env via `buildAgentEnv` instead, never this function on `process.env`).
  * @returns A new object containing only the string-valued entries.
  * @complexity O(n) in the number of env entries.
  * @overallScore 100/100
@@ -458,8 +574,45 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 /**
+ * Fixed baseline of host environment variables every spawned agent subprocess may see by
+ * default — resolved from the host's env one name at a time, never derived programmatically
+ * from `process.env` as a bag, so this can't silently widen. SEC-001's deny-by-default fix; see
+ * `AgentExecutorRunInput.env`'s doc for the full threat model.
+ */
+const BASELINE_AGENT_ENV_KEYS = [
+  'PATH', 'HOME', 'USERPROFILE', 'TMPDIR', 'TEMP', 'TMP', 'SHELL',
+  'LANG', 'LC_ALL', 'LC_CTYPE',
+  // `USER` is required for a spawned `claude` CLI to find its own login/credential state — with
+  // it omitted (even though `HOME` is present), `claude` fails fast with "Not logged in · Please
+  // run /login" despite real credentials existing on disk/keychain. Confirmed by bisection against
+  // a real authenticated `claude` install: `BASELINE_AGENT_ENV_KEYS` alone fails, adding back every
+  // `CLAUDE_CODE_*`/`CLAUDECODE` var still fails, `LOGNAME`/`SSH_AUTH_SOCK` alone still fail, but
+  // `USER` alone flips it to success. See tovu-learnings.md §9 for the full investigation trail.
+  'USER',
+  'SystemRoot', 'windir', 'ComSpec', 'PATHEXT', // Windows-only; harmless no-ops elsewhere
+] as const;
+
+/**
+ * Deny-by-default agent subprocess environment: `BASELINE_AGENT_ENV_KEYS` resolved from
+ * `hostEnv`, plus this run's explicitly-delegated credential(s) — never a passthrough of
+ * `hostEnv` itself. Only reached when the caller omits `AgentExecutorRunInput.env`; supplying
+ * `env` bypasses this function entirely (see its call site).
+ */
+function buildAgentEnv(hostEnv: NodeJS.ProcessEnv, credentialEnv: Record<string, string> | undefined): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const key of BASELINE_AGENT_ENV_KEYS) {
+    const value = hostEnv[key];
+    if (typeof value === 'string') result[key] = value;
+  }
+  for (const [key, value] of Object.entries(credentialEnv ?? {})) {
+    result[key] = value;
+  }
+  return result;
+}
+
+/**
  * Resolves once `child` emits `'spawn'`, or rejects on `'error'`. Replicates
- * `@jini/platform`'s own internal (non-exported) `waitForChildSpawn` race
+ * `@jini-ai/platform`'s own internal (non-exported) `waitForChildSpawn` race
  * idiom inline — see that module's `spawnLoggedProcess`/`spawnBackgroundProcess`.
  * @param child - The just-spawned `ChildProcess` to race.
  * @returns A promise settling on the first of `'spawn'`/`'error'` to fire.
@@ -482,7 +635,7 @@ interface TerminateChildTreeDeps {
 /**
  * Enumerates `child`'s full descendant process tree and stops it (SIGTERM →
  * SIGKILL escalation, via the injected `stopProcesses` port).
- * @param deps - The process-snapshot/tree-collection/stop ports (real `@jini/platform` implementations by default — see {@link CreateAgentExecutorOptions}).
+ * @param deps - The process-snapshot/tree-collection/stop ports (real `@jini-ai/platform` implementations by default — see {@link CreateAgentExecutorOptions}).
  * @param child - The child whose descendant tree should be terminated.
  * @returns Resolves once escalation completes (or immediately, as a no-op, if `child.pid` was never assigned — spawn never actually started).
  * @complexity O(p) in the number of live OS processes (`listProcessSnapshots`'s own cost) plus O(1) escalation rounds.
@@ -509,7 +662,7 @@ export interface AgentCleanupFailureContext {
 function defaultCleanupFailureSink(context: AgentCleanupFailureContext): void {
   // eslint-disable-next-line no-console
   console.error(
-    `[@jini/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})`,
+    `[@jini-ai/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})`,
     redactSecrets(errorMessage(context.error)),
   );
 }
@@ -565,7 +718,7 @@ function sentJournalEntry(content: string): JournalEntry {
 /**
  * Gap 1's byte-journal record for bytes a child agent process produced on `channel` — always
  * `trust: 'untrusted'`, since this is attacker-influenceable agent output the kernel does not
- * control (see `@jini/protocol`'s `JournalEntry` doc on why `trust` exists).
+ * control (see `@jini-ai/protocol`'s `JournalEntry` doc on why `trust` exists).
  */
 function receivedJournalEntry(channel: 'stdout' | 'stderr', content: string): JournalEntry {
   return { content, provenance: { source: 'agent', channel }, trust: 'untrusted' };
@@ -607,10 +760,10 @@ export interface ContinuationOptions {
  * commit message named as undone: "Item 4 ... NOT done yet"). `resolveContinuationTransport`
  * already resolves `'mcp-callback'` for every def with `externalMcpInjection !== undefined`, but
  * nothing in this file ever *acted* on that resolution — `execute_delegated_tool`
- * (`@jini/mcp`'s `../server/tools/delegated-tool.ts`) only does anything useful once the spawned
+ * (`@jini-ai/mcp`'s `../server/tools/delegated-tool.ts`) only does anything useful once the spawned
  * CLI's own client actually launches `jini-mcp` as its MCP server subprocess, and the only
  * `externalMcpInjection` strategy that mechanism is wired for here is `'claude-mcp-json'`
- * (`claude`/`codebuddy` — see `@jini/agent-runtime`'s `types.ts` doc on the other three
+ * (`claude`/`codebuddy` — see `@jini-ai/agent-runtime`'s `types.ts` doc on the other three
  * strategies: `'acp-merge'` delivers `mcpServers` through the ACP `session/new` params
  * `wireAcpLifecycle`/`attachAcpSession` already carry, and `'opencode-env-content'`/
  * `'mimo-env-content'` deliver through spawn-env content, neither of which needs or wants a
@@ -630,6 +783,30 @@ export interface McpJsonInjectionOptions {
   readonly args?: readonly string[];
   /** The daemon's own loopback base URL the spawned `jini-mcp` process calls back into via `JINI_DAEMON_URL` (see `packages/mcp/src/bin/serve.ts`'s `DAEMON_URL_ENV_VAR`). */
   readonly daemonUrl: string;
+  /**
+   * Mints the bearer credential this run's `jini-mcp` child presents on its callbacks, delivered to
+   * the child through `JINI_DAEMON_TOKEN`. Omit it and the child is spawned exactly as before, with
+   * no token env var at all — so this is additive for every existing host.
+   *
+   * **A resolver, not a string, and deliberately so.** A host's `McpJsonInjectionOptions` is built
+   * once when it composes its executor — before any run exists. A plain string field could therefore
+   * only ever carry one boot-wide secret shared by every run, which defeats the point: the reason to
+   * hand the child a credential at all is that it can be scoped to the one run it was spawned for and
+   * stop working when that run ends. Taking `runId` here is what makes a per-run credential
+   * expressible.
+   *
+   * May be async so a host can mint through a keystore or signing service. Resolution happens in
+   * `writeMcpJsonForRun`, which is already async and already effectful; `buildMcpJsonServerEntry`
+   * stays pure and synchronous and receives the resolved value.
+   *
+   * Never hand this the host's own inbound API token. The child is the least-trusted participant in
+   * the run — it is reachable by whatever the spawned CLI does — so its credential should authorize
+   * its own callback route and nothing else.
+   *
+   * @throws Anything the host's own minting throws. `run()` turns a rejection into a pre-spawn
+   * `AGENT_SPAWN_FAILED` failure rather than spawning a child that cannot authenticate.
+   */
+  readonly credential?: (runId: string) => string | Promise<string>;
   /** Reads an existing `.mcp.json` at the given absolute path so this driver merges rather than clobbers a project's own file. Rejecting (ENOENT or otherwise) is treated as "no existing file" — see `writeMcpJsonForRun`. @default the real `fs.promises.readFile` (utf8) */
   readonly readFile?: (path: string) => Promise<string>;
   /** Writes the merged `.mcp.json` content back out. @default the real `fs.promises.writeFile` (utf8) */
@@ -642,23 +819,40 @@ const JINI_MCP_SERVER_KEY = 'jini';
 interface McpJsonServerEntry {
   readonly command: string;
   readonly args: string[];
-  readonly env: { readonly JINI_RUN_ID: string; readonly JINI_DAEMON_URL: string };
+  readonly env: {
+    readonly JINI_RUN_ID: string;
+    readonly JINI_DAEMON_URL: string;
+    /** Present only when the host supplied a `credential` resolver — see {@link McpJsonInjectionOptions.credential}. */
+    readonly JINI_DAEMON_TOKEN?: string;
+  };
 }
 
 /**
- * Builds this run's `mcpServers.jini` entry — pure, so every field mapping is directly
- * assertable without touching the filesystem.
+ * Builds this run's `mcpServers.jini` entry — pure and synchronous, so every field mapping is
+ * directly assertable without touching the filesystem. The credential arrives already resolved:
+ * `McpJsonInjectionOptions.credential` is a possibly-async per-run resolver, and awaiting it is
+ * `writeMcpJsonForRun`'s job, which keeps the effect out of this function.
+ *
+ * @param runId - The run this entry scopes its child to.
+ * @param options - `command`/`args`/`daemonUrl` from the host's injection options.
+ * @param credential - The already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN`
+ * entirely. Omitting produces byte-identical output to before this parameter existed.
  * @complexity O(1).
  * @overallScore 100/100
  */
 export function buildMcpJsonServerEntry(
   runId: string,
   options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl'>,
+  credential?: string,
 ): McpJsonServerEntry {
   return {
     command: options.command,
     args: options.args !== undefined ? [...options.args] : [],
-    env: { JINI_RUN_ID: runId, JINI_DAEMON_URL: options.daemonUrl },
+    env: {
+      JINI_RUN_ID: runId,
+      JINI_DAEMON_URL: options.daemonUrl,
+      ...(credential !== undefined ? { JINI_DAEMON_TOKEN: credential } : {}),
+    },
   };
 }
 
@@ -698,7 +892,7 @@ function defaultWriteMcpJsonFile(path: string, content: string): Promise<void> {
 
 /**
  * Writes (merging, never clobbering — see {@link mergeMcpJsonContent}) `.mcp.json` into `cwd`
- * before spawn, so Claude Code's own spawn-time config load (confirmed in `@jini/agent-runtime`'s
+ * before spawn, so Claude Code's own spawn-time config load (confirmed in `@jini-ai/agent-runtime`'s
  * `defs/claude.ts` doc: "Claude Code auto-loads `.mcp.json` from the project cwd at spawn")
  * discovers the `jini-mcp` bridge server without this driver needing to pass any CLI flag at all.
  * A no-op when `mcpJsonInjection` is `undefined` (opt-in, see `CreateAgentExecutorOptions`'s doc)
@@ -728,7 +922,10 @@ async function writeMcpJsonForRun(
     // degrade to "start fresh", matching mergeMcpJsonContent's own doc.
     existingRaw = undefined;
   }
-  const serverEntry = buildMcpJsonServerEntry(runId, mcpJsonInjection);
+  // Resolved per-run, here rather than in `buildMcpJsonServerEntry`, so that function stays pure and
+  // synchronous. `undefined` when the host supplied no resolver, which omits the env var entirely.
+  const credential = await mcpJsonInjection.credential?.(runId);
+  const serverEntry = buildMcpJsonServerEntry(runId, mcpJsonInjection, credential);
   await writeFileFn(filePath, mergeMcpJsonContent(existingRaw, serverEntry));
 }
 
@@ -753,7 +950,7 @@ async function writeMcpJsonForRun(
  * status already routes to `'cancelled'` before `classifyFailure` is ever
  * consulted — see each `wire*Lifecycle` close handler); `artifactWriteSeen`/
  * `liveArtifactSeen` have no real signal to derive them from at all —
- * `@jini/protocol`'s `RunAgentEventPayload` union (`events.ts`) has no
+ * `@jini-ai/protocol`'s `RunAgentEventPayload` union (`events.ts`) has no
  * `'artifact'`/`'live_artifact'` event kind yet (Jini's own generalized
  * GenUI/artifact surface isn't built — see this repo's "A2UI full protocol
  * deferred" scope note), unlike OD, which `RunRetrySideEffectState`'s shape
@@ -784,8 +981,17 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly child: ChildProcess;
   readonly lifecycle: RunLifecycle;
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
-  /** Removes a `promptViaFile`-staged temp file (grok-build) after the child exits. A no-op default when no prompt file was staged for this run — see `run()`'s `preparePromptFileForAgent` call site. */
-  readonly cleanupPromptFile: () => Promise<void>;
+  /**
+   * Removes every temp file `run()` staged for this run — a `promptViaFile`
+   * def's prompt file (grok-build) and a `needsAgentLogFile` def's log file
+   * (antigravity) — after the child exits. Deliberately one composed closure
+   * rather than one field per file: the two are staged at the same point and
+   * must be released on the same set of paths, and a second parallel field
+   * is exactly how one of them ends up forgotten on a path the other covers.
+   * A no-op default when neither was staged — see `run()`'s
+   * `preparePromptFileForAgent`/`prepareAgentLogFile` call sites.
+   */
+  readonly cleanupStagedFiles: () => Promise<void>;
   /** Gap 1's byte-journal (see `continuation/journal.ts`). `undefined` when a caller configured none — every journal call site below is then a no-op. */
   readonly journal: RunByteJournal | undefined;
   /** Gap 3's stdin-tool-result injection config. `undefined` means every `turn_end` closes stdin unconditionally — see `ContinuationOptions`'s own doc. */
@@ -818,14 +1024,35 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
  * `streamFormat: 'plain'` gets no `createStreamHandlerForDef` parser at
  * all (Option B — see module doc and
  * `ADS-memory/reports/proposals/PROP-plain-format-agent-driving-2026-07-21.md`
- * §3): every raw stdout chunk is forwarded live, verbatim, as its own
- * `text_delta` `'agent'` event, through the same `enqueueEmit` FIFO queue
- * every other emit already goes through — no buffering until close, no new
- * parser state machine. **Deliberately un-hygiened for v1**: no ANSI/
- * terminal-control-sequence stripping is applied (there is no Jini
- * equivalent of OD's `TerminalControlSequenceStripper` yet) — a documented
- * decision, not an oversight; see `packages/daemon/source-map.md`'s
- * 2026-07-21 addition for the reasoning.
+ * §3): every raw stdout chunk is forwarded verbatim as a `text_delta`
+ * `'agent'` event, through the same `enqueueEmit` FIFO queue every other
+ * emit already goes through — no new parser state machine.
+ * **Deliberately un-hygiened for v1**: no ANSI/terminal-control-sequence
+ * stripping is applied (there is no Jini equivalent of OD's
+ * `TerminalControlSequenceStripper` yet) — a documented decision, not an
+ * oversight; see `packages/daemon/source-map.md`'s 2026-07-21 addition for
+ * the reasoning.
+ *
+ * *When* those chunks leave is the def's call, via `def.stdoutPolicy`:
+ *
+ *   - `'live'` (the default, and every def but antigravity) — emit per
+ *     chunk, as it arrives.
+ *   - `'until-close'` — accumulate, and emit the whole thing exactly once
+ *     from the `close` handler, after `def.stdoutPolicy.sanitize`. For an
+ *     adapter that can print a secret to stdout and still exit 0, no
+ *     per-chunk decision is safe: the pattern to redact can straddle two
+ *     `'data'` events.
+ *
+ * The buffered path holds back the raw `'stdout'` echo too, not just the
+ * `'agent'`/`text_delta`, and sanitizes both. Emitting an unsanitized raw
+ * echo while withholding the chat copy would leak the exact string the
+ * sanitizer exists to remove to any client subscribed to the run's events —
+ * the raw channel is a different *purpose*, not a different audience.
+ * `journal` is the one thing still recorded per-chunk and verbatim: it is
+ * the host's own byte record, deliberately kept in a **separate** `EventLog`
+ * instance that is never replayed to run-event subscribers (see
+ * `continuation/journal.ts`'s module doc), and "every byte received" is its
+ * whole contract.
  *
  * @param ctx - Run/def/child/lifecycle plus the cancellation-escalation ports.
  * @returns A handle exposing `closeStdinOnce` for the initial prompt write to share.
@@ -851,6 +1078,15 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   // consumed by a turn-end injection decision. See `ContinuationOptions`'s doc for why this is
   // only ever acted on when a host has explicitly allowlisted the tool's name.
   let pendingToolUse: { id: string; name: string; input: unknown } | undefined;
+  // `def.stdoutPolicy` read once, up front, so the per-chunk handler below is a single boolean
+  // test rather than a repeated union narrowing. `undefined` (every def but antigravity) means
+  // live — see this function's own doc.
+  const stdoutPolicy = def.stdoutPolicy;
+  const bufferStdoutUntilClose = stdoutPolicy?.buffering === 'until-close';
+  const sanitizeBufferedStdout = stdoutPolicy?.buffering === 'until-close' ? stdoutPolicy.sanitize : undefined;
+  // Accumulator for the `'until-close'` path. Stays `''` for every live def, and the flush below
+  // is then a no-op that emits nothing.
+  let bufferedStdout = '';
 
   function enqueueEmit(task: () => Promise<unknown>): void {
     emitQueue = emitQueue.then(async () => {
@@ -951,18 +1187,41 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
           }
         });
 
+  /**
+   * Emits the accumulated `'until-close'` stdout — sanitized — as exactly one raw `'stdout'` echo
+   * plus one `text_delta`, through the same `enqueueEmit` FIFO queue every other emit uses, so the
+   * flush is ordered after every already-queued event and before `finish()`'s `'end'`. A no-op for
+   * every live-streaming def (nothing was ever accumulated) and for a buffered run that produced
+   * no stdout at all — an empty `text_delta` is noise, not information.
+   */
+  function flushBufferedStdout(): void {
+    if (bufferedStdout.length === 0) return;
+    const safe = sanitizeBufferedStdout ? sanitizeBufferedStdout(bufferedStdout) : bufferedStdout;
+    bufferedStdout = '';
+    if (safe.length === 0) return;
+    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: safe } }));
+    enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: { type: 'text_delta', delta: safe } }));
+  }
+
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
     if (journal) enqueueEmit(() => journal.record(runId, receivedJournalEntry('stdout', text)));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
     if (streamFormat === 'plain') {
       if (text.length > 0) userVisibleOutputSeen = true;
+      if (bufferStdoutUntilClose) {
+        // Nothing is emitted on *either* channel yet — see this function's doc on why holding the
+        // raw echo back matters as much as holding back the chat copy.
+        bufferedStdout += text;
+        return;
+      }
+      enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
       enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: { type: 'text_delta', delta: text } }));
-    } else {
-      // Non-null: `streamHandler` is only ever null when `streamFormat === 'plain'` (see its
-      // construction above), the branch this `else` provably excludes.
-      streamHandler!.feed(text);
+      return;
     }
+    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
+    // Non-null: `streamHandler` is only ever null when `streamFormat === 'plain'` (see its
+    // construction above), the branch this statement is provably unreachable from.
+    streamHandler!.feed(text);
   });
 
   child.stderr?.on('data', (chunk: Buffer | string) => {
@@ -998,9 +1257,12 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       // driver dispatches to. `streamHandler` is null for `'plain'` (no
       // parser, hence nothing to flush) — `?.` skips it cleanly.
       streamHandler?.flush();
+      // Queued before `await emitQueue` so the flushed text is durably appended ahead of
+      // `finish()`'s `'end'` event, exactly like every live-path emit already is.
+      flushBufferedStdout();
       await emitQueue;
       unsubscribeCancel();
-      await ctx.cleanupPromptFile();
+      await ctx.cleanupStagedFiles();
       const status = classifyRunCloseStatus({ cancelRequested, code, signal });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
@@ -1038,12 +1300,14 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly lifecycle: RunLifecycle;
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | undefined;
+  readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
   readonly onPermissionRequest: AcpPermissionHandler | undefined;
   readonly attachAcpSession: typeof attachAcpSession;
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
-  /** Same seam as `WireChildLifecycleContext.cleanupPromptFile` — no current ACP def declares `promptViaFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
-  readonly cleanupPromptFile: () => Promise<void>;
+  /** Same seam as `WireChildLifecycleContext.cleanupStagedFiles` — no current ACP def declares `promptViaFile` or `needsAgentLogFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
+  readonly cleanupStagedFiles: () => Promise<void>;
   /** Gap 1's byte-journal (see `continuation/journal.ts`). Covers this wrapper's own raw stdout/stderr forwarding only — the actual ACP prompt delivery happens inside `attachAcpSession`'s own transport, out of this module's direct view, so sent bytes are not journaled on this path (an honestly-scoped v1 gap, not an oversight). */
   readonly journal: RunByteJournal | undefined;
   /** Gap 4's failure classifier — see `ClassifyFailure`'s own doc. `undefined` means every `'failed'` outcome stays `resumable: false`. */
@@ -1129,7 +1393,7 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
     void (async () => {
       await emitQueue;
       unsubscribeCancel();
-      await ctx.cleanupPromptFile();
+      await ctx.cleanupStagedFiles();
       const status = cancelRequested ? 'cancelled' : controller?.completedSuccessfully() ? 'succeeded' : 'failed';
       const resumable =
         status === 'failed' && classifyFailure !== undefined
@@ -1156,6 +1420,8 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
     child,
     prompt: ctx.prompt,
     cwd: ctx.cwd,
+    ...(ctx.model !== undefined ? { model: ctx.model } : {}),
+    ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
     ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
     ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}),
     send(event, payload) {
@@ -1192,10 +1458,13 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
   readonly lifecycle: RunLifecycle;
   readonly prompt: string;
   readonly cwd: string;
+  readonly model: string | undefined;
+  readonly imagePaths: readonly string[];
+  readonly uploadRoot: string | undefined;
   readonly attachPiRpcSession: typeof attachPiRpcSession;
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
-  /** Same seam as `WireChildLifecycleContext.cleanupPromptFile` — no current pi-rpc def declares `promptViaFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
-  readonly cleanupPromptFile: () => Promise<void>;
+  /** Same seam as `WireChildLifecycleContext.cleanupStagedFiles` — no current pi-rpc def declares `promptViaFile` or `needsAgentLogFile`, so this is always the no-op default in practice today, threaded through for consistency rather than special-cased away. */
+  readonly cleanupStagedFiles: () => Promise<void>;
   /** Gap 1's byte-journal (see `continuation/journal.ts`). Same scope boundary as `WireAcpLifecycleContext.journal`: covers this wrapper's own raw stdout/stderr forwarding only, not the prompt bytes `attachPiRpcSession` sends through its own transport. */
   readonly journal: RunByteJournal | undefined;
   /** Gap 4's failure classifier — see `ClassifyFailure`'s own doc. `undefined` means every `'failed'` outcome stays `resumable: false`. */
@@ -1216,7 +1485,7 @@ interface WirePiRpcLifecycleContext extends TerminateChildTreeDeps {
  * `child.stdout` itself for its own JSON-RPC parsing — Node multicasts
  * `'data'` events to every listener, so both coexist safely.
  *
- * v1 omits `model`/`imagePaths`/`uploadRoot`/`parentSession` — none of
+ * v1 omits `parentSession` — none of
  * `AgentExecutorRunInput`'s fields carry them yet (matching this module's
  * established "explicitly out of scope" discipline for other follow-ups:
  * multi-turn tool continuation, resumable session ids, etc.).
@@ -1266,7 +1535,7 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
     void (async () => {
       await emitQueue;
       unsubscribeCancel();
-      await ctx.cleanupPromptFile();
+      await ctx.cleanupStagedFiles();
       const status = cancelRequested ? 'cancelled' : session?.hasFatalError() ? 'failed' : 'succeeded';
       const resumable =
         status === 'failed' && classifyFailure !== undefined
@@ -1293,6 +1562,9 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
     child: ctx.child,
     prompt: ctx.prompt,
     cwd: ctx.cwd,
+    ...(ctx.model !== undefined ? { model: ctx.model } : {}),
+    ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
+    ...(ctx.uploadRoot !== undefined ? { uploadRoot: ctx.uploadRoot } : {}),
     send(_channel, payload) {
       const translation = translateAgentRuntimeEvent(payload);
       if (translation.kind === 'agent') {
@@ -1348,17 +1620,17 @@ function writePromptToStdin(def: RuntimeAgentDef, child: ChildProcess, prompt: s
 
 export interface CreateAgentExecutorOptions {
   readonly lifecycle: RunLifecycle;
-  /** @default the real `@jini/agent-runtime` registry lookup */
+  /** @default the real `@jini-ai/agent-runtime` registry lookup */
   readonly getAgentDef?: typeof getAgentDef;
-  /** @default the real `@jini/agent-runtime` launch resolver */
+  /** @default the real `@jini-ai/agent-runtime` launch resolver */
   readonly resolveAgentLaunch?: typeof resolveAgentLaunch;
-  /** @default the real `@jini/agent-runtime` PATH-env composer */
+  /** @default the real `@jini-ai/agent-runtime` PATH-env composer */
   readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
-  /** @default the real `@jini/platform` cross-platform invocation builder */
+  /** @default the real `@jini-ai/platform` cross-platform invocation builder */
   readonly createCommandInvocation?: typeof createCommandInvocation;
   /** @default `node:child_process`'s `spawn` */
   readonly spawn?: typeof nodeSpawn;
-  /** @default the real `@jini/agent-runtime` ACP session transport */
+  /** @default the real `@jini-ai/agent-runtime` ACP session transport */
   readonly attachAcpSession?: typeof attachAcpSession;
   /**
    * Host-owned policy for ACP agents' native tool calls. The ACP agent still
@@ -1366,7 +1638,7 @@ export interface CreateAgentExecutorOptions {
    * to `createDelegatedToolBridge`, not this permission callback.
    */
   readonly acpPermissionHandler?: AcpPermissionHandler;
-  /** @default the real `@jini/agent-runtime` pi-rpc session transport */
+  /** @default the real `@jini-ai/agent-runtime` pi-rpc session transport */
   readonly attachPiRpcSession?: typeof attachPiRpcSession;
   /**
    * Stages a `promptViaFile` def's (grok-build) composed prompt to a temp
@@ -1374,14 +1646,22 @@ export interface CreateAgentExecutorOptions {
    * (`fs.mkdtemp`/`fs.writeFile`/`fs.rm`) — injectable so tests can drive
    * it without real disk I/O, matching this factory's "no real subprocess,
    * filesystem, or PATH lookup by default in tests" convention.
-   * @default the real `@jini/agent-runtime` prompt-file stager
+   * @default the real `@jini-ai/agent-runtime` prompt-file stager
    */
   readonly preparePromptFileForAgent?: typeof preparePromptFileForAgent;
-  /** @default the real `@jini/platform` process-snapshot enumerator */
+  /**
+   * Stages a `needsAgentLogFile` def's (antigravity) diagnostic-log path
+   * before `buildArgs` runs. Same real-filesystem/injectable-for-tests deal
+   * as `preparePromptFileForAgent` above, and a no-op for every def that
+   * did not opt in.
+   * @default the real `@jini-ai/agent-runtime` log-file stager
+   */
+  readonly prepareAgentLogFile?: typeof prepareAgentLogFile;
+  /** @default the real `@jini-ai/platform` process-snapshot enumerator */
   readonly listProcessSnapshots?: typeof listProcessSnapshots;
-  /** @default the real `@jini/platform` descendant-PID collector */
+  /** @default the real `@jini-ai/platform` descendant-PID collector */
   readonly collectProcessTreePids?: typeof collectProcessTreePids;
-  /** @default the real `@jini/platform` SIGTERM→SIGKILL escalator */
+  /** @default the real `@jini-ai/platform` SIGTERM→SIGKILL escalator */
   readonly stopProcesses?: typeof stopProcesses;
   /** Host-owned sink for a process-tree cleanup failure (SEC-007) — e.g. EPERM stopping descendants. @default logs a redacted diagnostic via `console.error` */
   readonly onCleanupFailure?: (context: AgentCleanupFailureContext) => void;
@@ -1427,7 +1707,7 @@ export interface CreateAgentExecutorOptions {
 
 /**
  * Creates the `AgentExecutor` reference implementation: an in-process
- * `RunLifecycle` driver over real (by default) `@jini/agent-runtime`
+ * `RunLifecycle` driver over real (by default) `@jini-ai/agent-runtime`
  * registry lookup, launch resolution, and stream parsing, plus a real
  * `node:child_process.spawn`. Every collaborator is an injectable seam
  * (matching this package's established convention — see
@@ -1450,6 +1730,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
   const attachAcpSessionFn = options.attachAcpSession ?? attachAcpSession;
   const attachPiRpcSessionFn = options.attachPiRpcSession ?? attachPiRpcSession;
   const preparePromptFileForAgentFn = options.preparePromptFileForAgent ?? preparePromptFileForAgent;
+  const prepareAgentLogFileFn = options.prepareAgentLogFile ?? prepareAgentLogFile;
   const listProcessSnapshotsFn = options.listProcessSnapshots ?? listProcessSnapshots;
   const collectProcessTreePidsFn = options.collectProcessTreePids ?? collectProcessTreePids;
   const stopProcessesFn = options.stopProcesses ?? stopProcesses;
@@ -1482,7 +1763,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
    * returns `failBeforeSpawn(...)` directly (a `Promise<never>`, valid
    * wherever `Promise<void>` is expected) rather than `await`-then-`return`,
    * so each failure path reads as a single, obviously-terminal statement.
-   * @param input - `{runId, agentId, prompt, cwd, env?}` — `runId` must already be `lifecycle.start()`-ed.
+   * @param input - `{runId, agentId, prompt, cwd, model?, reasoning?, imagePaths?, extraAllowedDirs?, uploadRoot?, env?}` — `runId` must already be `lifecycle.start()`-ed.
    * @throws {@link AgentExecutorError} — see module doc's Invariant; never a bare `Error`.
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
@@ -1493,39 +1774,14 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       return failBeforeSpawn(input.runId, 'AGENT_NOT_FOUND', `AgentExecutor: unknown agentId "${input.agentId}"`);
     }
 
-    const streamFormat = def.streamFormat;
-    if (!isSupportedStreamFormat(streamFormat)) {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_RUNTIME_UNSUPPORTED',
-        `AgentExecutor: agent "${def.id}" has streamFormat "${streamFormat}", which is not implemented in v1 — only ${SUPPORTED_STREAM_FORMATS.join(', ')} are supported (see packages/daemon/source-map.md for the deferred antigravity guard)`,
-      );
+    // Every compatibility guard lives in `assessAgentExecutorCompatibility` so discovery surfaces can
+    // ask the same question before a run exists — see that function's own doc. It returns the narrowed
+    // `streamFormat` on success, so this delegation costs no redundant re-check.
+    const compatibility = assessAgentExecutorCompatibility(def);
+    if (!compatibility.supported) {
+      return failBeforeSpawn(input.runId, 'AGENT_RUNTIME_UNSUPPORTED', compatibility.reason);
     }
-    // Antigravity is the one plain def NOT driven — see module doc. This
-    // guard is deliberately independent of (and ahead of) the generic
-    // prompt-delivery/dispatch logic below: even though antigravity's def
-    // declares promptViaStdin: true and would otherwise clear every guard
-    // that follows, it needs auth-URL-leak buffering and a cross-run
-    // model-selection lock this driver has no seam for yet.
-    if (streamFormat === 'plain' && def.id === 'antigravity') {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_RUNTIME_UNSUPPORTED',
-        `AgentExecutor: agent "${def.id}" needs auth-URL-leak buffering and a cross-run model-selection lock that generic streamFormat 'plain' driving does not provide — deliberately deferred, see ADS-memory/reports/proposals/PROP-plain-format-agent-driving-2026-07-21.md`,
-      );
-    }
-    if (
-      streamFormat !== 'acp-json-rpc' &&
-      def.promptViaStdin !== true &&
-      def.promptViaFile !== true &&
-      typeof def.maxPromptArgBytes !== 'number'
-    ) {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_RUNTIME_UNSUPPORTED',
-        `AgentExecutor: agent "${def.id}" does not deliver its prompt via stdin, a staged prompt file, or a byte-budgeted argv — v1 has no other prompt delivery path`,
-      );
-    }
+    const streamFormat = compatibility.streamFormat;
 
     // Argv-bound defs (aider, deepseek) — reject an oversized prompt before
     // ever resolving a binary or touching the filesystem. A no-op for every
@@ -1535,8 +1791,9 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       return failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', argvBudgetError.message);
     }
 
-    const configuredEnv = toStringEnvRecord(input.env ?? process.env);
-    const launch: AgentLaunchResolution = resolveAgentLaunchFn(def, configuredEnv);
+    const resolvedEnv: Record<string, string> =
+      input.env !== undefined ? toStringEnvRecord(input.env) : buildAgentEnv(process.env, input.credentialEnv);
+    const launch: AgentLaunchResolution = resolveAgentLaunchFn(def, resolvedEnv);
     if (!launch.launchPath) {
       return failBeforeSpawn(
         input.runId,
@@ -1545,7 +1802,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       );
     }
 
-    const spawnEnv = applyAgentLaunchEnvFn({ ...(input.env ?? process.env) }, launch);
+    const spawnEnv = applyAgentLaunchEnvFn({ ...resolvedEnv }, launch);
 
     // Stage a promptViaFile def's (grok-build) prompt to a temp file before
     // buildArgs runs — its buildArgs throws without
@@ -1561,17 +1818,80 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
         `AgentExecutor: could not stage a prompt file for agent "${def.id}": ${errorMessage(err)}`,
       );
     }
+    // Stage a needsAgentLogFile def's (antigravity) diagnostic-log path, on the same terms and at
+    // the same point as the prompt file above: before buildArgs, since buildArgs is what turns the
+    // path into a `--log-file <path>` argument. A no-op (returns null) for every def without
+    // `needsAgentLogFile: true` (prepareAgentLogFile's own guard). Sequenced after the prompt file
+    // rather than concurrently so the failure path below has exactly one thing to clean up.
+    let preparedLogFile: PreparedAgentLogFile | null;
+    try {
+      preparedLogFile = await prepareAgentLogFileFn(def, input.runId);
+    } catch (err) {
+      await (preparedPromptFile ? preparedPromptFile.cleanup() : Promise.resolve());
+      return failBeforeSpawn(
+        input.runId,
+        'AGENT_SPAWN_FAILED',
+        `AgentExecutor: could not stage a log file for agent "${def.id}": ${errorMessage(err)}`,
+      );
+    }
+
     // Cleaned up after the child exits (wireChildLifecycle/wireAcpLifecycle/wirePiRpcLifecycle's
     // close handlers) and on every pre-spawn/spawn-failure path below — a leaked temp file
-    // containing the full prompt is a confidentiality gap, not just a disk leak.
-    const cleanupPromptFile: () => Promise<void> = preparedPromptFile
-      ? preparedPromptFile.cleanup
-      : async () => {};
-    const runtimeContext: RuntimeContext | undefined = preparedPromptFile
-      ? { promptFilePath: preparedPromptFile.path }
-      : undefined;
+    // containing the full prompt, or whatever the CLI chose to write into its log, is a
+    // confidentiality gap, not just a disk leak. One composed closure covering both staged files;
+    // see `WireChildLifecycleContext.cleanupStagedFiles`'s doc for why they are not two fields.
+    const cleanupStagedFiles: () => Promise<void> =
+      preparedPromptFile || preparedLogFile
+        ? async () => {
+            if (preparedPromptFile) await preparedPromptFile.cleanup();
+            if (preparedLogFile) await preparedLogFile.cleanup();
+          }
+        : async () => {};
+    const runtimeContext: RuntimeContext | undefined =
+      preparedPromptFile || preparedLogFile
+        ? {
+            ...(preparedPromptFile ? { promptFilePath: preparedPromptFile.path } : {}),
+            ...(preparedLogFile ? { agentLogFilePath: preparedLogFile.path } : {}),
+          }
+        : undefined;
 
-    const args = def.buildArgs(input.prompt, [], undefined, undefined, runtimeContext);
+    // A `runtimeLock` def's buildArgs mutates process-global state its own CLI reads back at
+    // startup, so the mutex must be held from before buildArgs until the spawned child has
+    // demonstrably consumed it — see `RuntimeLock`'s own doc for the concrete race. Undefined for
+    // 23 of 24 defs, in which case nothing below waits on anything.
+    const selectedModel = input.model;
+    const runtimeLockHold: RuntimeLockHold | undefined = await def.runtimeLock?.acquire({ model: selectedModel });
+    // Aborts once the spawned process is gone — or immediately, on a path where no process ever
+    // ran — so a def's own handoff watcher can never outlive the run it was polling for.
+    const processExitedController = new AbortController();
+    /**
+     * Releases the runtime lock and cancels any handoff watcher. Safe to call from any number of
+     * paths: `AbortController.abort()` after the first is a no-op, and `RuntimeLockHold.release`
+     * is idempotent by contract.
+     */
+    const releaseRuntimeLock = (): void => {
+      processExitedController.abort();
+      runtimeLockHold?.release();
+    };
+    /** Both staged-file and lock release, for the pre-spawn/spawn-failure paths that own neither a child nor a close handler. */
+    const releaseStagedResources = async (): Promise<void> => {
+      releaseRuntimeLock();
+      await cleanupStagedFiles();
+    };
+
+    const args = def.buildArgs(
+      input.prompt,
+      [...(input.imagePaths ?? [])],
+      input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
+      input.model !== undefined || input.reasoning !== undefined || input.permissionMode !== undefined
+        ? {
+            ...(input.model !== undefined ? { model: input.model } : {}),
+            ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
+            ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+          }
+        : undefined,
+      runtimeContext,
+    );
 
     // Gap 3, part 2 — write .mcp.json into the managed cwd before spawn, so a 'claude-mcp-json'
     // def's own spawn-time config load discovers the jini-mcp bridge server. A no-op for every
@@ -1579,7 +1899,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     try {
       await writeMcpJsonForRun(input.cwd, input.runId, def, mcpJsonInjection);
     } catch (err) {
-      await cleanupPromptFile();
+      await releaseStagedResources();
       return failBeforeSpawn(
         input.runId,
         'AGENT_SPAWN_FAILED',
@@ -1595,7 +1915,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       checkWindowsCmdShimCommandLineBudget(def, launch.launchPath, args) ??
       checkWindowsDirectExeCommandLineBudget(def, launch.launchPath, args);
     if (windowsBudgetError) {
-      await cleanupPromptFile();
+      await releaseStagedResources();
       return failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', windowsBudgetError.message);
     }
 
@@ -1610,13 +1930,21 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
         windowsVerbatimArguments: invocation.windowsVerbatimArguments,
       });
     } catch (err) {
-      await cleanupPromptFile();
+      await releaseStagedResources();
       return failBeforeSpawn(
         input.runId,
         'AGENT_SPAWN_FAILED',
         `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage(err)}`,
       );
     }
+
+    // Registered before the spawn-confirmation await below, for the same reason
+    // `wireChildLifecycle` is: a child that exits immediately must not slip past the listener.
+    // `'exit'` rather than `'close'` on purpose — a `runtimeLock` guards state the *process* reads,
+    // so the process being gone is the release condition, not its stdio pipes draining (which a
+    // grandchild inheriting them can delay arbitrarily). A spawn that never produced a process at
+    // all emits no `'exit'`, and is covered instead by `releaseStagedResources` on the reject path.
+    child.once('exit', releaseRuntimeLock);
 
     const stdinHandle =
       streamFormat === 'acp-json-rpc' || streamFormat === 'pi-rpc'
@@ -1631,7 +1959,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
             collectProcessTreePids: collectProcessTreePidsFn,
             stopProcesses: stopProcessesFn,
             onCleanupFailure: onCleanupFailureFn,
-            cleanupPromptFile,
+            cleanupStagedFiles,
             journal,
             continuation,
             classifyFailure,
@@ -1640,12 +1968,27 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     try {
       await waitForSpawnOrError(child);
     } catch (err) {
-      await cleanupPromptFile();
+      await releaseStagedResources();
       await lifecycle.finish({ runId: input.runId, status: 'failed', code: null, signal: null, resumable: false });
       throw new AgentExecutorError(
         'AGENT_SPAWN_FAILED',
         `AgentExecutor: failed to spawn agent "${def.id}": ${errorMessage(err)}`,
       );
+    }
+
+    // Now — and only now — is there a live process that could consume the locked side effect, so
+    // this is where a def's handoff watcher starts. Deliberately not awaited: the whole point is to
+    // release the lock as soon as the child confirms the handoff, in parallel with this run
+    // continuing. Rejection releases too — a lock stuck open because a watcher threw is strictly
+    // worse than releasing early (see `RuntimeLockHold.waitForHandoff`'s own doc).
+    if (runtimeLockHold?.waitForHandoff) {
+      void runtimeLockHold
+        .waitForHandoff({
+          logFilePath: preparedLogFile?.path,
+          model: selectedModel,
+          processExited: processExitedController.signal,
+        })
+        .then(releaseRuntimeLock, releaseRuntimeLock);
     }
 
     if (streamFormat === 'acp-json-rpc') {
@@ -1657,6 +2000,8 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           lifecycle,
           prompt: input.prompt,
           cwd: input.cwd,
+          model: input.model,
+          imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
           onPermissionRequest: options.acpPermissionHandler,
           attachAcpSession: attachAcpSessionFn,
@@ -1664,7 +2009,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           collectProcessTreePids: collectProcessTreePidsFn,
           stopProcesses: stopProcessesFn,
           onCleanupFailure: onCleanupFailureFn,
-          cleanupPromptFile,
+          cleanupStagedFiles,
           journal,
           classifyFailure,
         });
@@ -1683,7 +2028,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           'acp-attach-failure',
           onCleanupFailureFn,
         );
-        await cleanupPromptFile();
+        await releaseStagedResources();
         await lifecycle.finish({ runId: input.runId, status: 'failed', code: null, signal: null, resumable: false });
         throw new AgentExecutorError(
           'AGENT_SPAWN_FAILED',
@@ -1702,12 +2047,15 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           lifecycle,
           prompt: input.prompt,
           cwd: input.cwd,
+          model: input.model,
+          imagePaths: input.imagePaths ?? [],
+          uploadRoot: input.uploadRoot,
           attachPiRpcSession: attachPiRpcSessionFn,
           listProcessSnapshots: listProcessSnapshotsFn,
           collectProcessTreePids: collectProcessTreePidsFn,
           stopProcesses: stopProcessesFn,
           onCleanupFailure: onCleanupFailureFn,
-          cleanupPromptFile,
+          cleanupStagedFiles,
           journal,
           classifyFailure,
         });
@@ -1725,7 +2073,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           'pi-rpc-attach-failure',
           onCleanupFailureFn,
         );
-        await cleanupPromptFile();
+        await releaseStagedResources();
         await lifecycle.finish({ runId: input.runId, status: 'failed', code: null, signal: null, resumable: false });
         throw new AgentExecutorError(
           'AGENT_SPAWN_FAILED',

@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/core/config
+ * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
  * to as a client, plus the per-agent config builders (Claude `.mcp.json`, ACP
  * `mcpServers`, OpenCode) that hand those servers to a launching agent. Part of
@@ -23,7 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
-import { pathContains } from '@jini/platform';
+import { pathContains } from '@jini-ai/platform';
 import { writeSecretFileAtomic } from './secure-write.js';
 
 /** Wire-level transport discriminator for how the daemon connects to an external MCP server. */
@@ -296,7 +296,7 @@ function resolveRealOrLexical(p: string): string {
  * Both `cwd` and `projectsDir` are realpath-resolved before the containment
  * check (falling back to lexical `path.resolve` normalization for a path
  * that doesn't exist on disk yet), and containment is decided with
- * `@jini/platform`'s separator-aware `pathContains` rather than a raw
+ * `@jini-ai/platform`'s separator-aware `pathContains` rather than a raw
  * string-prefix check — a `..`-containing path or a symlinked descendant
  * can defeat a plain `startsWith` (CR-006 / SEC-RB-011).
  */

@@ -1,6 +1,6 @@
 /**
  * Conformance suite for `createSqliteEventLog`. Covers the same shape as
- * `@jini/daemon`'s `event-log.test.ts` (ordering, replay cursor, idempotency dedup,
+ * `@jini-ai/daemon`'s `event-log.test.ts` (ordering, replay cursor, idempotency dedup,
  * eviction/replay-gap) against the sqlite adapter instead of the in-memory reference,
  * proving behavioral parity — plus a durability-across-restart section with no in-memory
  * equivalent (opens a fresh connection to the same file and confirms data survived).

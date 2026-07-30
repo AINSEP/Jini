@@ -151,7 +151,7 @@ function testIpcPath(root: string): string {
   return join(root, "ipc.sock");
 }
 
-describe("@jini/sidecar — ipc-path", () => {
+describe("@jini-ai/sidecar — ipc-path", () => {
   it("recognizes Windows named pipes and validates absolute unix socket paths", () => {
     expect(isWindowsNamedPipePath("\\\\.\\pipe\\my-app")).toBe(true);
     expect(isWindowsNamedPipePath("/tmp/socket.sock")).toBe(false);
@@ -166,7 +166,7 @@ describe("@jini/sidecar — ipc-path", () => {
   });
 });
 
-describe("@jini/sidecar — net", () => {
+describe("@jini-ai/sidecar — net", () => {
   it("closeServer is a no-op on a server that was never listening", async () => {
     const server = createNetServer();
     await expect(closeServer(server)).resolves.toBeUndefined();
@@ -203,7 +203,7 @@ describe("@jini/sidecar — net", () => {
   });
 });
 
-describe("@jini/sidecar — path boundary uses descriptor defaults, not hardcoded product constants", () => {
+describe("@jini-ai/sidecar — path boundary uses descriptor defaults, not hardcoded product constants", () => {
   it("derives project/source/namespace roots from the contract's own defaults", () => {
     const sourceRoot = resolveSourceRuntimeRoot({
       contract: fakeContract,
@@ -316,7 +316,7 @@ describe("@jini/sidecar — path boundary uses descriptor defaults, not hardcode
   });
 });
 
-describe("@jini/sidecar — bootstrap", () => {
+describe("@jini-ai/sidecar — bootstrap", () => {
   it("creates launch env from descriptor env names and bootstraps back to a matching runtime context", () => {
     const stamp: FakeStamp = {
       app: "api",
@@ -402,7 +402,7 @@ describe("@jini/sidecar — bootstrap", () => {
   });
 });
 
-describe("@jini/sidecar — port allocation", () => {
+describe("@jini-ai/sidecar — port allocation", () => {
   it("allocates a dynamic port and avoids re-issuing an already-reserved one", async () => {
     const reserved = new Set<number>();
     const first = await allocatePort({ reserved });
@@ -561,7 +561,7 @@ describe("@jini/sidecar — port allocation", () => {
   });
 });
 
-describe("@jini/sidecar — json-file", () => {
+describe("@jini-ai/sidecar — json-file", () => {
   it("writes, reads, and best-effort-removes JSON state atomically", async () => {
     const dir = await mkdtemp(join(tmpdir(), "jini-sidecar-jsonfile-"));
     try {
@@ -590,7 +590,7 @@ describe("@jini/sidecar — json-file", () => {
   });
 });
 
-describe("@jini/sidecar — jsonIpcError (direct — its only in-tree caller always passes a codeless SyntaxError)", () => {
+describe("@jini-ai/sidecar — jsonIpcError (direct — its only in-tree caller always passes a codeless SyntaxError)", () => {
   it("omits the code field for a codeless error (its real, in-tree call path)", () => {
     expect(jsonIpcError(new SyntaxError("Unexpected token"))).toEqual({ message: "Unexpected token" });
   });
@@ -606,7 +606,7 @@ describe("@jini/sidecar — jsonIpcError (direct — its only in-tree caller alw
   });
 });
 
-describe("@jini/sidecar — JSON IPC", () => {
+describe("@jini-ai/sidecar — JSON IPC", () => {
   it("round-trips a request/response over a unix socket and traces low-level events without changing semantics", async () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-"));
     const socketPath = testIpcPath(root);

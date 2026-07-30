@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/core/secure-write
+ * @module @jini-ai/mcp/core/secure-write
  * Shared atomic, owner-only-permission (0600) secret-file writer used by
  * every secret-bearing on-disk store in this package: the server config
  * store (env vars / `Authorization` headers), the OAuth dynamic-client-

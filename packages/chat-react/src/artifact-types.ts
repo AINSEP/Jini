@@ -3,22 +3,22 @@
  *
  * Minimal `ArtifactFile`/`ArtifactRenderer`/`RendererRegistry` shapes,
  * defined locally per this task's SCOPE NOTE: r4b calls the artifact-renderer
- * package `@jini/artifacts-react`; the actual locked name
- * (`foundry/docs/jini-port/extraction-plan.md` §3) is `@jini/renderers-react`, which
+ * package `@jini-ai/artifacts-react`; the actual locked name
+ * (`foundry/docs/jini-port/extraction-plan.md` §3) is `@jini-ai/renderers-react`, which
  * is still a placeholder stub being built in a separate session. `chat-react`
  * needs these shapes now (for `useArtifactStream` and the `ArtifactFile`
  * field on `ProjectContextValue`), so they are defined here to the exact
  * shape r4b §2 specifies, with the intent that a future pass re-points every
- * import below at `@jini/renderers-react`'s real exports once that package
+ * import below at `@jini-ai/renderers-react`'s real exports once that package
  * lands, deletes this file, and removes the re-export from `index.ts`.
  *
  * TODO(renderers-react): replace this file's contents with
- * `export * from '@jini/renderers-react'` (or the equivalent named
- * re-exports) once `@jini/renderers-react` ships real `ArtifactFile`/
+ * `export * from '@jini-ai/renderers-react'` (or the equivalent named
+ * re-exports) once `@jini-ai/renderers-react` ships real `ArtifactFile`/
  * `ArtifactRenderer`/`RendererRegistry` implementations. Do not block this
  * package's other work on that package landing first.
  */
-import type { ArtifactManifest } from '@jini/chat-core';
+import type { ArtifactManifest } from '@jini-ai/chat-core';
 
 /** Generic artifact-file shape a host's project/workspace file maps onto. */
 export interface ArtifactFile {

@@ -11,8 +11,8 @@
  * "transport-agnostic hooks never touch DOM" contract.
  */
 import { useEffect, useRef } from 'react';
-import type { ChatMessage } from '@jini/chat-core';
-import { isTerminalRunStatus } from '@jini/chat-core';
+import type { ChatMessage } from '@jini-ai/chat-core';
+import { isTerminalRunStatus } from '@jini-ai/chat-core';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
 
 export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment'> {
@@ -50,7 +50,13 @@ export function MessageList({
   }, [scrollIntent, messages]);
 
   return (
-    <div className="jini-message-list" ref={containerRef}>
+    <div
+      className="jini-message-list"
+      ref={containerRef}
+      data-agent-element="chat-transcript"
+      data-agent-role="list"
+      data-agent-label="The conversation transcript, oldest message first"
+    >
       {messages.map((message) => {
         const isLast = message.id === messages[messages.length - 1]?.id;
         const runStreaming = isLast && isStreaming && !isTerminalRunStatus(message.runStatus);

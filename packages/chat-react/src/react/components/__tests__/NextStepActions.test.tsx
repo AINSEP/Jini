@@ -40,8 +40,8 @@ describe('NextStepActions', () => {
    * i18n wiring proof (per the god-components-extraction-plan.md i18n
    * policy): mounts under a real translated dictionary and asserts the
    * TRANSLATED text renders — not just that the passthrough (unconfigured)
-   * case compiles. `@jini/chat-react` has no `I18nProvider` component of its
-   * own (unlike `@jini/ui`) — `<JiniChatProvider i18n={...}>` wires an
+   * case compiles. `@jini-ai/chat-react` has no `I18nProvider` component of its
+   * own (unlike `@jini-ai/ui`) — `<JiniChatProvider i18n={...}>` wires an
    * `I18nAdapter` directly into `I18nContext` (see
    * `../hooks/context.ts`/`JiniChatProvider.tsx`) — so this test mounts the
    * context directly, which is the equivalent seam for this package.

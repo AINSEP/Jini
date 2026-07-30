@@ -1,12 +1,12 @@
 /**
  * `createSqliteEventLog` — the durable `EventLog` adapter (extraction-plan §8 task 8,
- * §2.6: "`@jini/sqlite` is the default adapter... an adapter conformance suite covers
+ * §2.6: "`@jini-ai/sqlite` is the default adapter... an adapter conformance suite covers
  * transactions/ordering/cursor-durability/cancellation/migrations").
  *
- * Implements `@jini/daemon`'s `EventLog` port exactly (same method signatures, same
+ * Implements `@jini-ai/daemon`'s `EventLog` port exactly (same method signatures, same
  * `dedupeKey` idempotency semantics, same distinguishable `'replay-gap'` result,
  * same never-reused monotonic per-run cursor allocation, same FIFO eviction at
- * `maxEntriesPerRun`) — see `createInMemoryEventLog` in `@jini/daemon` for the
+ * `maxEntriesPerRun`) — see `createInMemoryEventLog` in `@jini-ai/daemon` for the
  * reference behavior this mirrors. `better-sqlite3` is synchronous; every public
  * method still returns a `Promise` per extraction-plan §2.6 ("ports are async-only
  * from day one... a real persistent adapter is a drop-in swap"), and every
@@ -26,7 +26,7 @@ import type {
   EventLogAppendInput,
   EventLogEntry,
   EventLogReplayResult,
-} from '@jini/daemon';
+} from '@jini-ai/protocol';
 
 /**
  * Default per-run retention cap applied when `SqliteEventLogOptions.maxEntriesPerRun` is
@@ -39,7 +39,7 @@ export interface SqliteEventLogOptions {
   /**
    * Maximum entries retained per run before the oldest are evicted. Defaults to
    * {@link DEFAULT_MAX_ENTRIES_PER_RUN} (2000) when omitted — unlike the in-memory reference
-   * adapter (`@jini/daemon`'s `createInMemoryEventLog`), where an omitted cap means unbounded,
+   * adapter (`@jini-ai/daemon`'s `createInMemoryEventLog`), where an omitted cap means unbounded,
    * a durable on-disk store defaults to a bounded retention window because unbounded persistent
    * growth is a real, unattended operational risk (disk exhaustion across long-lived runs) in a
    * way an in-process, GC'd, process-lifetime-bounded structure is not. Pass an explicit value
@@ -72,7 +72,7 @@ function assertValidReplayCursor(afterCursor: string | null): void {
   }
 }
 
-/** A `@jini/daemon` `EventLog` backed by a `better-sqlite3` database, plus a `close()` to release the file handle. */
+/** A `@jini-ai/daemon` `EventLog` backed by a `better-sqlite3` database, plus a `close()` to release the file handle. */
 export interface SqliteEventLog extends EventLog {
   close(): Promise<void>;
 }

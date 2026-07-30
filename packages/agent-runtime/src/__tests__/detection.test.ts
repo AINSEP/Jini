@@ -88,6 +88,27 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     expect((cursor as unknown as { listModels?: unknown }).listModels).toBeUndefined();
   });
 
+  // `stripFns` builds its result by spreading `...rest`, so any new
+  // `RuntimeAgentDef` field is published into this API response *by default*
+  // unless explicitly destructured out. antigravity is the only def declaring
+  // the three spawn-orchestration fields, and two of them carry closures —
+  // `JSON.stringify` would drop the functions but keep their wrappers,
+  // publishing a misleading `{"buffering":"until-close"}` / `{}`.
+  it("strips antigravity's spawn-orchestration fields out of the registry projection", async () => {
+    const results = await detectAgents(scopedEnv(path.join(dir, 'nonexistent-cursor-agent')));
+    const antigravity = results.find((a) => a.id === 'antigravity')!;
+
+    expect(antigravity).toBeDefined();
+    expect((antigravity as unknown as { needsAgentLogFile?: unknown }).needsAgentLogFile).toBeUndefined();
+    expect((antigravity as unknown as { stdoutPolicy?: unknown }).stdoutPolicy).toBeUndefined();
+    expect((antigravity as unknown as { runtimeLock?: unknown }).runtimeLock).toBeUndefined();
+    // …while the declarative metadata a picker actually needs survives.
+    expect(antigravity.streamFormat).toBe('plain');
+    expect(antigravity.supportsCustomModel).toBe(false);
+    // And nothing that survived would misrepresent itself once serialized.
+    expect(JSON.parse(JSON.stringify(antigravity))).not.toHaveProperty('stdoutPolicy');
+  });
+
   it('falls back to fallbackModels when the models probe returns an unusable list', async () => {
     const bin = path.join(dir, 'cursor-agent');
     makeExecutable(bin);

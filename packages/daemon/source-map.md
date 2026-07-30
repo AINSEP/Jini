@@ -261,8 +261,8 @@ it matches anything in `@jini/core`. New files:
 | File | Package | Contents |
 |---|---|---|
 | `packages/core/src/principal.ts` | `@jini/core` | `Principal { id, roles? }` — deliberately minimal per §3 ("Principal/Authorizer, pure interfaces"); anything richer is a consumer concern. |
-| `packages/core/src/tool-registry.ts` | `@jini/core` | `RunRef` (a structural `{ id: string }` — no import needed to satisfy it; `@jini/protocol`'s `RunStatus` already has `id: string` and structurally satisfies it, so `@jini/core` gains no new dependency), `ToolDescriptor`, `ToolExecutionContext`, `ToolHandler`, `ToolPolicy`/`AuthorizationDecision`, `ToolRegistration`, the public `ToolRegistry` interface (`register`/`has`/`list` — descriptors only), `createToolRegistry()`, and the package-internal `getToolRegistration(registry, toolId)`. |
-| `packages/core/src/internal.ts` | `@jini/core` | Re-exports **only** `getToolRegistration` — see "Handlers never publicly retrievable" below. |
+| `packages/core/src/tool-registry.ts` | `@jini/core` | `RunRef` (a structural `{ id: string }` — no import needed to satisfy it; `@jini/protocol`'s `RunStatus` already has `id: string` and structurally satisfies it, so `@jini/core` gains no new dependency), `ToolDescriptor`, `ToolExecutionContext`, `ToolHandler`, `ToolPolicy`/`AuthorizationDecision`, `ToolRegistration`, the public `ToolRegistry` interface (`register`/`has`/`list` — descriptors only), `createToolRegistry()`, and the package-internal `authorizeToolInvocation(registry, toolId, principal, run, input, delegate?)` (renamed 2026-07-29, see below — formerly `getToolRegistration(registry, toolId)`). |
+| `packages/core/src/internal.ts` | `@jini/core` | Re-exports **only** `authorizeToolInvocation` (plus its `ToolAuthorizationDelegate`/`ToolInvocationAuthorization` types) — see "Handlers never publicly retrievable" below. |
 | `packages/core/src/tool-tokens.ts` | `@jini/core` | `ToolRegistryToken`, alongside the service per this package's own token-placement convention. |
 | `packages/daemon/src/tool-executor.ts` | `@jini/daemon` | `ExecutionDelegate`, the audit-trail types, `ToolExecutionResult`, the `ToolExecutor` interface, `createToolExecutor()`. |
 | `packages/daemon/src/tokens.ts` (edited) | `@jini/daemon` | Added `ToolExecutorToken` alongside the pre-existing `RunLifecycleToken`/`EventLogToken`. |
@@ -275,10 +275,10 @@ returns `ToolDescriptor`s only. But `ToolExecutor` (a different package)
 genuinely needs the full `{descriptor, handler, policy}` triple to do its
 job. The registrations themselves live in a module-private `WeakMap<ToolRegistry,
 Map<string, ToolRegistration>>` in `tool-registry.ts` — unreachable from the
-returned `ToolRegistry` object's own methods — and `getToolRegistration`
+returned `ToolRegistry` object's own methods — and `authorizeToolInvocation`
 is the one function that can read it back out. That function is exported
 from `./internal.ts`, **not** from `./index.ts`'s public barrel (verified
-by a test: `'getToolRegistration' in publicBarrel === false`), and
+by a test: `'authorizeToolInvocation' in publicBarrel === false`), and
 `internal.ts` is wired as a separate `./internal` entry in this package's
 `package.json` `exports` map rather than a subpath TypeScript/Node would
 resolve by accident. This is the realistic boundary a JS/TS package can
@@ -287,6 +287,24 @@ modifier) — a consumer of `@jini/core`'s default entry point cannot reach
 a handler; `@jini/daemon`'s `ToolExecutor` is the one caller that imports
 `@jini/core/internal` on purpose, and that import is visible in its own
 source (`tool-executor.ts`'s own import line), not hidden.
+
+**2026-07-29 hardening:** a package.json `exports` subpath is not a
+language-level access modifier — nothing actually stops a *different*
+package from importing `@jini/core/internal` too, so the paragraph above
+describes intent, not enforcement (`scripts/check-engine-boundaries.ts`
+rule R6 is the actual enforcement layer, and it only shipped later). The
+original `getToolRegistration(registry, toolId)` returned the full
+`{descriptor, handler, policy}` triple unconditionally — any package able
+to reach the import could retrieve a live handler closure and invoke it
+directly, skipping `ToolExecutor`'s authorization gate entirely. It was
+replaced by `authorizeToolInvocation(registry, toolId, principal, run,
+input, delegate?)`, which runs the tool's own `ToolPolicy` (and an optional
+transport-level `delegate.onAuthorize` veto) *inside* the function, and
+only includes `handler` in its returned object when the decision is
+`'allow'`. A denied or unauthorized call gets a descriptor and a decision,
+never a handler — so the gate can no longer be bypassed by calling this
+export directly instead of going through `ToolExecutor`, closing the leak
+structurally rather than by convention.
 
 ### Design decisions
 
@@ -1646,3 +1664,197 @@ call site's redundant re-check of an already-proven invariant is unreachable.
 
 No code change; this entry exists because the standing rule requires the *proof*, not just the
 prior claim, to be on record in this file, matching the inline code comment already at that line.
+
+## 2026-07-23 addition — replay subscription failure cleanup
+
+`RunLifecycle.stream()` deliberately installs its subscriber before awaiting durable replay so it
+cannot lose events in the replay-to-live handoff. That provisional subscriber is now removed when
+either replay I/O or the replay consumer callback throws; previously both exceptions could leave a
+dead callback retained for the process lifetime. Dedicated tests prove a failed replay/callback is
+not invoked by a later live event.
+
+Fable's follow-up review found the deeper terminal-during-replay race: a stale replay snapshot could
+deliver `end`, buffered agent output, and a duplicate `end`; an SSE consumer closes on the first
+`end` and would silently lose the buffered output. Buffered live events now flush and contribute
+their ids before the terminal fallback, preserving order and exactly one `end`. Terminal state is
+also committed in memory only after the durable end append succeeds; a `finishPromise` reservation
+blocks emits and serializes concurrent finishes without advertising an undurable terminal state.
+Failed start appends unwind both the run and idempotency reservation, and idempotent duplicates wait
+for the pending durable start. Inactivity-timeout append failures are contained and reported through
+an optional host sink instead of becoming unhandled rejections.
+
+Verified: `pnpm --filter @jini/daemon typecheck`; full daemon suite **517/517**, including gated
+terminal-during-replay, start/end append failure, concurrent finish, and watchdog containment tests.
+
+## 2026-07-29 addition — driving antigravity: the 24th def, via declarative `RuntimeAgentDef` fields
+
+Closes the one gap the 2026-07-21 plain-format entry above explicitly scoped out ("**antigravity
+stays deliberately unsupported**"), and with it the last `AgentExecutor` driver gap: **all 24
+registered `@jini-ai/agent-runtime` defs now run.** The `streamFormat === 'plain' && def.id ===
+'antigravity'` guard in `assessAgentExecutorCompatibility` is deleted.
+
+### The decision: def-declared fields, not an id branch
+
+`PROP-plain-format-agent-driving-2026-07-21.md`'s open question 6 asked whether antigravity's
+divergence stays "an id-keyed special case inside `@jini-ai/daemon` (mirroring OD's own choice to
+hardcode `def.id === 'antigravity'` in `server.ts`)" or gets a `RuntimeAgentDef`-level field (its
+"Option C"). **Option C, deliberately** — and the evidence is not a style preference:
+
+- `RuntimeAgentDef` already carries **14** optional behavior flags/hooks the executor reads
+  generically (`promptViaFile`, `promptViaStdin`, `resumesSessionViaCli`,
+  `capturesSessionIdFromStream`, `resumesSessionViaAcpLoad`, `externalMcpInjection`, `authProbe`,
+  `acpMcpEnvFormat`, `defaultModelEnvVar`, `inactivityTimeoutMs`, `maxPromptArgBytes`,
+  `supportsCustomModel`, `promptInputFormat`, `promptViaStdin`'s `permissionMode`-aware `buildArgs`).
+- There was **zero** precedent anywhere in this package for the executor branching on a literal
+  agent id to decide *behavior* — the antigravity rejection was the only id branch at all, and it
+  decided *support*, not behavior.
+- OD's `server.ts` hardcodes `def.id === 'antigravity'` twice; §2d of the same proposal already
+  records that OD's *prompt-delivery* call sites, by contrast, key only off declared fields with
+  zero id branches. The field-driven half is the half that generalized cleanly.
+
+Consequence worth stating plainly: a second CLI with either property (prints a secret on stdout and
+exits 0; or mutates process-global state its own startup reads back) needs **no new executor code**.
+
+### Three new fields on `RuntimeAgentDef` (`@jini-ai/agent-runtime`)
+
+| field | shape | why |
+|---|---|---|
+| `needsAgentLogFile` | `boolean` | Asks the caller to stage a temp path and pass it as `RuntimeContext.agentLogFilePath` before `buildArgs`. Exactly `promptViaFile`'s opt-in shape, for the same reason: `buildArgs` cannot invent a path the caller must also read and delete. `agy` needs it twice over — the lock's handoff detector polls it, and print mode never echoes auth/quota failures on stdout, so post-exit log inspection is the only way to tell those apart. |
+| `stdoutPolicy` | `{buffering:'live'} \| {buffering:'until-close'; sanitize?}` | When a `plain` def's stdout reaches the client. `undefined` ⇒ live, i.e. every def's pre-existing behavior. |
+| `runtimeLock` | `{acquire(ctx) => Promise<RuntimeLockHold>}` | A mutex around a process-global side effect `buildArgs` performs. |
+
+**`stdoutPolicy` is a discriminated union, not two flat fields** (`stdoutBuffering` +
+`sanitizeStdout`), and that is the load-bearing design call in this entry. A sanitizer is only
+*meaningful* on the buffered path, because the pattern to redact can straddle two `'data'` chunks —
+which is the entire reason buffering exists here. Two independent flags would let a def declare
+`sanitize` alongside live streaming, where the caller cannot honor it: the confidentiality gap would
+then **look closed in the def while leaking at runtime**. The union makes that unrepresentable. Same
+"make illegal states unrepresentable" instinct as `AgentExecutorCompatibility` in this module.
+
+**`runtimeLock` does not accept a `ChildProcess`.** The release contract needs three things — the
+staged log path, the model, and "has the process exited" — so `RuntimeLockHandoffContext` carries
+exactly those, with process exit as an `AbortSignal`. Handing a def a whole `ChildProcess` would
+couple `RuntimeAgentDef` to `node:child_process`'s process model for a concern that is really just
+"did the child read the file yet", and would let a def kill or write to the child. The release rule:
+**whichever of `waitForHandoff` settling or process exit comes first**, `release()` being idempotent
+by contract so no path coordinates with any other. Releasing on exit is not a fallback — a watcher
+returning "gave up polling" means *"I stopped watching"*, never *"the child didn't read the file"*;
+only exit proves the child can no longer read it (`waitForAgyToReadModel`'s own doc says exactly
+this, and the executor now honors it).
+
+**All three are stripped from `DetectedAgent`.** Found while checking the whole surface, and a real
+latent leak rather than tidiness: `detection.ts#stripFns` builds its result by spreading `...rest`,
+so *any* new `RuntimeAgentDef` field is published into the public registry payload by default.
+`stdoutPolicy` and `runtimeLock` carry closures — `JSON.stringify` drops the functions but keeps
+their wrappers, so the response would have advertised a misleading `{"buffering":"until-close"}` and
+`{}`. Both the `Omit` list and `stripFns`' destructuring now exclude all three, pinned by a
+detection test that asserts on the serialized projection.
+
+### `@jini-ai/agent-runtime` side
+
+- **`src/log-file.ts`** (new, no OD provenance — OD derived the path inline in `server.ts`):
+  `prepareAgentLogFile(def, label)`, the deliberate sibling of `prompt-file.ts` — same
+  `{path, cleanup}` shape, same `mkdtemp`-per-run isolation, same label sanitization (so a run id
+  containing `../` cannot escape `os.tmpdir()`). One substantive difference: **it does not write the
+  file.** Direction of travel is inverted — the prompt file is input we author for the CLI, the log
+  file is output the CLI authors for us. Only the `0o700` containing directory is created, which is
+  the actual confidentiality control since the CLI picks the log file's own mode.
+- **`defs/antigravity.ts`**: `needsAgentLogFile: true`; `stdoutPolicy: {buffering: 'until-close',
+  sanitize: redactAntigravityAuthUrls}`; `runtimeLock: antigravityModelLock`. The lock is a **thin
+  adapter** over the already-existing, already-tested `acquireAntigravityModelLock` /
+  `waitForAgyToReadModel` pair — no new serialization logic. Its one policy decision: skip the chain
+  entirely when no concrete model was selected, mirroring `buildArgs`' own `options.model &&
+  options.model !== DEFAULT_MODEL_OPTION.id` guard, since the lock guards that write and holding the
+  chain anyway would queue a `'default'`-model run behind an unrelated one for nothing. OD does the
+  same ("serialises **non-default** antigravity spawns").
+- `waitUntilAborted(signal)` replaces what would otherwise be a never-settling
+  `new Promise(() => {})` on the "hold until exit" paths — a long-lived daemon would otherwise
+  accumulate one permanently-pending promise, plus its captured closure, per run.
+
+**The sanitizer's pattern is grounded, not guessed.** The exact leaked shape is documented in this
+same package: `auth.ts#isAntigravityAuthFailureText` matches agy v1.0.3's `Authentication required.
+Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth?client_id=…&redirect_uri=
+antigravity-redirect`, and OD's own `chat-route.test.ts` used that literal string as its fixture
+(asserting `not.toContain('accounts.google.com')`). `redactAntigravityAuthUrls` matches two
+alternatives: any URL on `accounts.google.com` (host-anchored, so an upstream path change still
+redacts), and any absolute URL carrying an OAuth/bearer query parameter (`client_id`,
+`code_challenge`, `code_verifier`, `access_token`, `id_token`, `refresh_token`) so a change of
+identity provider degrades to "redacted" rather than "leaked". Deliberately **not** keyed on the word
+"oauth" appearing in a URL, which would also eat ordinary documentation links in a legitimate reply.
+
+**Scoped to redaction, not classification.** It does not decide "this run failed auth" or substitute
+sign-in guidance for the output. That already has an owner — `auth.ts`'s
+`classifyAgentAuthFailure`/`antigravityAuthGuidance`. See "Open, not decided here" below.
+
+### `@jini-ai/daemon` side (`agent-executor.ts`)
+
+- **Compatibility**: the id guard is gone; `assessAgentExecutorCompatibility` now reads only
+  `streamFormat` and prompt-delivery shape. The stale `(see packages/daemon/source-map.md for the
+  deferred antigravity guard)` pointer is dropped from the unsupported-format message.
+- **Log-file staging** mirrors the prompt file exactly: staged after it, before `buildArgs`,
+  try/catch → `AGENT_SPAWN_FAILED` (preserving the module's "never a bare throw" Invariant), and its
+  path merged into the same `RuntimeContext`.
+- **Cleanup**: `cleanupPromptFile` on all three wiring contexts becomes **`cleanupStagedFiles`**, one
+  composed closure covering both staged files. Deliberately not two parallel fields: they are staged
+  at the same point and must be released on the same set of paths, and a second parallel field is
+  exactly how one of them ends up forgotten on a path the other covers. Composed once in `run()`,
+  threaded unchanged.
+- **Lock**: `def.runtimeLock?.acquire({model})` before `buildArgs`. `child.once('exit',
+  releaseRuntimeLock)` — `'exit'`, not `'close'`, because the lock guards state the *process* reads,
+  so the process being gone is the release condition, not its stdio pipes draining (which a
+  grandchild inheriting them can delay arbitrarily). Registered before the spawn-confirmation await,
+  same discipline as `wireChildLifecycle`, so an instantly-exiting child cannot slip past.
+  `waitForHandoff` starts only *after* spawn confirmation — before that there is no process that
+  could have consumed the write. Pre-spawn/spawn-failure paths release explicitly via
+  `releaseStagedResources` (there is no `'exit'` to wait for), and `releaseRuntimeLock` also aborts
+  the exit signal so no watcher outlives its run.
+- **Buffered stdout**: `wireChildLifecycle` reads `def.stdoutPolicy` once up front; the per-chunk
+  handler is then a single boolean test. `flushBufferedStdout()` is queued from the `close` handler
+  **through the same `enqueueEmit` FIFO queue** (design decision 6) and *before* `await emitQueue`,
+  so the flush is ordered after every prior emit and before `finish()`'s `'end'` — bypassing that
+  queue would have reintroduced the exact ordering race decision 6 closed. Empty output, and output
+  the sanitizer reduces to empty, emit nothing (an empty `text_delta` is noise).
+
+**The buffered path holds back the raw `'stdout'` echo too, and sanitizes it.** A deliberate call
+worth flagging: `'stdout'` is documented in this module as an always-on raw/diagnostic channel
+distinct from `'agent'`. But emitting it unsanitized while withholding the chat copy would leak the
+exact string the sanitizer exists to remove to any client subscribed to the run's events — the raw
+channel is a different *purpose*, not a different *audience*. OD reaches the same outcome (its own
+test asserts the OAuth URL never appears in the SSE body at all). The opt-in byte `journal` is the
+one place raw bytes are still recorded per chunk: "every byte received" is its documented contract,
+and it deliberately lives in a **separate `EventLog` instance never replayed to run-event
+subscribers** (see `continuation/journal.ts`'s module doc) — verified before deciding, not assumed.
+
+### Open, not decided here
+
+OD does strictly more than redact: when the buffered output matches its antigravity auth matcher it
+**suppresses the buffer entirely** and emits a structured `AGENT_AUTH_REQUIRED` error instead, so the
+user gets actionable sign-in guidance rather than `Please visit the URL to log in: [redacted sign-in
+URL]`. Reproducing that needs an auth-classification seam `AgentExecutor` does not have for *any* def
+(`classifyAgentAuthFailure` exists in `@jini-ai/agent-runtime` and is unwired here), and it is a
+product-facing choice about rewriting assistant text into instructions. Flagged rather than decided
+silently. What is closed here is the leak; what is open is the upgrade from "redacted" to "actionable".
+
+Also still open, unchanged: `RuntimeContext.agentLogFilePath`'s other documented purpose — post-exit
+log inspection to tell missing-auth from quota-exhausted apart — has no consumer in this module. The
+file is now staged and passed, so a future classifier has something to read; nothing reads it yet.
+
+Tests: **`@jini-ai/daemon` 620 → 648** (`agent-executor.test.ts` 159 → 187), three new `describe`
+blocks — buffered/sanitized stdout (8 tests, incl. the URL deliberately split across two chunks so a
+per-chunk sanitizer provably could not have caught it, mid-run "client has seen nothing on either
+channel", 25-chunk FIFO ordering with live stderr interleaved, and the explicit **live-streaming
+regression pin for the other 4 plain defs** using the same fixture and differing only in the absence
+of `stdoutPolicy`), log-file staging (8 tests, incl. real-filesystem `0o700`-dir/no-pre-created-file
+end-to-end and cleanup on all 5 pre-spawn/spawn-failure paths), and `runtimeLock` (9 tests, incl.
+acquire-strictly-before-`buildArgs`, release on handoff, release on exit when handoff never settles,
+release on handoff rejection, double release, and **two overlapping runs through the real
+`antigravityModelLock` proving run B's `buildArgs` cannot execute until run A releases**). Two
+existing tests inverted, both intentionally: the "rejects antigravity by id" pair now pins that *no
+guard reads an agent id at all*, plus a new "accepts every one of the 24 registered defs" assertion.
+`agent-executor.ts`: **100% statements/branches/functions/lines**. Package: 648/648,
+99.74/99.66/100/99.74 (the residual `run-lifecycle.ts`/`schedule.ts` gaps are pre-existing and
+untouched). **`@jini-ai/agent-runtime` 1822 → 1845**; `log-file.ts`, `defs/antigravity.ts` and
+`detection.ts` all 100% on all 4 metrics; package 99.96/99.95/100/99.96 — identical to its documented
+pre-change figure. `src/types.ts` stays in that package's coverage `exclude` list, re-verified as
+still legitimate: `grep -nE '^(export )?(const|function|class|let|var) '` finds no runtime
+declarations after these additions. `pnpm guard`: clean. `pnpm typecheck`: clean.

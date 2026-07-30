@@ -62,6 +62,24 @@ function isScheduledRunPersistenceError(error: unknown): error is ScheduledRunPe
   return error instanceof ScheduledRunPersistenceError;
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * One in-flight attempt to fire a routine, threaded through the persistence steps of
+ * {@link RoutineService.start_}. `scheduledSlotAt` is set only for a scheduled (not manual) fire —
+ * its presence is what makes a persistence failure retryable against the same slot.
+ */
+interface RoutineRunAttempt {
+  routine: Routine;
+  run: RoutineRun;
+  runId: string;
+  handlerStart: RoutineRunHandlerStart;
+  scheduledSlotAt: number | undefined;
+  insertOptions: { scheduledSlotAt?: number };
+}
+
 export class RoutineService {
   private timers = new Map<string, ScheduledTimer>();
   private inflight = new Map<string, Promise<RoutineRunHandlerStart>>();
@@ -143,7 +161,7 @@ export class RoutineService {
         })
         .catch((error) => {
           console.error(
-            `[@jini/daemon] routine ${routine.id} scheduled run failed:`,
+            `[@jini-ai/daemon] routine ${routine.id} scheduled run failed:`,
             error instanceof ScheduledRunPersistenceError
               ? error.originalError instanceof Error
                 ? error.originalError.message
@@ -169,6 +187,154 @@ export class RoutineService {
 
   async runNow(routineId: string): Promise<RoutineRunHandlerStart> {
     return this.start_(routineId, 'manual');
+  }
+
+  /**
+   * Wraps a persistence failure as a {@link ScheduledRunPersistenceError} when this attempt was a
+   * scheduled fire, so the caller retries the same slot instead of advancing the cadence. Manual
+   * fires have no slot to retry and surface the original error unchanged.
+   */
+  private asPersistenceFailure(attempt: RoutineRunAttempt, error: unknown): unknown {
+    const slotAt = attempt.scheduledSlotAt;
+    if (slotAt == null) return error;
+    return new ScheduledRunPersistenceError(attempt.routine.id, slotAt, error);
+  }
+
+  /**
+   * Tear-down for when the durable routine_run row was never inserted (insertRun threw, or another
+   * daemon already won the slot). Prefers the explicit `discardUnstarted` callback when the handler
+   * distinguishes the two cases — that one drops the in-memory chat run entirely instead of
+   * finalizing it as `canceled`, so duplicate scheduled losers do not surface phantom runs on a run
+   * listing. Handlers that do not implement the split still see `discard`.
+   */
+  private discardUnstartedRun(attempt: RoutineRunAttempt): void {
+    const discardUnstarted = attempt.handlerStart.discardUnstarted ?? attempt.handlerStart.discard;
+    try {
+      discardUnstarted?.();
+    } catch (discardError) {
+      throw this.asPersistenceFailure(attempt, discardError);
+    }
+  }
+
+  /**
+   * Claims the durable routine_run row for this attempt. Returns `false` when a sibling daemon
+   * already won the slot (the in-memory run has been discarded and the caller should just hand the
+   * handler's start handle back); throws when the write itself failed.
+   */
+  private claimRunRow(attempt: RoutineRunAttempt): boolean {
+    let inserted = true;
+    try {
+      inserted = this.persistence.insertRun(attempt.run, attempt.insertOptions) !== false;
+    } catch (error) {
+      this.discardUnstartedRun(attempt);
+      throw this.asPersistenceFailure(attempt, error);
+    }
+    if (inserted) return true;
+    this.discardUnstartedRun(attempt);
+    return false;
+  }
+
+  /**
+   * Copies the real project/conversation/run IDs `prepare()` resolved back onto the start handle and
+   * persists them. Scheduled fires always write (the row was inserted with routine placeholders);
+   * manual fires write only when `prepare()` actually changed something.
+   */
+  private persistPreparedIds(attempt: RoutineRunAttempt): void {
+    const { handlerStart, run } = attempt;
+    const preparedIdsChanged =
+      run.projectId !== handlerStart.projectId
+      || run.conversationId !== handlerStart.conversationId
+      || run.agentRunId !== handlerStart.agentRunId;
+    handlerStart.projectId = run.projectId;
+    handlerStart.conversationId = run.conversationId;
+    handlerStart.agentRunId = run.agentRunId;
+    if (attempt.scheduledSlotAt != null || preparedIdsChanged) {
+      this.persistence.updateRun(attempt.runId, {
+        projectId: run.projectId,
+        conversationId: run.conversationId,
+        agentRunId: run.agentRunId,
+      });
+    }
+  }
+
+  /**
+   * Finalizes a run whose `prepare()` step failed. Terminates the in-memory chat run created by
+   * `handler(...)` so its `completion` promise resolves instead of waiting forever on a run that
+   * will never start, surfacing (but not rethrowing) any cleanup failure, then persists the
+   * terminal row.
+   *
+   * The placeholder IDs are cleared first: they are only replaced with real resources by
+   * `prepare()`, so a failure before that enrichment would otherwise leave the terminal row
+   * pointing at fabricated project/conversation IDs. For scheduled runs the slot claim was already
+   * accepted at `insertRun()`, so retrying the same slot is not appropriate — the caller lets the
+   * error propagate so the scheduler advances to the next cadence.
+   */
+  private finalizeUnpreparedRun(attempt: RoutineRunAttempt, error: unknown): void {
+    const { run } = attempt;
+    let discardError: unknown = null;
+    try {
+      attempt.handlerStart.discard?.();
+    } catch (err) {
+      discardError = err;
+    }
+    if (discardError != null) {
+      console.error(
+        `[@jini-ai/daemon] routine ${attempt.routine.id} prepare cleanup failed:`,
+        errorMessage(discardError),
+      );
+    }
+    run.projectId = clearRoutinePlaceholderId(run.projectId);
+    run.conversationId = clearRoutinePlaceholderId(run.conversationId);
+    run.agentRunId = clearRoutinePlaceholderId(run.agentRunId);
+    this.persistence.updateRun(attempt.runId, {
+      status: 'failed',
+      completedAt: Date.now(),
+      summary: null,
+      error: errorMessage(error),
+      errorCode: null,
+      projectId: run.projectId,
+      conversationId: run.conversationId,
+      agentRunId: run.agentRunId,
+    });
+  }
+
+  /** Persists the terminal row once the host's run completes (or its completion promise rejects). */
+  private wireRunCompletion(attempt: RoutineRunAttempt): void {
+    attempt.handlerStart.completion
+      .then((completion) => {
+        this.persistence.updateRun(attempt.runId, {
+          status: completion.status,
+          completedAt: Date.now(),
+          summary: completion.summary ?? null,
+          error: completion.error ?? null,
+          errorCode: completion.errorCode ?? null,
+        });
+      })
+      .catch((error) => {
+        this.persistence.updateRun(attempt.runId, {
+          status: 'failed',
+          completedAt: Date.now(),
+          summary: null,
+          error: errorMessage(error),
+          errorCode: null,
+        });
+      });
+  }
+
+  /** Hands control to the host's `start()`, finalizing the row as failed if it throws synchronously. */
+  private startPreparedRun(attempt: RoutineRunAttempt): void {
+    try {
+      attempt.handlerStart.start?.();
+    } catch (error) {
+      this.persistence.updateRun(attempt.runId, {
+        status: 'failed',
+        completedAt: Date.now(),
+        summary: null,
+        error: errorMessage(error),
+        errorCode: null,
+      });
+      throw error;
+    }
   }
 
   private async start_(
@@ -203,132 +369,26 @@ export class RoutineService {
         error: null,
         errorCode: null,
       };
-      const scheduledSlotAt = options.scheduledSlotAt;
-      const wasScheduled = scheduledSlotAt != null;
-      const publicProjectId = () => clearRoutinePlaceholderId(run.projectId);
-      const publicConversationId = () => clearRoutinePlaceholderId(run.conversationId);
-      const publicAgentRunId = () => clearRoutinePlaceholderId(run.agentRunId);
-      const scrubRoutinePlaceholders = () => {
-        run.projectId = publicProjectId();
-        run.conversationId = publicConversationId();
-        run.agentRunId = publicAgentRunId();
+      const attempt: RoutineRunAttempt = {
+        routine,
+        run,
+        runId,
+        handlerStart,
+        scheduledSlotAt: options.scheduledSlotAt,
+        insertOptions: options,
       };
-      // Tear-down to use when the durable routine_run row was never inserted (insertRun threw, or
-      // another daemon already won the slot). Prefer the explicit `discardUnstarted` callback
-      // when the handler distinguishes the two cases — that one drops the in-memory chat run
-      // entirely instead of finalizing it as `canceled`, so duplicate scheduled losers do not
-      // surface phantom runs on a run listing. Handlers that do not implement the split still see
-      // `discard`.
-      const discardUnstarted = handlerStart.discardUnstarted ?? handlerStart.discard;
-      let inserted = true;
-      try {
-        inserted = this.persistence.insertRun(run, options) !== false;
-      } catch (error) {
-        try {
-          discardUnstarted?.();
-        } catch (discardError) {
-          if (wasScheduled) {
-            throw new ScheduledRunPersistenceError(routine.id, scheduledSlotAt, discardError);
-          }
-          throw discardError;
-        }
-        if (wasScheduled) {
-          throw new ScheduledRunPersistenceError(routine.id, scheduledSlotAt, error);
-        }
-        throw error;
-      }
-      if (!inserted) {
-        try {
-          discardUnstarted?.();
-        } catch (discardError) {
-          if (wasScheduled) {
-            throw new ScheduledRunPersistenceError(routine.id, scheduledSlotAt, discardError);
-          }
-          throw discardError;
-        }
-        return handlerStart;
-      }
+      if (!this.claimRunRow(attempt)) return handlerStart;
+      // `await` stays inline here rather than moving into a helper: wrapping it in an extra async
+      // frame would add microtask ticks that callers observe.
       try {
         await handlerStart.prepare?.(run);
-        const preparedIdsChanged =
-          run.projectId !== handlerStart.projectId
-          || run.conversationId !== handlerStart.conversationId
-          || run.agentRunId !== handlerStart.agentRunId;
-        handlerStart.projectId = run.projectId;
-        handlerStart.conversationId = run.conversationId;
-        handlerStart.agentRunId = run.agentRunId;
-        if (wasScheduled || preparedIdsChanged) {
-          this.persistence.updateRun(runId, {
-            projectId: run.projectId,
-            conversationId: run.conversationId,
-            agentRunId: run.agentRunId,
-          });
-        }
+        this.persistPreparedIds(attempt);
       } catch (error) {
-        // Terminate the in-memory chat run created by `handler(...)` so its `completion` promise
-        // resolves instead of waiting forever on a run that will never start. Surface any cleanup
-        // failure rather than swallow it, but still finalize the persisted row.
-        let discardError: unknown = null;
-        try {
-          handlerStart.discard?.();
-        } catch (err) {
-          discardError = err;
-        }
-        if (discardError != null) {
-          console.error(
-            `[@jini/daemon] routine ${routine.id} prepare cleanup failed:`,
-            discardError instanceof Error ? discardError.message : discardError,
-          );
-        }
-        // Persist IDs only after `prepare()` has replaced routine placeholders with real
-        // resources. If preparation failed before enrichment, clear the sentinels so the terminal
-        // row does not point at fabricated project/conversation IDs. For scheduled runs the slot
-        // claim was already accepted at `insertRun()`, so retrying the same slot is not
-        // appropriate — let the error propagate so the scheduler advances to the next cadence.
-        scrubRoutinePlaceholders();
-        this.persistence.updateRun(runId, {
-          status: 'failed',
-          completedAt: Date.now(),
-          summary: null,
-          error: error instanceof Error ? error.message : String(error),
-          errorCode: null,
-          projectId: run.projectId,
-          conversationId: run.conversationId,
-          agentRunId: run.agentRunId,
-        });
+        this.finalizeUnpreparedRun(attempt, error);
         throw error;
       }
-      handlerStart.completion
-        .then((completion) => {
-          this.persistence.updateRun(runId, {
-            status: completion.status,
-            completedAt: Date.now(),
-            summary: completion.summary ?? null,
-            error: completion.error ?? null,
-            errorCode: completion.errorCode ?? null,
-          });
-        })
-        .catch((error) => {
-          this.persistence.updateRun(runId, {
-            status: 'failed',
-            completedAt: Date.now(),
-            summary: null,
-            error: error instanceof Error ? error.message : String(error),
-            errorCode: null,
-          });
-        });
-      try {
-        handlerStart.start?.();
-      } catch (error) {
-        this.persistence.updateRun(runId, {
-          status: 'failed',
-          completedAt: Date.now(),
-          summary: null,
-          error: error instanceof Error ? error.message : String(error),
-          errorCode: null,
-        });
-        throw error;
-      }
+      this.wireRunCompletion(attempt);
+      this.startPreparedRun(attempt);
       return handlerStart;
     })();
     this.inflight.set(routineId, promise);

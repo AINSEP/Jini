@@ -35,7 +35,7 @@
  * endpoint (`https://{resource}.openai.azure.com`), so unlike Anthropic/
  * OpenAI/Google/Ollama, `baseUrl` is a required field on
  * {@link AzureTurnOptions}, and `apiVersion` is validated as
- * non-empty-if-supplied by the caller (`@jini/http`'s
+ * non-empty-if-supplied by the caller (`@jini-ai/http-kit`'s
  * `parseAzureProxyRequest` — see that module).
  *
  * **Token-limit fix**: an earlier version of this module sent no token-limit

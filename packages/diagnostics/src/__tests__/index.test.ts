@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 // every documented export is present with the right shape.
 import * as diagnostics from "../index.js";
 
-describe("@jini/diagnostics barrel", () => {
+describe("@jini-ai/diagnostics barrel", () => {
   it("re-exports the contract constants verbatim", () => {
     expect(diagnostics.DIAGNOSTICS_EXPORT_PATH).toBe("/api/diagnostics/export");
     expect(diagnostics.DIAGNOSTICS_FILENAME_PREFIX).toBe("jini-diagnostics");

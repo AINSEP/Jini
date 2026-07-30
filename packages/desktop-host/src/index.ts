@@ -1,3 +1,11 @@
+/**
+ * `@jini-ai/desktop-host` — shared, shell-agnostic desktop-host ports and utilities (single-instance
+ * locking, window lifecycle, protocol handling, sidecar launching, shell operations, paths, config,
+ * logging, the host-bridge global). The concrete Electron and Tauri shell assemblies live at the
+ * separate `@jini-ai/desktop-host/electron` and `@jini-ai/desktop-host/tauri` entry points (split
+ * 2026-07-29, mirroring `@jini-ai/agentic`'s `.`/`./dom` precedent) — a real app only ever ships
+ * one shell, so importing this root entry point never statically pulls in the other one.
+ */
 export * from './single-instance.js';
 export * from './window-lifecycle.js';
 export * from './protocol.js';
@@ -11,19 +19,3 @@ export * from './render-service.js';
 export * from './shell.js';
 export * from './ports.js';
 export * from './tokens.js';
-export * from './electron/electron-surfaces.js';
-export * from './electron/electron-single-instance.js';
-export * from './electron/electron-window-lifecycle.js';
-export * from './electron/electron-protocol.js';
-export * from './electron/electron-render-service.js';
-export * from './electron/electron-shell.js';
-export * from './electron/create-electron-desktop-host.js';
-export * from './tauri/tauri-surfaces.js';
-export * from './tauri/tauri-single-instance.js';
-export * from './tauri/tauri-window-lifecycle.js';
-export * from './tauri/tauri-protocol.js';
-export * from './tauri/tauri-render-service.js';
-export * from './tauri/tauri-shell.js';
-export * from './tauri/tauri-sidecar.js';
-export * from './tauri/create-tauri-desktop-host.js';
-export * from './tauri/not-implemented.js';

@@ -21,6 +21,8 @@ export interface RecurringSchedulePickerProps {
    *  the runtime knows about. */
   timezones?: string[];
   disabled?: boolean;
+  /** Custom hook override for dependency injection / testing. */
+  useRecurringSchedulePicker?: typeof useRecurringSchedulePicker;
 }
 
 /**
@@ -43,9 +45,10 @@ export function RecurringSchedulePicker({
   weekdays = DEFAULT_WEEKDAYS,
   timezones,
   disabled = false,
+  useRecurringSchedulePicker: useRecurringSchedulePickerHook = useRecurringSchedulePicker,
 }: RecurringSchedulePickerProps) {
   const t = useT();
-  const picker = useRecurringSchedulePicker({ value, onChange, timezones });
+  const picker = useRecurringSchedulePickerHook({ value, onChange, timezones });
 
   return (
     <div ref={picker.containerRef} className="jini-schedule-picker">

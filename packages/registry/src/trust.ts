@@ -2,7 +2,7 @@
  * @module trust
  *
  * A real (not config-asserted) verifier for `RegistryEntry.signatures[]`
- * (`@jini/protocol`'s `RegistrySignatureSchema`), closing the still-open half
+ * (`@jini-ai/protocol`'s `RegistrySignatureSchema`), closing the still-open half
  * of SEC-RB-005 per
  * `ADS-memory/reports/proposals/PROP-registry-signature-trust-verification-2026-07-21.md`
  * and its follow-up sign-off: v1 supports exactly one signature `kind`,
@@ -77,7 +77,7 @@
  *    configured.
  */
 import { X509Certificate, verify as nodeVerify } from 'node:crypto';
-import type { RegistryEntry, RegistrySignature } from '@jini/protocol';
+import type { RegistryEntry, RegistrySignature } from '@jini-ai/protocol';
 
 /** GitHub Actions' own OIDC token issuer — the default {@link GithubOidcTrustRoot.allowedIssuers} entry. */
 export const GITHUB_ACTIONS_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
@@ -139,7 +139,7 @@ export interface SignatureVerificationResult {
 
 /**
  * The exact string a `github-oidc` signature's `signature` bytes must cover.
- * `@jini/protocol`'s `RegistrySignatureSchema` does not itself define a
+ * `@jini-ai/protocol`'s `RegistrySignatureSchema` does not itself define a
  * canonical signing payload (it only models the wire shape of a signature),
  * so this is this package's own convention: `name@version:digest`, where
  * `digest` is whichever integrity/manifest-digest field the entry declares.

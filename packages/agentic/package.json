@@ -1,0 +1,68 @@
+{
+  "name": "@jini-ai/agentic",
+  "version": "0.1.2",
+  "description": "Framework-free agent-control layer: page-capability vocabulary and manifests, the data-agent-* markup convention, AG-UI projection, generative-UI streams, and A2UI.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/agentic"
+  },
+  "jini": {
+    "domain": "agent",
+    "kind": "capability-surface",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./dom": "browser",
+      "./a2ui": "universal"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./dom": {
+      "types": "./dist/dom/index.d.ts",
+      "import": "./dist/dom/index.js",
+      "default": "./dist/dom/index.js"
+    },
+    "./a2ui": {
+      "types": "./dist/a2ui/index.d.ts",
+      "import": "./dist/a2ui/index.js",
+      "default": "./dist/a2ui/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.dom.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.dom.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@jini-ai/protocol": "workspace:*",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9",
+    "jsdom": "^25.0.1"
+  }
+}

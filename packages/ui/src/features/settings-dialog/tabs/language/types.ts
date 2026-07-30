@@ -4,7 +4,7 @@
  * `foundry/docs/jini-port/recon/r6-god-component-internals.md` §1.3. OD's own fixed
  * 19-locale `LOCALES`/`LOCALE_LABEL` tables are product content, not ported
  * — a host supplies its own `LocaleOption[]`, same convention
- * `@jini/ui`'s `features/i18n` already established for
+ * `@jini-ai/ui`'s `features/i18n` already established for
  * `I18nProvider`'s `dictionaries` prop.
  *
  * Reuses the `LocaleOption` shape already shipped for `LanguageMenu`

@@ -340,14 +340,14 @@ describe('showCompletionNotification', () => {
   });
 
   it('runs the onclick handler without throwing when window.focus throws, onClick is omitted, and close() throws', async () => {
-    let created: { onclick: (() => void) | null } | undefined;
+    let created: { onclick: (() => void) | null; close: () => void } | undefined;
     class FakeNotification {
       static permission = 'granted';
       onclick: (() => void) | null = null;
       onclose: (() => void) | null = null;
       onerror: (() => void) | null = null;
       constructor() {
-        created = this;
+        created = this as unknown as typeof created;
       }
       close() {
         throw new Error('already closed');
@@ -362,7 +362,6 @@ describe('showCompletionNotification', () => {
     });
 
     await showCompletionNotification({ status: 'succeeded', title: 'Done', body: 'ok' });
-
     expect(created?.onclick).toBeTypeOf('function');
     expect(() => created?.onclick?.()).not.toThrow();
   });

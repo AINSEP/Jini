@@ -17,7 +17,7 @@
  * draft/attachment/mention/agent-selection *state shape* is kept.
  */
 import { useCallback, useMemo, useState } from 'react';
-import type { ChatAttachment } from '@jini/chat-core';
+import type { ChatAttachment } from '@jini-ai/chat-core';
 import type { AgentSelection, ComposerSlots, MentionResult, ProjectContextValue } from '../../slots.js';
 
 export interface ComposerDraftPersistence {

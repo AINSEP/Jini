@@ -1,0 +1,596 @@
+import {
+  AGENT_ELEMENT_ATTRIBUTE,
+  AGENT_LABEL_ATTRIBUTE,
+  AGENT_PAGE_ATTRIBUTE,
+  AGENT_ROLE_ATTRIBUTE,
+  AGENT_ELEMENT_ROLES,
+  resolveHandleSelector,
+  type AgentElementDescriptor,
+  type AgentElementRawState,
+  type AgentElementRole,
+} from '../element-handles.js';
+import { normalizeAgentLabel, type FieldDescriptor } from '../guards.js';
+import type { FindElementsFilter, PageDriver } from '../page-driver.js';
+
+/**
+ * A {@link PageDriver} over a real DOM subtree.
+ *
+ * Deliberately mechanical: every refusal — handle validation, the credential-field guard, the
+ * page allowlist, highlight clamping — already ran in `executePageCapability` before anything
+ * here is called. Re-checking would duplicate policy in a place that will drift from it.
+ *
+ * Scoped to a `root` the host names, never `document`. Scanning the whole document would make
+ * any markup anywhere — including rendered user content — an authorization decision, which
+ * inverts the point of an explicit allowlist.
+ */
+
+/** How the marker is drawn. Inline styles, so no stylesheet or CSP allowance is needed. */
+const HIGHLIGHT_STYLE = {
+  outline: '3px solid #e11d48',
+  outlineOffset: '2px',
+  borderRadius: '4px',
+} as const;
+
+/**
+ * Upper bound on {@link createDomPageDriver}'s `settle`.
+ *
+ * A hidden tab stops delivering animation frames, so waiting for one never returns — and a
+ * background tab is exactly where an agent-driven page ends up while the user works elsewhere.
+ * This is the ceiling that keeps every write bounded regardless.
+ */
+const SETTLE_TIMEOUT_MS = 120;
+
+function isAgentElementRole(value: string | null): value is AgentElementRole {
+  return value !== null && (AGENT_ELEMENT_ROLES as readonly string[]).includes(value);
+}
+
+/**
+ * Whether the element is a rich-text surface — a `contenteditable` region rather than a form
+ * control. Rich-text editors are built this way, so treating one as unfillable makes every
+ * comment box, description field and document editor unreachable.
+ */
+function isEditableRegion(element: Element): element is HTMLElement {
+  if (!(element instanceof HTMLElement)) return false;
+  // A control embedded in a rich-text document is still that control. Without this, a real
+  // browser — which, unlike jsdom, propagates `isContentEditable` to every descendant — reports
+  // the Save button inside an editor as a fillable text region, and `fill` overwrites its label
+  // instead of refusing. The type-based refusals in `findFieldFillRefusal` cannot catch that
+  // either, because the descriptor would say `contenteditable` rather than `button`.
+  if (element.matches('input, textarea, select, button, a[href], summary, option')) return false;
+  // The attribute is checked before `isContentEditable` because a headless DOM does not compute
+  // the latter — relying on it alone makes every one of these tests pass vacuously while the real
+  // browser behaves differently. `contenteditable=""` and `"plaintext-only"` are both editable;
+  // only an explicit `"false"` is not.
+  const attribute = element.getAttribute('contenteditable');
+  if (attribute !== null) return attribute !== 'false';
+  // Editability inherited from an ancestor, which only a real layout engine can tell us about.
+  return element.isContentEditable === true;
+}
+
+/** Every `<label>` associated with `control` by whichever relationship resolves first. */
+function labelTextOf(control: Element): string | undefined {
+  // Real form controls carry `.labels` — every associated <label>, both for-linked and wrapping.
+  const associated = 'labels' in control
+    ? Array.from((control as { labels?: NodeListOf<HTMLLabelElement> }).labels ?? [])
+    : [];
+  for (const label of associated) {
+    const text = label.textContent?.trim();
+    if (text) return text;
+  }
+  // A contenteditable region is not a form control and has no `.labels`; resolve the same two
+  // relationships by hand — an ancestor <label> (implicit wrapping) and a for-linked one (explicit).
+  const wrapping = control.closest('label');
+  if (wrapping) {
+    const text = wrapping.textContent?.trim();
+    if (text) return text;
+  }
+  if (control.id) {
+    for (const label of Array.from(control.ownerDocument.querySelectorAll('label'))) {
+      if ((label as HTMLLabelElement).htmlFor === control.id) {
+        const text = label.textContent?.trim();
+        if (text) return text;
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * The field's human-visible label, for the guard's benefit: `name`/`id` are the machine names, and
+ * a CMS emitting `name="field_47"` next to a visibly-labelled "Card number" leaves every guard here
+ * nothing to judge unless this is populated. Resolution order: `aria-label`, then `placeholder`,
+ * then the text of an associated `<label>` (for-linked or wrapping) — whichever the driver can
+ * resolve first.
+ */
+function accessibleLabelOf(control: Element): string | undefined {
+  const ariaLabel = control.getAttribute('aria-label')?.trim();
+  if (ariaLabel) return ariaLabel;
+  const placeholder = control.getAttribute('placeholder')?.trim();
+  if (placeholder) return placeholder;
+  return labelTextOf(control);
+}
+
+/** The field attributes the guards need, or `null` when the control is not a text-bearing input. */
+function fieldDescriptorOf(control: Element): FieldDescriptor | null {
+  if (isEditableRegion(control)) {
+    // Reported as a field so the same guards run: a contenteditable div named `card-number` is
+    // no more fillable than an input would be. `type` is not a real HTML input type, and is not
+    // in any denied set, which is correct — the guard should judge it by name and attributes.
+    return {
+      type: 'contenteditable',
+      // Read for the same reason `name` is: neither attribute is standard on a div, but a page
+      // that bothers to set one is telling the guard what the field holds, and honouring `name`
+      // while ignoring `autocomplete` would refuse `name="card_number"` and accept the
+      // `autocomplete="cc-number"` spelling of the same field.
+      autocomplete: control.getAttribute('autocomplete')?.toLowerCase() || undefined,
+      name: control.getAttribute('name') || undefined,
+      id: control.id || undefined,
+      accessibleLabel: accessibleLabelOf(control),
+      readOnly: control.getAttribute('aria-readonly') === 'true',
+      disabled: control.getAttribute('aria-disabled') === 'true',
+    } satisfies FieldDescriptor;
+  }
+  if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
+    return null;
+  }
+  return {
+    type: control instanceof HTMLInputElement ? control.type.toLowerCase() : 'textarea',
+    autocomplete: control.getAttribute('autocomplete')?.toLowerCase() ?? undefined,
+    name: control.name || undefined,
+    id: control.id || undefined,
+    accessibleLabel: accessibleLabelOf(control),
+    readOnly: control.readOnly,
+    // `.disabled` reflects only this element's own attribute — not the "actually disabled" state
+    // a control gets from an ancestor `<fieldset disabled>`. `:disabled` is the platform's own
+    // answer for both, and is what decides whether the value even reaches form submission.
+    disabled: control.matches(':disabled'),
+  } satisfies FieldDescriptor;
+}
+
+/**
+ * Whether the element is actually rendered, or `undefined` when the platform cannot say.
+ *
+ * `checkVisibility` is the only answer that accounts for `display:none` on an ancestor, `hidden`,
+ * `content-visibility` and an empty box at once. Where it is missing, this reports nothing rather
+ * than falling back to a layout measurement — a headless DOM has no layout, so that fallback would
+ * confidently declare every element invisible.
+ *
+ * The options are passed explicitly rather than relying on the method's defaults: per spec every
+ * option defaults to `false`, so a bare `checkVisibility()` misses `visibility:hidden` and
+ * `opacity:0` ancestors — two of the most common real ways to hide interactive UI (fade
+ * transitions, visually-hidden-but-focusable patterns) — while still correctly reporting
+ * `display:none`. Confirmed in real Chromium: `checkOpacity`/`checkVisibilityCSS` (this build's
+ * spelling) turn a false `visible: true` on a `visibility:hidden`/`opacity:0` ancestor into the
+ * correct `false`; jsdom does not implement the method at all, so no unit test can show this.
+ */
+function visibilityOf(element: Element): boolean | undefined {
+  const check = (element as { checkVisibility?: (options?: CheckVisibilityOptions) => boolean }).checkVisibility;
+  return typeof check === 'function'
+    ? check.call(element, { checkOpacity: true, checkVisibilityCSS: true })
+    : undefined;
+}
+
+/**
+ * `disabled` for the controls that have one; `undefined` for everything else, which is not the
+ * same as `false`.
+ *
+ * `:disabled` rather than the `.disabled` IDL property: the property only reflects the element's
+ * own attribute, so a control disabled solely by an ancestor `<fieldset disabled>` reads as
+ * enabled even though a real user cannot type into or click it, and its value is excluded from
+ * form submission entirely. `:disabled` is the platform's own answer and covers both cases.
+ */
+function disabledOf(control: Element): boolean | undefined {
+  return control instanceof HTMLInputElement
+    || control instanceof HTMLTextAreaElement
+    || control instanceof HTMLButtonElement
+    || control instanceof HTMLSelectElement
+    ? control.matches(':disabled')
+    : undefined;
+}
+
+function describe(element: Element, page: string | undefined): AgentElementDescriptor {
+  const role = element.getAttribute(AGENT_ROLE_ATTRIBUTE);
+  /* c8 ignore next -- `Node.textContent` is typed nullable for the abstract node; on an Element it is always a string, so the `?? ''` satisfies the type and is not a reachable path. */
+  const text = element.textContent ?? '';
+  const label = element.getAttribute(AGENT_LABEL_ATTRIBUTE) ?? text;
+  /* c8 ignore next -- only ever called on a `[data-agent-element]` match, so the attribute is present by construction. */
+  const handle = element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '';
+  return {
+    handle,
+    role: isAgentElementRole(role) ? role : undefined,
+    // The executor normalizes and bounds this; raw here on purpose so the guard is applied in
+    // exactly one place rather than half-applied in two.
+    label,
+    labelTruncated: false,
+    page,
+  };
+}
+
+export interface DomPageDriverOptions {
+  /** The subtree to expose. Never pass `document`. */
+  readonly root: ParentNode & { querySelector: Element['querySelector'] };
+  /** Page ids this driver may navigate to, and how to get there. */
+  readonly pages: Readonly<Record<string, () => void>>;
+  /**
+   * The id of the page currently shown, reported on every element.
+   *
+   * Omit it in a single-page app that swaps views: the driver then reads `data-agent-page` from
+   * the live DOM on every call, so navigating actually changes what elements report. A value
+   * captured here is fixed for the driver's whole lifetime, which is right only for a surface that
+   * never changes view — and silently wrong for one that does, since the driver outlives any one
+   * view (it is bound to the connection, not the render).
+   */
+  readonly currentPage?: string | undefined;
+}
+
+/**
+ * Builds a driver over `root`.
+ *
+ * @param options - The subtree, the navigable pages, and the current page id.
+ * @returns A driver ready to hand to `executePageCapability`.
+ */
+export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
+  const { root, pages } = options;
+  /**
+   * The page a specific element belongs to — its own nearest `[data-agent-page]` ancestor, not a
+   * single document-wide guess.
+   *
+   * A host that keeps more than one `[data-agent-page]` section mounted at once (tabs, wizard
+   * steps toggled with CSS rather than unmounted — the kind of SPA this driver's own options doc
+   * anticipates) previously had every element attributed to whichever section happened to be
+   * first in the DOM, regardless of which one it actually lived in. `closest` answers per element
+   * instead of once for the whole call.
+   *
+   * Still overridden by a pinned `currentPage`, unchanged: that value is the host's own claim
+   * about what is showing, taking precedence over whatever the DOM happens to say.
+   */
+  const pageOf = (element: Element): string | undefined =>
+    options.currentPage ?? element.closest(`[${AGENT_PAGE_ATTRIBUTE}]`)?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
+  /**
+   * Active markers keyed by handle, so re-highlighting the same element restarts rather than
+   * stacks — and carrying the styling to put back, which must be captured once, on the first
+   * highlight. Re-reading the element on a restart would snapshot the marker itself, and the
+   * element would keep it forever: a capability classified `read` precisely because it is
+   * transient would permanently change how someone's page looks.
+   */
+  const highlights = new Map<string, {
+    timer: ReturnType<typeof setTimeout>;
+    restore: { outline: string; outlineOffset: string; borderRadius: string };
+  }>();
+
+  /**
+   * Every element published under `handle`. A page that (accidentally, or via a templating bug)
+   * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
+   * here so both callers below can refuse rather than silently pick one.
+   */
+  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector(handle)));
+
+  /**
+   * More than one element answers to the same handle — a page-authoring bug (duplicate
+   * `data-agent-element`), not something a caller passing that handle can resolve on its own.
+   *
+   * `findElements` still lists every one of them, so the collision is discoverable; resolving a
+   * single handle to act on refuses instead of silently taking the first DOM match and leaving the
+   * others permanently unreachable with no signal that they were ever unreachable at all.
+   */
+  const ambiguousHandleError = (handle: string, count: number): Error => new Error(
+    `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
+    + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
+    + 'caller can resolve; publish a unique handle per element',
+  );
+
+  const find = (handle: string): Element => {
+    const matches = findAll(handle);
+    if (matches.length === 0) throw new Error(`no element published as "${handle}" on this page`);
+    if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
+    return matches[0]!;
+  };
+
+  /**
+   * The control a handle addresses — for a wrapper like `<li><label><input>`, the input.
+   *
+   * `<details>` is called out because its interactive part is the `<summary>`: clicking the
+   * `<details>` element itself dispatches an event the platform ignores, so a disclosure widget
+   * would never open and the caller would be told the click landed.
+   */
+  const controlOf = (element: Element): Element => {
+    // An editable region IS the control. Descending would find a link inside a rich-text document
+    // and address that instead of the text the caller meant to write.
+    if (isEditableRegion(element)) return element;
+    // `:scope >` because only a *direct child* `<summary>` is the disclosure control. An
+    // unscoped query returns the first summary anywhere in the subtree, so a `<details>`
+    // containing another one would toggle the inner disclosure while reporting that the outer
+    // handle was clicked — the false success this whole suite exists to catch.
+    if (element instanceof HTMLDetailsElement) {
+      return element.querySelector(':scope > summary') ?? element;
+    }
+    if (element.matches('input, textarea, select, button, a')) return element;
+    // A descendant that is itself independently published (its own `[data-agent-element]`) must
+    // never be silently adopted as this handle's control — it is a distinct, separately
+    // addressable target with its own label, not unhandled wrapper markup like the plain
+    // `<li><label><input>` this descent exists for. Filtering to descendants whose nearest
+    // published ancestor is still `element` itself excludes exactly that case while leaving
+    // ordinary wrapper descent untouched.
+    const owned = (node: Element): boolean => node.closest(`[${AGENT_ELEMENT_ATTRIBUTE}]`) === element;
+    const candidate = Array.from(element.querySelectorAll('input, textarea, select, button, a, summary'))
+      .find(owned);
+    return candidate ?? element;
+  };
+
+  return {
+    async findElements(filter: FindElementsFilter) {
+      const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
+        .map((element) => describe(element, pageOf(element)))
+        .filter((element) => element.handle.length > 0);
+      const query = filter.query?.toLowerCase();
+      return found.filter((element) => {
+        if (filter.role !== undefined && element.role !== filter.role) return false;
+        if (query === undefined) return true;
+        return element.handle.toLowerCase().includes(query)
+          || element.label.toLowerCase().includes(query);
+      });
+    },
+
+    async listPages() {
+      return Object.keys(pages);
+    },
+
+    async describeField(handle) {
+      return fieldDescriptorOf(controlOf(find(handle)));
+    },
+
+    async describeState(handle) {
+      // Unlike every other method here, a handle that no longer resolves is an answer rather than
+      // an error: an element that a click removed is exactly what the caller is asking about. A
+      // handle resolving to *more than one* element is a different situation entirely — not an
+      // absence but an ambiguity — so that case still refuses, same as `find`.
+      const matches = findAll(handle);
+      if (matches.length === 0) return null;
+      if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
+      const element = matches[0]!;
+      const control = controlOf(element);
+      const field = fieldDescriptorOf(control);
+      const checkable = control instanceof HTMLInputElement
+        && (control.type === 'checkbox' || control.type === 'radio');
+      // A dropdown reports its option texts alongside its value. Without them a caller can only
+      // guess what to pass to `page.select_option`, and a wrong guess is a refusal it could have
+      // avoided by looking. It carries a descriptor too, so the read guard still runs — a
+      // `<select name="secret_token">` is no more readable than an input of the same name.
+      const dropdown = control instanceof HTMLSelectElement ? control : undefined;
+      const readable = field ?? (dropdown === undefined ? null : {
+        type: 'select',
+        name: dropdown.name || undefined,
+        id: dropdown.id || undefined,
+        // Same `:disabled` reasoning as `disabledOf` — a `<select>` inside a disabled `<fieldset>`
+        // is not itself flagged by the `.disabled` IDL property.
+        disabled: dropdown.matches(':disabled'),
+      } satisfies FieldDescriptor);
+      const value = field !== null
+        ? (control as HTMLInputElement | HTMLTextAreaElement).value
+        : dropdown?.value;
+      /* c8 ignore next -- as in `describe`: an Element's textContent is always a string. */
+      const text = element.textContent ?? '';
+      return {
+        text,
+        // Reported raw and unconditionally; `projectElementState` applies the read guard. A
+        // driver deciding here which values are secret is a driver holding policy.
+        ...(value !== undefined ? { value } : {}),
+        ...(checkable ? { checked: (control as HTMLInputElement).checked } : {}),
+        ...(disabledOf(control) !== undefined ? { disabled: disabledOf(control) } : {}),
+        ...(visibilityOf(element) !== undefined ? { visible: visibilityOf(element) } : {}),
+        ...(readable !== null ? { field: readable } : {}),
+        ...(dropdown !== undefined
+          ? {
+              options: Array.from(dropdown.options)
+                .map((entry) => entry.text.trim())
+                .filter((entry) => entry.length > 0),
+            }
+          : {}),
+      } satisfies AgentElementRawState;
+    },
+
+    /**
+     * Two animation frames — long enough for a framework to have re-rendered and the browser to
+     * have painted — or {@link SETTLE_TIMEOUT_MS}, whichever lands first. Without the timeout this
+     * would hang for the whole life of a backgrounded tab; without the frames every write would
+     * report its own target unchanged, because the read would beat the render.
+     */
+    async settle() {
+      await new Promise<void>((resolve) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        // No re-entry guard: whichever side loses the race calls this again, and both of its
+        // effects are already idempotent — clearing an elapsed timer is a no-op, and a second
+        // `resolve` on a settled promise is ignored. A flag here would only be a branch nothing
+        // can distinguish.
+        const finish = (): void => {
+          if (timer !== undefined) clearTimeout(timer);
+          resolve();
+        };
+        const raf = globalThis.requestAnimationFrame;
+        // With no animation frames to wait for, one macrotask is the whole mechanism, and waiting
+        // the full ceiling on every write would be pure latency.
+        timer = setTimeout(finish, typeof raf === 'function' ? SETTLE_TIMEOUT_MS : 0);
+        if (typeof raf === 'function') raf(() => raf(finish));
+      });
+    },
+
+    async highlight(handle, durationMs) {
+      const element = find(handle);
+      // Same refusal as `click()`, for the same reason: an SVG (or other non-HTMLElement) target
+      // has no `.style` to draw an outline on, so silently returning here drew nothing while
+      // `page-executor.ts` unconditionally reports the highlight as successful — a guaranteed
+      // false positive with no way for the caller to tell. Refusing makes that visible instead.
+      if (!(element instanceof HTMLElement)) throw new Error(`"${handle}" is not highlightable`);
+      const active = highlights.get(handle);
+      if (active !== undefined) clearTimeout(active.timer);
+
+      // Reuse the first capture on a restart; see the map's own doc for what re-reading would cost.
+      const restore = active?.restore ?? {
+        outline: element.style.outline,
+        outlineOffset: element.style.outlineOffset,
+        borderRadius: element.style.borderRadius,
+      };
+      Object.assign(element.style, HIGHLIGHT_STYLE);
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+      const timer = setTimeout(() => {
+        // Restore what was there rather than clearing: the element may have had its own outline.
+        Object.assign(element.style, restore);
+        highlights.delete(handle);
+      }, durationMs);
+      highlights.set(handle, { timer, restore });
+    },
+
+    async scrollTo(handle) {
+      find(handle).scrollIntoView({ behavior: 'smooth', block: 'center' });
+    },
+
+    async click(handle) {
+      const control = controlOf(find(handle));
+      if (!(control instanceof HTMLElement)) throw new Error(`"${handle}" is not clickable`);
+      control.click();
+    },
+
+    async fill(handle, text) {
+      const control = controlOf(find(handle));
+      if (isEditableRegion(control)) {
+        // A contenteditable region has no `value`; its content *is* its children, and a real
+        // editor owns that subtree. See `fillEditableRegion` for why this drives it through
+        // selection + `execCommand` rather than replacing `textContent` directly.
+        fillEditableRegion(control, text);
+        return;
+      }
+      if (!(control instanceof HTMLInputElement) && !(control instanceof HTMLTextAreaElement)) {
+        throw new Error(`"${handle}" is not a fillable field`);
+      }
+      // Assign through the prototype setter, then dispatch: React tracks the previous value on
+      // the node and ignores an input event whose value it believes it already has, so a plain
+      // `control.value = text` updates the DOM but leaves React state stale.
+      const prototype = control instanceof HTMLInputElement
+        ? HTMLInputElement.prototype
+        : HTMLTextAreaElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(prototype, 'value')?.set;
+      if (setter) setter.call(control, text);
+      else control.value = text;
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+
+    async selectOption(handle, option, selected = true) {
+      const control = controlOf(find(handle));
+      if (!(control instanceof HTMLSelectElement)) {
+        throw new Error(`"${handle}" is not a dropdown`);
+      }
+      // Visible text first, then value: the text is what a caller saw in `find_elements`, and
+      // matching value first would make an option whose value collides with another's label
+      // resolve to the wrong entry.
+      // A disabled option is not selectable by the user either, so offering it to an agent would
+      // be a way around the page's own rule — and the resulting selection cannot be submitted.
+      const options = Array.from(control.options).filter((entry) => !entry.disabled);
+      const match = options.find((entry) => entry.text.trim() === option)
+        ?? options.find((entry) => entry.value === option);
+      if (match === undefined) {
+        // Every other piece of page-authored text this system hands to a model goes through
+        // normalizeAgentLabel first — bounded, control- and bidi-stripped. `available` is exactly
+        // that: the page's own <option> texts, read verbatim with no length bound of their own.
+        // The caller's `option` is sanitized too, for the same reason page.navigate's caller-
+        // supplied `page` now is — an unbounded value reaching a thrown message a model reads is
+        // the same shape of problem regardless of which side authored it. `handle` needs no
+        // treatment: it is already validated ASCII, length-capped by isValidElementHandle before
+        // this driver is ever called.
+        const safeOption = normalizeAgentLabel(option).text;
+        const available = options.map((entry) => normalizeAgentLabel(entry.text.trim()).text)
+          .filter((text) => text.length > 0);
+        throw new Error(
+          `"${safeOption}" is not an option of "${handle}". Available: ${available.length > 0 ? available.join(', ') : '(none)'}`,
+        );
+      }
+      if (control.multiple) {
+        // A multi-select accumulates by default. Assigning `value` would silently clear every
+        // prior choice, so a caller building up a selection would end with only its last call's
+        // option — and setting `.selected` directly is also how a caller narrows one back off
+        // without disturbing the rest.
+        match.selected = selected;
+      } else if (!selected) {
+        // A single-select's one option IS its value; there is no "off" state to put it in. Silently
+        // ignoring this would tell the caller a deselect happened when nothing changed, and clearing
+        // the control would invent a third state (no selection) that a native <select> cannot hold.
+        throw new Error(
+          `"${handle}" is a single-select; its choice cannot be removed, only replaced — `
+          + `select a different option instead of deselecting "${normalizeAgentLabel(option).text}"`,
+        );
+      } else {
+        // Same prototype-setter dance as `fill`, for the same reason: React tracks the previous
+        // value on the node and ignores a change event whose value it believes it already has.
+        const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set;
+        if (setter) setter.call(control, match.value);
+        else control.value = match.value;
+      }
+      control.dispatchEvent(new Event('input', { bubbles: true }));
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+
+    async navigate(page) {
+      const go = pages[page];
+      // The executor already checked the allowlist and sanitizes this same message before this
+      // driver-level check would ever be reached through it; this is the belt on the braces. But
+      // `PageDriver` is a public interface — a caller that reaches this method directly, bypassing
+      // the executor entirely, hands `page` in unsanitized, so the same bound-and-strip treatment
+      // applies here too rather than assuming the only caller is the one that already checked.
+      if (go === undefined) throw new Error(`"${normalizeAgentLabel(page).text}" is not a published page`);
+      go();
+    },
+  };
+}
+
+/**
+ * Writes into a contenteditable region the way a real user typing would, rather than by replacing
+ * its DOM directly.
+ *
+ * A framework rich-text editor (Lexical, ProseMirror, Quill, CodeMirror) owns its subtree: it
+ * keeps its own model and reconciles the DOM to match it, so a direct `textContent =` write is
+ * either invisible to that model or gets reverted on the editor's next render — and it always
+ * destroys whatever node structure the editor had built (a mention's `<span>`, a paragraph's `<p>`)
+ * in favour of one bare text node. Selecting the existing contents and issuing a real editing
+ * command instead is what Playwright's own `fill` does against a contenteditable, for the same
+ * reason: `execCommand('insertText'|'delete')` is the platform's own command, so the browser fires
+ * `beforeinput`/`input` itself with the correct `inputType` — the exact signal these editors
+ * listen for — rather than this driver guessing at a contract it does not own by hand-rolling one.
+ *
+ * jsdom implements neither a real editing host nor `execCommand`, so every unit test here exercises
+ * the fallback: the previous `textContent` + synthetic `input` behaviour, kept for exactly that
+ * case and for a real browser that reports the command did not run.
+ *
+ * Verified 2026-07-26 in Chromium against real Lexical 0.36.2 — the editor
+ * `packages/ui/src/features/rich-text-input/` is built on — driving both paths at one editor each
+ * and reading back Lexical's own `EditorState`, not the DOM. The `textContent` write left the
+ * model at its seed value and was reverted in the DOM too; the `execCommand` path landed in the
+ * model. That is the whole reason this function exists, and no unit test in this repo can show it.
+ */
+function fillEditableRegion(control: HTMLElement, text: string): void {
+  control.focus();
+  const selection = globalThis.getSelection?.();
+  if (selection) {
+    const range = control.ownerDocument.createRange();
+    range.selectNodeContents(control);
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  const execCommand = control.ownerDocument.execCommand?.bind(control.ownerDocument);
+  if (typeof execCommand === 'function') {
+    // An empty replacement has no text to insert; `delete` removes the just-selected contents,
+    // which `insertText` with an empty string is not guaranteed to do in every engine.
+    const ran = text.length > 0 ? execCommand('insertText', false, text) : execCommand('delete');
+    if (ran) return;
+  }
+  control.textContent = text;
+  // Editors listen for `input`, not `change`; `change` is a form-control event and firing it here
+  // would be inventing an event the platform never sends for this element.
+  control.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** Reads the current page's `data-agent-page`, for hosts that tag the body. */
+export function currentAgentPage(root: ParentNode): string | undefined {
+  const tagged = root.querySelector(`[${AGENT_PAGE_ATTRIBUTE}]`);
+  return tagged?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
+}

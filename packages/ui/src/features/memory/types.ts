@@ -6,7 +6,7 @@
  * locally, scoped to exactly what this slice's ported hooks/components/rules
  * consume. See `packages/ui/source-map.md` for the full provenance note.
  *
- * Connector-shaped fields reuse `@jini/ui`'s own `features/connectors` types
+ * Connector-shaped fields reuse `@jini-ai/ui`'s own `features/connectors` types
  * (`Connector`/`ConnectorStatusMap`/`ConnectorActionResult`) instead of a
  * separate near-duplicate — see the source-map note on the
  * connector-reconciliation-reducer decision.

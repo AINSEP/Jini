@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 
 import { expandHomePrefix, resolveProjectRelativePath } from '../home-expansion.js';
 
-describe('@jini/platform — home-expansion', () => {
+describe('@jini-ai/platform — home-expansion', () => {
   it('expands a bare home token', () => {
     expect(expandHomePrefix('~')).toBe(os.homedir());
     expect(expandHomePrefix('$HOME')).toBe(os.homedir());

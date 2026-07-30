@@ -6,26 +6,51 @@
     <title>Sunday List</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-  <body>
-    <main class="board">
-      <header>
+  <!--
+    Agent-target convention (see AGENTS.md "Codebase search" and ai-control-plane.md §15):
+      data-agent-page    one per document — the page handle used by navigation
+      data-agent-element  stable, human-meaningful id. The ONLY thing an action may
+                         resolve; a model-supplied CSS selector is never evaluated.
+      data-agent-role    what verb applies: button | checkbox | field | form | list | status | region
+      data-agent-label   searchable description, used only when the visible text is
+                         not self-explanatory. Treated as untrusted data, never as
+                         instructions to the model.
+    Tag generously — these are searched via page.find_elements, not exposed one-tool-per-element.
+  -->
+  <body data-agent-page="sunday-list">
+    <main class="board" data-agent-element="board" data-agent-role="region" data-agent-label="The Sunday list task board">
+      <header data-agent-element="page-header" data-agent-role="region">
         <span class="eyebrow">A tiny Jini sample</span>
         <h1>Sunday list</h1>
         <p>Keep the week light. Pick three things that matter.</p>
       </header>
-      <form id="task-form">
+      <nav data-agent-element="site-nav" data-agent-role="region" data-agent-label="Links to the other pages of this site">
+        <a href="./notes.html" data-agent-element="link-notes" data-agent-role="link" data-agent-label="Go to the notes page">Notes →</a>
+      </nav>
+
+      <form id="task-form" data-agent-element="new-task-form" data-agent-role="form" data-agent-label="Add a new task to the list">
         <label for="task">New task</label>
         <div class="input-row">
-          <input id="task" name="task" autocomplete="off" placeholder="Write the next small thing…" />
-          <button type="submit">Add</button>
+          <input id="task" name="task" autocomplete="off" placeholder="Write the next small thing…"
+                 data-agent-element="new-task-input" data-agent-role="field" data-agent-label="Text of the new task to add" />
+          <button type="submit" data-agent-element="add-task-button" data-agent-role="button" data-agent-label="Submit the new task">Add</button>
         </div>
       </form>
-      <ul id="tasks">
-        <li><label><input type="checkbox" checked /> Make coffee slowly</label></li>
-        <li><label><input type="checkbox" /> Water the window plants</label></li>
-        <li><label><input type="checkbox" /> Sketch one new idea</label></li>
+      <ul id="tasks" data-agent-element="task-list" data-agent-role="list" data-agent-label="All tasks on the Sunday list">
+        <li data-agent-element="task-make-coffee" data-agent-role="checkbox" data-agent-label="Task: Make coffee slowly">
+          <label><input type="checkbox" checked /> Make coffee slowly</label>
+        </li>
+        <li data-agent-element="task-water-plants" data-agent-role="checkbox" data-agent-label="Task: Water the window plants">
+          <label><input type="checkbox" /> Water the window plants</label>
+        </li>
+        <li data-agent-element="task-sketch-idea" data-agent-role="checkbox" data-agent-label="Task: Sketch one new idea">
+          <label><input type="checkbox" /> Sketch one new idea</label>
+        </li>
       </ul>
-      <footer><span id="remaining">2 things left</span><span>Built to be changed</span></footer>
+      <footer>
+        <span id="remaining" data-agent-element="remaining-count" data-agent-role="status" data-agent-label="How many tasks are still unchecked">2 things left</span>
+        <span>Built to be changed</span>
+      </footer>
     </main>
     <script src="./app.js"></script>
   </body>

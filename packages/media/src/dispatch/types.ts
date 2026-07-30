@@ -18,7 +18,7 @@
  * a data URL before calling, exactly matching the convention `video-
  * request.ts`'s `VideoBuildInput.imageRef` already established for this
  * package — "this package performs no I/O" is a standing invariant across
- * `@jini/media`, not a new one introduced here.
+ * `@jini-ai/media`, not a new one introduced here.
  */
 import type { AudioKind, MediaSurface } from '../types.js';
 
@@ -41,7 +41,7 @@ export type MediaSpeechFormat = 'mp3' | 'wav' | 'flac' | 'aac' | 'opus';
 
 export interface MediaGenerationRequest {
   readonly surface: MediaSurface;
-  /** Catalog id (e.g. `dall-e-3`, `gpt-4o-mini-tts`) — must be registered in `@jini/media`'s catalogue for the given surface/audioKind. */
+  /** Catalog id (e.g. `dall-e-3`, `gpt-4o-mini-tts`) — must be registered in `@jini-ai/media`'s catalogue for the given surface/audioKind. */
   readonly model: string;
   readonly prompt?: string;
   readonly aspect?: string;

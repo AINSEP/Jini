@@ -1,0 +1,360 @@
+/**
+ * `FrontendSessionRegistry` — the addressing layer between a run and an attached surface.
+ *
+ * Everything else on the delegated-tool path already exists: a CLI agent calls the injected MCP
+ * server, which posts `{runId, toolUseId, toolId, input}` back over loopback, which reaches
+ * `DelegatedToolBridge` and then `ToolExecutor`. What was missing is one concept — **a run has an
+ * id, a browser tab has nothing**, so a tool call arrives with no addressee. This registry is that
+ * addressee: a surface attaches itself against a run, and a tool handler can then reach *that*
+ * surface, execute a capability there, and get an answer back.
+ *
+ * Deliberately generic. This module knows nothing about `page.*`, the DOM, or chat — it routes an
+ * opaque `capabilityId` plus an opaque input to whichever surface claimed that capability. The
+ * vocabulary of what can be executed is the host's to define (see `@jini-ai/agentic`), which is what
+ * keeps a browser concept out of a server package.
+ *
+ * It also introduces **no second execution path**. The registry is only reachable from inside a
+ * `ToolHandler`, so every call through it has already passed `ToolExecutor`'s authorization,
+ * confirmation, timeout, cancellation, truncation, and audit trail. A route that called `invoke`
+ * directly would be strictly weaker, which is exactly the failure this design exists to avoid.
+ *
+ * That statement is about *this* path, and is worth stating precisely, because one ungated path
+ * does exist elsewhere: a frontend may register the same capabilities with the browser's in-page
+ * WebMCP surface, where a caller has no run and no principal and therefore never reaches
+ * `ToolExecutor` at all. Nothing in this package can gate that — it happens entirely in the page —
+ * so it is off unless a host opts in (`@jini-ai/chat-react`'s `agentControl.webmcp`). A reader who
+ * takes "no second execution path" as a whole-system guarantee would be wrong; it is a guarantee
+ * about everything that arrives here.
+ *
+ * **Attaching and binding are separate on purpose.** A surface attaches once, when it opens — a
+ * chat pane mounts long before the user sends anything, and runs are created per message, so a
+ * surface cannot know a run id at attach time. A run is *bound* to the surface that originated it
+ * when it starts. Beyond matching reality, this dissolves the worst routing hazard by construction:
+ * a run has exactly one originating surface, so a capability call can never be ambiguous between
+ * two open tabs, and no tie-break heuristic is needed that could act on a window nobody is
+ * watching.
+ *
+ * Three failure modes are handled explicitly rather than left to chance:
+ *
+ * 1. **A capability nothing can serve** — no surface bound to the run, or one that does not claim
+ *    the capability. Both fail closed with a message naming what was missing, never hang.
+ * 2. **A duplicate answer** (stream reconnect, retried POST, a surface that answers twice).
+ *    {@link FrontendSessionRegistry.settle} is idempotent and reports whether it was the one that
+ *    settled the invocation; the pending map *is* the idempotency store.
+ * 3. **A surface that never answers** (backgrounded tab, closed laptop). `invoke` rejects on its
+ *    caller's `AbortSignal`, which inside a handler is `ToolExecutor`'s own timeout/cancel signal —
+ *    so the existing `timeoutMs` on a tool descriptor covers this for free.
+ */
+import { randomUUID } from 'node:crypto';
+
+/** A surface that has attached itself and can execute capabilities on a bound run's behalf. */
+export interface FrontendSessionDescriptor {
+  /** Identifies this surface. Minted by the host at attach time; opaque here. */
+  readonly sessionId: string;
+  /**
+   * Capability ids this surface claims it can execute. A call for anything this surface does not
+   * claim fails closed rather than hanging.
+   */
+  readonly capabilities: readonly string[];
+}
+
+/** One capability call pushed to a surface, awaiting exactly one answer. */
+export interface FrontendInvocation {
+  /** Correlates the answer with this call. Minted here, never supplied by the surface. */
+  readonly invocationId: string;
+  readonly capabilityId: string;
+  readonly input: Record<string, unknown>;
+}
+
+/** A surface's answer. A refusal is an outcome, not a transport failure. */
+export type FrontendOutcome =
+  | { readonly ok: true; readonly output: unknown }
+  | { readonly ok: false; readonly message: string };
+
+export interface FrontendSessionHandle {
+  readonly sessionId: string;
+  /**
+   * Secret that proves a caller is the surface this handle belongs to, and the only thing that
+   * may cross a wire to bind a run (see {@link FrontendSessionRegistry.bindRunByToken}).
+   *
+   * Separate from `sessionId` on purpose. The session id is *addressing*, not authority: it
+   * appears in a URL path (`/api/frontend-sessions/:sessionId/responses`), and URLs leak by
+   * default — into access logs, proxies, browser history, `Referer` headers, and crash reports.
+   * Binding a run is the act that hands an agent control of a real user's screen, so it must not
+   * be authorized by a value the system is already scattering across places designed to be read.
+   */
+  readonly bindToken: string;
+  /**
+   * Detaches the surface. Every invocation still awaiting it is rejected rather than left pending,
+   * so a closed tab surfaces as a failed tool call instead of a run that never finishes.
+   */
+  detach(): void;
+}
+
+export interface FrontendSessionRegistry {
+  /**
+   * Registers a surface and the function that pushes invocations to it (an SSE write, a WebSocket
+   * send, an in-process call for a browser-resident caller that needs no relay at all).
+   *
+   * @throws If `sessionId` is already attached.
+   */
+  attach(
+    descriptor: FrontendSessionDescriptor,
+    deliver: (invocation: FrontendInvocation) => void,
+  ): FrontendSessionHandle;
+  /**
+   * Associates a started run with the surface that originated it, so capability calls made by that
+   * run's agent reach that surface. Re-binding the same run to the same session is a no-op; binding
+   * it to a different one replaces the association, which is what a host should do when a run is
+   * genuinely taken over.
+   *
+   * @returns A function that removes this association — call it when the run reaches a terminal
+   * state so a long-lived surface does not accumulate bindings for runs that ended.
+   * @throws If `sessionId` is not attached. Binding a run to a surface that is already gone would
+   * produce calls that hang until their tool timeout instead of failing immediately.
+   */
+  bindRun(runId: string, sessionId: string): () => void;
+  /**
+   * Binds a run to whichever surface holds `bindToken` — the wire-safe form of {@link bindRun}.
+   *
+   * **Use this for anything a caller supplied.** `bindRun` trusts its `sessionId` argument
+   * completely, which is correct for a composition root choosing among surfaces it already knows
+   * about, and unsafe the moment the id came from outside: session ids travel in URLs, so a caller
+   * that observed one in a log could bind *its* run to *someone else's* tab and drive that screen.
+   * A bind token is minted per surface, delivered once over that surface's own stream, and never
+   * appears in a URL.
+   *
+   * @returns The same unbind function `bindRun` returns.
+   * @throws If no attached surface holds this token. The message deliberately does not
+   * distinguish "never existed" from "detached" — telling a caller which one it guessed is how a
+   * probe learns whether a token is worth retrying.
+   */
+  bindRunByToken(runId: string, bindToken: string): () => void;
+  /**
+   * Routes one capability call to the surface bound to `runId` and resolves with its output.
+   *
+   * @throws If no surface is bound to `runId`, if the bound surface does not claim `capabilityId`,
+   * if delivery fails, if the surface answers with a refusal, or if `signal` aborts first.
+   */
+  invoke(
+    runId: string,
+    capabilityId: string,
+    input: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<unknown>;
+  /**
+   * Settles a pending invocation with the surface's answer.
+   *
+   * @returns `true` if this call settled it; `false` if it was already settled, unknown, or belongs
+   * to a different session — the duplicate-answer case, which is a no-op by design.
+   */
+  settle(sessionId: string, invocationId: string, outcome: FrontendOutcome): boolean;
+  /**
+   * Capability ids reachable for `runId` right now — empty when nothing is bound. A caller uses
+   * this to advertise only what can actually be served, so an agent is never offered a capability
+   * that would fail the moment it tried.
+   */
+  capabilitiesFor(runId: string): readonly string[];
+  /** The surface bound to `runId`, or `undefined` when there is none. */
+  sessionFor(runId: string): FrontendSessionDescriptor | undefined;
+}
+
+export interface CreateFrontendSessionRegistryOptions {
+  /** Injectable id source for invocation ids — defaults to `randomUUID`. Test-only hook. */
+  readonly newInvocationId?: () => string;
+  /**
+   * Injectable source for bind tokens — defaults to `randomUUID`. Test-only hook.
+   *
+   * A production override must be unguessable: this value is the sole authority for binding a run
+   * to a surface, so a predictable sequence would reintroduce exactly the hazard
+   * {@link FrontendSessionRegistry.bindRunByToken} exists to close.
+   */
+  readonly newBindToken?: () => string;
+}
+
+interface PendingInvocation {
+  readonly resolve: (output: unknown) => void;
+  readonly reject: (error: Error) => void;
+  /** Removes the abort listener; called on every settlement path so a long run cannot leak them. */
+  readonly dispose: () => void;
+}
+
+interface AttachedSession {
+  readonly descriptor: FrontendSessionDescriptor;
+  readonly deliver: (invocation: FrontendInvocation) => void;
+  readonly pending: Map<string, PendingInvocation>;
+}
+
+/**
+ * Creates an in-memory registry of attached surfaces.
+ *
+ * State is per-process and intentionally not persisted: an attached surface is a live connection,
+ * so it cannot outlive the process that holds it, and a restart correctly presents as "nothing
+ * attached" rather than as a stale route to a tab that is long gone.
+ *
+ * @complexity Every operation is O(1) except `detach`, which is O(p + b) in that surface\'s pending
+ * invocations and bound runs.
+ */
+export function createFrontendSessionRegistry(
+  options: CreateFrontendSessionRegistryOptions = {},
+): FrontendSessionRegistry {
+  const newInvocationId = options.newInvocationId ?? randomUUID;
+  const newBindToken = options.newBindToken ?? randomUUID;
+  const sessions = new Map<string, AttachedSession>();
+  const runBindings = new Map<string, string>();
+  /** bind token → session id. Cleared on detach, so a token dies with the surface it proves. */
+  const bindTokens = new Map<string, string>();
+
+  /**
+   * Whether `claims` (one surface's `descriptor.capabilities`) covers `capabilityId` — either by
+   * naming it exactly, or by naming a trailing-dot PREFIX it falls under (`'webmcp.'` covers
+   * `'webmcp.add_note'`). No real capability id ends in `.` (every shipped manifest — `page.*`,
+   * `chat.*` — is `word.word`), so that trailing dot is an unambiguous, self-describing signal
+   * rather than a second field this descriptor would need to carry.
+   *
+   * This existed only as a doc-comment promise until found broken 2026-07-28: `@jini-ai/chat-react`'s
+   * `createFrontendSessionBridge({ executors })` claims a bare prefix precisely so "a consumer
+   * exposes verbs the engine has never heard of" (its own module doc), but this function used to
+   * do a plain `.includes(capabilityId)` — which a prefix can never satisfy, since the claimed
+   * string and the called id are never equal. Every `executors`-backed capability therefore failed
+   * every call with "does not offer", 100% of the time, for every consumer, since the feature
+   * shipped — caught by a real end-to-end run (a live browser, a live daemon, a real coding agent),
+   * not a unit test: the existing tests exercise the client's claim-construction and the server's
+   * exact-match check in isolation, and each was internally consistent, so neither caught the two
+   * disagreeing about what a prefix claim means.
+   */
+  function coversCapability(claims: readonly string[], capabilityId: string): boolean {
+    return claims.some((claim) => claim === capabilityId || (claim.endsWith('.') && capabilityId.startsWith(claim)));
+  }
+
+  /** Resolves the surface that may serve this call, or explains precisely what is missing. */
+  function resolveTarget(runId: string, capabilityId: string): AttachedSession {
+    const sessionId = runBindings.get(runId);
+    const session = sessionId === undefined ? undefined : sessions.get(sessionId);
+    if (session === undefined) {
+      throw new Error(`no frontend is bound to run "${runId}", so "${capabilityId}" cannot be executed`);
+    }
+    if (!coversCapability(session.descriptor.capabilities, capabilityId)) {
+      throw new Error(
+        `the frontend bound to run "${runId}" does not offer "${capabilityId}" `
+        + `(it offers: ${session.descriptor.capabilities.join(', ') || 'nothing'})`,
+      );
+    }
+    return session;
+  }
+
+  function attach(
+    descriptor: FrontendSessionDescriptor,
+    deliver: (invocation: FrontendInvocation) => void,
+  ): FrontendSessionHandle {
+    if (sessions.has(descriptor.sessionId)) {
+      throw new Error(`FrontendSessionRegistry: session "${descriptor.sessionId}" is already attached`);
+    }
+    const session: AttachedSession = { descriptor, deliver, pending: new Map() };
+    sessions.set(descriptor.sessionId, session);
+    const bindToken = newBindToken();
+    bindTokens.set(bindToken, descriptor.sessionId);
+
+    return {
+      sessionId: descriptor.sessionId,
+      bindToken,
+      detach(): void {
+        sessions.delete(descriptor.sessionId);
+        bindTokens.delete(bindToken);
+        for (const [runId, boundTo] of runBindings) {
+          if (boundTo === descriptor.sessionId) runBindings.delete(runId);
+        }
+        for (const [, entry] of session.pending) {
+          entry.dispose();
+          entry.reject(new Error(`frontend session "${descriptor.sessionId}" detached before answering`));
+        }
+        session.pending.clear();
+      },
+    };
+  }
+
+  function bindRun(runId: string, sessionId: string): () => void {
+    if (!sessions.has(sessionId)) {
+      throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" to unattached session "${sessionId}"`);
+    }
+    runBindings.set(runId, sessionId);
+    return () => {
+      // Only release a binding this call still owns: a run taken over by another surface must not
+      // have its newer binding torn down by the older one\'s cleanup.
+      if (runBindings.get(runId) === sessionId) runBindings.delete(runId);
+    };
+  }
+
+  function bindRunByToken(runId: string, bindToken: string): () => void {
+    const sessionId = bindTokens.get(bindToken);
+    // One message for both "no such token" and "the surface holding it detached". Distinguishing
+    // them tells a caller whether a guess was close, which is the feedback a probe needs and the
+    // only feedback it needs.
+    if (sessionId === undefined) {
+      throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" — unknown or expired bind token`);
+    }
+    return bindRun(runId, sessionId);
+  }
+
+  // `async` so that a routing refusal from `resolveTarget` surfaces as a rejected promise like
+  // every other failure here. Throwing synchronously out of a Promise-returning function would
+  // make `invoke(...).catch(...)` an uncaught exception for exactly the fail-closed cases this
+  // registry exists to report.
+  async function invoke(
+    runId: string,
+    capabilityId: string,
+    input: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<unknown> {
+    const target = resolveTarget(runId, capabilityId);
+    const invocationId = newInvocationId();
+
+    return new Promise<unknown>((resolve, reject) => {
+      const cancelled = (): Error =>
+        new Error(`"${capabilityId}" was cancelled before the frontend answered`);
+      const onAbort = (): void => {
+        target.pending.delete(invocationId);
+        reject(cancelled());
+      };
+      const dispose = (): void => signal?.removeEventListener('abort', onAbort);
+
+      if (signal?.aborted) {
+        reject(cancelled());
+        return;
+      }
+      signal?.addEventListener('abort', onAbort, { once: true });
+      target.pending.set(invocationId, { resolve, reject, dispose });
+
+      try {
+        target.deliver({ invocationId, capabilityId, input });
+      } catch (error) {
+        // A dead channel must fail the call rather than leave it pending until the tool times out.
+        target.pending.delete(invocationId);
+        dispose();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  function settle(sessionId: string, invocationId: string, outcome: FrontendOutcome): boolean {
+    const session = sessions.get(sessionId);
+    const entry = session?.pending.get(invocationId);
+    if (session === undefined || entry === undefined) return false;
+    session.pending.delete(invocationId);
+    entry.dispose();
+    if (outcome.ok) entry.resolve(outcome.output);
+    else entry.reject(new Error(outcome.message));
+    return true;
+  }
+
+  function sessionFor(runId: string): FrontendSessionDescriptor | undefined {
+    const sessionId = runBindings.get(runId);
+    return sessionId === undefined ? undefined : sessions.get(sessionId)?.descriptor;
+  }
+
+  function capabilitiesFor(runId: string): readonly string[] {
+    return sessionFor(runId)?.capabilities ?? [];
+  }
+
+  return { attach, bindRun, bindRunByToken, invoke, settle, capabilitiesFor, sessionFor };
+}

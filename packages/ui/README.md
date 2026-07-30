@@ -1,6 +1,6 @@
-# `@jini/ui` — generic, product-neutral UI primitives
+# `@jini-ai/ui` — generic, product-neutral UI primitives
 
-Renamed from `@jini/components` in this session (2026-07-16) once it became clear
+Renamed from `@jini-ai/components` in this session (2026-07-16) once it became clear
 one "components" bucket undersold the scope: this package is meant to hold more
 than flat presentational components — pure business logic, hooks, and injectable
 providers for whatever generic (non-chat, non-OD-branded) UI domains fall out of
@@ -24,8 +24,8 @@ but its reusable tabbed-dialog *shell* and 6 of its small, clean, generic
 tabs (`appearance`, `notifications`, `language`, `instructions`,
 `integrations`, `privacy`) shipped as `src/features/settings-dialog/`; see
 `packages/ui/source-map.md`.
-Also not here: chat/artifact UI — that's `@jini/chat-core` (already built),
-`@jini/chat-react`, and `@jini/renderers-react` (separate packages, kept
+Also not here: chat/artifact UI — that's `@jini-ai/chat-core` (already built),
+`@jini-ai/chat-react`, and `@jini-ai/renderers-react` (separate packages, kept
 separate deliberately — see the chat-core/chat-react split discussion in
 `foundry/docs/jini-port/` session notes).
 
@@ -46,7 +46,7 @@ separate deliberately — see the chat-core/chat-react split discussion in
   `index.ts`) stay at the feature's top level; anything that imports React
   (`hooks/`, `components/`) moves under a `react/` subfolder —
   `features/<domain>/react/{hooks,components}/`. This is a deliberately
-  *lighter* motivation than the `@jini/chat-core`/`@jini/chat-react` package
+  *lighter* motivation than the `@jini-ai/chat-core`/`@jini-ai/chat-react` package
   split: not "prepare for a Vue consumer" (no such consumer exists or is
   planned), just keeping the pure layer visibly and mechanically separate
   from the React layer within one package, at effectively zero cost. See
@@ -249,8 +249,11 @@ Real content has landed in several parallel passes — see
   `packages/ui/source-map.md` for the full writeup, including what was
   deliberately left behind (the OD-specific color-selection heuristic that
   consumes the math, not the math itself).
-- `src/features/rich-text-input/` — a real Lexical (Meta's rich-text
-  framework) editor integration ported from OD's chat composer
+- `src/features/lexical-rich-text-editor/` (renamed from `rich-text-input/`,
+  2026-07-26 — the feature is Lexical specifically, not a general rich-text
+  input, so the old name promised an engine-neutrality its Lexical-shaped API
+  never had; see `packages/ui/source-map.md`'s dated rename entry) — a real Lexical (Meta's
+  rich-text framework) editor integration ported from OD's chat composer
   (2026-07-18): editor setup/config, an atomic `@mention`/`/command`
   token node type (generic, host-injected `resolveMentionColor` instead of
   importing OD's connector-brand-color logic), a caret-floating-layer
@@ -268,7 +271,7 @@ Real content has landed in several parallel passes — see
 Section B (vertical-slice `features/<domain>/` work: `byok-config`,
 `mcp-config`) and section C (cross-package routing) of the extraction plan
 are not started. `workspace-tabs` (renamed `tab-strip`, see the
-Consolidation map's naming-reconciliation note) and `rich-text-input` are
-now landed, per above — no longer in this "not started" list. The
-god-components-extraction-plan.md list beyond the features enumerated
-above is also not started.
+Consolidation map's naming-reconciliation note) and `rich-text-input`
+(renamed `lexical-rich-text-editor`, 2026-07-26) are now landed, per above —
+no longer in this "not started" list. The god-components-extraction-plan.md
+list beyond the features enumerated above is also not started.

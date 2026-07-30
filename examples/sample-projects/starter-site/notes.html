@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notes — Sunday List</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <!--
+    The second page of this sample. It exists so page.navigate has somewhere to go:
+    navigation is addressed by data-agent-page ("notes"), never by URL, so an agent
+    can only reach pages this site has published.
+
+    See index.html's comment for the full data-agent-* convention.
+  -->
+  <body data-agent-page="notes">
+    <main class="board" data-agent-element="board" data-agent-role="region" data-agent-label="Notes for the week">
+      <header data-agent-element="page-header" data-agent-role="region">
+        <span class="eyebrow">A tiny Jini sample</span>
+        <h1>Notes</h1>
+        <p>Longer thoughts that did not fit on the list.</p>
+      </header>
+
+      <nav data-agent-element="site-nav" data-agent-role="region" data-agent-label="Links to the other pages of this site">
+        <a href="./index.html" data-agent-element="link-sunday-list" data-agent-role="link" data-agent-label="Back to the Sunday list">← Sunday list</a>
+      </nav>
+
+      <form id="note-form" data-agent-element="new-note-form" data-agent-role="form" data-agent-label="Write a new note">
+        <label for="note-title">Note title</label>
+        <div class="input-row">
+          <input id="note-title" name="title" autocomplete="off" placeholder="What is this about?"
+                 data-agent-element="note-title-input" data-agent-role="field" data-agent-label="Short title for the note" />
+          <button type="submit" data-agent-element="save-note-button" data-agent-role="button" data-agent-label="Save this note">Save</button>
+        </div>
+      </form>
+
+      <ul id="notes" data-agent-element="note-list" data-agent-role="list" data-agent-label="Every note written so far">
+        <li data-agent-element="note-water-schedule" data-agent-role="region" data-agent-label="Note: Watering schedule">
+          <strong>Watering schedule</strong>
+          <p>The window plants want water on Sundays. The others can wait.</p>
+        </li>
+        <li data-agent-element="note-coffee" data-agent-role="region" data-agent-label="Note: On making coffee slowly">
+          <strong>On making coffee slowly</strong>
+          <p>Grind, then wait. The waiting is the point.</p>
+        </li>
+      </ul>
+
+      <footer>
+        <span id="note-count" data-agent-element="note-count" data-agent-role="status" data-agent-label="How many notes exist">2 notes</span>
+        <span>Built to be changed</span>
+      </footer>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>

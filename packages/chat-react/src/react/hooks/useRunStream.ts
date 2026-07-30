@@ -18,8 +18,8 @@
  * transport's promise resolves with the real id).
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgentEvent } from '@jini/chat-core';
-import type { ChatTransport, RunHandlers, StartRunInput } from '../../transport.js';
+import type { AgentEvent } from '@jini-ai/chat-core';
+import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/chat-core';
 
 export type RunStreamStatus = 'idle' | 'streaming' | 'done' | 'error' | 'canceled';
 

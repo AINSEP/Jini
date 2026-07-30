@@ -64,7 +64,7 @@ This is the control-plane gap. Jini needs a deliberate way for agents to ask the
 
 The live exercise used temporary directories and a temporary host callback. It did not establish that the current `minimal-host` is a finished user-facing daemon. In particular:
 
-- `POST /api/runs` currently accepts `contextRef`, optional `agentId`, and optional `idempotencyKey`; it does not yet define a real prompt/history/runtime-profile request.
+- `POST /api/runs` currently accepts `contextRef`, optional `agentId`, and optional `idempotencyKey`; it does not yet define a real prompt/history/runtime-profile request. **Update 2026-07-29:** `@jini-ai/protocol` now ships an optional, shared `encodeRunContextRef`/`decodeRunContextRef` helper (`RunContextPayload = {prompt?, history?}`) a host may use to populate `contextRef` instead of inventing its own encoding — `contextRef` itself remains opaque to the kernel; this doesn't define a first-class wire request field, it just stops every host from reinventing the same ad-hoc JSON-into-a-string trick (see `tovu-learnings.md` §4).
 - The temporary test used `contextRef` as the prompt solely to prove the end-to-end path. That is not the proposed wire contract.
 - `createLocalNodeDaemon()` binds a real `AgentExecutor`, but a host must still supply `onRunStarted` to map an accepted run to an agent, prompt, working directory, environment, and authority policy.
 - The current `agents?: unknown[]` node-host option is documented as forward-compatible but is not wired into execution.
@@ -1608,3 +1608,167 @@ Required conformance tests:
 ```
 
 Until that record exists, this document remains a proposal and discovery artifact.
+
+---
+
+## 29. Addendum (2026-07-27): entity-parameterized capabilities with per-principal enums
+
+Status: **proposal**, same standing as the rest of this document. Added after a source-level survey
+of ten shipped products (Strapi, Directus, Payload, WordPress core, novamira, Ghost, Medusa,
+bolt.diy, open-saas, and Jini itself). All claims below were read-verified in those repositories.
+
+### 29.1 The two shapes that exist in the wild, and why neither is sufficient
+
+Two shipped answers to §11's "preventing model overload" problem, and they are **opposites**:
+
+**Payload — entity as a parameter.** `packages/plugin-mcp/src/mcp/buildMcpServer.ts:126-151`
+registers one tool per *operation*, deduped by tool name, and appends an entity-slug argument via
+`withSlugInput`. `findDocuments({ collectionSlug, where })` replaces
+`findPosts` / `findProducts` / `findUsers`. The result is roughly **21 tools regardless of how many
+collections the product defines** — the CRUD explosion collapses because `findPosts` and
+`findProducts` were never different operations, only the same operation with a different noun.
+Authorization survives the collapse: the authorized item list is still per-entity, and
+`callEntityTool` re-checks the exact tool-and-slug pair at execution.
+
+**Strapi — schema narrowed per principal.** `content-manager/server/src/mcp/derive-content-type-mcp-tools.ts`
+generates 5-8 tools *per content type*, so its absolute count grows. Its answer is different: a
+tool's advertised input/output schema is resolved per request from the caller's live CASL ability
+(`mcp/permissions.ts` — `getPermittedFields`, `resolvePermittedLocaleSchema`), so a caller with read
+access to three of ten fields receives a contract listing three fields. **The permission boundary is
+visible in the contract, not merely enforced behind it.**
+
+Payload optimizes tool count. Strapi optimizes per-session relevance and least privilege. They are
+in tension: one shared schema cannot be narrowed to a specific entity's fields.
+
+### 29.2 The gap in Payload's version
+
+`withSlugInput` (`buildMcpServer.ts:~229`) types the slug as an unconstrained string:
+
+```ts
+const slugSchema = z.string().describe('The collection slug')
+```
+
+Three consequences: the model cannot tell which entities exist from the tool list, so Payload must
+ship `getConfigInfo` and `getCollectionSchema` as extra round trips; the model can name an entity it
+has no access to and learn this only from a runtime error; and "tool absent from the list" stops
+being usable as an authorization signal, since the tool is always present.
+
+### 29.3 Proposal
+
+Make the entity discriminator a **per-principal enum resolved at activation time**, not a free
+string:
+
+```ts
+// resolved per activation, from the host-resolved principal
+collectionSlug: z.enum(permittedEntitiesFor(principal, capabilityId))
+```
+
+This composes the two shapes rather than choosing between them:
+
+1. **Tool count stays constant** — Payload's collapse is preserved.
+2. **The discovery round trip disappears** — the model reads the valid entity set off the schema it
+   already has; no `getConfigInfo` call, and the values arrive with the tool rather than before it.
+3. **Least privilege moves into the contract** — the model cannot name an entity it may not touch.
+   This is §10.2's filter-before-rank rule and Strapi's narrowing idea applied to the *entity* axis
+   rather than the field axis.
+
+### 29.4 Consequences and open questions
+
+- The advertised schema becomes principal-dependent, so any schema cache key must include the
+  principal and a permission version. This interacts directly with §7.3's `schema_hash` pinning: the
+  hash must be computed over the **resolved** schema, and a permission change must invalidate the
+  activation.
+- **Execution-time authorization is still mandatory.** A per-principal enum is a discovery
+  affordance, never the gate. Permissions can change mid-run, so the executor must re-authorize the
+  concrete entity on every call. This is the same distinction Strapi states in
+  `syncMcpSessionCapabilities.ts:49-50` ("a coarse allowlist... field/entity conditions must be
+  enforced by capability handlers").
+- **Residual gap:** field-level typing still cannot be entity-specific in a shared tool. Narrowing
+  the entity axis does not recover Strapi's per-field narrowing. If field-level least privilege in
+  the contract matters more than tool count for some capability family, that family should keep
+  per-entity tools.
+- **This only collapses capabilities that share a shape.** Distinct outcome capabilities ("export as
+  PPTX", "deploy site", "publish campaign" — §17's inventory, and §16's plugin contributions) do not
+  parameterize together. That count grows with the plugin ecosystem and is what will eventually
+  force a real catalog. Build discovery when the *measured* count justifies it, per the sequencing
+  in `PROP-tool-catalog-discovery-2026-07-26.md` §9 — not before.
+- **Unmeasured risk:** whether a model selects a correct enum *value* as reliably as it selects a
+  distinct tool *name*. No product in the survey measured this. Worth an eval before committing.
+
+- **Hard dependency: do not adopt tool-collapse without schema-on-error.** Collapsing many
+  entity-specific tools into one parameterized tool necessarily loosens the wire schema — Payload's
+  collapsed `create` accepts `z.record(z.string(), z.unknown())`
+  (`plugin-mcp/src/mcp/builtin/collections/createTool.ts:32`). That is only affordable because
+  validation failure **returns the entity's full schema** in both `content` and `structuredContent`
+  (`validateEntityData.ts:112-125`, extended to runtime errors at `formatCollectionError.ts:20-33`),
+  so the model self-corrects in one turn instead of dead-ending. It is a one-line change to an error
+  path and it is the cheapest high-value item in the entire survey. Ship it *before* collapsing
+  tools, not after.
+
+  Payload also demonstrates the failure mode of collapsing without solving discovery: its
+  `collectionSlug` is a bare `z.string()` with no enum (pinned by a test), and `getConfigInfo`
+  returns bare slugs — so its own documented answer to "how does the model know which entity to
+  target?" is a config option **no code reads** (`types.ts:207`, documented at
+  `docs/plugins/mcp.mdx:839-861`, zero consumers). The per-principal enum in §29.3 is the fix.
+
+- **Empirical evidence for §6.3, from a team that tried the alternative.** Payload built a
+  per-key capability-grant admin UI beside its primary access-control model, localised it into ~40
+  languages, *redesigned* it, and then deleted it seven days later — commit `5effd37122`
+  (2026-06-22): 177 files, 725 insertions, **7,500 deletions**. The commit body gives the reasoning:
+  consistency with the primary access-control model, and a planned RBAC plugin serving both surfaces.
+  This is the strongest available argument that the catalog must never become a second authorization
+  model, and it bears directly on `PROP-tool-catalog-discovery-2026-07-26.md` debate question 6.
+
+### 29.5 Related findings from the same survey
+
+- **Fail-closed at registration.** Strapi's `McpCapabilityDefinitionRegistry.define()` throws at boot
+  if a capability declares neither `devModeOnly` nor auth policies, making "registered with no auth
+  check" unreachable rather than merely discouraged. Recommended for §13's flow.
+- **Registration lifecycle.** Strapi keeps an append-only registry and adds an enable/disable bit
+  with a four-state status; WordPress core instead ships true `wp_unregister_ability()`, callable at
+  any time. Both are shipped answers to `PROP` debate question 3; Strapi's is the smaller change and
+  preserves the kernel invariant.
+- **Authorization belongs in the capability, not the transport.** WordPress's `WP_Ability::execute()`
+  (`abilities-api/class-wp-ability.php:734`) runs
+  `normalize → validate_input → check_permissions → execute → validate_output`, and **all three entry
+  paths funnel through it** — the REST run controller, the LLM function-calling resolver, and direct
+  PHP. Adding a transport therefore *cannot* forget the gate.
+
+  The guarantee is **two-layer, and only the second layer is unconditional** — a distinction worth
+  copying deliberately rather than by accident. Registration *does* throw when
+  `permission_callback` is missing (`class-wp-ability.php:288-292`), but both mandatory-callback
+  checks are gated on `get_class( $this ) === self::class`, so a plugin registering with a custom
+  `ability_class` **skips the registration-time guardrail entirely**. What still holds is the runtime
+  default: `check_permissions()` denies unless a callable `permission_callback` returns `true`, so a
+  subclass that evades validation is unusable rather than open.
+
+  Design lesson: **construction-time validation is a developer-experience affordance and can be
+  subclassed around; the runtime deny-by-default is the actual security property.** Build both, and
+  do not let the loud one at registration convince you the quiet one at execution is optional.
+
+  This is the structural fix for the single most common defect found across the survey. Five of the
+  products examined had a capability set reachable by two or more paths where the paths applied
+  **different** checks — a kill switch honoured on one transport and ignored on another, an
+  admin flag enforced on one route and silently dropped on a second, a security wrapper applied to
+  integration routes and none of the AI ones. Every one of those bugs is "a transport forgot a
+  check," and every one is impossible under this shape. Weight: highest of anything in the survey.
+
+- **Credential scoping** (unaddressed anywhere in this document). Two shipped designs, one of which
+  is a cautionary tale:
+
+  Directus inverts the read capability at `api/src/services/payload.ts:169-195` — the *absence* of a
+  principal is what grants plaintext, so any principal-bearing request receives a masked value and
+  administrators cannot read provider keys through the API at all. The guarantee is a property of
+  the service constructor, i.e. of the source.
+
+  WordPress's Connectors API is the counter-example and **should not be copied as-is**:
+  `register_setting(… 'show_in_rest' => true)` exposes the raw key (`connectors.php:596-615`) and
+  masking is bolted on afterwards via a `rest_post_dispatch` filter that only fires when the route
+  string equals `/wp/v2/settings` exactly (`connectors.php:522-566`). That filter runs in
+  `serve_request()`, `embed_links()` and `serve_batch_request_v1()` — **not** in `dispatch()`, which
+  `rest_do_request()` calls directly, so an internal REST call returns the key unmasked. The lesson:
+  **redact at the schema or the source, never in a late filter keyed on a route string.**
+- **Kill-switch completeness.** Directus and novamira both let an agent create artifacts (a Flow with
+  an `exec` step; a sandbox PHP file) that continue running after the AI feature is disabled.
+  Whatever §19's disable path becomes, it must be tested against artifacts already created, not only
+  against new invocations.

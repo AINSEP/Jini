@@ -1,12 +1,41 @@
 {
-  "name": "@jini/sidecar",
-  "version": "0.1.0",
+  "name": "@jini-ai/sidecar",
+  "version": "0.1.2",
+  "description": "Sidecar process runtime: JSON-IPC server and client, IPC path validation, namespace/runtime path resolution, port allocation, launch bootstrap, and a local daemon registry.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/sidecar" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/sidecar"
+  },
+  "jini": {
+    "domain": "platform",
+    "kind": "process-bridge",
+    "runtime": "node"
+  },
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -14,7 +43,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/core": "workspace:*"
+    "@jini-ai/core": "workspace:*"
   },
-  "devDependencies": { "@vitest/coverage-v8": "^2.1.9" }
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9"
+  }
 }

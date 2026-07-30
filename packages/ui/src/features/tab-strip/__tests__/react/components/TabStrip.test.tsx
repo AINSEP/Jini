@@ -1,4 +1,5 @@
-import { render, screen } from '@testing-library/react';
+import { useState } from 'react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { TAB_STRIP_ITEM_ID_ATTRIBUTE } from '../../../constants.js';
@@ -124,5 +125,100 @@ describe('TabStrip', () => {
     fireDragEvent(cItem!, 'drop', { clientX: 260 });
 
     expect(onReorder).toHaveBeenCalledWith('a', 'c', 'after');
+  });
+});
+
+describe('TabStrip hook override 4-pattern test suite', () => {
+  it('Pattern 1 — State 1: Default idle state with no active drag', () => {
+    const customReorderHook = () => ({
+      draggingTabId: null,
+      dragOverTarget: null,
+      stripRef: { current: null },
+      stripDragProps: { onDragOver: vi.fn(), onDrop: vi.fn(), onDragLeave: vi.fn() },
+      getItemDragProps: () => ({ draggable: true, onDragStart: vi.fn(), onDragEnd: vi.fn(), onClickCapture: vi.fn() }),
+    });
+
+    const tabs = [tab({ id: 'a' }), tab({ id: 'b' })];
+    render(
+      <TabStrip
+        tabs={tabs}
+        activeTabId="a"
+        onActivate={() => {}}
+        onReorder={() => {}}
+        useTabStripDragReorder={customReorderHook as any}
+      />,
+    );
+
+    const [tabA, tabB] = screen.getAllByRole('tab');
+    expect(tabA).not.toHaveClass('dragging');
+    expect(tabB).not.toHaveClass('dragging');
+  });
+
+  it('Pattern 2 — State 2: Active dragging tab state via hook override', () => {
+    const customReorderHook = () => ({
+      draggingTabId: 'a',
+      dragOverTarget: null,
+      stripRef: { current: null },
+      stripDragProps: { onDragOver: vi.fn(), onDrop: vi.fn(), onDragLeave: vi.fn() },
+      getItemDragProps: () => ({ draggable: true, onDragStart: vi.fn(), onDragEnd: vi.fn(), onClickCapture: vi.fn() }),
+    });
+
+    const tabs = [tab({ id: 'a' }), tab({ id: 'b' })];
+    render(
+      <TabStrip
+        tabs={tabs}
+        activeTabId="a"
+        onActivate={() => {}}
+        onReorder={() => {}}
+        useTabStripDragReorder={customReorderHook as any}
+      />,
+    );
+
+    const [tabA] = screen.getAllByRole('tab');
+    expect(tabA).toHaveClass('is-dragging');
+  });
+
+  it('Pattern 3 — State 3: Active drag-over edge indicator state via hook override', () => {
+    const customReorderHook = () => ({
+      draggingTabId: 'a',
+      dragOverTarget: { tabId: 'b', edge: 'after' as const },
+      stripRef: { current: null },
+      stripDragProps: { onDragOver: vi.fn(), onDrop: vi.fn(), onDragLeave: vi.fn() },
+      getItemDragProps: () => ({ draggable: true, onDragStart: vi.fn(), onDragEnd: vi.fn(), onClickCapture: vi.fn() }),
+    });
+
+    const tabs = [tab({ id: 'a' }), tab({ id: 'b' })];
+    render(
+      <TabStrip
+        tabs={tabs}
+        activeTabId="a"
+        onActivate={() => {}}
+        onReorder={() => {}}
+        useTabStripDragReorder={customReorderHook as any}
+      />,
+    );
+
+    const [, tabB] = screen.getAllByRole('tab');
+    expect(tabB).toHaveClass('is-drag-over-after');
+  });
+
+  it('Pattern 4 — State 4: Dynamic full state transition walkthrough using React useState inside test harness', () => {
+    function DynamicTabHarness() {
+      const [activeId, setActiveId] = useState('a');
+      const tabs = [tab({ id: 'a', content: 'Tab A' }), tab({ id: 'b', content: 'Tab B' })];
+
+      return <TabStrip tabs={tabs} activeTabId={activeId} onActivate={setActiveId} onReorder={() => {}} />;
+    }
+
+    render(<DynamicTabHarness />);
+
+    const [tabA, tabB] = screen.getAllByRole('tab');
+    expect(tabA).toHaveAttribute('aria-selected', 'true');
+    expect(tabB).toHaveAttribute('aria-selected', 'false');
+
+    fireEvent.click(screen.getByText('Tab B'));
+
+    expect(tabA).toHaveAttribute('aria-selected', 'false');
+    expect(tabB).toHaveAttribute('aria-selected', 'true');
   });
 });

@@ -1,5 +1,5 @@
 import { sign } from 'node:crypto';
-import type { RegistryEntry, RegistrySignature } from '@jini/protocol';
+import type { RegistryEntry, RegistrySignature } from '@jini-ai/protocol';
 import { describe, expect, it } from 'vitest';
 import {
   GITHUB_ACTIONS_OIDC_ISSUER,

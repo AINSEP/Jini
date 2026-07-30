@@ -12,7 +12,7 @@ import { join, relative } from 'node:path';
 export interface ImportRef {
   /** Repo-relative path of the file containing the import, forward-slashed. */
   readonly file: string;
-  /** The raw module specifier as written (e.g. `'../foo.js'`, `'@jini/core/internal'`). */
+  /** The raw module specifier as written (e.g. `'../foo.js'`, `'@jini-ai/core/internal'`). */
   readonly specifier: string;
   /** True for `import type ... from` / `export type ... from`; false for value imports. */
   readonly typeOnly: boolean;
@@ -27,7 +27,7 @@ const BARE_IMPORT_RE = /\bimport\s+['"]([^'"]+)['"]/g;
 /** Dynamic `import('<spec>')`. */
 const DYNAMIC_IMPORT_RE = /\bimport\(\s*['"]([^'"]+)['"]/g;
 
-/** Recursively lists every `.ts` file under `dir` (repo-absolute), skipping `dist`/`node_modules`. */
+/** Recursively lists every `.ts`/`.tsx` file under `dir` (repo-absolute), skipping declarations, `dist`, and `node_modules`. */
 export function listSourceFiles(dir: string): string[] {
   const out: string[] = [];
   let entries: string[];
@@ -42,7 +42,7 @@ export function listSourceFiles(dir: string): string[] {
     const st = statSync(full);
     if (st.isDirectory()) {
       out.push(...listSourceFiles(full));
-    } else if (entry.endsWith('.ts') && !entry.endsWith('.d.ts')) {
+    } else if ((entry.endsWith('.ts') || entry.endsWith('.tsx')) && !entry.endsWith('.d.ts')) {
       out.push(full);
     }
   }
@@ -118,7 +118,7 @@ export function stripComments(source: string): string {
   return out;
 }
 
-/** Extracts every import/export specifier from one `.ts` file, repo-root-absolute or relative. */
+/** Extracts every import/export specifier from one `.ts`/`.tsx` file, repo-root-absolute or relative. */
 export function extractImports(absFilePath: string): ImportRef[] {
   const content = stripComments(readFileSync(absFilePath, 'utf8'));
   const file = toRepoRelative(absFilePath);
@@ -138,7 +138,7 @@ export function extractImports(absFilePath: string): ImportRef[] {
   return refs;
 }
 
-/** Every import/export ref across every `.ts` file under `dir` (repo-absolute). */
+/** Every import/export ref across every `.ts`/`.tsx` file under `dir` (repo-absolute). */
 export function walkImports(dir: string): ImportRef[] {
   return listSourceFiles(dir).flatMap(extractImports);
 }

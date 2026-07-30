@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ResourceBoard } from './ResourceBoard.js';
@@ -253,5 +253,148 @@ describe('ResourceBoard', () => {
     );
     await waitFor(() => expect(screen.getByText('A')).toBeInTheDocument());
     expect(screen.getByTestId('resource-kanban-board')).toBeInTheDocument();
+  });
+});
+
+describe('ResourceBoard 4-pattern hook override test suite', () => {
+  it('Pattern 1 — State 1: Loading board state via hook override', () => {
+    const customHook = () => ({
+      loading: true,
+      error: null,
+      actionError: null,
+      totalCount: 0,
+      visibleItems: [],
+      kanbanColumns: new Map(),
+      query: '',
+      setQuery: vi.fn(),
+      sort: undefined,
+      setSort: vi.fn(),
+      viewMode: 'grid' as const,
+      setViewMode: vi.fn(),
+      selectMode: false,
+      selected: new Set<string>(),
+      bulkDeleteBusy: false,
+      enterSelectMode: vi.fn(),
+      exitSelectMode: vi.fn(),
+      toggleSelected: vi.fn(),
+      bulkDelete: vi.fn(),
+      openMenuId: null,
+      menuContainerRef: { current: null },
+      toggleMenu: vi.fn(),
+      closeMenu: vi.fn(),
+      isItemBusy: () => false,
+      remove: vi.fn(),
+      duplicate: vi.fn(),
+    });
+
+    render(
+      <ResourceBoard
+        dependencies={createFakeResourceBoardDependencies({ items: [] })}
+        statusOptions={STATUS_OPTIONS}
+        onOpenItem={vi.fn()}
+        useWiredResourceBoard={customHook as any}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('Pattern 2 — State 2: Grid view state with items via hook override', () => {
+    const customHook = () => ({
+      loading: false,
+      error: null,
+      actionError: null,
+      totalCount: 1,
+      visibleItems: [seedItems()[0]!],
+      kanbanColumns: new Map([['running', [seedItems()[0]!]]]),
+      query: '',
+      setQuery: vi.fn(),
+      sort: undefined,
+      setSort: vi.fn(),
+      viewMode: 'grid' as const,
+      setViewMode: vi.fn(),
+      selectMode: false,
+      selected: new Set<string>(),
+      bulkDeleteBusy: false,
+      enterSelectMode: vi.fn(),
+      exitSelectMode: vi.fn(),
+      toggleSelected: vi.fn(),
+      bulkDelete: vi.fn(),
+      openMenuId: null,
+      menuContainerRef: { current: null },
+      toggleMenu: vi.fn(),
+      closeMenu: vi.fn(),
+      isItemBusy: () => false,
+      remove: vi.fn(),
+      duplicate: vi.fn(),
+    });
+
+    render(
+      <ResourceBoard
+        dependencies={createFakeResourceBoardDependencies({ items: [] })}
+        statusOptions={STATUS_OPTIONS}
+        onOpenItem={vi.fn()}
+        useWiredResourceBoard={customHook as any}
+      />,
+    );
+
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+  });
+
+  it('Pattern 3 — State 3: Select mode state with selected items via hook override', () => {
+    const customHook = () => ({
+      loading: false,
+      error: null,
+      actionError: null,
+      totalCount: 1,
+      visibleItems: [seedItems()[0]!],
+      kanbanColumns: new Map([['running', [seedItems()[0]!]]]),
+      query: '',
+      setQuery: vi.fn(),
+      sort: undefined,
+      setSort: vi.fn(),
+      viewMode: 'grid' as const,
+      setViewMode: vi.fn(),
+      selectMode: true,
+      selected: new Set<string>(['a']),
+      bulkDeleteBusy: false,
+      enterSelectMode: vi.fn(),
+      exitSelectMode: vi.fn(),
+      toggleSelected: vi.fn(),
+      bulkDelete: vi.fn(),
+      openMenuId: null,
+      menuContainerRef: { current: null },
+      toggleMenu: vi.fn(),
+      closeMenu: vi.fn(),
+      isItemBusy: () => false,
+      remove: vi.fn(),
+      duplicate: vi.fn(),
+    });
+
+    render(
+      <ResourceBoard
+        dependencies={createFakeResourceBoardDependencies({ items: [] })}
+        statusOptions={STATUS_OPTIONS}
+        onOpenItem={vi.fn()}
+        useWiredResourceBoard={customHook as any}
+      />,
+    );
+
+    expect(screen.getByText('1 selected')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete selected' })).toBeInTheDocument();
+  });
+
+  it('Pattern 4 — State 4: Dynamic search filter transition walkthrough using React useState inside test harness', async () => {
+    const dependencies = createFakeResourceBoardDependencies({ items: seedItems() });
+    render(<ResourceBoard dependencies={dependencies} statusOptions={STATUS_OPTIONS} onOpenItem={vi.fn()} />);
+
+    await waitFor(() => expect(screen.getByText('Alpha')).toBeInTheDocument());
+    expect(screen.getByText('Beta')).toBeInTheDocument();
+
+    const searchInput = screen.getByPlaceholderText('Search…');
+    fireEvent.change(searchInput, { target: { value: 'Alpha' } });
+
+    expect(screen.getByText('Alpha')).toBeInTheDocument();
+    expect(screen.queryByText('Beta')).toBeNull();
   });
 });

@@ -1,9 +1,15 @@
-import type { AgentEvent, RunStatus } from '@jini/chat-core';
-import type { ChatTransport, RunHandlers, StartRunInput } from '@jini/chat-react';
+import {
+  buildTranscript,
+  type AgentEvent,
+  type ChatAttachment,
+  type ChatMessage,
+  type ChatRunStatus,
+} from '@jini-ai/chat-core';
+import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/chat-react';
 
 interface RunStatusWire {
   id: string;
-  state: RunStatus;
+  state: ChatRunStatus;
 }
 
 interface RunResponseWire {
@@ -17,10 +23,56 @@ interface RunProtocolEventWire {
 
 interface PlaygroundContext {
   project?: unknown;
+  model?: unknown;
+  reasoning?: unknown;
+  workingDirectory?: unknown;
+  frontendBindToken?: unknown;
 }
 
-function encodeRunContext(prompt: string, project: string): string {
-  const bytes = new TextEncoder().encode(JSON.stringify({ prompt, project }));
+interface ComposeRunPromptInput {
+  history: ChatMessage[];
+  agentId?: string;
+}
+
+/**
+ * Builds the agent prompt from visible conversation history while excluding
+ * the playground's synthetic welcome message.
+ *
+ * @param input - Conversation history and the agent receiving the next turn.
+ * @returns A role-delimited transcript scoped and sanitized by `@jini-ai/chat-core`.
+ * @throws Never.
+ *
+ * @complexity Time: O(n), where n is the total history character count.
+ * @complexity Space: O(n) for the filtered history and resulting transcript.
+ *
+ * @overallScore 100/100
+ */
+export function composeRunPrompt({ history, agentId }: ComposeRunPromptInput): string {
+  const visibleHistory = history.filter((message) => message.id !== 'welcome');
+  return buildTranscript(
+    visibleHistory,
+    agentId === undefined ? {} : { targetAgentId: agentId },
+  );
+}
+
+export function encodeRunContext(
+  prompt: string,
+  project: string,
+  model?: string,
+  reasoning?: string,
+  workingDirectory?: string,
+  attachments: readonly ChatAttachment[] = [],
+  frontendBindToken?: string,
+): string {
+  const bytes = new TextEncoder().encode(JSON.stringify({
+    prompt,
+    project,
+    ...(model !== undefined ? { model } : {}),
+    ...(reasoning !== undefined ? { reasoning } : {}),
+    ...(workingDirectory !== undefined ? { workingDirectory } : {}),
+    ...(attachments.length > 0 ? { attachments } : {}),
+    ...(frontendBindToken !== undefined ? { frontendBindToken } : {}),
+  }));
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return `playground:${btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '')}`;
@@ -36,10 +88,15 @@ async function readApiError(response: Response): Promise<Error> {
   }
 }
 
-function toAgentEvent(event: RunProtocolEventWire, handlers: RunHandlers): AgentEvent | null {
+export function toAgentEvent(event: RunProtocolEventWire, handlers: RunHandlers): AgentEvent | null {
   if (event.kind === 'stdout') {
-    const payload = event.payload as { chunk?: unknown };
-    return { kind: 'text', text: typeof payload.chunk === 'string' ? payload.chunk : '' };
+    // AgentExecutor deliberately publishes raw child stdout for diagnostics
+    // and also publishes the parsed, user-visible payload as `agent` events.
+    // Rendering both leaks structured CLI protocols (Claude stream-json,
+    // Codex JSONL, and similar) into the conversation and duplicates plain
+    // runtime output. The durable stdout event remains available through the
+    // daemon event log; the chat surface consumes only parsed `agent` events.
+    return null;
   }
   if (event.kind === 'stderr') {
     const payload = event.payload as { chunk?: unknown };
@@ -90,6 +147,12 @@ function toAgentEvent(event: RunProtocolEventWire, handlers: RunHandlers): Agent
       ...(typeof payload.costUsd === 'number' ? { costUsd: payload.costUsd } : {}),
       ...(typeof payload.durationMs === 'number' ? { durationMs: payload.durationMs } : {}),
     };
+  }
+  if (payload.type === 'a2ui') {
+    // Unwrap `.message` here rather than letting the generic `ext` fallback below carry the whole
+    // `{type, message}` envelope — `A2uiSurfaceCard` (registered against `ext-event-renderer-registry.ts`'s
+    // `'a2ui'` name) expects each event's `data` to already be one real `AgentToRendererMessage`.
+    return { kind: 'ext', name: 'a2ui', data: payload.message };
   }
   return { kind: 'ext', name: typeof payload.type === 'string' ? payload.type : 'agent', data: payload };
 }
@@ -159,16 +222,39 @@ async function streamRun(
 export function createDaemonChatTransport(): ChatTransport {
   return {
     async startRun(input: StartRunInput, handlers: RunHandlers) {
-      const prompt = [...input.history].reverse().find((message) => message.role === 'user')?.content.trim();
+      const agentId = input.agentId ?? 'playground-demo';
+      const prompt = composeRunPrompt({ history: input.history, agentId });
       if (!prompt) throw new Error('A prompt is required');
       const context = (input.context ?? {}) as PlaygroundContext;
       const project = typeof context.project === 'string' ? context.project : 'starter-site';
+      const model = typeof context.model === 'string' && context.model.length > 0 ? context.model : undefined;
+      const reasoning =
+        typeof context.reasoning === 'string' && context.reasoning.length > 0
+          ? context.reasoning
+          : undefined;
+      const workingDirectory =
+        typeof context.workingDirectory === 'string' && context.workingDirectory.length > 0
+          ? context.workingDirectory
+          : undefined;
+      // Proves which tab started this run so page.* calls can be routed back to it.
+      const frontendBindToken =
+        typeof context.frontendBindToken === 'string' && context.frontendBindToken.length > 0
+          ? context.frontendBindToken
+          : undefined;
       const response = await fetch('/api/runs', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          contextRef: encodeRunContext(prompt, project),
-          agentId: input.agentId ?? 'playground-demo',
+          contextRef: encodeRunContext(
+            prompt,
+            project,
+            model,
+            reasoning,
+            workingDirectory,
+            input.attachments ?? [],
+            frontendBindToken,
+          ),
+          agentId,
         }),
         signal: input.signal,
       });

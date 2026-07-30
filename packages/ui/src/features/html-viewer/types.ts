@@ -5,7 +5,7 @@
  * the pieces that classification found GENERIC with low coupling to the
  * rest of `HtmlViewer` (deck navigation, the zoom-percentage control, and
  * the three present actions); the sandboxed-iframe/annotation/manual-edit
- * pieces stay deferred pending the `@jini/renderers-react` core this slice
+ * pieces stay deferred pending the `@jini-ai/renderers-react` core this slice
  * itself is the first consumer of.
  */
 

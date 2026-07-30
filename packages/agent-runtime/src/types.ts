@@ -4,7 +4,7 @@
  * The central, product-neutral contract for this package: `RuntimeAgentDef`
  * declaratively describes how to detect, authenticate, and spawn a single
  * coding-agent CLI (Claude Code, Codex, Cursor, Aider, AMR, …). Everything
- * else in `@jini/agent-runtime` — the registry, detection, launch, and
+ * else in `@jini-ai/agent-runtime` — the registry, detection, launch, and
  * stream-parsing modules — operates on this type or on `DetectedAgent`, its
  * runtime-probed sibling.
  *
@@ -12,6 +12,7 @@
  * as found — see `source-map.md` for the full provenance table.
  */
 import type { ExecFileOptions } from 'node:child_process';
+import type { AgentDiagnostic } from '@jini-ai/protocol';
 
 export type RuntimeEnv = NodeJS.ProcessEnv | Record<string, string>;
 
@@ -27,6 +28,17 @@ export type RuntimeReasoningOption = RuntimeModelOption;
 export type RuntimeBuildOptions = {
   model?: string | null;
   reasoning?: string | null;
+  // Every def that has one auto-approves its CLI's own permission prompts by default
+  // (`bypassPermissions` / `--yolo` / `--dangerously-skip-permissions`, depending on the CLI) —
+  // there is no TTY on a spawned subprocess to answer an interactive prompt, so a caller that
+  // never sets this gets exactly today's behavior unchanged. Pass `'restricted'` to opt a run
+  // OUT of that auto-approval; the def then omits its bypass flag, which typically means the
+  // underlying CLI denies/blocks actions that would otherwise need approval rather than prompting
+  // (still non-interactive-safe — just conservative instead of permissive). Not every def reads
+  // this: Codex already has its own distinct sandbox model (`workspace-write` by default,
+  // escalating to full access only via explicit env/platform conditions) and is unaffected either
+  // way; see `defs/codex.ts`'s `codexNeedsDangerFullAccessSandbox`.
+  permissionMode?: 'bypass' | 'restricted';
 };
 
 export type RuntimeContext = {
@@ -87,6 +99,130 @@ export type RuntimePromptBudgetError = {
   bytes?: number;
   commandLineLength?: number;
   limit: number;
+};
+
+/**
+ * How the caller should treat a `streamFormat: 'plain'` adapter's raw stdout.
+ *
+ * Declared as a discriminated union rather than two independent flags
+ * (`stdoutBuffering` + `sanitizeStdout`) on purpose: a sanitizer is only
+ * *meaningful* on the buffered path, because a pattern to be redacted can
+ * straddle two `'data'` chunks — the exact case that motivates buffering at
+ * all. Two flat fields would let a def declare `sanitize` alongside live
+ * streaming, where the caller could not honor it; the confidentiality gap
+ * would then *look* closed in the def while leaking at runtime. The union
+ * makes that combination unrepresentable.
+ *
+ * `undefined` on a def means `{buffering: 'live'}` — today's behavior for
+ * every adapter, and the only sane default: a CLI that streams tokens should
+ * reach the user as it streams.
+ */
+export type RuntimeStdoutPolicy =
+  /**
+   * Forward every stdout chunk to the client as it arrives. The default;
+   * what a streaming CLI's own output cadence implies.
+   */
+  | { readonly buffering: 'live' }
+  /**
+   * Accumulate every stdout chunk and forward the whole thing exactly once,
+   * after the child process closes. For adapters that can print a secret
+   * (e.g. an interactive OAuth URL) to stdout and *still exit 0*, where the
+   * only safe moment to decide what the user sees is after the output is
+   * complete.
+   */
+  | {
+      readonly buffering: 'until-close';
+      /**
+       * Last transform applied to the fully-accumulated stdout before it is
+       * emitted. Receives the concatenation of every chunk; returns what the
+       * client may see. Must be pure and must not throw — the caller has
+       * nothing better to fall back on than the unsanitized text, so a
+       * throwing sanitizer is the leak it was added to prevent.
+       */
+      readonly sanitize?: (fullText: string) => string;
+    };
+
+/**
+ * Context for {@link RuntimeLock.acquire}, so a def can decide whether the
+ * side effect its lock guards will happen for *this* spawn at all — and skip
+ * serializing when it will not.
+ */
+export type RuntimeLockAcquireContext = {
+  /**
+   * The model id the caller is about to pass to `buildArgs` as
+   * `RuntimeBuildOptions.model`; `undefined` when the caller selected none.
+   */
+  readonly model: string | undefined;
+};
+
+/**
+ * Context for {@link RuntimeLockHold.waitForHandoff} — everything a def needs
+ * to observe the spawned process confirming it consumed the guarded side
+ * effect, without the caller handing over a `ChildProcess` (which would couple
+ * `RuntimeAgentDef` to `node:child_process`'s process model for a concern that
+ * is really just "did the child read the file yet").
+ */
+export type RuntimeLockHandoffContext = {
+  /**
+   * The temp path the caller staged into `RuntimeContext.agentLogFilePath`
+   * for this spawn — `undefined` when the def did not declare
+   * `needsAgentLogFile`, or the caller could not stage one.
+   */
+  readonly logFilePath: string | undefined;
+  /** The same value {@link RuntimeLockAcquireContext.model} carried. */
+  readonly model: string | undefined;
+  /**
+   * Aborts once the spawned process has exited. A def that polls for its
+   * handoff signal should pass this straight into its poller so the poll
+   * stops promptly instead of running out its own timeout against a log file
+   * that will never grow again.
+   */
+  readonly processExited: AbortSignal;
+};
+
+/** A held {@link RuntimeLock}. See that type's doc for the release contract. */
+export type RuntimeLockHold = {
+  /**
+   * Releases the lock. **Must be idempotent** — the caller invokes it on
+   * whichever of `waitForHandoff` settling or process exit happens first, and
+   * makes no attempt to suppress the second.
+   */
+  readonly release: () => void;
+  /**
+   * Resolves once the spawned process has demonstrably consumed the guarded
+   * side effect, at which point the caller releases. Rejecting is treated
+   * exactly like resolving (the caller releases either way — a lock held
+   * forever because a watcher threw is worse than an early release).
+   *
+   * Omit it to hold the lock for the child's entire lifetime: the caller then
+   * releases only on process exit.
+   */
+  readonly waitForHandoff?: (context: RuntimeLockHandoffContext) => Promise<void>;
+};
+
+/**
+ * A def-declared mutex around a *process-global* side effect its `buildArgs`
+ * performs — the case that exists today being an adapter with no `--model`
+ * flag, whose model choice must instead be written into a single shared
+ * settings file that the spawned CLI reads on its own startup. Two concurrent
+ * runs of such an adapter race: run A writes model A, A spawns, B writes
+ * model B, and *then* A's CLI reads the file — so A silently executes on B's
+ * model.
+ *
+ * The caller's contract, in order:
+ *   1. `acquire(...)` before `buildArgs` runs (which is what performs the
+ *      side effect), awaiting the returned hold.
+ *   2. spawn.
+ *   3. `hold.waitForHandoff?.(...)` — and `hold.release()` on whichever of
+ *      that settling or process exit comes first.
+ *
+ * Releasing on process exit is not a fallback, it is load-bearing: a
+ * `waitForHandoff` that gives up polling means "I stopped watching", never
+ * "the child definitely didn't read the file". Only exit proves the child can
+ * no longer read it.
+ */
+export type RuntimeLock = {
+  readonly acquire: (context: RuntimeLockAcquireContext) => Promise<RuntimeLockHold>;
 };
 
 export type RuntimeAgentDef = {
@@ -221,6 +357,32 @@ export type RuntimeAgentDef = {
   // standard MCP `map[string]string` shape. Leave `undefined` (defaults to
   // 'array') for all other agents.
   acpMcpEnvFormat?: 'array' | 'map';
+  // Asks the caller to stage a temp file and hand its path over as
+  // `RuntimeContext.agentLogFilePath` before `buildArgs` runs — the exact
+  // opt-in shape `promptViaFile` already uses for the prompt file, for the
+  // same reason: `buildArgs` cannot invent a path the caller must also be
+  // able to read and delete. Only useful for adapters whose CLI takes a
+  // diagnostic-log flag (`agy --log-file <path>`); every other def leaves
+  // this unset and its `runtimeContext.agentLogFilePath` stays `undefined`.
+  //
+  // The caller owns the file's whole lifetime and removes it after the child
+  // exits, on every path — a leaked log can hold whatever the CLI chose to
+  // write into it, including auth material.
+  needsAgentLogFile?: boolean;
+  // How the caller must treat this adapter's raw stdout — see
+  // {@link RuntimeStdoutPolicy}. `undefined` means live per-chunk forwarding,
+  // which is what every adapter did before this field existed.
+  //
+  // Only consulted for adapters the caller drives off raw stdout with no
+  // structured parser (`streamFormat: 'plain'`): the JSON-stream/ACP/pi-rpc
+  // families derive client events from parsed protocol messages, where
+  // "buffer the bytes" is not a meaningful knob.
+  stdoutPolicy?: RuntimeStdoutPolicy;
+  // A mutex the caller must hold across this adapter's `buildArgs` →
+  // spawn → CLI-reads-the-side-effect window — see {@link RuntimeLock} for
+  // the full contract and the concrete race it exists to close. Left unset
+  // by every adapter whose `buildArgs` is pure.
+  runtimeLock?: RuntimeLock;
 };
 
 export type DetectedAgent = Omit<
@@ -242,6 +404,16 @@ export type DetectedAgent = Omit<
   // the registry payload stays unchanged.
   | 'inactivityTimeoutMs'
   | 'authProbe'
+  // All three of the spawn-orchestration fields are stripped for the same
+  // reason `inactivityTimeoutMs` is: they instruct whoever *spawns* the CLI
+  // and mean nothing to a registry consumer picking an agent from a list.
+  // `stdoutPolicy` and `runtimeLock` additionally carry closures, which a
+  // JSON response would silently flatten into a misleading half-object
+  // (`{"buffering":"until-close"}` with the sanitizer gone, `{}` for the
+  // lock) rather than omit — see `detection.ts#stripFns`.
+  | 'needsAgentLogFile'
+  | 'stdoutPolicy'
+  | 'runtimeLock'
 > & {
   models: RuntimeModelOption[];
   modelsSource: RuntimeModelSource;
@@ -258,76 +430,13 @@ export type RuntimeExecOptions = ExecFileOptions & {
 };
 
 /**
- * A typed "what should the UI do to fix this" intent attached to an
- * {@link AgentDiagnostic}. The UI renders a button per intent and owns the
- * concrete handler (open a URL, re-run detection, write an env override,
- * launch an OAuth terminal flow). Keeping the intent typed — rather than a
- * pre-baked button label + URL — lets multiple surfaces (a settings card,
- * an unavailable-agents grid, a CLI healthcheck) render the same fix
- * affordances from one source of truth instead of each re-deriving copy
- * and wiring.
- *
- * Vendored (minimal, unmodified shape) from OD's
- * `packages/contracts/src/api/registry.ts#AgentFixIntent` — see
- * `source-map.md`. `@jini/agent-runtime` does not depend on OD's
- * contracts workspace package.
+ * Agent unavailability/fix-affordance vocabulary. Moved to `@jini-ai/protocol` on 2026-07-29 (see
+ * that package's `agent-catalog.ts`) so a browser package can consume it without depending on this
+ * Node-only runtime. Re-exported here so every existing import keeps working unchanged.
  */
-export type AgentFixIntent =
-  /** Open the agent's configuration / auth docs (`AgentInfo.docsUrl`). */
-  | { kind: 'openDocs' }
-  /** Open the agent's install / download page (`AgentInfo.installUrl`). */
-  | { kind: 'openInstall' }
-  /** Re-run agent detection (a Settings "Rescan" affordance). */
-  | { kind: 'rescan' }
-  /**
-   * Prompt the user to point the host application at an explicit binary by
-   * writing `envKey` (e.g. `CURSOR_AGENT_BIN`) into a configured-env store.
-   * Used when the CLI is installed somewhere PATH detection can't reach.
-   */
-  | { kind: 'setEnv'; envKey: string }
-  /** Clear a previously-set binary override so detection falls back to PATH. */
-  | { kind: 'clearEnv'; envKey: string }
-  /**
-   * Launch the agent's interactive sign-in in a system terminal (used by
-   * adapters whose OAuth flow cannot complete in a headless/print mode).
-   */
-  | { kind: 'launchOAuth'; agentId: string };
-
-export type AgentDiagnosticReason =
-  /** The binary (and any fallback names) was not found on PATH. */
-  | 'not-on-path'
-  /** A file matched but is not executable (missing +x / wrong PATHEXT). */
-  | 'not-executable'
-  /** A wrapper/shim was found but its target is gone (exit 126/127). */
-  | 'shim-broken'
-  /** A user-set `*_BIN` override points at a missing/invalid file. */
-  | 'configured-bin-invalid'
-  /** Installed and invocable, but the CLI is not authenticated. */
-  | 'auth-missing'
-  /** Installed, but auth status could not be verified. */
-  | 'auth-unknown';
-
-export type AgentDiagnosticSeverity = 'error' | 'warning' | 'info';
-
-/**
- * Why a CLI agent is unavailable or only partially usable, in a shape a UI
- * can render as "one-line reason + fix button(s)" instead of a silent grey
- * card. Vendored from OD's contracts workspace package — see
- * `AgentFixIntent`'s doc comment.
- */
-export interface AgentDiagnostic {
-  reason: AgentDiagnosticReason;
-  severity: AgentDiagnosticSeverity;
-  /** Short, human-readable, single-sentence explanation. */
-  message: string;
-  /** Optional longer context (e.g. the probe's stderr tail). */
-  detail?: string;
-  /**
-   * Directories PATH detection searched, surfaced verbatim for the
-   * `not-on-path` case so the user can see where detection looked before
-   * being asked to set an explicit binary path.
-   */
-  searchedDirs?: string[];
-  /** Ordered fix affordances the UI should offer for this diagnostic. */
-  fixActions?: AgentFixIntent[];
-}
+export type {
+  AgentDiagnostic,
+  AgentDiagnosticReason,
+  AgentDiagnosticSeverity,
+  AgentFixIntent,
+} from '@jini-ai/protocol';

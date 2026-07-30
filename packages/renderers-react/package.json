@@ -1,19 +1,41 @@
 {
-  "name": "@jini/renderers-react",
-  "version": "0.1.0",
+  "name": "@jini-ai/renderers-react",
+  "version": "0.1.2",
+  "description": "React artifact-renderer registry and sandboxed srcDoc host: Markdown, Shiki highlighting, annotation canvas, new-tab previews, and a preview modal shell.",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/leonaburime-ucla/Jini.git", "directory": "packages/renderers-react" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/renderers-react"
+  },
+  "jini": {
+    "domain": "chat",
+    "kind": "react-renderer",
+    "runtime": "browser"
+  },
   "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
   ],
-  "publishConfig": { "access": "restricted", "registry": "https://registry.npmjs.org" },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
@@ -21,15 +43,14 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini/chat-core": "workspace:*",
+    "@jini-ai/chat-core": "workspace:*",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
     "shiki": "^1.24.4"
   },
   "peerDependencies": {
-    "react": "^19.2.0"
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
@@ -38,6 +59,8 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitest/coverage-v8": "^2.1.9",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }

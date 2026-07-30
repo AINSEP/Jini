@@ -3,7 +3,7 @@
  * There is no real "transport" this package can bind to a port for — the
  * actual submit semantics are entirely host-specific (see `ports.ts`) — so
  * this file supplies a test/demo-only fake, mirroring the shape of every
- * other slice's `dependencies.ts` (`@jini/ui`'s `features/connectors/
+ * other slice's `dependencies.ts` (`@jini-ai/ui`'s `features/connectors/
  * dependencies.ts` binds a real fetch; a host embedding this package
  * supplies its own `AnnotationCanvasPort` instead of importing this file).
  */

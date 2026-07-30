@@ -1,0 +1,273 @@
+/**
+ * @jini-ai/chat-react reference stylesheet — structural layout only.
+ *
+ * NOT applied by default and not exported by package.json — see this package's README for why.
+ * Kept here as a documented starting point for a host writing their own CSS against this
+ * package's `jini-*` class names, not as something to `import` as-is.
+ *
+ * Every rule here exists because, without it, a plain-HTML default (inline elements that don't
+ * stack, an inline-block that doesn't shrink to fit a narrow parent, a block box that forces a
+ * line break next to a sibling) produces a visibly broken layout — not because it looks nicer.
+ * No colors, fonts, borders, or spacing/gap values: that stays a host decision. Selectors are
+ * flat single classes with no `.jini-chat-pane` nesting, so they apply whether these components
+ * are composed directly (this package's own README usage example) or through the
+ * batteries-included `<ChatPane>`.
+ */
+
+/* ---- Composer (react/components/Composer.tsx) ---- */
+
+/* A bare <textarea> has an intrinsic ~20-character width (the `cols` default) and sits as an
+   inline-block box between its block siblings — without this it renders far narrower than its
+   container, not full width. */
+.jini-composer-input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* The footer's children (.jini-composer-attachment-picker, .jini-composer-footer-accessories,
+   .jini-composer-plus-menu are <div>s; .jini-composer-send is a <button>) are a mix of block and
+   inline-block boxes — without flex, the block ones each force their own line, stacking the
+   footer into several rows instead of one. */
+.jini-composer-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Lets a long agent name inside (e.g. an AgentRuntimePicker trigger) shrink and ellipsis instead
+   of forcing the row wider — flex items default to min-width:auto, which blocks shrinking below
+   content size unless every ancestor in the chain opts out. Docked into a narrow sidebar (< 400px)
+   is exactly where this stops being cosmetic. */
+.jini-composer-footer-accessories {
+  min-width: 0;
+}
+
+/* Stays in the DOM (not display:none) so the button that triggers it via ref.click() keeps
+   working, but hidden the same way any visually-hidden-but-functional control is — never with
+   opacity/visibility alone — so the browser's native file-input chrome never paints over the
+   custom attach button. */
+.jini-composer-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+/* Without this, "still uploading"/"still scanning" never visibly spins — the element just sits
+   static, which defeats the one thing a spinner icon exists to communicate. */
+.jini-composer-spinner,
+.jini-runtime-spinner,
+.jini-icon-spin {
+  animation: jini-chat-react-spin 0.8s linear infinite;
+}
+
+@keyframes jini-chat-react-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- AttachmentTray (react/components/AttachmentTray.tsx) ---- */
+
+/* Each chip is a <div> (block) — without flex, chips stack one per line instead of forming a row. */
+.jini-attachment-tray {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+/* Once .jini-attachment-chip-body below becomes a flex container, its outer display becomes
+   block; without flex here too, that now-block body forces the remove button onto a separate
+   line instead of sitting beside it. */
+.jini-attachment-chip {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.jini-attachment-remove,
+.jini-attachment-chip-icon {
+  flex: 0 0 auto;
+}
+
+/* chip-body is a <span> wrapping an icon <span> and a copy <span> — both inline by default, so
+   without flex here the (post-fix, block-level) copy element drops to its own line under the
+   icon instead of sitting beside it. */
+.jini-attachment-chip-body {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* The name/size pair are sibling inline elements (<span>/<small>) — without flex-direction:
+   column they render on the same line ("filename.png 24 KB") instead of stacked. */
+.jini-attachment-chip-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.jini-attachment-chip-name,
+.jini-attachment-chip-size {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- MessageList (react/components/MessageList.tsx) ---- */
+
+/* The intended scrollback region; min-height:0 relaxes the default min-height:auto that would
+   otherwise block it from shrinking inside a flex/grid parent instead of scrolling. */
+.jini-message-list {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* ---- ChatPane (features/chat-pane/react/components/ChatPane.tsx) ---- */
+
+/*
+ * The two traps from tovu-learnings.md §7:
+ *
+ * __controls wraps the suggestions row, status banners, and composer area (via
+ * ChatPaneComposerArea's fragment) as siblings. It renders with no inline style at all, so a
+ * consumer who reasonably adds `display: flex` for gap/alignment (a natural first guess for a
+ * composer-area wrapper) gets the browser's row default — suggestions and the composer end up
+ * side by side, squeezing the composer into a sliver. Column is the direction the actual content
+ * needs regardless of who styles it.
+ *
+ * __drop-target (the file-drag-drop wrapper the composer renders inside,
+ * data-testid="chat-pane-file-drop-target") is a flex child of __controls once the above is
+ * fixed. Without flex:1 it shrink-wraps to its content's intrinsic width instead of filling the
+ * row — invisible in a full-width page layout (enough slack that shrink-to-content and
+ * fill-available look the same), real once the pane is docked into a narrower container (e.g. a
+ * 380px sidebar panel).
+ */
+.jini-chat-pane__controls {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.jini-chat-pane__drop-target {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+/* .jini-chat-pane__heading is a <div> (block), .jini-chat-pane__new-thread is a <button>
+   (inline-block) — without flex the heading forces the button onto its own line below it. */
+.jini-chat-pane__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.jini-chat-pane__heading {
+  min-width: 0;
+}
+
+.jini-chat-pane__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The plain-text fallback branch (no working-directory picker slot) renders a <strong>/<code>
+   pair; flex + min-width:0 on the row and flex:1 + min-width:0 on the code element are what let
+   a long path actually ellipsis instead of overflowing once the pane narrows. */
+.jini-chat-pane__workdir {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.jini-chat-pane__workdir code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- AgentRuntimePicker (features/chat-pane/react/components/AgentRuntimePicker.tsx) ---- */
+
+/* An inline-flex element shrink-wraps its content by default and does not shrink to fit a
+   narrower parent on its own (unlike a flex item, which min-width:0 already covers elsewhere in
+   this file) — max-width:100% is what stops the trigger from overflowing .jini-runtime-picker
+   once the agent name + model name are wider than the space available, the same "docked into a
+   380px sidebar" scenario the two named traps above describe. */
+.jini-runtime-picker {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.jini-runtime-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Both wrap a sibling <strong>/<small> pair — inline by default, so without flex-direction:
+   column the agent name and model/status line render on the same line instead of stacked. */
+.jini-runtime-trigger__copy,
+.jini-runtime-agent__copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.jini-runtime-agent__copy {
+  flex: 1;
+}
+
+.jini-runtime-trigger__copy strong,
+.jini-runtime-trigger__copy small,
+.jini-runtime-agent__copy strong,
+.jini-runtime-agent__copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jini-runtime-agent-icon,
+.jini-runtime-trigger__chevron,
+.jini-runtime-check {
+  flex: 0 0 auto;
+}
+
+/* Each is a <button> (inline-block) holding an icon + label(s) as inline siblings — flex gives
+   it both a full-width row (so a list of these reads as uniform rows, not content-sized buttons
+   sitting side by side) and lays out its own icon/label/meta children in a line. */
+.jini-runtime-mode,
+.jini-runtime-agent,
+.jini-runtime-rescan {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.jini-runtime-mode__meta,
+.jini-runtime-agent__status {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Sibling <strong>/<span> pair — inline by default, needs flex-direction:column to stack. */
+.jini-runtime-popover__head {
+  display: flex;
+  flex-direction: column;
+}
+
+/* A <label> wrapping a <span> and a <select> — <label> is inline by default, so without
+   flex-direction:column the "Model"/"Reasoning" text and the dropdown render on the same line
+   instead of label-above-input; multiple sibling <label>s also need this to stack as separate
+   rows rather than flow inline next to each other. */
+.jini-runtime-select {
+  display: flex;
+  flex-direction: column;
+}

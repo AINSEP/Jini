@@ -1,5 +1,5 @@
 // Milestone 1 red-spec ("Harnesses + sync-ownership manifest") — gate N:
-// "`examples/minimal-host` installs only packed `@jini/*` tarballs, OD-noun/
+// "`examples/minimal-host` installs only packed `@jini-ai/*` tarballs, OD-noun/
 // import ban" and "health-boot from tarballs" (foundry/docs/jini-port/extraction-plan.md
 // §7, §8 task 1).
 //
@@ -7,7 +7,7 @@
 // `m1-impl` and must go green without editing these assertions:
 //
 //   `scripts/health-boot.ts`, run as `tsx scripts/health-boot.ts` from the repo
-//   root, must: pack every `@jini/*` dependency of examples/minimal-host into
+//   root, must: pack every `@jini-ai/*` dependency of examples/minimal-host into
 //   tarballs, install those tarballs (never a workspace link) into a scratch
 //   copy of examples/minimal-host, boot/run its entry point from there, and
 //   print one JSON line to stdout: `{ ok: true, marker: 'HEALTH_BOOT_OK',
@@ -21,7 +21,7 @@ import path from 'node:path';
 const repoRoot = path.resolve(__dirname, '..', '..', '..');
 const harnessScript = path.join(repoRoot, 'scripts/health-boot.ts');
 
-describe('milestone 1 gate N — health-boot from packed @jini/* tarballs', () => {
+describe('milestone 1 gate N — health-boot from packed @jini-ai/* tarballs', () => {
   it('ships a health-boot harness script', () => {
     expect(existsSync(harnessScript)).toBe(true);
   });

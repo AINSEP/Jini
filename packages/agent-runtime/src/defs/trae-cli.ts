@@ -17,7 +17,10 @@ export const traeCliAgentDef = {
         defaultModelOption: DEFAULT_MODEL_OPTION,
       }),
     fallbackModels: [DEFAULT_MODEL_OPTION],
-    buildArgs: () => ['acp', 'serve', '--yolo'],
+    // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+    // behavior) unless a caller explicitly opts into a restricted run.
+    buildArgs: (_prompt, _imagePaths, _extra, options = {}) =>
+      options.permissionMode === 'restricted' ? ['acp', 'serve'] : ['acp', 'serve', '--yolo'],
     streamFormat: 'acp-json-rpc',
     mcpDiscovery: 'mature-acp',
     externalMcpInjection: 'acp-merge',

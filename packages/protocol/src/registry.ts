@@ -158,7 +158,7 @@ export const ResolvedRegistryEntrySchema = z.object({
    * trust root configured (the default, unchanged from before this field
    * existed) always resolves entries with `verified: false` — this field
    * never throws and never changes what `trust` means. See
-   * `@jini/registry`'s `trust.ts` for the verifier.
+   * `@jini-ai/registry`'s `trust.ts` for the verifier.
    */
   verified: z.boolean().default(false),
   /** Present only when `verified` is `true` — the verified signature's OIDC issuer. */

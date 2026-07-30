@@ -4,15 +4,15 @@
  * The latest `TodoWrite`-style plan snapshot across a conversation, a
  * dismissed-key so a user's dismissal sticks until the plan actually
  * changes again, and progress counts for a pinned progress-card UI. Pure
- * over `messages` — built on `@jini/chat-core`'s
+ * over `messages` — built on `@jini-ai/chat-core`'s
  * `latestTodoWriteInputForPinnedCard`/`parseTodoWriteInput`. Per
  * `foundry/docs/jini-port/recon/r4b-webui-design.md` §4 (origin: OD's
  * `runtime/todos.ts` pinned-card logic, `components/ToolCard.tsx`'s
  * `TodoCard`'s `onDismiss` convention).
  */
 import { useCallback, useMemo, useState } from 'react';
-import type { ChatMessage, TodoItem } from '@jini/chat-core';
-import { latestTodoWriteInputForPinnedCard, parseTodoWriteInput } from '@jini/chat-core';
+import type { ChatMessage, TodoItem } from '@jini-ai/chat-core';
+import { latestTodoWriteInputForPinnedCard, parseTodoWriteInput } from '@jini-ai/chat-core';
 
 export interface UsePinnedTodosResult {
   todos: TodoItem[];

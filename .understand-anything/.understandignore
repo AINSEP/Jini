@@ -1,0 +1,30 @@
+# .understandignore — ONLY index the user's requested scope:
+#   packages/
+#   foundry/docs/
+#   ADS-memory/
+#   ci-cd-plan.md
+#   ai-control-plane.md
+#
+# Strategy: exclude everything at root, then negate the in-scope paths.
+
+# Exclude everything at root level
+/*
+
+# Include the three folders + two files
+!/packages/
+!/foundry/
+!/ADS-memory/
+!/ci-cd-plan.md
+!/ai-control-plane.md
+
+# Within foundry/, only keep docs/
+/foundry/*
+!/foundry/docs/
+
+# Standard noise inside in-scope paths
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+*.lock
+*.min.js

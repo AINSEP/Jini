@@ -1,20 +1,20 @@
 /**
- * @module @jini/mcp/server/tools/run-tools
+ * @module @jini-ai/mcp/server/tools/run-tools
  *
  * The first real, concrete `McpToolDef`s hosted by `createMcpToolServer`
- * (`../tool-server.js`) — a proxy over `@jini/http`'s already-gated `Run`
+ * (`../tool-server.js`) — a proxy over `@jini-ai/http-kit`'s already-gated `Run`
  * transport (`packages/http/src/runs.ts`) plus the generic active-resource
  * channel (`packages/http/src/active-context.ts`) and the agent-def listing
  * (`packages/http/src/agents.ts`). Each tool's `handler` does nothing but
  * validate its own arguments and proxy a single HTTP call via
  * `../daemon-client.js` — no separate authorization mechanism, no caching,
- * no state: whatever `@jini/http`'s same-origin guard / bearer-auth
+ * no state: whatever `@jini-ai/http-kit`'s same-origin guard / bearer-auth
  * middleware already enforces on the target route is the only gate a call
  * here passes through (see `source-map.md`'s 2026-07-21 addition for the
  * full origin-mapping and what was deliberately not ported).
  */
 import { getDaemonJson, postDaemonJson } from '../daemon-client.js';
-import { requireString, type McpToolDef } from '../tool-protocol.js';
+import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 
 const READ_ANNOTATIONS = {
   readOnlyHint: true,
@@ -65,14 +65,14 @@ export const startRunTool: McpToolDef = {
     if (agentId !== undefined) body.agentId = agentId;
     const idempotencyKey = optionalNonEmptyString(args.idempotencyKey);
     if (idempotencyKey !== undefined) body.idempotencyKey = idempotencyKey;
-    return postDaemonJson(ctx.baseUrl, '/api/runs', body, { fetchImpl: ctx.fetchImpl });
+    return postDaemonJson(ctx.baseUrl, '/api/runs', body, daemonCallOptions(ctx));
   },
 };
 
 /** `get_run` -> `GET /api/runs/:runId` (`packages/http/src/runs.ts`'s `runStatusRoute`). */
 export const getRunTool: McpToolDef = {
   name: 'get_run',
-  description: 'Poll a run started by start_run. Returns {run} with the run\'s current state (queued|running|succeeded|failed|canceled, per @jini/protocol\'s RunState).',
+  description: 'Poll a run started by start_run. Returns {run} with the run\'s current state (queued|running|succeeded|failed|canceled, per @jini-ai/protocol\'s RunState).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -84,7 +84,7 @@ export const getRunTool: McpToolDef = {
   annotations: { ...READ_ANNOTATIONS, title: 'Check a run' },
   handler: async (args, ctx) => {
     requireString(args.runId, 'runId');
-    return getDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}`, { fetchImpl: ctx.fetchImpl });
+    return getDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}`, daemonCallOptions(ctx));
   },
 };
 
@@ -107,7 +107,7 @@ export const cancelRunTool: McpToolDef = {
     const body: Record<string, unknown> = {};
     const reason = optionalNonEmptyString(args.reason);
     if (reason !== undefined) body.reason = reason;
-    return postDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}/cancel`, body, { fetchImpl: ctx.fetchImpl });
+    return postDaemonJson(ctx.baseUrl, `/api/runs/${encodeURIComponent(args.runId)}/cancel`, body, daemonCallOptions(ctx));
   },
 };
 
@@ -124,7 +124,7 @@ export const getActiveContextTool: McpToolDef = {
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { ...READ_ANNOTATIONS, title: 'What is the caller focused on?' },
   handler: async (_args, ctx) => {
-    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', { fetchImpl: ctx.fetchImpl });
+    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', daemonCallOptions(ctx));
     if (data.active !== true) {
       return {
         active: false,
@@ -138,10 +138,10 @@ export const getActiveContextTool: McpToolDef = {
 /** `list_agents` -> `GET /api/agents` (`packages/http/src/agents.ts`'s `agentListRoute`). */
 export const listAgentsTool: McpToolDef = {
   name: 'list_agents',
-  description: 'List every agent def registered with this host\'s @jini/agent-runtime — {id, name} pairs suitable for start_run\'s optional agentId argument. Static registration data only: this does not probe which agent binaries are actually installed on the host machine.',
+  description: 'List every agent def registered with this host\'s @jini-ai/agent-runtime — {id, name} pairs suitable for start_run\'s optional agentId argument. Static registration data only: this does not probe which agent binaries are actually installed on the host machine.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { ...READ_ANNOTATIONS, title: 'List registered agents' },
-  handler: async (_args, ctx) => getDaemonJson(ctx.baseUrl, '/api/agents', { fetchImpl: ctx.fetchImpl }),
+  handler: async (_args, ctx) => getDaemonJson(ctx.baseUrl, '/api/agents', daemonCallOptions(ctx)),
 };
 
 /** The full set of kernel-run tool defs this package ships, ready to pass as `createMcpToolServer`'s `tools` option. */

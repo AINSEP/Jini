@@ -41,7 +41,7 @@ async function makeTempDir(prefix: string): Promise<string> {
   return dir;
 }
 
-describe('@jini/platform — resource-paths — resolveDaemonCliPath', () => {
+describe('@jini-ai/platform — resource-paths — resolveDaemonCliPath', () => {
   it('prefers the primary env var', () => {
     expect(resolveDaemonCliPath(CONFIG, { [CONFIG.cliPathEnvVar]: '/explicit/cli.js' })).toBe(
       path.resolve('/explicit/cli.js'),
@@ -60,7 +60,7 @@ describe('@jini/platform — resource-paths — resolveDaemonCliPath', () => {
   });
 });
 
-describe('@jini/platform — resource-paths — resolveProcessResourcesPath', () => {
+describe('@jini-ai/platform — resource-paths — resolveProcessResourcesPath', () => {
   it('returns resourcesPath when present', () => {
     expect(
       resolveProcessResourcesPath(CONFIG, { resourcesPath: '/app/Resources', execPath: '/app/exec' }),
@@ -84,7 +84,7 @@ describe('@jini/platform — resource-paths — resolveProcessResourcesPath', ()
   });
 });
 
-describe('@jini/platform — resource-paths — resolveDaemonResourceRoot', () => {
+describe('@jini-ai/platform — resource-paths — resolveDaemonResourceRoot', () => {
   it('returns null when unconfigured', () => {
     expect(resolveDaemonResourceRoot(CONFIG, { configured: '' })).toBeNull();
     expect(resolveDaemonResourceRoot(CONFIG, {})).toBeNull();
@@ -109,7 +109,7 @@ describe('@jini/platform — resource-paths — resolveDaemonResourceRoot', () =
   });
 });
 
-describe('@jini/platform — resource-paths — resolveDaemonResourceDir', () => {
+describe('@jini-ai/platform — resource-paths — resolveDaemonResourceDir', () => {
   it('joins under the resource root when present', () => {
     expect(resolveDaemonResourceDir('/resources', 'data/x', '/fallback')).toBe(path.join('/resources', 'data/x'));
   });
@@ -119,7 +119,7 @@ describe('@jini/platform — resource-paths — resolveDaemonResourceDir', () =>
   });
 });
 
-describe('@jini/platform — resource-paths — resolveDaemonPluginPreviewsDir', () => {
+describe('@jini-ai/platform — resource-paths — resolveDaemonPluginPreviewsDir', () => {
   it('returns an absolute override as-is', () => {
     expect(
       resolveDaemonPluginPreviewsDir(CONFIG, {
@@ -153,7 +153,7 @@ describe('@jini/platform — resource-paths — resolveDaemonPluginPreviewsDir',
   });
 });
 
-describe('@jini/platform — resource-paths — resolveDataDir', () => {
+describe('@jini-ai/platform — resource-paths — resolveDataDir', () => {
   it('defaults to <projectRoot>/<defaultDataDirName> when unset', () => {
     expect(resolveDataDir(CONFIG, undefined, '/project')).toBe(path.join('/project', '.fake'));
     expect(resolveDataDir(CONFIG, '   ', '/project')).toBe(path.join('/project', '.fake'));

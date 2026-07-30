@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/server
+ * @module @jini-ai/mcp/server
  * Sub-barrel for the MCP tool-hosting mechanism: the pure tool protocol
  * layer (`tool-protocol.ts`), the pure resource protocol layer
  * (`resource-protocol.ts`), the daemon transport (`daemon-client.ts`), the

@@ -80,7 +80,7 @@ async function makeTempDir(prefix: string): Promise<string> {
   return dir;
 }
 
-describe('@jini/platform — terminal — spawnHelperCandidatePaths', () => {
+describe('@jini-ai/platform — terminal — spawnHelperCandidatePaths', () => {
   it('returns empty on win32', () => {
     expect(spawnHelperCandidatePaths({ platform: 'win32' })).toEqual([]);
   });
@@ -109,14 +109,14 @@ describe('@jini/platform — terminal — spawnHelperCandidatePaths', () => {
     // This package deliberately does not depend on node-pty (see the module docblock) — but
     // whether `require.resolve('node-pty')` actually throws from this file depends on the test
     // runner's own module resolution and on which sibling packages currently declare node-pty as
-    // a real dependency (e.g. @jini/daemon, added 2026-07-21), not on anything this package or
+    // a real dependency (e.g. @jini-ai/daemon, added 2026-07-21), not on anything this package or
     // this test controls. Verified directly, not assumed: a plain `node -e
     // "require.resolve('node-pty')"` run from this package's own directory still throws (real
     // production Node resolution is unaffected by a sibling package's dependency) — only
     // vitest/Vite's broader test-time resolver can differ. Rather than hardcoding an outcome that
     // depends on ambient workspace composition (and silently going stale — exactly the kind of
     // now-false "not installed" assumption that used to make this test fail outright once
-    // @jini/daemon added node-pty), this asserts the real default resolver's behavior is
+    // @jini-ai/daemon added node-pty), this asserts the real default resolver's behavior is
     // internally consistent in whichever state actually holds right now.
     const result = spawnHelperCandidatePaths({ platform: 'linux' });
     if (result.length === 0) {
@@ -144,7 +144,7 @@ describe('@jini/platform — terminal — spawnHelperCandidatePaths', () => {
   });
 });
 
-describe('@jini/platform — terminal — ensureSpawnHelperExecutable', () => {
+describe('@jini-ai/platform — terminal — ensureSpawnHelperExecutable', () => {
   it('chmods a file missing the executable bit, leaves an executable one alone, and ignores a missing file', async () => {
     const dir = await makeTempDir('jini-terminal-helper-');
     const nonExec = join(dir, 'spawn-helper-nonexec');
@@ -160,7 +160,7 @@ describe('@jini/platform — terminal — ensureSpawnHelperExecutable', () => {
   });
 });
 
-describe('@jini/platform — terminal — resolveShell', () => {
+describe('@jini-ai/platform — terminal — resolveShell', () => {
   it('honors an explicit request', () => {
     expect(resolveShell('  /bin/zsh  ')).toBe('/bin/zsh');
   });
@@ -204,7 +204,7 @@ function makeService(overrides: Partial<CreateTerminalServiceOptions> = {}) {
   return { service, ptys, loadSpawnPty };
 }
 
-describe('@jini/platform — terminal — createTerminalService lifecycle', () => {
+describe('@jini-ai/platform — terminal — createTerminalService lifecycle', () => {
   it('creates a session, loading the pty spawner lazily and only once', async () => {
     const { service, loadSpawnPty } = makeService();
     const session = await service.create({ cwd: '/work' });
@@ -302,7 +302,7 @@ describe('@jini/platform — terminal — createTerminalService lifecycle', () =
   });
 });
 
-describe('@jini/platform — terminal — data flow, buffering, and exit', () => {
+describe('@jini-ai/platform — terminal — data flow, buffering, and exit', () => {
   it('flushes small chunks after the frame timer and large chunks immediately', async () => {
     const { service, ptys } = makeService();
     const session = await service.create({ cwd: '/work' });
@@ -414,7 +414,7 @@ describe('@jini/platform — terminal — data flow, buffering, and exit', () =>
   });
 });
 
-describe('@jini/platform — terminal — shutdownActive', () => {
+describe('@jini-ai/platform — terminal — shutdownActive', () => {
   it('kills every active session and waits out the grace window', async () => {
     const { service, ptys } = makeService();
     await service.create({ cwd: '/work' });

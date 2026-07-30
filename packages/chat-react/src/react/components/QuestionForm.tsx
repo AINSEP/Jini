@@ -4,7 +4,7 @@
  * Renders one parsed `<question-form>` as an interactive (or locked/
  * answered) set of controls. Ported from OD's `components/QuestionForm.tsx`
  * (verified 0 OD product references — the file only imports React,
- * `useT()`, and its own question-form types) against `@jini/chat-core`'s
+ * `useT()`, and its own question-form types) against `@jini-ai/chat-core`'s
  * `QuestionForm`/`FormQuestion`/`FormOption`/`DirectionCard`/
  * `formatFormAnswers` (the same shapes, lifted verbatim into chat-core
  * already). className/structure kept verbatim (`question-form`/`qf-*`
@@ -12,8 +12,8 @@
  * string wrapped in `useT()`.
  */
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState, type CSSProperties } from 'react';
-import type { DirectionCard, FormOption, QuestionForm as QuestionFormType } from '@jini/chat-core';
-import { formatFormAnswers, formOptionValueForLabel } from '@jini/chat-core';
+import type { DirectionCard, FormOption, QuestionForm as QuestionFormType } from '@jini-ai/chat-core';
+import { formatFormAnswers, formOptionValueForLabel } from '@jini-ai/chat-core';
 import { useT } from '../hooks/context.js';
 
 export interface QuestionFormFileSubmission {

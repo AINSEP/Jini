@@ -1,0 +1,59 @@
+{
+  "name": "@jini-ai/server",
+  "version": "0.2.1",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/node-host"
+  },
+  "jini": {
+    "domain": "server",
+    "kind": "host",
+    "runtime": "node",
+    "admission": "locked"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@jini-ai/agent-runtime": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/daemon": "workspace:*",
+    "@jini-ai/http-kit": "workspace:*",
+    "@jini-ai/sidecar": "workspace:*",
+    "@jini-ai/sqlite": "workspace:*",
+    "better-sqlite3": "^11.10.0",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^4.17.21",
+    "@vitest/coverage-v8": "^2.1.9"
+  }
+}

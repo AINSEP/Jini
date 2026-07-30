@@ -10,7 +10,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef, RuntimeLock, RuntimeLockHold } from '../types.js';
 
 // `agy` v1.0.3 still has no `--model` flag (upstream issue #35), but the
 // TUI's Switch-Model picker writes the choice to its settings.json, and
@@ -174,6 +174,124 @@ export async function waitForAgyToReadModel(
   return false;
 }
 
+// `agy -p` prints an interactive OAuth sign-in URL to **stdout** and then
+// exits **0** when the keyring entry is missing or expired, so a driver that
+// streams stdout live shows that URL to the user as if it were the model's
+// reply. Two reasons that is a leak, not merely ugly:
+//   - the URL carries the client_id and redirect_uri of a login flow bound to
+//     whoever runs the daemon, and a chat transcript is a far wider audience
+//     than a terminal;
+//   - it is also useless to click: `-p` print mode has no field to paste the
+//     resulting auth code back into (see `auth.ts`'s
+//     `antigravityAuthGuidance`), so the only outcome is a leaked URL.
+// Hence `stdoutPolicy: {buffering: 'until-close'}` plus this redactor.
+//
+// The shape being matched is real, not guessed — it is the same text this
+// package's own `isAntigravityAuthFailureText` already classifies, captured
+// from agy v1.0.3:
+//   Authentication required. Please visit the URL to log in:
+//   https://accounts.google.com/o/oauth2/auth?client_id=…&redirect_uri=antigravity-redirect
+const OAUTH_URL_PATTERN = new RegExp(
+  [
+    // Google's own OAuth 2.0 authorization host — the endpoint agy actually
+    // prints. Host-anchored rather than path-anchored so an upstream move
+    // from `/o/oauth2/auth` to any other path on that host still redacts.
+    String.raw`https?://accounts\.google\.com/\S*`,
+    // Any other absolute URL carrying an OAuth request's or a bearer
+    // credential's hallmark query parameter, so a future change of identity
+    // provider degrades to "redacted" instead of "leaked". Deliberately keyed
+    // on the parameter names rather than on the word "oauth" appearing
+    // somewhere in the URL, which would also eat ordinary documentation links
+    // an assistant reply might legitimately contain.
+    String.raw`https?://\S*[?&](?:client_id|code_challenge|code_verifier|access_token|id_token|refresh_token)=\S*`,
+  ].join('|'),
+  'gi',
+);
+
+/** What a redacted URL is replaced with. Deliberately says *what* was removed, so the surrounding "Please visit the URL to log in:" text does not read as truncated output. */
+const OAUTH_URL_PLACEHOLDER = '[redacted sign-in URL]';
+
+/**
+ * Redacts any OAuth sign-in URL from agy's buffered print-mode stdout,
+ * leaving all other output byte-identical.
+ *
+ * Scoped to redaction on purpose: it does **not** classify the output as an
+ * auth failure or substitute sign-in guidance for it. That classification
+ * already has an owner — `auth.ts`'s `classifyAgentAuthFailure` /
+ * `isAntigravityAuthFailureText`, consumed by whatever surfaces a structured
+ * auth error — and duplicating the decision here would mean this def silently
+ * rewrites assistant text into instructions. See `source-map.md`.
+ *
+ * @param fullText - The concatenation of every stdout chunk agy produced.
+ * @returns The same text with every sign-in URL replaced by a placeholder.
+ * @complexity O(n) in the buffered text length.
+ * @overallScore 100/100
+ */
+export function redactAntigravityAuthUrls(fullText: string): string {
+  return fullText.replace(OAUTH_URL_PATTERN, OAUTH_URL_PLACEHOLDER);
+}
+
+/**
+ * Resolves when `signal` aborts (immediately if it already has). Used instead
+ * of a never-settling `new Promise(() => {})` so a long-lived caller does not
+ * accumulate one permanently-pending promise, plus its captured closure, per
+ * run.
+ */
+function waitUntilAborted(signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    signal.addEventListener('abort', () => resolve(), { once: true });
+  });
+}
+
+/**
+ * Adapts the module-level `acquireAntigravityModelLock` /
+ * `waitForAgyToReadModel` pair to the caller-facing {@link RuntimeLock}
+ * contract. A thin adapter, deliberately: the mutex and the log-polling
+ * handoff detector are the existing, separately-tested functions above, and
+ * this adds no serialization logic of its own.
+ *
+ * The one policy decision it does make — skipping the lock entirely when no
+ * concrete model was selected — mirrors `buildArgs`'s own
+ * `options.model && options.model !== DEFAULT_MODEL_OPTION.id` guard exactly.
+ * The lock guards the `settings.json` write, so when that write will not
+ * happen there is nothing to serialize, and holding the chain anyway would
+ * make a `'default'`-model run queue behind an unrelated one for no benefit.
+ */
+export const antigravityModelLock: RuntimeLock = {
+  acquire: async ({ model }): Promise<RuntimeLockHold> => {
+    if (!model || model === DEFAULT_MODEL_OPTION.id) {
+      // No settings.json write this spawn — hand back an inert hold rather
+      // than joining the chain. `release` must still exist and still be
+      // idempotent: the caller calls it on both handoff and process exit
+      // without knowing which kind of hold it got.
+      return { release: () => {} };
+    }
+    const release = await acquireAntigravityModelLock();
+    return {
+      release,
+      waitForHandoff: async ({ logFilePath, processExited }) => {
+        if (logFilePath !== undefined) {
+          const observed = await waitForAgyToReadModel(logFilePath, model, {
+            abortSignal: processExited,
+          });
+          if (observed) return;
+        }
+        // Reached when either there is no `--log-file` to watch (no
+        // observable propagation signal exists at all), or the watcher
+        // stopped without seeing the line. Neither is evidence that agy
+        // failed to read settings.json — `waitForAgyToReadModel`'s `false`
+        // means "stopped polling" (see its own doc). Resolving here would
+        // release the lock while a cold-starting agy may still be about to
+        // read the file, reopening exactly the race this lock closes. So
+        // hand the release decision back to process exit, the only event
+        // that proves agy can no longer read it.
+        await waitUntilAborted(processExited);
+      },
+    };
+  },
+};
+
 export const antigravityAgentDef = {
   id: 'antigravity',
   name: 'Antigravity',
@@ -257,6 +375,23 @@ export const antigravityAgentDef = {
   },
   promptViaStdin: true,
   streamFormat: 'plain',
+  // `buildArgs` above already consumes `runtimeContext.agentLogFilePath` when
+  // the caller supplies one; this is what asks it to. Two distinct things
+  // depend on the log file, which is why it is not merely a diagnostic nicety
+  // for this adapter:
+  //   - `runtimeLock`'s handoff detector polls it for agy's own
+  //     "Propagating selected model override to backend" line;
+  //   - print mode never echoes auth/quota failures on stdout, so post-exit
+  //     log inspection is the only way to tell those two apart.
+  needsAgentLogFile: true,
+  // The one adapter in this package that must not stream live — see
+  // `redactAntigravityAuthUrls`'s comment for the OAuth-URL-on-stdout-plus-
+  // exit-0 behavior that forces it. Every other `streamFormat: 'plain'`
+  // adapter (grok-build, aider, deepseek, qwen) leaves `stdoutPolicy` unset
+  // and keeps streaming per chunk; aider's and deepseek's own comments call
+  // that live cadence out as deliberate.
+  stdoutPolicy: { buffering: 'until-close', sanitize: redactAntigravityAuthUrls },
+  runtimeLock: antigravityModelLock,
   installUrl: 'https://antigravity.google/cli',
   docsUrl: 'https://antigravity.google/docs/cli-overview',
 } satisfies RuntimeAgentDef;

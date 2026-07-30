@@ -8,9 +8,9 @@
  * Ported from OD's `apps/daemon/src/runtimes/core/executables.ts` with two
  * changes:
  *
- * 1. `wellKnownUserToolchainBins` now comes from `@jini/platform` instead of
+ * 1. `wellKnownUserToolchainBins` now comes from `@jini-ai/platform` instead of
  *    the OD workspace package it originally shipped from (same function,
- *    already verbatim-lifted — see `@jini/platform`'s own `source-map.md`).
+ *    already verbatim-lifted — see `@jini-ai/platform`'s own `source-map.md`).
  * 2. De-branded: the origin's product-prefixed agent-home / resource-root
  *    env var names and its sandbox-runtime-config integration (an
  *    OD-daemon-level subsystem out of this package's charter) are replaced
@@ -23,7 +23,7 @@ import { accessSync, constants, existsSync, statSync } from 'node:fs';
 import { delimiter } from 'node:path';
 import path from 'node:path';
 import { homedir } from 'node:os';
-import { wellKnownUserToolchainBins } from '@jini/platform';
+import { wellKnownUserToolchainBins } from '@jini-ai/platform';
 import { expandHomePath } from './paths.js';
 import type { RuntimeAgentDef } from './types.js';
 

@@ -6,7 +6,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('@jini/platform — http — waitForHttpOk', () => {
+describe('@jini-ai/platform — http — waitForHttpOk', () => {
   it('stringifies a thrown non-Error value from fetch instead of reading .message', async () => {
     vi.stubGlobal(
       'fetch',

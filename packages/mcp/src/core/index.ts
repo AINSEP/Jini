@@ -1,5 +1,5 @@
 /**
- * @module @jini/mcp/core
+ * @module @jini-ai/mcp/core
  * Foundation kernel for the MCP domain: the shared config schema and IO
  * (`config`), the OAuth 2.1 / PKCE client-credential flow (`oauth`), the
  * per-server token store (`tokens`), and the install-payload builder

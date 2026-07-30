@@ -193,18 +193,6 @@ button {
   white-space: nowrap;
 }
 
-.conversation-pane {
-  display: grid;
-  grid-template-rows: 55px auto minmax(0, 1fr) auto auto;
-  min-width: 0;
-  min-height: 0;
-  background:
-    linear-gradient(rgba(39, 38, 33, 0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(39, 38, 33, 0.025) 1px, transparent 1px),
-    #f8f7f3;
-  background-size: 26px 26px;
-}
-
 .topbar {
   display: flex;
   align-items: center;
@@ -257,221 +245,6 @@ button {
 .status-light.online {
   background: #5c9a70;
   box-shadow: 0 0 0 3px rgba(92, 154, 112, 0.14);
-}
-
-.chat-heading {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  padding: 30px 7.5% 18px;
-}
-
-.chat-heading h1 {
-  margin: 4px 0 0;
-  font-size: clamp(24px, 3vw, 34px);
-  font-weight: 600;
-  letter-spacing: -0.045em;
-}
-
-.quiet-button {
-  padding: 7px 11px;
-  color: #747168;
-  font-size: 10px;
-  background: #f7f5ef;
-  border: 1px solid #d8d5cc;
-  border-radius: 7px;
-  cursor: pointer;
-}
-
-.chat-stage {
-  min-height: 0;
-  padding: 0 7.5%;
-}
-
-.jini-message-list {
-  display: flex;
-  flex-direction: column;
-  gap: 17px;
-  height: 100%;
-  padding: 12px 4px 24px;
-  overflow: auto;
-  scrollbar-color: #c9c5bb transparent;
-  scrollbar-width: thin;
-}
-
-.jini-message {
-  max-width: 82%;
-  font-size: 13px;
-  line-height: 1.65;
-}
-
-.jini-message-user {
-  align-self: flex-end;
-  padding: 11px 14px;
-  color: #f5f2e9;
-  background: #292923;
-  border-radius: 14px 14px 4px 14px;
-  box-shadow: 0 6px 18px rgba(37, 36, 31, 0.08);
-}
-
-.jini-message-assistant {
-  align-self: flex-start;
-  width: 100%;
-  padding-left: 17px;
-  border-left: 2px solid #e4d86f;
-}
-
-.jini-message-content p {
-  margin: 0 0 10px;
-}
-
-.jini-message-content p:last-child {
-  margin-bottom: 0;
-}
-
-.jini-message-content code,
-.jini-tool-card code {
-  padding: 1px 4px;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: 0.88em;
-  background: #ebe9e1;
-  border-radius: 4px;
-}
-
-.jini-message-content blockquote {
-  margin: 10px 0;
-  padding: 7px 11px;
-  color: #66635b;
-  background: #efede6;
-  border-left: 2px solid #aaa69b;
-}
-
-.jini-message-pending {
-  color: #87847b;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: 10px;
-}
-
-.jini-message-error,
-.run-error {
-  color: #9a4a3e;
-}
-
-.jini-message-tools {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  margin: 11px 0;
-}
-
-.jini-tool-card {
-  padding: 9px 11px;
-  font-size: 11px;
-  background: #efede6;
-  border: 1px solid #dad7ce;
-  border-radius: 8px;
-}
-
-.prompt-suggestions {
-  display: flex;
-  gap: 7px;
-  padding: 7px 7.5% 9px;
-  overflow-x: auto;
-}
-
-.prompt-suggestions button {
-  flex: 0 0 auto;
-  max-width: 300px;
-  padding: 7px 10px;
-  overflow: hidden;
-  color: #716e65;
-  font-size: 9px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  background: rgba(248, 247, 243, 0.8);
-  border: 1px solid #dbd8cf;
-  border-radius: 999px;
-  cursor: pointer;
-}
-
-.prompt-suggestions button:hover {
-  color: #35342e;
-  border-color: #aaa69b;
-}
-
-.composer-wrap {
-  position: relative;
-  padding: 0 7.5% 25px;
-}
-
-.jini-composer {
-  padding: 8px;
-  background: #fffefa;
-  border: 1px solid #cbc8bf;
-  border-radius: 13px;
-  box-shadow:
-    0 14px 35px rgba(41, 40, 35, 0.09),
-    inset 0 1px white;
-}
-
-.jini-composer-input {
-  display: block;
-  width: 100%;
-  min-height: 62px;
-  padding: 8px 9px;
-  resize: none;
-  color: #292823;
-  font-size: 12px;
-  line-height: 1.5;
-  background: transparent;
-  border: 0;
-  outline: 0;
-}
-
-.jini-composer-input::placeholder {
-  color: #aaa79e;
-}
-
-.jini-composer-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-}
-
-.jini-composer-send {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  color: #f5f2e9;
-  background: #292923;
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.jini-composer-send:disabled {
-  color: #aaa79e;
-  background: #e7e4db;
-  cursor: default;
-}
-
-.cancel-run {
-  position: absolute;
-  right: calc(7.5% + 48px);
-  bottom: 36px;
-  padding: 5px 8px;
-  color: #925044;
-  font-size: 9px;
-  background: #f6e8e3;
-  border: 0;
-  border-radius: 6px;
-  cursor: pointer;
-}
-
-.run-error {
-  padding: 0 7.5% 8px;
-  font-size: 11px;
 }
 
 .inspector {
@@ -661,5 +434,1081 @@ button {
 
   .conversation-pane {
     min-height: 100%;
+  }
+}
+
+/* Playground workbench: sample preview in the center, real chat shell on the right. */
+
+.desktop-shell {
+  box-sizing: border-box;
+  height: 100vh;
+  padding-top: 36px;
+}
+
+.desktop-drag-region {
+  position: fixed;
+  z-index: 1000;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 36px;
+  background: #e9e7e0;
+  border-bottom: 1px solid #d2cec5;
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.playground-shell {
+  grid-template-columns:
+    clamp(180px, 15vw, 220px)
+    minmax(0, 1fr)
+    clamp(340px, 29vw, 440px);
+}
+
+.workspace-pane {
+  display: grid;
+  grid-template-rows: 55px minmax(0, 1fr);
+  min-width: 0;
+  min-height: 0;
+  background: #e8e6df;
+}
+
+.surface-chip {
+  padding: 4px 7px;
+  color: #5e5c55;
+  background: #ece9e1;
+  border: 1px solid #d5d1c8;
+  border-radius: 999px;
+}
+
+.workspace-body {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 17px;
+  min-width: 0;
+  min-height: 0;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.workspace-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.workspace-heading > div:first-child {
+  min-width: 0;
+}
+
+.workspace-heading h2 {
+  margin: 5px 0 3px;
+  font-size: clamp(24px, 2.5vw, 34px);
+  font-weight: 600;
+  letter-spacing: -0.045em;
+}
+
+.workspace-heading p {
+  margin: 0;
+  color: #77746c;
+  font-size: 11px;
+}
+
+.workspace-badges {
+  display: flex;
+  gap: 6px;
+}
+
+.workspace-badges span {
+  padding: 5px 7px;
+  color: #706d65;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 8px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid #d4d0c6;
+  border-radius: 999px;
+}
+
+.browser-preview,
+.code-preview {
+  min-height: 0;
+  overflow: hidden;
+  background: #f9f8f4;
+  border: 1px solid #c9c5bb;
+  border-radius: 15px;
+  box-shadow: 0 24px 70px rgba(55, 52, 43, 0.12);
+}
+
+.browser-preview {
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+}
+
+.browser-chrome {
+  display: grid;
+  grid-template-columns: 80px minmax(160px, 1fr) 80px;
+  gap: 14px;
+  align-items: center;
+  padding: 0 14px;
+  background: #f0eee8;
+  border-bottom: 1px solid #d8d4ca;
+}
+
+.traffic-lights {
+  display: flex;
+  gap: 6px;
+}
+
+.traffic-lights i {
+  width: 8px;
+  height: 8px;
+  background: #cfc9bd;
+  border-radius: 50%;
+}
+
+.traffic-lights i:first-child {
+  background: #d97764;
+}
+
+.traffic-lights i:nth-child(2) {
+  background: #d6af55;
+}
+
+.traffic-lights i:nth-child(3) {
+  background: #70a374;
+}
+
+.address-bar {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  justify-self: center;
+  width: min(100%, 430px);
+  padding: 6px 10px;
+  color: #858179;
+  background: #faf9f5;
+  border: 1px solid #dad6cd;
+  border-radius: 7px;
+}
+
+.address-bar code {
+  overflow: hidden;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-live {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  justify-self: end;
+  color: #6b776d;
+  font-size: 9px;
+}
+
+.preview-live i {
+  width: 6px;
+  height: 6px;
+  background: #5c9a70;
+  border-radius: 50%;
+}
+
+.browser-preview iframe {
+  width: 100%;
+  height: 100%;
+  background: #e9e5da;
+  border: 0;
+}
+
+.code-preview {
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr);
+  color: #d9d8d1;
+  background: #22231f;
+}
+
+.code-tabs {
+  display: flex;
+  gap: 2px;
+  align-items: end;
+  padding: 0 12px;
+  background: #292a25;
+  border-bottom: 1px solid #363731;
+}
+
+.code-tabs span {
+  padding: 12px 10px 10px;
+  color: #7f8078;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+}
+
+.code-tabs span.active {
+  color: #e9e7df;
+  border-bottom: 2px solid #e4d86f;
+}
+
+.code-tabs b {
+  margin: 0 0 10px auto;
+  color: #d89b82;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 8px;
+  font-weight: 500;
+}
+
+.code-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-height: 0;
+}
+
+.code-columns pre {
+  min-width: 0;
+  margin: 0;
+  padding: 21px;
+  overflow: auto;
+  font: 10px/1.7 'SFMono-Regular', Consolas, monospace;
+}
+
+.code-columns pre + pre {
+  border-left: 1px solid #363731;
+}
+
+.workspace-meta {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.file-strip,
+.parity-strip {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.file-strip {
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.file-strip span {
+  color: #817e75;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.file-strip code {
+  padding: 5px 7px;
+  color: #68665f;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 8px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid #d2cec4;
+  border-radius: 5px;
+}
+
+.parity-strip {
+  flex: 0 0 auto;
+}
+
+.parity-strip span {
+  color: #77746d;
+  font-size: 8px;
+}
+
+.parity-strip b {
+  color: #4e875f;
+}
+
+.chat-pane {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #fbfaf7;
+  border-left: 1px solid #cbc8bf;
+  box-shadow: -12px 0 36px rgba(48, 46, 40, 0.05);
+}
+
+@media (max-width: 1180px) {
+  .playground-shell {
+    grid-template-columns:
+      clamp(170px, 18vw, 190px)
+      minmax(0, 1fr)
+      clamp(330px, 36vw, 390px);
+  }
+
+  .workspace-badges,
+  .parity-strip {
+    display: none;
+  }
+}
+
+@media (max-width: 960px) {
+  .playground-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(340px, 390px);
+  }
+
+  .project-rail {
+    display: none;
+  }
+
+  .workspace-body {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 720px) {
+  .playground-shell {
+    display: block;
+    overflow: auto;
+  }
+
+  .workspace-pane {
+    display: none;
+  }
+
+  .chat-pane {
+    min-height: 100vh;
+    border-left: 0;
+  }
+}
+
+/*
+ * Agent lab (`#/agent-lab`) — the plain React page the page verbs are proven against.
+ * Intentionally plain: it is a test surface, not a showcase, and anything decorative here
+ * would just be more DOM to disambiguate when resolving an element handle.
+ */
+.agent-lab {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.agent-lab h1 {
+  margin: 4px 0 8px;
+  font-size: 28px;
+}
+
+.agent-lab p {
+  margin: 0;
+  color: var(--muted, #6b7280);
+  line-height: 1.5;
+}
+
+.agent-lab nav {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.agent-lab label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.agent-lab .input-row {
+  display: flex;
+  gap: 8px;
+}
+
+.agent-lab .input-row input {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d4d4d8);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.agent-lab button {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-lab ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.agent-lab ul li label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-weight: 400;
+  padding: 10px 12px;
+  border: 1px solid var(--border, #e4e4e7);
+  border-radius: 8px;
+}
+
+.agent-lab fieldset {
+  border: 1px dashed var(--border, #d4d4d8);
+  border-radius: 8px;
+  padding: 12px 16px 16px;
+}
+
+.agent-lab fieldset legend {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted, #6b7280);
+}
+
+.agent-lab fieldset input[type='password'] {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border, #d4d4d8);
+  border-radius: 8px;
+  font: inherit;
+}
+
+.agent-lab footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--muted, #6b7280);
+  border-top: 1px solid var(--border, #e4e4e7);
+  padding-top: 16px;
+}
+
+/*
+ * Agent lab shell: content + an inline chat pane, side by side.
+ *
+ * The pane is a flex sibling rather than an overlay, so opening it *reflows* the page instead of
+ * covering it — the same shape a real product uses when it docks a chat panel into an admin
+ * screen. `hidden` on the aside removes it from layout entirely, so closing genuinely returns the
+ * space rather than leaving a gap.
+ */
+.agent-lab-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.agent-lab-shell > .agent-lab {
+  flex: 1 1 auto;
+  min-width: 0; /* lets the content actually shrink instead of overflowing the flex row */
+  transition: max-width 160ms ease;
+}
+
+.agent-lab-chat {
+  flex: 0 0 var(--agent-lab-chat-width, 400px);
+  max-width: 100%;
+  border-left: 1px solid var(--border, #e4e4e7);
+  display: flex;
+  flex-direction: column;
+  /*
+   * Bounded height, not `min-height`. A floor let the pane grow to whatever the transcript needed
+   * (measured at 3535px against a 790px viewport), so the *page* scrolled and the composer walked
+   * off the bottom of the screen — even though `.jini-message-list` already has `overflow-y: auto`
+   * and was perfectly willing to scroll if anything had constrained it.
+   *
+   * `sticky` + `align-self: flex-start` keeps the pane in view while the page behind it scrolls.
+   * Sticky needs the item to be shorter than its flex row to have anywhere to stick, and the
+   * parent's `align-items: stretch` would otherwise size it to the full row.
+   */
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  background: var(--surface, #fff);
+}
+
+.agent-lab-chat > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Narrow viewports have no room to split: the pane takes over instead of squeezing the page
+   into a unusable column. */
+@media (max-width: 860px) {
+  .agent-lab-shell {
+    display: block;
+  }
+
+  .agent-lab-chat {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border-left: 0;
+  }
+
+  .agent-lab-shell-open > .agent-lab {
+    display: none;
+  }
+}
+
+.chat-fab {
+  position: fixed;
+  /*
+   * Bottom-LEFT. On the right it sat on top of the composer's Send button — the pane docks to the
+   * right edge, so a fixed 24px-from-right control and the composer's trailing button occupy the
+   * same corner. Measured: Send at x 1075-1107, the FAB at x 1056-1108, and
+   * `document.elementFromPoint` over Send returned the FAB, so a mouse click could not reach Send
+   * at all. Worse, the click it *did* hit toggles the pane shut, which reads as "the pane randomly
+   * closes itself".
+   */
+  left: 24px;
+  bottom: 24px;
+  z-index: 50;
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 22%);
+  cursor: grab;
+  /* The button owns the pointer gesture for dragging; without this the browser's own scroll and
+     text-selection handling fights it on touch and trackpads. */
+  touch-action: none;
+  user-select: none;
+}
+
+.chat-fab:active {
+  cursor: grabbing;
+}
+
+.chat-fab:focus-visible {
+  outline: 3px solid var(--accent, #4f46e5);
+  outline-offset: 3px;
+}
+
+.chat-fab-open {
+  background: var(--muted, #52525b);
+}
+
+/*
+ * The lab's additional views. One surface, several views — so these deliberately reuse the
+ * `.agent-lab` container's spacing rather than establishing their own layout: an agent navigating
+ * between them should find the same shapes, not a different app.
+ */
+.lab-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.lab-page form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lab-page label.inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 400;
+}
+
+.lab-page dl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.lab-page dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 12px;
+  border: 1px solid var(--border, #e4e4e7);
+  border-radius: 8px;
+}
+
+.lab-page dt {
+  color: var(--muted, #52525b);
+}
+
+.lab-page dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+/*
+ * The cross-page nav. Sticky so it survives scrolling on the longer form views — a nav you have
+ * to scroll back up to reach is a nav you stop using.
+ */
+.lab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.9rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+}
+
+/* The current page id, published for agents; it needs no visual weight of its own. */
+.lab-nav [data-agent-element='lab-nav-current'] {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.55;
+  margin-right: 0.25rem;
+}
+
+.lab-nav-active {
+  font-weight: 700;
+  text-decoration: none;
+  cursor: default;
+}
+
+/* A button that reads as a link, so the nav row stays one visual group. */
+.link-button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent, #4f46e5);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/*
+ * No chat-pane CSS lives in this host anymore. `@jini-ai/chat-react` turned out to already ship a
+ * complete default theme (`packages/chat-react/src/features/chat-pane/react/styles.ts`, injected
+ * as a <style> tag) — the actual gap was that its user-bubble selectors had drifted from what
+ * `MessageRow.tsx` renders (dead `.jini-message-row[data-role="user"]`, never `.jini-message-user`)
+ * and it never covered tool-call cards or the usage-summary line at all. Both are fixed in that
+ * file now, which benefits every `@jini-ai/chat-react` consumer, not just this one — duplicating an
+ * app-local copy here would only reintroduce the drift risk that caused the original bug.
+ */
+/* ---------------------------------------------------------------------------------------------
+   A2UI Lab (#/a2ui-lab) — a small, self-contained view; deliberately not squeezed into the
+   3-column .playground-shell grid, since it renders an agent-controlled surface, not a chat.
+--------------------------------------------------------------------------------------------- */
+
+.a2ui-lab-shell {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  background: #f4f2ed;
+  overflow: auto;
+}
+
+.a2ui-lab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px;
+  border-bottom: 1px solid #ddd8cb;
+}
+
+.a2ui-lab-header h1 {
+  margin: 2px 0 0;
+  font-size: 20px;
+}
+
+.a2ui-lab-body {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) 340px;
+  gap: 20px;
+  padding: 24px 28px 32px;
+  flex: 1;
+  min-height: 0;
+}
+
+.a2ui-lab-surface {
+  background: #ffffff;
+  border: 1px solid #ddd8cb;
+  border-radius: 12px;
+  padding: 24px;
+  align-self: start;
+}
+
+.a2ui-lab-waiting {
+  color: #7a7666;
+  font-style: italic;
+}
+
+.a2ui-lab-error {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fbe6e2;
+  color: #8a2c1f;
+  font-size: 13px;
+}
+
+.a2ui-lab-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #23231f;
+  color: #eeece4;
+  border-radius: 12px;
+  padding: 18px;
+  align-self: start;
+}
+
+.a2ui-lab-log-title {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a9a596;
+}
+
+.a2ui-lab-log {
+  margin: 0;
+  padding: 10px;
+  background: #171713;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow: auto;
+}
+
+/* A2UI catalog rendering — Column/Row/Text/Button; @jini-ai/a2ui's catalog validates all 18 of the real basic catalog's components, but this renderer (shared by the lab page and A2uiSurfaceCard below) still only draws these 4 — see packages/a2ui/source-map.md for the renderer-coverage gap against the catalog. */
+
+.a2ui-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.a2ui-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+}
+
+.a2ui-text {
+  display: block;
+}
+
+.a2ui-text-caption {
+  font-size: 12px;
+  color: #7a7666;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.a2ui-text-body {
+  font-size: 15px;
+}
+
+.a2ui-button {
+  padding: 10px 18px;
+  border-radius: 8px;
+  border: 1px solid #ddd8cb;
+  background: #f4f2ed;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.a2ui-button-primary {
+  background: #23231f;
+  color: #ffffff;
+  border-color: #23231f;
+}
+
+.a2ui-button-borderless {
+  border-color: transparent;
+  background: transparent;
+  text-decoration: underline;
+}
+
+.a2ui-placeholder {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #fbe6e2;
+  color: #8a2c1f;
+  font-size: 12px;
+}
+
+/*
+ * A2UI surface rendered inline in the chat transcript (A2uiSurfaceCard, registered against
+ * ext-event-renderer-registry.ts's 'a2ui' name) — a narrower, message-bubble-scoped treatment of
+ * the same Column/Row/Text/Button rendering above, distinct from .a2ui-lab-surface's full-page
+ * chrome.
+ */
+.a2ui-surface-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 14px;
+  border: 1px solid #ddd8cb;
+  border-radius: 10px;
+  background: #ffffff;
+  max-width: 100%;
+}
+
+.a2ui-surface-waiting {
+  color: #7a7666;
+  font-style: italic;
+  font-size: 13px;
+}
+
+.a2ui-surface-refused {
+  color: #8a2c1f;
+  font-size: 13px;
+}
+
+.a2ui-surface-notice {
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.a2ui-surface-notice-refused {
+  background: #fbe6e2;
+  color: #8a2c1f;
+}
+
+.a2ui-surface-notice-unwired {
+  background: #f4f2ed;
+  color: #7a7666;
+}
+
+/*
+ * MCP Apps lab (`#/mcpui-lab`) — the MCP-UI/MCP-Apps stress-test fixture. Same shell shape as
+ * `.agent-lab-shell` (content + inline chat pane, reflow not overlay) with its own class prefix
+ * so nothing here can accidentally leak agent-lab styling or vice versa.
+ */
+.mcpui-lab-shell {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.mcpui-lab-shell > .mcpui-lab-page {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.mcpui-lab-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 24px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.mcpui-lab-page h1 {
+  margin: 4px 0 8px;
+  font-size: 28px;
+}
+
+.mcpui-lab-page p {
+  margin: 0;
+  color: var(--muted, #6b7280);
+  line-height: 1.5;
+}
+
+.mcpui-lab-harness-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mcpui-lab-harness-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mcpui-lab-harness-controls select,
+.mcpui-lab-harness-controls button {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font: inherit;
+}
+
+.mcpui-lab-harness-controls select {
+  border: 1px solid var(--border, #d4d4d8);
+}
+
+.mcpui-lab-harness-controls button {
+  border: 0;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  cursor: pointer;
+}
+
+.mcpui-lab-frame {
+  border: 1px solid var(--border, #e4e4e7);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcpui-lab-frame-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.mcpui-lab-state {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--surface-muted, #f4f4f5);
+  color: var(--muted, #6b7280);
+}
+
+.mcpui-lab-state-ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mcpui-lab-state-timed-out {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.mcpui-lab-size {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+}
+
+.mcpui-lab-iframe {
+  width: 100%;
+  min-height: 260px;
+  border: 1px solid var(--border, #d4d4d8);
+  border-radius: 8px;
+}
+
+.mcpui-lab-frame-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.mcpui-lab-frame-controls button {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent, #4f46e5);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mcpui-lab-frame-controls button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mcpui-lab-teardown-note {
+  color: var(--muted, #6b7280);
+}
+
+.mcpui-lab-frame-log {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  max-height: 180px;
+  overflow: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  border: 1px dashed var(--border, #d4d4d8);
+  border-radius: 8px;
+  background: var(--surface-muted, #fafafa);
+}
+
+.mcpui-lab-frame-log li {
+  padding: 1px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mcpui-lab-frame-log li[data-dir='out'] { color: #2563eb; }
+.mcpui-lab-frame-log li[data-dir='in'] { color: #16a34a; }
+.mcpui-lab-frame-log li[data-dir='rejected'],
+.mcpui-lab-frame-log li[data-dir='refused'] { color: #dc2626; }
+.mcpui-lab-frame-log li[data-dir='timeout'] { color: #d97706; }
+
+.mcpui-lab-tool-error {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 13px;
+}
+
+.mcpui-lab-chat {
+  flex: 0 0 var(--agent-lab-chat-width, 400px);
+  max-width: 100%;
+  border-left: 1px solid var(--border, #e4e4e7);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  align-self: flex-start;
+  background: var(--surface, #fff);
+}
+
+.mcpui-lab-chat > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+@media (max-width: 860px) {
+  .mcpui-lab-shell {
+    display: block;
+  }
+
+  .mcpui-lab-chat {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border-left: 0;
+  }
+
+  .mcpui-lab-shell-open > .mcpui-lab-page {
+    display: none;
   }
 }

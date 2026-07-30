@@ -21,10 +21,13 @@
  * once that god-component gets its own extraction task).
  */
 import type { ReactNode } from 'react';
-import type { ChatAttachment, ChatMessage } from '@jini/chat-core';
-import { splitOnQuestionForms, stripArtifact } from '@jini/chat-core';
+import type { AgentEvent, ChatAttachment, ChatMessage } from '@jini-ai/chat-core';
+import { splitOnQuestionForms, stripArtifact } from '@jini-ai/chat-core';
 import { useToolTimeline } from '../hooks/useToolTimeline.js';
+import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
 import { useT } from '../hooks/context.js';
+import { getExtEventRenderer } from '../../ext-event-renderer-registry.js';
+import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
 import { Markdown } from './Markdown.js';
 import { ToolCard } from './ToolCard.js';
 import { QuestionForm } from './QuestionForm.js';
@@ -44,6 +47,31 @@ export interface MessageRowProps {
   renderAttachment?: (attachment: ChatAttachment) => ReactNode;
 }
 
+type UsageEvent = Extract<AgentEvent, { kind: 'usage' }>;
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+}
+
+/** One "Done · 6m 29s · 2612 out · $0.4028" summary line, from the run's own `kind:'usage'` event — never estimated client-side. Renders only the fields the event actually carries, so a transport that supplies partial usage data degrades gracefully instead of showing fabricated zeros. */
+function UsageSummary({ usage }: { usage: UsageEvent }) {
+  const t = useT();
+  const parts: string[] = [];
+  if (usage.durationMs !== undefined) parts.push(formatDuration(usage.durationMs));
+  if (usage.outputTokens !== undefined) parts.push(t('{n} out', { n: usage.outputTokens }));
+  if (usage.costUsd !== undefined) parts.push(`$${usage.costUsd.toFixed(4)}`);
+  if (parts.length === 0) return null;
+  return (
+    <div className="jini-message-usage">
+      <span className="jini-message-usage-dot" aria-hidden>●</span>
+      {t('Done')} · {parts.join(' · ')}
+    </div>
+  );
+}
+
 export function MessageRow({
   message,
   runStreaming = false,
@@ -57,10 +85,17 @@ export function MessageRow({
 }: MessageRowProps) {
   const t = useT();
   const timeline = useToolTimeline(message.events, { runStreaming, runSucceeded });
+  const extGroups = useExtEventGroups(message.events);
 
   if (message.role === 'user') {
     return (
-      <div className="jini-message jini-message-user" data-message-id={message.id}>
+      <div
+        className="jini-message jini-message-user"
+        data-message-id={message.id}
+        data-agent-element={`chat-message-${message.id}`}
+        data-agent-role="region"
+        data-agent-label="A message from the user"
+      >
         {message.attachments && message.attachments.length > 0 ? (
           <div className="jini-message-attachments">
             {message.attachments.map((a) => (
@@ -77,9 +112,17 @@ export function MessageRow({
 
   const visibleContent = stripArtifact(message.content);
   const segments = splitOnQuestionForms(visibleContent);
+  const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
 
   return (
-    <div className="jini-message jini-message-assistant" data-message-id={message.id} data-run-status={message.runStatus}>
+    <div
+      className="jini-message jini-message-assistant"
+      data-message-id={message.id}
+      data-run-status={message.runStatus}
+      data-agent-element={`chat-message-${message.id}`}
+      data-agent-role="region"
+      data-agent-label="A reply from the assistant"
+    >
       {message.agentName ? <div className="jini-message-agent">{message.agentName}</div> : null}
       {segments.map((segment, i) =>
         segment.kind === 'text' ? (
@@ -105,6 +148,26 @@ export function MessageRow({
           ))}
         </div>
       ) : null}
+      {extGroups.length > 0 ? (
+        <div className="jini-message-ext-events">
+          {extGroups.map((group) => {
+            const renderer = getExtEventRenderer(group.name);
+            if (!renderer) return null;
+            const node = renderer({ name: group.name, events: group.events, runStreaming, runSucceeded, runId: message.runId });
+            if (!node) return null;
+            return (
+              // `key` includes the event count so a group that failed on an earlier, shorter
+              // event list gets a fresh boundary instance (not the still-tripped one) once a new
+              // event actually arrives for it, instead of staying tombstoned for the message's
+              // whole lifetime.
+              <ExtEventErrorBoundary key={`${group.name}:${group.events.length}`} name={group.name}>
+                <div>{node}</div>
+              </ExtEventErrorBoundary>
+            );
+          })}
+        </div>
+      ) : null}
+      {usageEvent ? <UsageSummary usage={usageEvent} /> : null}
       {message.runStatus === 'failed' ? <div className="jini-message-error">{t('This turn failed.')}</div> : null}
       {message.runStatus === 'running' && !visibleContent.trim() && timeline.rows.length === 0 ? (
         <div className="jini-message-pending" aria-live="polite">

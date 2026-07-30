@@ -25,13 +25,18 @@ describe('traeCliAgentDef.fetchModels', () => {
 });
 
 describe('traeCliAgentDef.buildArgs', () => {
-  it('always returns the ACP serve --yolo argv, ignoring any input params', () => {
+  it('always returns the ACP serve --yolo argv, ignoring prompt/images/dirs/model/cwd', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = traeCliAgentDef.buildArgs;
     expect(buildArgs('prompt', ['img.png'], ['/extra'], { model: 'x' }, { cwd: '/a' })).toEqual([
       'acp',
       'serve',
       '--yolo',
     ]);
+  });
+
+  it('omits --yolo when permissionMode is "restricted"', () => {
+    const buildArgs: RuntimeAgentDef['buildArgs'] = traeCliAgentDef.buildArgs;
+    expect(buildArgs('prompt', [], [], { permissionMode: 'restricted' })).toEqual(['acp', 'serve']);
   });
 });
 
