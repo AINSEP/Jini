@@ -163,11 +163,19 @@ export async function waitForAgyToReadModel(
     }
     if (now() >= deadline) break;
     await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, pollIntervalMs);
       const onAbort = () => {
         clearTimeout(timer);
         resolve();
       };
+      // `{ once: true }` only detaches the listener on the abort path. When the
+      // timer wins instead — the common case, once per poll — the listener would
+      // stay attached to a signal that outlives this iteration, so a default
+      // 15s/250ms run accumulates ~60 of them on the same AbortSignal before the
+      // process exits. Detach explicitly on the timer path too.
+      const timer = setTimeout(() => {
+        abortSignal?.removeEventListener('abort', onAbort);
+        resolve();
+      }, pollIntervalMs);
       abortSignal?.addEventListener('abort', onAbort, { once: true });
     });
   }

@@ -35,13 +35,16 @@ export const devinAgentDef = {
       { id: 'gpt', label: 'gpt' },
       { id: 'gemini', label: 'gemini' },
     ],
-    buildArgs: () => [
-      '--permission-mode',
-      'dangerous',
-      '--respect-workspace-trust',
-      'false',
-      'acp',
-    ],
+    // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+    // behavior) unless a caller explicitly opts into a restricted run. Restricted drops
+    // both overrides rather than substituting a different `--permission-mode` value, so
+    // the CLI falls back to its own built-in default mode and to respecting workspace
+    // trust — the conservative side of each flag, without this def having to name a
+    // safe-mode string it cannot verify against the installed `devin` build.
+    buildArgs: (_prompt, _imagePaths, _extra, options = {}) =>
+      options.permissionMode === 'restricted'
+        ? ['acp']
+        : ['--permission-mode', 'dangerous', '--respect-workspace-trust', 'false', 'acp'],
     streamFormat: 'acp-json-rpc',
     externalMcpInjection: 'acp-merge',
 } satisfies RuntimeAgentDef;

@@ -57,4 +57,26 @@ describe('copilotAgentDef.buildArgs', () => {
     const args = copilotAgentDef.buildArgs('hi', [], null as unknown as string[]);
     expect(args).not.toContain('--add-dir');
   });
+
+  it('omits --allow-all-tools entirely when permissionMode is "restricted"', () => {
+    const args = copilotAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    expect(args).not.toContain('--allow-all-tools');
+    expect(args).toEqual(['--output-format', 'json']);
+  });
+
+  it('still emits --allow-all-tools when permissionMode is explicitly "bypass"', () => {
+    expect(copilotAgentDef.buildArgs('hi', [], [], { permissionMode: 'bypass' })).toEqual([
+      '--allow-all-tools',
+      '--output-format',
+      'json',
+    ]);
+  });
+
+  it('still adds --model and --add-dir after omitting --allow-all-tools in restricted mode', () => {
+    const args = copilotAgentDef.buildArgs('hi', [], ['/dir-a'], {
+      permissionMode: 'restricted',
+      model: 'gpt-5.2',
+    });
+    expect(args).toEqual(['--output-format', 'json', '--model', 'gpt-5.2', '--add-dir', '/dir-a']);
+  });
 });

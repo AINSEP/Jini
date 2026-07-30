@@ -157,12 +157,27 @@ export async function handleToolCall(
     return errorResult(`unknown tool: ${name}`);
   }
   const args = rawArgs ?? {};
-  const validation = validatorForTool(tool)(args);
-  if (!validation.valid) {
-    return errorResult(sanitizeUntrustedText(`invalid arguments for ${name}: ${validation.errorMessage}`));
+  // Validation gets its own error boundary, separate from the handler's below. The
+  // validator does not only return `{valid:false}` for a bad argument — `@cfworker/json-schema`
+  // *throws* for JavaScript values JSON cannot encode (an explicitly-`undefined` optional
+  // property yields `Instances of "undefined" type are not supported.`). Compiling the
+  // validator can throw too, on a malformed `inputSchema`. Either escaping would break this
+  // function's whole contract, that a schema violation is an `{isError:true}` result and never
+  // a rejection — and `handleToolCall` is exported, typed `Record<string, unknown>`, and
+  // callable directly by a host, so this is reachable and not merely theoretical.
+  let validatedArgs: Record<string, unknown>;
+  try {
+    const validation = validatorForTool(tool)(args);
+    if (!validation.valid) {
+      return errorResult(sanitizeUntrustedText(`invalid arguments for ${name}: ${validation.errorMessage}`));
+    }
+    validatedArgs = validation.data;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return errorResult(sanitizeUntrustedText(`invalid arguments for ${name}: ${message}`));
   }
   try {
-    const result = await tool.handler(validation.data, ctx);
+    const result = await tool.handler(validatedArgs, ctx);
     return okResult(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

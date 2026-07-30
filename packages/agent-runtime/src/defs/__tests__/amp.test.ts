@@ -49,4 +49,23 @@ describe('ampAgentDef.buildArgs', () => {
   it('defaults extraAllowedDirs and options when omitted entirely', () => {
     expect(() => ampAgentDef.buildArgs('hi', [])).not.toThrow();
   });
+
+  it('omits --dangerously-allow-all entirely when permissionMode is "restricted"', () => {
+    const args = ampAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    expect(args).not.toContain('--dangerously-allow-all');
+    expect(args).toEqual(['-x', '--stream-json']);
+  });
+
+  it('still emits --dangerously-allow-all when permissionMode is explicitly "bypass"', () => {
+    expect(ampAgentDef.buildArgs('hi', [], [], { permissionMode: 'bypass' })).toEqual([
+      '-x',
+      '--stream-json',
+      '--dangerously-allow-all',
+    ]);
+  });
+
+  it('still maps a recognized mode onto --mode after omitting the bypass flag in restricted mode', () => {
+    const args = ampAgentDef.buildArgs('hi', [], [], { permissionMode: 'restricted', model: 'deep' });
+    expect(args).toEqual(['-x', '--stream-json', '--mode', 'deep']);
+  });
 });

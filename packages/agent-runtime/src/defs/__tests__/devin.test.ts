@@ -27,10 +27,29 @@ describe('devinAgentDef shape', () => {
 });
 
 describe('devinAgentDef.buildArgs', () => {
-  it('returns the fixed ACP argv regardless of inputs', () => {
+  it('returns the fixed dangerous-mode ACP argv regardless of prompt/image/dir/model inputs', () => {
     const buildArgs: RuntimeAgentDef['buildArgs'] = devinAgentDef.buildArgs;
     const args = buildArgs('any prompt', ['/img.png'], ['/extra'], { model: 'sonnet' }, { cwd: '/x' });
     expect(args).toEqual(['--permission-mode', 'dangerous', '--respect-workspace-trust', 'false', 'acp']);
+  });
+
+  it('omits --permission-mode dangerous and --respect-workspace-trust false when permissionMode is "restricted"', () => {
+    const buildArgs: RuntimeAgentDef['buildArgs'] = devinAgentDef.buildArgs;
+    const args = buildArgs('hi', [], [], { permissionMode: 'restricted' });
+    expect(args).not.toContain('dangerous');
+    expect(args).not.toContain('--respect-workspace-trust');
+    expect(args).toEqual(['acp']);
+  });
+
+  it('still emits the dangerous-mode flags when permissionMode is explicitly "bypass"', () => {
+    const buildArgs: RuntimeAgentDef['buildArgs'] = devinAgentDef.buildArgs;
+    expect(buildArgs('hi', [], [], { permissionMode: 'bypass' })).toEqual([
+      '--permission-mode',
+      'dangerous',
+      '--respect-workspace-trust',
+      'false',
+      'acp',
+    ]);
   });
 });
 

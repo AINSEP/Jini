@@ -61,7 +61,10 @@ export const copilotAgentDef = {
     ],
     buildArgs: (_prompt, _imagePaths, extraAllowedDirs = [], options = {}) => {
       const args = [
-        '--allow-all-tools',
+        // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+        // behavior) unless a caller explicitly opts into a restricted run, in which case
+        // Copilot withholds tool calls that would need approval instead of auto-running them.
+        ...(options.permissionMode !== 'restricted' ? ['--allow-all-tools'] : []),
         '--output-format',
         'json',
       ];

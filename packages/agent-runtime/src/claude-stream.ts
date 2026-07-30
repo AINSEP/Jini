@@ -107,6 +107,17 @@ export function createClaudeStreamHandler(
   // Remember the message id that already emitted `turn_end` so accepting
   // both wire shapes cannot double-trigger stdin continuation/closure.
   let turnEndSignature: string | null = null;
+  // Stands in for `currentMessageId` in the dedup key when a frame carried no
+  // message id at all. Without it the key is null and the guard below cannot
+  // fire, so an id-less assistant wrapper plus the same-reason `result` frame
+  // that follows it emit two identical `turn_end` events. It is bumped only at
+  // `message_start` and at an id-less `assistant` wrapper — the two frames that
+  // actually begin a new assistant message — and deliberately NOT at
+  // `message_delta`/`result`, which report on the message already in flight.
+  // Bumping it on a real message boundary is what keeps this from over-deduping:
+  // two consecutive id-less `tool_use` turns still emit twice, and a suppressed
+  // `tool_use` turn_end would strand the daemon's stdin-close handler.
+  let anonymousMessageEpoch = 0;
   // Per-message role-marker guards for cross-chunk detection (#3247).
   const roleGuards = new Map<string, RoleMarkerGuard>();
   const runtimeTasks = new Map<string, RuntimeTask>();
@@ -121,8 +132,11 @@ export function createClaudeStreamHandler(
   let wroteHtmlFileThisTurn = false;
 
   function emitTurnEnd(stopReason: string): void {
-    const signature = currentMessageId === null ? null : `${currentMessageId}\u0000${stopReason}`;
-    if (signature !== null && turnEndSignature === signature) return;
+    // `\u0001` prefixes the synthetic key so it can never collide with a real
+    // message id, which is why this is safe to compare in the same slot.
+    const messageKey = currentMessageId ?? `\u0001anon${anonymousMessageEpoch}`;
+    const signature = `${messageKey}\u0000${stopReason}`;
+    if (turnEndSignature === signature) return;
     onEvent({ type: 'turn_end', stopReason });
     turnEndSignature = signature;
     if (stopReason !== 'tool_use') {
@@ -488,6 +502,12 @@ export function createClaudeStreamHandler(
       const textMsgId = explicitMsgId ?? (currentMessageStreamedText ? currentMessageId : null);
       const thinkingMsgId = explicitMsgId ?? (currentMessageStreamedThinking ? currentMessageId : null);
       if (explicitMsgId) currentMessageId = explicitMsgId;
+      // An id-less assistant wrapper is itself a new message boundary: no
+      // `message_start` announced it, so this is the only place the epoch can
+      // advance before its own `turn_end` is emitted below. See
+      // `anonymousMessageEpoch`'s declaration for why message_delta/result must
+      // NOT advance it.
+      if (currentMessageId === null) anonymousMessageEpoch += 1;
       const textAlreadyStreamed = textMsgId ? textStreamed.has(textMsgId) : false;
       const thinkingAlreadyStreamed = thinkingMsgId ? thinkingStreamed.has(thinkingMsgId) : false;
       // Per-turn `stop_reason` is emitted as `turn_end` AFTER the content
@@ -602,6 +622,8 @@ export function createClaudeStreamHandler(
       // Clean up per-message role-marker guard from the previous message.
       if (currentMessageId) roleGuards.delete(currentMessageId);
       currentMessageId = isRecord(ev.message) && typeof ev.message.id === 'string' ? ev.message.id : null;
+      // New message boundary — see `anonymousMessageEpoch`'s declaration.
+      if (currentMessageId === null) anonymousMessageEpoch += 1;
       currentMessageStreamedText = false;
       currentMessageStreamedThinking = false;
       if (typeof ev.ttft_ms === 'number') {

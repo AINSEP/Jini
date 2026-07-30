@@ -81,12 +81,22 @@ export const cursorAgentDef = {
         '--output-format',
         'stream-json',
         '--stream-partial-output',
-        '--force',
       );
+      // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default
+      // (unchanged behavior) unless a caller explicitly opts into a restricted
+      // run. Both flags below are auto-approval, so both are gated on it —
+      // `--force` bypasses the per-action prompt and `--trust` pre-grants the
+      // workspace trust that same prompt would otherwise ask for, so omitting
+      // only one of them would still hand the run most of what it asked to
+      // withhold.
+      const bypassPermissions = options.permissionMode !== 'restricted';
+      if (bypassPermissions) {
+        args.push('--force');
+      }
       // `--trust` grants workspace trust in headless runs, but only newer
       // cursor-agent builds accept it; older ones exit 1 with "unknown option"
       // (issue #4461). Pass it only when the `--help` probe saw it.
-      if (caps.trust) {
+      if (bypassPermissions && caps.trust) {
         args.push('--trust');
       }
       if (runtimeContext.cwd) {

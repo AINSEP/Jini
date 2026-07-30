@@ -47,7 +47,13 @@ export const ampAgentDef = {
   ],
   supportsCustomModel: false,
   buildArgs: (_prompt, _imagePaths, _extraAllowedDirs = [], options = {}) => {
-    const args = ['-x', '--stream-json', '--dangerously-allow-all'];
+    // See `RuntimeBuildOptions.permissionMode`'s doc: bypass is the default (unchanged
+    // behavior) unless a caller explicitly opts into a restricted run, in which case Amp
+    // blocks on tool calls that would need approval rather than auto-running them.
+    const args = ['-x', '--stream-json'];
+    if (options.permissionMode !== 'restricted') {
+      args.push('--dangerously-allow-all');
+    }
     if (options.model && options.model !== 'default' && AMP_MODES.has(options.model)) {
       args.push('--mode', options.model);
     }

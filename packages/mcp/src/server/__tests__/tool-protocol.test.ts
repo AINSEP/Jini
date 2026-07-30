@@ -162,6 +162,48 @@ describe('handleToolCall', () => {
     expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
   });
 
+  it('returns an isError result rather than throwing when the schema validator itself throws', async () => {
+    // `@cfworker/json-schema` throws for JavaScript values JSON cannot encode
+    // ("Instances of \"undefined\" type are not supported.") instead of reporting
+    // `{valid:false}`. Validation runs before the try block, so that throw escapes
+    // `handleToolCall` entirely — contradicting the documented guarantee that a
+    // schema violation is an MCP `{isError:true}` result, never a rejection.
+    // `handleToolCall` is exported and typed `Record<string, unknown>`, so a host
+    // calling it directly (or through an injected server implementation) can reach
+    // this with an optional property explicitly set to `undefined`.
+    const handler = () => { throw new Error('handler must not run'); };
+    const tools = buildToolIndex([
+      makeTool({
+        name: 't',
+        inputSchema: { type: 'object', properties: { note: { type: 'string' } }, additionalProperties: false },
+        handler,
+      }),
+    ]);
+
+    const result = await handleToolCall('t', { note: undefined }, tools, ctx);
+
+    expect(result.isError).toBe(true);
+    expect((result.content[0] as { text: string }).text).toContain('invalid arguments for t');
+  });
+
+  it('does not run the handler when the schema validator throws', async () => {
+    let ran = false;
+    const tools = buildToolIndex([
+      makeTool({
+        name: 't',
+        inputSchema: { type: 'object', properties: { note: { type: 'string' } }, additionalProperties: false },
+        handler: () => {
+          ran = true;
+          return { ok: true };
+        },
+      }),
+    ]);
+
+    await handleToolCall('t', { note: undefined }, tools, ctx);
+
+    expect(ran).toBe(false);
+  });
+
   it('reuses the compiled schema validator across repeated calls to the same tool', async () => {
     const handler = (args: Record<string, unknown>) => ({ received: args });
     const tools = buildToolIndex([
