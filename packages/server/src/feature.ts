@@ -65,6 +65,42 @@ export type CapabilityId =
   | 'ui:session';
 
 /**
+ * The runtime half of {@link CapabilityId}.
+ *
+ * Declared as a `Record<CapabilityId, true>` rather than a plain array so drift is a compile error
+ * in **both** directions: a union member missing here fails the `Record`'s exhaustiveness, and a
+ * key here that is not in the union fails the object literal's excess-property check. A validation
+ * list that can silently fall behind the type it validates is worse than none, because it reads as
+ * closed while quietly admitting whatever was added last.
+ */
+const CAPABILITY_ID_SET: Readonly<Record<CapabilityId, true>> = Object.freeze({
+  'run:transport': true,
+  'run:inject': true,
+  'agent:discovery': true,
+  'tool:delegated': true,
+  'tool:catalog': true,
+  'host:read': true,
+  'host:exec': true,
+  'db:admin': true,
+  'net:egress': true,
+  'daemon:control': true,
+  'memory:store': true,
+  'routines:schedule': true,
+  'media:generate': true,
+  'ui:session': true,
+});
+
+/** Every capability this vocabulary declares, for error messages and for exhaustive iteration. */
+export const CAPABILITY_IDS: readonly CapabilityId[] = Object.freeze(
+  Object.keys(CAPABILITY_ID_SET) as CapabilityId[],
+);
+
+/** Whether `value` names a capability this vocabulary actually declares. */
+export function isCapabilityId(value: string): value is CapabilityId {
+  return Object.prototype.hasOwnProperty.call(CAPABILITY_ID_SET, value);
+}
+
+/**
  * The capabilities a feature may default to *on* under the `core-only` activation policy — the
  * run-transport contract and nothing else.
  *

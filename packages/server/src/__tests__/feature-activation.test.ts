@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { definePack } from '@jini-ai/core';
 
-import { defineJiniFeature, JINI_PROFILES, type CapabilityId, type JiniFeature, type JiniProfile } from '../feature.js';
+import {
+  CAPABILITY_IDS,
+  defineJiniFeature,
+  JINI_PROFILES,
+  type CapabilityId,
+  type JiniFeature,
+  type JiniProfile,
+} from '../feature.js';
 import { resolveFeatureActivation } from '../feature-activation.js';
 
 /**
@@ -224,6 +231,42 @@ describe('config integrity', () => {
         featureOverrides: { termnal: false },
       }),
     ).toThrow(/unknown feature "termnal" in features config — known features are: runs, terminal/);
+  });
+
+  it('throws on an unknown capability id, for exactly the same reason a typo\'d feature id throws', () => {
+    // The failure this closes: `{'host:exce': false}` deletes a capability nobody has, so the
+    // correctly-spelled `host:exec` stays granted and `terminal` mounts — a denial that reads as
+    // applied in the config and is not. A security switch that fails open on a typo is worse than
+    // no switch at all.
+    expect(() =>
+      resolveFeatureActivation({
+        features: [feature('terminal', ['host:exec'])],
+        profile: ALL_PERMITTED,
+        capabilities: { 'host:exce': false } as Record<string, boolean>,
+      }),
+    ).toThrow(/unknown capability "host:exce" in capabilities config/);
+  });
+
+  it('throws on a typo\'d capability GRANT too — a ceiling raised for nothing is equally silent', () => {
+    expect(() =>
+      resolveFeatureActivation({
+        features: [feature('daemonDb', ['db:admin'])],
+        profile: ALL_PERMITTED,
+        capabilities: { 'db:admn': true } as Record<string, boolean>,
+      }),
+    ).toThrow(/unknown capability "db:admn" in capabilities config/);
+  });
+
+  it('accepts every capability the vocabulary actually declares', () => {
+    for (const capability of CAPABILITY_IDS) {
+      expect(() =>
+        resolveFeatureActivation({
+          features: [feature('runs', ['run:transport'])],
+          profile: ALL_PERMITTED,
+          capabilities: { [capability]: true },
+        }),
+      ).not.toThrow();
+    }
   });
 
   it('throws on a duplicate feature id in the catalog', () => {

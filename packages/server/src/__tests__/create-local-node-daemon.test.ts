@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import type { Server } from 'node:http';
 import net from 'node:net';
 import { networkInterfaces, tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -19,6 +20,7 @@ import {
   resolveReportHost,
   type LocalNodeDaemon,
 } from '../create-local-node-daemon.js';
+import * as HostBootstrapModule from '../host-bootstrap.js';
 
 /**
  * Real-socket integration suite for `createLocalNodeDaemon` — mirrors the established pattern in
@@ -143,9 +145,28 @@ describe('resolveReportHost', () => {
     expect(resolveReportHost('::')).toBe('127.0.0.1');
   });
 
-  it('echoes back any other host unchanged', () => {
+  it('echoes back any other IPv4 host unchanged', () => {
     expect(resolveReportHost('192.168.1.10')).toBe('192.168.1.10');
     expect(resolveReportHost('127.0.0.1')).toBe('127.0.0.1');
+  });
+
+  it('brackets an IPv6 literal, because an unbracketed one produces a URL that will not parse', () => {
+    // `http://::1:5000` is not a URL — `new URL()` throws on it, and so does anything that hands
+    // the reported base URL to `fetch`. The authority form needs brackets.
+    expect(resolveReportHost('::1')).toBe('[::1]');
+    expect(resolveReportHost('fd00::1')).toBe('[fd00::1]');
+  });
+
+  it('leaves an already-bracketed IPv6 literal alone rather than double-bracketing it', () => {
+    expect(resolveReportHost('[::1]')).toBe('[::1]');
+  });
+
+  it('still maps the all-interfaces IPv6 bind host to IPv4 loopback, unbracketed', () => {
+    expect(resolveReportHost('::')).toBe('127.0.0.1');
+  });
+
+  it('leaves a hostname containing no colon alone', () => {
+    expect(resolveReportHost('localhost')).toBe('localhost');
   });
 });
 
@@ -1243,6 +1264,125 @@ describe('createLocalNodeDaemon', () => {
       },
       { timeout: 2000 },
     );
+  });
+
+  it('completes the whole teardown — features, discovery record, onShutdown, sqlite — even when closing the listener rejects', async () => {
+    const originalCreate = SqliteModule.createSqliteEventLog;
+    const sqliteSpy = vi
+      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .mockImplementation((...args: Parameters<typeof originalCreate>) => {
+        const real = originalCreate(...args);
+        return { ...real, close: vi.fn(real.close) };
+      });
+    const closeSpy = vi
+      .spyOn(HostBootstrapModule, 'closeHttpServer')
+      .mockRejectedValue(new Error('listener refused to close'));
+    let openServer: Server | null = null;
+    try {
+      const dataDir = makeTempDataDir();
+      const onShutdown = vi.fn();
+      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], onShutdown });
+      openServer = daemon.server;
+      const created = sqliteSpy.mock.results[0]?.value as ReturnType<typeof originalCreate>;
+      const createdJournal = sqliteSpy.mock.results[1]?.value as ReturnType<typeof originalCreate>;
+      const registryPath = resolveDaemonRegistryPath(dataDir);
+      expect(existsSync(registryPath)).toBe(true);
+
+      // The listener failing to close is a reason to report, never a reason to abandon every other
+      // resource this daemon holds — a half-torn-down daemon leaks sqlite handles and leaves a
+      // discovery record pointing at a process that is on its way out.
+      await expect(daemon.stop()).rejects.toThrow('listener refused to close');
+
+      expect(onShutdown).toHaveBeenCalledTimes(1);
+      expect(existsSync(registryPath)).toBe(false);
+      expect(created.close).toHaveBeenCalledTimes(1);
+      expect(createdJournal.close).toHaveBeenCalledTimes(1);
+    } finally {
+      closeSpy.mockRestore();
+      sqliteSpy.mockRestore();
+      if (openServer) await new Promise<void>((resolve) => openServer!.close(() => resolve()));
+    }
+  });
+
+  it('reports a shutdown failure requested through POST /api/daemon/shutdown rather than dropping it as an unhandled rejection', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      const dataDir = makeTempDataDir();
+      const daemon = await createLocalNodeDaemon({
+        dataDir,
+        packs: [makePingPack()],
+        onShutdown: () => {
+          throw new Error('onShutdown failed');
+        },
+      });
+
+      const res = await fetch(`${daemon.url}/api/daemon/shutdown`, { method: 'POST' });
+      expect(res.status).toBe(200);
+
+      // The route can only fire and forget (it answered before shutdown began), so the daemon owns
+      // reporting whatever that shutdown does. Dropping the promise turns a shutdown-hook failure
+      // into a process-level unhandled rejection nobody asked for.
+      await vi.waitFor(
+        () => {
+          expect(consoleError).toHaveBeenCalledWith(
+            expect.stringContaining('shutdown requested through POST /api/daemon/shutdown failed'),
+            expect.objectContaining({ message: 'onShutdown failed' }),
+          );
+        },
+        { timeout: 2000 },
+      );
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(unhandled).not.toHaveBeenCalled();
+
+      await daemon.stop().catch(() => undefined);
+    } finally {
+      process.off('unhandledRejection', unhandled);
+      consoleError.mockRestore();
+    }
+  });
+
+  it('binds an IPv6 loopback host to a URL that actually parses and answers', async () => {
+    const dataDir = makeTempDataDir();
+    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], host: '::1' });
+    daemonsToStop.push(daemon);
+
+    expect(daemon.url).toMatch(/^http:\/\/\[::1\]:\d+$/);
+    expect(() => new URL(daemon.url)).not.toThrow();
+    expect((await fetch(`${daemon.url}/api/ping`)).status).toBe(200);
+  });
+
+  it("uses the caller's injected env for the per-route same-origin guard, not the real process env", async () => {
+    // `config.env` is a documented injection point, and `composeJiniKernel` already threads it into
+    // the origin-guard MIDDLEWARE. The per-route `requireSameOrigin` guard reached `process.env`
+    // directly, so the two halves of the same decision could disagree: the middleware admits an
+    // origin the host configured, and the route then rejects it.
+    const dataDir = makeTempDataDir();
+    const injectedEnv: NodeJS.ProcessEnv = { JINI_ALLOWED_ORIGINS: 'https://trusted.example.com' };
+    expect(process.env.JINI_ALLOWED_ORIGINS).toBeUndefined();
+
+    const daemon = await createLocalNodeDaemon({
+      dataDir,
+      packs: [makePingPack()],
+      env: injectedEnv,
+      agentDetector: async () => [],
+    });
+    daemonsToStop.push(daemon);
+
+    const res = await fetch(`${daemon.url}/api/agents/rescan`, {
+      method: 'POST',
+      headers: { Origin: 'https://trusted.example.com' },
+    });
+    expect(res.status).toBe(200);
+
+    // …and an origin the injected env does NOT allow is still refused, so this is not a blanket
+    // opening of the guard.
+    const refused = await fetch(`${daemon.url}/api/agents/rescan`, {
+      method: 'POST',
+      headers: { Origin: 'https://evil.example.com' },
+    });
+    expect(refused.status).toBe(403);
   });
 
   it('rejects rather than hanging when a second instance boots on a port already in use (EADDRINUSE)', async () => {

@@ -2055,3 +2055,19 @@ case reporting `attachment-body-consumed` in the daemon log; cross-origin `403`;
 directory. On disk, stored filenames are fresh UUIDs carrying only the extension — the client's
 `../../evil name?.png` never became a filename. Composer drag-and-drop confirmed in a real browser
 (chip renders, `POST /api/attachments?batch=<uuid>&name=dragdrop.png` → `201`, zero console errors).
+
+## 2026-07-29 — `OriginContext.env`: the per-route same-origin guard reads an injectable environment
+
+Post-merge audit fix. `guardSameOrigin` called `isLocalSameOrigin(req, port)` and let it default to
+real `process.env`, while `registerApiOriginGuardMiddleware` has always taken an explicit `env`. Both
+halves decide the *same* thing, so a host that injects its own environment (`@jini-ai/server`'s
+`createLocalNodeDaemon`/`composeJiniKernel` `env` option — the documented path) got two answers: the
+middleware honored the injected `JINI_BIND_HOST`/`JINI_ALLOWED_ORIGINS`/`JINI_WEB_PORT` and the
+per-route `requireSameOrigin` guard did not.
+
+`OriginContext` (and so `AdapterContext`, which extends it) now carries an optional `env`, defaulting
+to `process.env` — additive, so nothing that already built an adapter context needs to change. The
+default is the real `process.env` **object**, not a snapshot, because `createLocalNodeDaemon` writes
+`JINI_BIND_HOST` into it at boot and a copy would stop tracking that.
+
+Verified: `packages/http-kit` 1245/1245 passing, 100/100/100/100 coverage.

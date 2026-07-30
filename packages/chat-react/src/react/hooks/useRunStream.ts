@@ -133,7 +133,11 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
       cancelAbortRef.current = cancelAbort;
       setState({ ...INITIAL_STATE, runId, status: 'streaming', events: initialEvents });
       try {
-        await transport.reattachRun(runId, makeHandlers(generation));
+        // The subscription controller reaches the transport, so `teardownSubscription()` (unmount,
+        // reset, or a superseding start/reattach) actually detaches the stream. Without it the
+        // generation guard still stops stale callbacks from clobbering state, but the connection
+        // and its read loop stay open until the run ends on its own.
+        await transport.reattachRun(runId, makeHandlers(generation), { signal: subscriptionAbort.signal });
       } catch (err) {
         if (generationRef.current !== generation) return;
         setState((prev) => ({ ...prev, status: 'error', error: toError(err) }));

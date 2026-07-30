@@ -579,3 +579,77 @@ Filtering by default is a behavior change for an existing consumer — `antigrav
 **Verified, personally, this session**: `pnpm --filter @jini-ai/server run typecheck` clean; the package's
 full suite **195/195 passing** (7 files), including 8 new `sidecar-strict` tests and 4 new filtering tests.
 `pnpm guard` clean.
+
+## 2026-07-29 — post-merge audit fixes (six teardown/config/URL defects)
+
+Independent review of the `feat/agentic-capability-layer` merge (OpenAI Codex `gpt-5.6-sol` as peer
+reviewer, then re-verified against source here) surfaced six real defects in this package. Each was
+reproduced with a failing test before any fix landed.
+
+**1. Caller packs were never disposed.** `composeJiniKernel` calls `createDaemon` on `config.packs`,
+so it — not the caller — builds their services; but neither the failure-cleanup path nor `close()`
+ever ran their `dispose`. A caller pack whose `services()` opened a socket, timer or database handle
+leaked it past `createLocalNodeDaemon().stop()`, and the wrapper exposes no caller daemon for the
+host to tear down itself. Added `JiniKernel.disposeCallerPacks()` — memoized, best-effort, symmetric
+with `disposeFeatures()` — called by `close()`, by the composition-failure `catch`, and by the
+daemon's `stop()`. Disposal order is reverse of construction: features first (they were composed
+against an already-built caller daemon), caller packs second.
+
+**2. `journal.db` opened outside the cleanup block.** `createJiniKernelBase` opened `events.db`, then
+`journal.db`, and only *then* entered the `try` whose `catch` closed them. `journal.db` failing (a
+corrupt file, or a directory sitting where a database was expected) left the `events.db` handle open
+in a process that has no kernel. Every acquisition now happens inside the one block, tracked in an
+`opened` array the cleanup drains — the shape the module's own comment already claimed.
+
+**3. Capability keys were not runtime-validated.** Feature ids in `config.features` threw on a typo;
+capability ids in `config.capabilities` did not. `{'host:exce': false}` deleted a grant nobody held,
+so `host:exec` survived and `terminal`/`hostTools` stayed mounted — a security switch that fails
+*open* on a typo, in the direction that reads as applied. `feature.ts` now carries the runtime half
+of `CapabilityId` as a `Record<CapabilityId, true>` (drift is a compile error in both directions, so
+the list cannot silently fall behind the union it validates) plus `CAPABILITY_IDS`/`isCapabilityId`;
+`resolveFeatureActivation` validates the keys next to where it validates feature ids.
+
+**4. An injected `config.env` never reached the per-route same-origin guard.** `env[JINI_BIND_HOST] =
+host` writes into the caller's object when one is supplied, and `@jini-ai/http-kit`'s `guardSameOrigin`
+read real `process.env`. The origin-guard *middleware* was already handed the injected `env`, so the
+two halves of one decision read two different environments: the middleware admitted an origin the
+host configured through `config.env` and the route then rejected it. Fixed at the seam —
+`OriginContext` (and so `AdapterContext`) grew an optional `env`, defaulting to `process.env`, and
+this preset sets it. That covers `JINI_BIND_HOST`, `JINI_ALLOWED_ORIGINS` and `JINI_WEB_PORT` alike.
+
+**5. Shutdown could skip its own teardown, or crash the process.** `closeHttpServer` rejecting (which
+its own contract documents) skipped feature disposal, discovery-record removal, `onShutdown` and the
+sqlite close — leaving a half-torn-down daemon, strictly worse than the failure that caused it. It is
+a `try`/`finally` now; the original rejection still propagates once teardown finishes. Separately,
+`requestShutdown` dropped `stop()`'s promise with a bare `void`, so a failing shutdown became an
+unhandled rejection — which on Node's default policy terminates the process this was gracefully
+shutting down. It is reported through `console.error` now; the rejection stays on `stopPromise` so an
+explicit `stop()` caller still observes it.
+
+**6. `resolveReportHost` produced an unparseable URL for an IPv6 bind host.** `'::1'` passed through
+unchanged, so the reported base URL was `http://::1:54321` — which `new URL()` and `fetch` both
+reject, and which was written verbatim into the discovery record. It now returns the bracketed
+authority form (RFC 3986 §3.2.2), idempotently.
+
+Two lower-severity items from the same review, also fixed:
+
+- **`agents`' scan cache was not keyed by promise identity.** A slow scan that failed *after* `POST
+  /api/agents/rescan` had already replaced it with a successful one cleared the newer entry, forcing
+  a duplicate probe of every agent CLI on the machine. The `catch` now clears only its own entry.
+- **`createFrontendControl`'s bind boundary did not cover `resolveBindToken` or its own error sink.**
+  A `RunStartHandler` throwing is not a no-op — `@jini-ai/http-kit`'s run-start route marks the run
+  `failed` and answers 500 — so a host-supplied `resolveBindToken` throwing (it parses an opaque host
+  blob) produced exactly the killed run the `onBindError` doc promises never to cause. Both are inside
+  the boundary now; a throwing sink is swallowed, because the reporting channel is what failed.
+
+**One pre-existing gap closed while here.** The package's committed 100% function-coverage gate was
+already failing on `main` (99.09%): `sidecar-strict`'s origin-guard `getResolvedPort` closure had no
+end-to-end coverage, because both of that mode's gates are request-time middleware. Added six real
+`security: sidecar-strict` tests (unauthenticated 401, authenticated 201, cross-origin 403 with a
+valid token, unset-token 503, probe routes reachable tokenless, `exemptPaths`) — the one block in
+`compose-jini-kernel.test.ts` that opens a socket, and only because it has to.
+
+**Verified, personally, this session**: `packages/server` **231/231 passing** across 8 files (was
+215 before the sidecar-strict block), **100/100/100/100 coverage**; `packages/http-kit` 1245/1245 and
+100% ; `packages/chat-core` 261/261; `packages/chat-react` 610/610 and 100%;
+`examples/reference-web` 41/41. Repo-wide `pnpm typecheck` and `pnpm guard` clean.

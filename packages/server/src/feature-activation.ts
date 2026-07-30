@@ -23,7 +23,7 @@
  * security-relevant config is the exact failure mode of a documented option that no code reads.
  */
 import type { CapabilityId, JiniFeature, JiniProfile } from './feature.js';
-import { CORE_CAPABILITIES } from './feature.js';
+import { CAPABILITY_IDS, CORE_CAPABILITIES, isCapabilityId } from './feature.js';
 
 /** Why a feature ended up active. */
 export type ActivationReason =
@@ -114,6 +114,20 @@ export function resolveFeatureActivation(input: FeatureActivationInput): Feature
     if (!byId.has(id)) {
       const known = [...byId.keys()].sort().join(', ');
       throw new Error(`jini: unknown feature "${id}" in features config — known features are: ${known}`);
+    }
+  }
+
+  // Capability keys are validated for exactly the reason feature ids are, and the consequence is
+  // worse: `{'host:exce': false}` deletes a grant nobody holds, so the correctly-spelled
+  // `host:exec` survives and every feature it gates stays mounted. The typo reads as an applied
+  // denial in the config and is not one — a security switch that fails *open* on a typo. TypeScript
+  // catches this at a typed call site; a config parsed from JSON, YAML or env has no such call site.
+  for (const capability of Object.keys(input.capabilities ?? {})) {
+    if (!isCapabilityId(capability)) {
+      const known = [...CAPABILITY_IDS].sort().join(', ');
+      throw new Error(
+        `jini: unknown capability "${capability}" in capabilities config — known capabilities are: ${known}`,
+      );
     }
   }
 

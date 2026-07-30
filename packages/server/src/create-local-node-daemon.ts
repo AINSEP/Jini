@@ -82,15 +82,27 @@ export function resolveBoundPort(address: { port: number } | string | null): num
 
 /**
  * The host a daemon's reported base URL should use: binding to every interface (`0.0.0.0` / `::`)
- * is not itself a connectable address, so callers are told to use the IPv4 loopback address instead.
+ * is not itself a connectable address, so callers are told to use the IPv4 loopback address
+ * instead; and an IPv6 literal is returned in bracketed authority form.
+ *
+ * The brackets are not cosmetic. `http://${'::1'}:5000` is not a URL — `new URL()` throws on it and
+ * so does `fetch`, which made a daemon bound to `::1` hand back a base URL nothing could use and
+ * write that same unusable string into its discovery record. RFC 3986 §3.2.2 requires the brackets
+ * for any IPv6 literal in an authority, precisely so the address's own colons cannot be read as the
+ * port separator.
  *
  * @param bindHost - The literal host `createLocalNodeDaemon` bound to (already normalized).
- * @returns `'127.0.0.1'` for an all-interfaces bind host, otherwise `bindHost` unchanged.
+ * @returns `'127.0.0.1'` for an all-interfaces bind host, `'[…]'` for an IPv6 literal (already-
+ * bracketed input is returned unchanged), otherwise `bindHost` unchanged.
  * @complexity O(1).
  * @overallScore 100/100
  */
 export function resolveReportHost(bindHost: string): string {
-  return bindHost === '0.0.0.0' || bindHost === '::' ? '127.0.0.1' : bindHost;
+  if (bindHost === '0.0.0.0' || bindHost === '::') return '127.0.0.1';
+  // A colon can only mean "IPv6 literal" here: a bind host is a host, never a `host:port` pair, and
+  // no DNS name or IPv4 address contains one.
+  if (bindHost.includes(':') && !bindHost.startsWith('[')) return `[${bindHost}]`;
+  return bindHost;
 }
 
 export type { KernelBoundIds };
@@ -262,14 +274,17 @@ export async function createLocalNodeDaemon(
   const registryPath =
     config.discoveryFile === false ? null : (config.discoveryFile ?? resolveDaemonRegistryPath(config.dataDir));
 
-  // `@jini-ai/http-kit`'s own `guardSameOrigin` resolves `bindHost` purely from real
-  // `process.env.JINI_BIND_HOST` — it has no parameter path for an injected env. Setting it here,
-  // before any request can possibly be served, keeps that route's same-origin decision in sync with
-  // the host this daemon actually bound to.
+  // `@jini-ai/http-kit`'s origin policy resolves `bindHost` from `JINI_BIND_HOST`. Setting it here,
+  // before any request can possibly be served, keeps every same-origin decision in sync with the
+  // host this daemon actually bound to.
   env[DEFAULT_BIND_HOST_ENV_VAR] = host;
 
   const resolvedPortRef = { current: requestedPort };
-  const adapter: AdapterContext = { resolvedPortRef };
+  // `env`, not `process.env`: when a caller injects its own environment, the line above wrote the
+  // bind host into *that* object, and `JINI_ALLOWED_ORIGINS`/`JINI_WEB_PORT` come from it too. The
+  // origin-guard middleware is already handed this same `env`; carrying it on the adapter is what
+  // makes the per-route `requireSameOrigin` guard agree with it instead of reading `process.env`.
+  const adapter: AdapterContext = { resolvedPortRef, env };
 
   let shuttingDown = false;
   let stopPromise: Promise<void> | null = null;
@@ -324,7 +339,15 @@ export async function createLocalNodeDaemon(
         dataDir: config.dataDir,
         isShuttingDown: () => shuttingDown,
         requestShutdown: () => {
-          void stop();
+          // `POST /api/daemon/shutdown` answers before shutdown begins, so nothing downstream can
+          // ever await this promise. Dropping it with a bare `void` turned any shutdown failure
+          // into a process-level unhandled rejection — which on Node's default policy terminates
+          // the very process this was trying to shut down gracefully. Reported here instead; the
+          // rejection stays on `stopPromise`, so an explicit `stop()` caller still observes it.
+          void stop().catch((error: unknown) => {
+            // eslint-disable-next-line no-console
+            console.error('[@jini-ai/server] shutdown requested through POST /api/daemon/shutdown failed', error);
+          });
         },
       },
     },
@@ -342,27 +365,39 @@ export async function createLocalNodeDaemon(
     shuttingDown = true;
     if (!stopPromise) {
       stopPromise = (async () => {
-        await closeHttpServer(server);
-        // Feature teardown sits exactly where the inline xAI-listener stop used to: after the
-        // listener is closed, before the discovery record is removed. `disposePacks` is
-        // best-effort by contract, so one feature's failure cannot block shutdown.
-        await kernel.disposeFeatures();
-        if (registryPath !== null) {
-          // Best-effort: a daemon that already served every request successfully must not fail its
-          // own shutdown just because its discovery record couldn't be removed.
-          try {
-            await removeDaemonRegistryRecordIfCurrent(registryPath, process.pid);
-          } catch {
-            // Intentionally swallowed — see the try's own comment.
-          }
-        }
-        // A caller-supplied `onShutdown` failing must never leak any sqlite handle this call
-        // opened: `finally` guarantees the close still runs, then the original rejection (if any)
-        // propagates to whoever is awaiting `stop()`.
+        // `finally`, not a bare sequence: `closeHttpServer` rejects on whatever error
+        // `server.close()`'s callback reports, and a listener that refused to close is a reason to
+        // report, never a reason to abandon every other resource this daemon holds. Skipping the
+        // rest would leave two sqlite handles open, a discovery record pointing at a dying process,
+        // and the host's `onShutdown` never run — a strictly worse outcome than the failure that
+        // caused it. The original rejection still propagates once teardown has finished.
         try {
-          await config.onShutdown?.();
+          await closeHttpServer(server);
         } finally {
-          await kernel.closeBase();
+          // Feature teardown sits exactly where the inline xAI-listener stop used to: after the
+          // listener is closed, before the discovery record is removed. `disposePacks` is
+          // best-effort by contract, so one feature's failure cannot block shutdown.
+          await kernel.disposeFeatures();
+          // The kernel built the caller's pack services too, so it releases them — after the
+          // features that were composed against them.
+          await kernel.disposeCallerPacks();
+          if (registryPath !== null) {
+            // Best-effort: a daemon that already served every request successfully must not fail
+            // its own shutdown just because its discovery record couldn't be removed.
+            try {
+              await removeDaemonRegistryRecordIfCurrent(registryPath, process.pid);
+            } catch {
+              // Intentionally swallowed — see the try's own comment.
+            }
+          }
+          // A caller-supplied `onShutdown` failing must never leak any sqlite handle this call
+          // opened: `finally` guarantees the close still runs, then the original rejection (if any)
+          // propagates to whoever is awaiting `stop()`.
+          try {
+            await config.onShutdown?.();
+          } finally {
+            await kernel.closeBase();
+          }
         }
       })();
     }
