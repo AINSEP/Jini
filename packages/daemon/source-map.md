@@ -1858,3 +1858,84 @@ untouched). **`@jini-ai/agent-runtime` 1822 → 1845**; `log-file.ts`, `defs/ant
 pre-change figure. `src/types.ts` stays in that package's coverage `exclude` list, re-verified as
 still legitimate: `grep -nE '^(export )?(const|function|class|let|var) '` finds no runtime
 declarations after these additions. `pnpm guard`: clean. `pnpm typecheck`: clean.
+
+## 2026-07-29 addition — the other 3 MCP injection mechanisms get wired: `acp-merge`, the two `*-env-content` strategies, and codebuddy's missing argv
+
+The 2026-07-22 gap-3-part-2 entry above wired exactly one of the four declared
+`externalMcpInjection` strategies. Its own text named the other three as future work ("a future
+task wiring those two would extend `wireAcpLifecycle`'s existing `envFormat`/`mcpServers`
+passthrough or `applyAgentLaunchEnv`'s env composition respectively"). A peer review then confirmed
+the practical consequence: of 24 defs, only `claude` actually delivered MCP tools end to end. This
+entry closes all three remaining gaps. **Adding a strategy for a currently-undeclared agent (e.g.
+`codex`) was explicitly out of scope and was not done.**
+
+**The boundary this is organised around** is per-CLI vs per-mechanism. Identity, binary, and
+model/session/permission argv are genuinely bespoke and stay in each def's own `buildArgs`. MCP
+staging, ACP server merging, and env-content serialisation are *mechanisms*, and each now has
+exactly one implementation that every def declaring it flows through.
+
+**Gap A — `codebuddy` (`'claude-mcp-json'`).** The executor already computed and staged the same
+`.mcp.json` for it, but `defs/codebuddy.ts`'s `buildArgs` never read `runtimeContext.mcpJsonPath`,
+so it was still left on the headless auto-discovery path the claude fix exists to avoid. Rather
+than copy claude's branch, the flag-building moved into a shared
+`@jini-ai/agent-runtime` helper — **`buildClaudeMcpConfigArgs` in `src/defs/shared.ts`** — that both
+defs now call. `--strict-mcp-config` was verified as genuinely supported by CodeBuddy before being
+added (its own CLI reference documents `--mcp-config <fileOrString>` and `--strict-mcp-config`,
+"Only use MCP servers in --mcp-config, ignore other MCP configuration"), so codebuddy gets the same
+strict-isolation guarantee as claude rather than a silently weaker one. `shared.test.ts` pins that
+both defs emit byte-identical MCP argv for identical input, so a future copy-paste divergence fails
+there rather than in production.
+
+**Gap B — the 8 `'acp-merge'` defs** (devin, hermes, kilo, kimi, kiro, reasonix, trae-cli, vibe),
+which were getting *zero* MCP tools, not merely a missing flag. `attachAcpSession` has always
+accepted `mcpServers`; `wireAcpLifecycle` simply never passed any. Fixed once, in that shared
+function (`WireAcpLifecycleContext.mcpServers` → spread into the attach call when non-empty) —
+**no per-def file was touched**, because the gap was never in the defs. A 9th def declaring
+`'acp-merge'` is covered automatically. Each entry's `env` is emitted as a plain object so
+`buildAcpSessionNewParams` keeps owning the array-vs-map wire-shape fork (reasonix declares
+`acpMcpEnvFormat: 'map'`).
+
+**Gap C — `'opencode-env-content'` / `'mimo-env-content'`.** Two labels, one serialiser: MiMo's own
+def doc already stated it consumes the same JSON schema as OpenCode's, differing only in env-var
+namespace, and the tests pin that the emitted content is byte-identical modulo the run id. The
+difference is one row in `ENV_CONTENT_VAR_BY_STRATEGY` (`OPENCODE_CONFIG_CONTENT` /
+`MIMOCODE_CONFIG_CONTENT`), not a second code path. `mergeEnvContentMcpConfig` applies the same
+"merge, never clobber" discipline `mergeMcpJsonContent` does, and for a sharper reason: a host may
+already be handing the CLI the *user's* configured MCP servers through that very variable.
+
+**One dispatch point, one credential.** `buildMcpBridgeDelivery` (pure, exported) is the single
+place a declared strategy maps to a mechanism, returning a discriminated `McpBridgeDelivery` so a
+consumer cannot read another mechanism's payload. `run()` resolves the per-run bearer credential
+exactly once, before `buildArgs`, and hands it to whichever serialiser applies; a rejecting resolver
+still fails the run before spawn. Keyed off the *strategy*, never off `def.id` — a registry-level
+test asserts every real def declaring a strategy gets a non-null delivery, so a 25th def with an
+unhandled strategy fails there.
+
+**Security.** The credential reaches every mechanism through an *environment*, never through
+process arguments (`ps` is readable by other local users): `.mcp.json`'s `env`, the ACP server
+descriptor's `env` (which the ACP agent applies to the MCP child it spawns), and the env-content
+config's `environment` key — itself carried in the spawned CLI's own env var, deliberately not a
+`-c key=value`-style CLI argument. Three dedicated tests assert the secret is absent from argv while
+still present where it must be, including one driving a real subprocess.
+
+**Files changed.** `@jini-ai/agent-runtime`: `src/defs/shared.ts` (new
+`buildClaudeMcpConfigArgs`), `src/defs/claude.ts` and `src/defs/codebuddy.ts` (both call it).
+`@jini-ai/daemon`: `src/agent-executor.ts` (new `buildAcpMcpBridgeServers`,
+`ENV_CONTENT_VAR_BY_STRATEGY`, `mergeEnvContentMcpConfig`, `McpBridgeDelivery`,
+`buildMcpBridgeDelivery`; `writeMcpJsonForRun` narrowed to consume an already-built delivery;
+`wireAcpLifecycle` gained `mcpServers`; `run()` composes `childEnv`). `McpJsonInjectionOptions`
+keeps its name for API compatibility with `@jini-ai/server`'s `agentExecutor` passthrough even
+though it is no longer `.mcp.json`-specific — a naming-debt item, deliberately not renamed here.
+
+**Tests / verification, run this session.** `@jini-ai/agent-runtime` **1848 → 1858**
+(`defs/__tests__/shared.test.ts` +5, `defs/__tests__/codebuddy.test.ts` +5). `@jini-ai/daemon`
+**654 → 687** (`__tests__/agent-executor.test.ts` +30 across `buildAcpMcpBridgeServers`,
+`mergeEnvContentMcpConfig`, `buildMcpBridgeDelivery`, the ACP passthrough block and the env-content
+block; `__tests__/agent-executor-acp.integration.test.ts` +3). Nothing existing regressed. The three
+integration additions are the closest available analogue to the live smoke check that verified the
+claude fix: the existing ACP fixture — a **real spawned Node subprocess** speaking real ACP JSON-RPC
+over real stdio, through the real `attachAcpSession` — now echoes back the `mcpServers` its own
+`session/new` received, so delivery is asserted from the agent's point of view rather than from a
+stubbed attach call, in both `array` and `map` env formats. No vendor CLI or credentials were
+needed, and none of the 24 real agent CLIs were spawned. `tsc --noEmit` and `tsc -p tsconfig.json`
+(build): clean for both packages; root `pnpm -r typecheck`: clean.

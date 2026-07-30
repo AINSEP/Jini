@@ -110,6 +110,7 @@ import {
   checkWindowsDirectExeCommandLineBudget,
   prepareAgentLogFile,
   preparePromptFileForAgent,
+  type AcpMcpServerInput,
   type AcpPermissionHandler,
   type AcpSessionController,
   type AgentLaunchResolution,
@@ -761,15 +762,14 @@ export interface ContinuationOptions {
  * already resolves `'mcp-callback'` for every def with `externalMcpInjection !== undefined`, but
  * nothing in this file ever *acted* on that resolution — `execute_delegated_tool`
  * (`@jini-ai/mcp`'s `../server/tools/delegated-tool.ts`) only does anything useful once the spawned
- * CLI's own client actually launches `jini-mcp` as its MCP server subprocess, and the only
- * `externalMcpInjection` strategy that mechanism is wired for here is `'claude-mcp-json'`
- * (`claude`/`codebuddy` — see `@jini-ai/agent-runtime`'s `types.ts` doc on the other three
- * strategies: `'acp-merge'` delivers `mcpServers` through the ACP `session/new` params
- * `wireAcpLifecycle`/`attachAcpSession` already carry, and `'opencode-env-content'`/
- * `'mimo-env-content'` deliver through spawn-env content, neither of which needs or wants a
- * written file — a future task wiring those two would extend `wireAcpLifecycle`'s existing
- * `envFormat`/`mcpServers` passthrough or `applyAgentLaunchEnv`'s env composition respectively,
- * not this function).
+ * CLI's own client actually launches `jini-mcp` as its MCP server subprocess.
+ *
+ * **All four declared strategies are wired.** These options describe *one* bridge server
+ * (`command`/`args`/`daemonUrl`/`credential`); which transport carries it to a given child is that
+ * def's own `externalMcpInjection` declaration, and each of the four has exactly one
+ * implementation here — see {@link buildMcpBridgeDelivery}, which is the single dispatch point.
+ * The interface name predates the other three mechanisms and is kept for API compatibility with
+ * `@jini-ai/server`'s `agentExecutor` passthrough; it is no longer `.mcp.json`-specific.
  *
  * **Host-resolved, not this package's to know.** `command`/`daemonUrl` have no default the way
  * `journal`/`continuation`/`classifyFailure` don't either — there is no "real" install layout or
@@ -882,6 +882,154 @@ export function mergeMcpJsonContent(existingRaw: string | undefined, serverEntry
   return `${JSON.stringify({ ...doc, mcpServers }, null, 2)}\n`;
 }
 
+/**
+ * Mechanism 2 of 4 — `'acp-merge'`. Re-shapes the same bridge entry into the `mcpServers` element
+ * an ACP `session/new` call carries, for the 8 ACP-native defs (devin, hermes, kilo, kimi, kiro,
+ * reasonix, trae-cli, vibe). Pure.
+ *
+ * `env` is emitted as a plain object on purpose: `@jini-ai/agent-runtime`'s
+ * `buildAcpSessionNewParams` already normalises a plain-object `env` into either the
+ * `[{name, value}]` array form or the `{"KEY": "val"}` map form according to each def's own
+ * `acpMcpEnvFormat`, so the per-vendor wire-shape difference stays in the one place that already
+ * owns it rather than being re-decided here.
+ *
+ * **The credential travels in `env`, never in `args`.** An ACP agent spawns this server itself and
+ * applies `env` to that child's environment; a token in `args` would land in the child's process
+ * arguments, readable by any other local user via `ps`. Same rule as the `.mcp.json` path.
+ *
+ * @param entry - The shared bridge entry from {@link buildMcpJsonServerEntry}.
+ * @returns A single-element list — this driver contributes exactly its own bridge server and never
+ * removes or rewrites servers a def or host added by other means.
+ * @complexity O(1).
+ * @overallScore 100/100
+ */
+export function buildAcpMcpBridgeServers(entry: McpJsonServerEntry): AcpMcpServerInput[] {
+  return [
+    {
+      type: 'stdio',
+      name: JINI_MCP_SERVER_KEY,
+      command: entry.command,
+      args: [...entry.args],
+      env: { ...entry.env },
+    },
+  ];
+}
+
+/**
+ * Mechanism 3+4 of 4 — the spawn-env-content strategies. One map, not two code paths: OpenCode and
+ * MiMo consume byte-identical JSON (MiMo's def doc: "the same JSON schema as OpenCode's `mcp`
+ * config ... following the same structure as `OPENCODE_CONFIG_CONTENT`"), and differ only in which
+ * env var carries it. Adding a third such CLI is a row here, not a new serializer.
+ */
+const ENV_CONTENT_VAR_BY_STRATEGY: Readonly<Record<'opencode-env-content' | 'mimo-env-content', string>> = {
+  'opencode-env-content': 'OPENCODE_CONFIG_CONTENT',
+  'mimo-env-content': 'MIMOCODE_CONFIG_CONTENT',
+};
+
+/**
+ * Serialises the bridge entry into the OpenCode-schema config JSON that `OPENCODE_CONFIG_CONTENT`
+ * / `MIMOCODE_CONFIG_CONTENT` carries, merging into whatever the host already put in that variable
+ * rather than replacing it — the same "merge, never clobber" discipline
+ * {@link mergeMcpJsonContent} applies to `.mcp.json`, and for the same reason: a host may already
+ * be handing the CLI the *user's* configured MCP servers through this exact variable, and
+ * overwriting it would silently delete them.
+ *
+ * A missing, empty, or unparseable-as-a-JSON-object existing value degrades to "start from an empty
+ * document". Overwriting an unparseable value is deliberate and matches `mergeMcpJsonContent`: this
+ * driver did not create it, cannot safely repair it, and must not block the run on it.
+ *
+ * Emitted per server: `{type: 'local', command: [<command>, ...<args>], environment: {...},
+ * enabled: true}` — the shape `@jini-ai/mcp`'s own `buildOpenCodeMcpConfigContent` emits for a
+ * stdio server, so both producers stay schema-compatible.
+ *
+ * **The credential lands in `environment`, i.e. the MCP child's env — never in `command`.** OpenCode
+ * spawns the bridge from `command`, so a token placed there would be visible in `ps` output to
+ * every other local user. This is the same constraint that keeps `JINI_DAEMON_TOKEN` out of argv on
+ * the `.mcp.json` and ACP paths.
+ *
+ * @param existingRaw - Whatever the spawn env already held for this variable, or `undefined`.
+ * @param entry - The shared bridge entry from {@link buildMcpJsonServerEntry}.
+ * @returns The full JSON string to set as the env var's value.
+ * @complexity O(1) plus `JSON.parse`/`JSON.stringify` over a small config document.
+ * @overallScore 100/100
+ */
+export function mergeEnvContentMcpConfig(existingRaw: string | undefined, entry: McpJsonServerEntry): string {
+  let doc: Record<string, unknown> = {};
+  if (existingRaw !== undefined && existingRaw.length > 0) {
+    try {
+      const parsed: unknown = JSON.parse(existingRaw);
+      if (isRecord(parsed)) doc = parsed;
+    } catch {
+      doc = {};
+    }
+  }
+  const existingMcp = isRecord(doc.mcp) ? doc.mcp : {};
+  const mcp = {
+    ...existingMcp,
+    [JINI_MCP_SERVER_KEY]: {
+      type: 'local',
+      command: [entry.command, ...entry.args],
+      environment: { ...entry.env },
+      enabled: true,
+    },
+  };
+  return JSON.stringify({ ...doc, mcp });
+}
+
+/**
+ * What one run's MCP bridge turns into, discriminated by the delivery mechanism its def declared.
+ * Exactly one variant is produced per run, and each variant carries only what its own consumer
+ * needs — so a consumer cannot accidentally read another mechanism's payload.
+ */
+export type McpBridgeDelivery =
+  /** `'claude-mcp-json'` (claude, codebuddy): a `.mcp.json` staged into the run cwd, whose path the def's `buildArgs` passes as `--mcp-config`. */
+  | { readonly kind: 'claude-mcp-json'; readonly mcpJsonPath: string; readonly serverEntry: McpJsonServerEntry }
+  /** `'acp-merge'` (the 8 ACP-native defs): `mcpServers` entries for the ACP `session/new` params. */
+  | { readonly kind: 'acp-merge'; readonly mcpServers: readonly AcpMcpServerInput[] }
+  /** `'opencode-env-content'` / `'mimo-env-content'` (opencode, mimo): one spawn-env variable carrying the serialised config. */
+  | { readonly kind: 'env-content'; readonly envVarName: string; readonly serverEntry: McpJsonServerEntry };
+
+/**
+ * **The single dispatch point from an `externalMcpInjection` strategy to its delivery mechanism.**
+ * Pure and synchronous — the one effectful input (the per-run bearer credential) arrives already
+ * resolved, so every strategy's mapping is directly assertable without touching the filesystem,
+ * the environment, or a keystore.
+ *
+ * Keyed off the declared *strategy*, never off `def.id`: a def gets a working bridge by declaring a
+ * mechanism, not by being named in this file. That is what makes the 8 `'acp-merge'` defs work
+ * without any of their own files being touched.
+ *
+ * @param input.cwd - The run's working directory; only `'claude-mcp-json'` uses it (to place `.mcp.json`).
+ * @param input.runId - Scopes the bridge child to this run.
+ * @param input.strategy - The def's declared `externalMcpInjection`, or `undefined` for a def with no native MCP transport.
+ * @param input.options - The host's bridge options, or `undefined` when the host never configured injection.
+ * @param input.credential - Already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN` entirely.
+ * @returns `null` when this run delivers nothing — an unconfigured host, or a def declaring no
+ * strategy — which is byte-identical to this feature not existing.
+ * @complexity O(1).
+ * @overallScore 100/100
+ */
+export function buildMcpBridgeDelivery(input: {
+  readonly cwd: string;
+  readonly runId: string;
+  readonly strategy: RuntimeAgentDef['externalMcpInjection'];
+  readonly options: McpJsonInjectionOptions | undefined;
+  readonly credential: string | undefined;
+}): McpBridgeDelivery | null {
+  const { cwd, runId, strategy, options, credential } = input;
+  if (options === undefined || strategy === undefined) return null;
+  const serverEntry = buildMcpJsonServerEntry(runId, options, credential);
+  switch (strategy) {
+    case 'claude-mcp-json':
+      return { kind: 'claude-mcp-json', mcpJsonPath: join(cwd, '.mcp.json'), serverEntry };
+    case 'acp-merge':
+      return { kind: 'acp-merge', mcpServers: buildAcpMcpBridgeServers(serverEntry) };
+    case 'opencode-env-content':
+    case 'mimo-env-content':
+      return { kind: 'env-content', envVarName: ENV_CONTENT_VAR_BY_STRATEGY[strategy], serverEntry };
+  }
+}
+
 function defaultReadMcpJsonFile(path: string): Promise<string> {
   return fsPromises.readFile(path, 'utf8');
 }
@@ -891,13 +1039,14 @@ function defaultWriteMcpJsonFile(path: string, content: string): Promise<void> {
 }
 
 /**
- * Writes (merging, never clobbering — see {@link mergeMcpJsonContent}) `.mcp.json` into `cwd`
- * before spawn, so Claude Code's own spawn-time config load (confirmed in `@jini-ai/agent-runtime`'s
- * `defs/claude.ts` doc: "Claude Code auto-loads `.mcp.json` from the project cwd at spawn")
- * discovers the `jini-mcp` bridge server without this driver needing to pass any CLI flag at all.
- * A no-op when `mcpJsonInjection` is `undefined` (opt-in, see `CreateAgentExecutorOptions`'s doc)
- * or `def.externalMcpInjection !== 'claude-mcp-json'` (every other injection strategy delivers
- * `mcpServers` a different way — see this module's own doc above).
+ * The `'claude-mcp-json'` mechanism's one effect: writes (merging, never clobbering — see
+ * {@link mergeMcpJsonContent}) the staged `.mcp.json` so the def's own
+ * `--strict-mcp-config --mcp-config <path>` argv has a real file to point at by spawn time.
+ * A no-op for every other delivery mechanism, which is expressed by the caller simply not having a
+ * `'claude-mcp-json'` delivery to hand it rather than by a strategy re-check in here.
+ * @param delivery - The already-built `'claude-mcp-json'` delivery (path + entry). Both fields come
+ * from {@link buildMcpBridgeDelivery}, so the credential was resolved exactly once, for this run.
+ * @param options - Supplies the injectable `readFile`/`writeFile` seams.
  * @throws Whatever `writeFile` rejects with — the caller (`run()`) turns that into a pre-spawn
  * `AGENT_SPAWN_FAILED` failure, matching every other pre-spawn filesystem guard in this file
  * (`preparePromptFileForAgentFn`'s own try/catch).
@@ -905,28 +1054,20 @@ function defaultWriteMcpJsonFile(path: string, content: string): Promise<void> {
  * @overallScore 100/100
  */
 async function writeMcpJsonForRun(
-  cwd: string,
-  runId: string,
-  def: RuntimeAgentDef,
-  mcpJsonInjection: McpJsonInjectionOptions | undefined,
+  delivery: Extract<McpBridgeDelivery, { kind: 'claude-mcp-json' }>,
+  options: McpJsonInjectionOptions,
 ): Promise<void> {
-  if (mcpJsonInjection === undefined || def.externalMcpInjection !== 'claude-mcp-json') return;
-  const readFileFn = mcpJsonInjection.readFile ?? defaultReadMcpJsonFile;
-  const writeFileFn = mcpJsonInjection.writeFile ?? defaultWriteMcpJsonFile;
-  const filePath = join(cwd, '.mcp.json');
+  const readFileFn = options.readFile ?? defaultReadMcpJsonFile;
+  const writeFileFn = options.writeFile ?? defaultWriteMcpJsonFile;
   let existingRaw: string | undefined;
   try {
-    existingRaw = await readFileFn(filePath);
+    existingRaw = await readFileFn(delivery.mcpJsonPath);
   } catch {
     // No existing file (ENOENT — the common case) or unreadable for any other reason: both
     // degrade to "start fresh", matching mergeMcpJsonContent's own doc.
     existingRaw = undefined;
   }
-  // Resolved per-run, here rather than in `buildMcpJsonServerEntry`, so that function stays pure and
-  // synchronous. `undefined` when the host supplied no resolver, which omits the env var entirely.
-  const credential = await mcpJsonInjection.credential?.(runId);
-  const serverEntry = buildMcpJsonServerEntry(runId, mcpJsonInjection, credential);
-  await writeFileFn(filePath, mergeMcpJsonContent(existingRaw, serverEntry));
+  await writeFileFn(delivery.mcpJsonPath, mergeMcpJsonContent(existingRaw, delivery.serverEntry));
 }
 
 /**
@@ -1303,6 +1444,19 @@ interface WireAcpLifecycleContext extends TerminateChildTreeDeps {
   readonly model: string | undefined;
   readonly imagePaths: readonly string[];
   readonly envFormat: 'array' | 'map' | undefined;
+  /**
+   * The `'acp-merge'` delivery mechanism's entire surface: `mcpServers` for this run's `session/new`
+   * params. Set for every def declaring `externalMcpInjection: 'acp-merge'` when the host configured
+   * MCP injection; `undefined` otherwise, which reproduces having no MCP servers at all.
+   *
+   * **Fixed here, once, for all 8 ACP-native defs.** `attachAcpSession` has always accepted
+   * `mcpServers`; the gap was that this wrapper never passed any, so declaring the strategy bought a
+   * def nothing. Because the gap was in this shared function rather than in the defs, closing it
+   * required no per-def change and automatically covers a 9th def that declares `'acp-merge'` later.
+   * Each entry's `env` stays a plain object — `buildAcpSessionNewParams` converts it to the array or
+   * map wire shape per `envFormat`, so the per-vendor difference stays in the one module that owns it.
+   */
+  readonly mcpServers: readonly AcpMcpServerInput[] | undefined;
   readonly onPermissionRequest: AcpPermissionHandler | undefined;
   readonly attachAcpSession: typeof attachAcpSession;
   readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
@@ -1423,6 +1577,10 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
     ...(ctx.model !== undefined ? { model: ctx.model } : {}),
     ...(ctx.imagePaths.length > 0 ? { imagePaths: [...ctx.imagePaths] } : {}),
     ...(ctx.envFormat !== undefined ? { envFormat: ctx.envFormat } : {}),
+    // Spread-when-present rather than always: passing `mcpServers: []` is not the same as passing
+    // nothing for every downstream ACP agent, and "no bridge configured" must stay byte-identical
+    // to before this field existed.
+    ...(ctx.mcpServers !== undefined && ctx.mcpServers.length > 0 ? { mcpServers: [...ctx.mcpServers] } : {}),
     ...(ctx.onPermissionRequest !== undefined ? { onPermissionRequest: ctx.onPermissionRequest } : {}),
     send(event, payload) {
       if (event === 'agent') {
@@ -1847,22 +2005,52 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
             if (preparedLogFile) await preparedLogFile.cleanup();
           }
         : async () => {};
-    // Same condition `writeMcpJsonForRun` uses internally to decide whether it will actually write
-    // the file below — computed here, ahead of that write, so a `'claude-mcp-json'` def's buildArgs
-    // can pass the path explicitly via `--mcp-config` rather than relying on Claude Code's
-    // auto-discovery (which needs an interactive trust prompt neither this daemon nor a headless
-    // spawn can ever answer). Safe to compute before the file exists: `writeMcpJsonForRun` runs
-    // after buildArgs but before spawn, so the path is real by the time the child process starts.
-    const mcpJsonPath: string | undefined =
-      mcpJsonInjection !== undefined && def.externalMcpInjection === 'claude-mcp-json'
-        ? join(input.cwd, '.mcp.json')
-        : undefined;
+    // Resolve this run's MCP bridge delivery once, before buildArgs — the `'claude-mcp-json'`
+    // variant's path has to be in `runtimeContext` for that def's own `--mcp-config` argv, and
+    // resolving here means the per-run bearer credential is minted exactly once no matter which of
+    // the four mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
+    // no strategy — see `buildMcpBridgeDelivery`'s doc.
+    let mcpBridge: McpBridgeDelivery | null;
+    try {
+      // Awaited here rather than inside `buildMcpBridgeDelivery` so that function stays pure and
+      // synchronous. `undefined` when the host supplied no resolver, which omits the token entirely.
+      const credential = mcpJsonInjection !== undefined ? await mcpJsonInjection.credential?.(input.runId) : undefined;
+      mcpBridge = buildMcpBridgeDelivery({
+        cwd: input.cwd,
+        runId: input.runId,
+        strategy: def.externalMcpInjection,
+        options: mcpJsonInjection,
+        credential,
+      });
+    } catch (err) {
+      // Spawning a child that cannot authenticate would produce a run whose every bridged tool call
+      // 401s, so a rejecting credential resolver fails the run before spawn instead.
+      await cleanupStagedFiles();
+      return failBeforeSpawn(
+        input.runId,
+        'AGENT_SPAWN_FAILED',
+        `AgentExecutor: could not resolve the MCP bridge credential for agent "${def.id}": ${errorMessage(err)}`,
+      );
+    }
+    // Mechanism 3+4 (`'opencode-env-content'`/`'mimo-env-content'`): the bridge rides in the child's
+    // *environment*, merged into whatever the host already set there. Deliberately not a `-c
+    // key=value`-style CLI argument — the config embeds `JINI_DAEMON_TOKEN`, and process arguments
+    // are readable by any other local user through `ps`, while a process's environment is not.
+    const childEnv: NodeJS.ProcessEnv =
+      mcpBridge?.kind === 'env-content'
+        ? {
+            ...spawnEnv,
+            [mcpBridge.envVarName]: mergeEnvContentMcpConfig(spawnEnv[mcpBridge.envVarName], mcpBridge.serverEntry),
+          }
+        : spawnEnv;
     const runtimeContext: RuntimeContext | undefined =
-      preparedPromptFile || preparedLogFile || mcpJsonPath
+      preparedPromptFile || preparedLogFile || mcpBridge?.kind === 'claude-mcp-json'
         ? {
             ...(preparedPromptFile ? { promptFilePath: preparedPromptFile.path } : {}),
             ...(preparedLogFile ? { agentLogFilePath: preparedLogFile.path } : {}),
-            ...(mcpJsonPath ? { mcpJsonPath } : {}),
+            // Safe to pass before the file exists: `writeMcpJsonForRun` runs after buildArgs but
+            // still before spawn, so the path is real by the time the child process starts.
+            ...(mcpBridge?.kind === 'claude-mcp-json' ? { mcpJsonPath: mcpBridge.mcpJsonPath } : {}),
           }
         : undefined;
 
@@ -1904,11 +2092,13 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       runtimeContext,
     );
 
-    // Gap 3, part 2 — write .mcp.json into the managed cwd before spawn, so a 'claude-mcp-json'
-    // def's own spawn-time config load discovers the jini-mcp bridge server. A no-op for every
-    // other def and whenever mcpJsonInjection is unconfigured — see writeMcpJsonForRun's doc.
+    // Mechanism 1 of 4's one effect — stage .mcp.json into the managed cwd before spawn so the
+    // `--mcp-config <path>` argv buildArgs just produced points at a real file. Skipped entirely
+    // for the other three mechanisms and whenever no bridge was resolved at all.
     try {
-      await writeMcpJsonForRun(input.cwd, input.runId, def, mcpJsonInjection);
+      if (mcpBridge?.kind === 'claude-mcp-json' && mcpJsonInjection !== undefined) {
+        await writeMcpJsonForRun(mcpBridge, mcpJsonInjection);
+      }
     } catch (err) {
       await releaseStagedResources();
       return failBeforeSpawn(
@@ -1930,13 +2120,13 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       return failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', windowsBudgetError.message);
     }
 
-    const invocation = createCommandInvocationFn({ command: launch.launchPath, args, env: spawnEnv });
+    const invocation = createCommandInvocationFn({ command: launch.launchPath, args, env: childEnv });
 
     let child: ChildProcess;
     try {
       child = spawnFn(invocation.command, invocation.args, {
         cwd: input.cwd,
-        env: spawnEnv,
+        env: childEnv,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsVerbatimArguments: invocation.windowsVerbatimArguments,
       });
@@ -2014,6 +2204,9 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           model: input.model,
           imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
+          // Mechanism 2 of 4 — see `WireAcpLifecycleContext.mcpServers`. `undefined` for any def
+          // that did not declare `'acp-merge'` and for an unconfigured host.
+          mcpServers: mcpBridge?.kind === 'acp-merge' ? mcpBridge.mcpServers : undefined,
           onPermissionRequest: options.acpPermissionHandler,
           attachAcpSession: attachAcpSessionFn,
           listProcessSnapshots: listProcessSnapshotsFn,

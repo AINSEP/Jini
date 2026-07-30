@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  buildClaudeMcpConfigArgs,
   clampCodexReasoning,
   parseLineSeparatedModels,
   detectAcpModels,
@@ -7,6 +8,8 @@ import {
   execAgentFile,
   DEFAULT_MODEL_OPTION,
 } from '../shared.js';
+import { claudeAgentDef } from '../claude.js';
+import { codebuddyAgentDef } from '../codebuddy.js';
 
 describe('shared re-exports', () => {
   it('re-exports the injected ports and helpers unchanged', () => {
@@ -100,5 +103,39 @@ describe('parseLineSeparatedModels', () => {
       { id: 'a/b', label: 'a/b' },
       { id: 'c/d', label: 'c/d' },
     ]);
+  });
+});
+
+describe('buildClaudeMcpConfigArgs', () => {
+  it('emits --strict-mcp-config then --mcp-config <path> for a staged path', () => {
+    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '/work/proj/.mcp.json' })).toEqual([
+      '--strict-mcp-config',
+      '--mcp-config',
+      '/work/proj/.mcp.json',
+    ]);
+  });
+
+  it('emits nothing when no path was staged (the default for an unconfigured host)', () => {
+    expect(buildClaudeMcpConfigArgs({})).toEqual([]);
+  });
+
+  it('emits nothing for an empty-string path rather than a dangling --mcp-config flag', () => {
+    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: '' })).toEqual([]);
+  });
+
+  it('emits nothing for a non-string path a loosely-typed caller might pass', () => {
+    expect(buildClaudeMcpConfigArgs({ mcpJsonPath: 42 as unknown as string })).toEqual([]);
+  });
+
+  // The point of extracting this helper: the two defs declaring `'claude-mcp-json'` must not drift
+  // into two different MCP argv shapes. Asserting they emit identical MCP flags for identical input
+  // is what makes a future copy-paste divergence fail here rather than in production.
+  it('gives both claude-mcp-json defs byte-identical MCP argv for the same staged path', () => {
+    const runtimeContext = { mcpJsonPath: '/work/proj/.mcp.json' };
+    const mcpArgvOf = (args: string[]): string[] => args.slice(args.indexOf('--strict-mcp-config'));
+    const claudeArgs = claudeAgentDef.buildArgs('hi', [], [], {}, runtimeContext);
+    const codebuddyArgs = codebuddyAgentDef.buildArgs('hi', [], [], {}, runtimeContext);
+    expect(mcpArgvOf(claudeArgs)).toEqual(buildClaudeMcpConfigArgs(runtimeContext));
+    expect(mcpArgvOf(codebuddyArgs)).toEqual(mcpArgvOf(claudeArgs));
   });
 });
