@@ -11,7 +11,7 @@ vs. false positive.
 Fixes follow test-first (TDD) discipline: a failing test demonstrating the bug is written and run
 BEFORE the fix, then the fix is applied and the test (plus the package's full suite) is re-run green.
 
-## Status as of 2026-07-29 ~22:40 PDT
+## Status as of 2026-07-30 ~09:15 PDT — all 4 queued routines done; merge coordination now the blocker
 
 | package | blocking findings | status | branch |
 |---|---|---|---|
@@ -19,11 +19,32 @@ BEFORE the fix, then the fix is applied and the test (plus the package's full su
 | `chat-core` | 2 | **Fixed** (1/2 real+fixed, 1 false-positive-on-mechanism/doc-fixed) | `fix/post-merge-audit-2026-07-29` |
 | `agentic` | 9 (7 blocking found + 2 non-blocking; local agent found 2 *additional* real holes while verifying finding #1 and #6, see its branch's commit message) | **Fixed** (9/9 real, zero false positives — pushed to origin) | `fix/post-merge-audit-agentic-2026-07-29` |
 | ~~`agentic` (cloud backup)~~ | — | **Disabled/cancelled** (`trig_01BQ8njKGmdrc2XESkdDGArU`) — the local run above finished and was pushed before this fired, so the redundant safety net was no longer needed | ~~`fix/post-merge-audit-agentic-cloud-2026-07-30`~~ (never ran) |
-| `daemon` | 5 | Queued — cloud routine `trig_01LKsrqn1uQ4xZn3F1ZhkqUY`, fires 2026-07-30 03:00 PDT | `fix/post-merge-audit-daemon-2026-07-30` |
-| `agent-runtime` + `mcp` | 2 + 1 = 3 | Queued — combined into one cloud routine (both small), `trig_01Ji2QriSVA5Y7NBTWejnWr3`, fires 2026-07-30 03:30 PDT | `fix/post-merge-audit-agent-runtime-mcp-2026-07-30` |
-| `http-kit` | 12 | Queued — cloud routine `trig_01P3obaCLTpMqEq6aTMPaN1N`, fires 2026-07-30 04:00 PDT (largest — agent was told to prioritize by severity and report honestly if it can't finish all 12) | `fix/post-merge-audit-http-kit-2026-07-30` |
+| `daemon` | 7 | **Fixed** — cloud routine `trig_01LKsrqn1uQ4xZn3F1ZhkqUY` completed and pushed (commit `c3390edea`, "close 7 real findings") | `fix/post-merge-audit-daemon-2026-07-30` |
+| `agent-runtime` + `mcp` | 6 | **Fixed** — cloud routine `trig_01Ji2QriSVA5Y7NBTWejnWr3` completed and pushed (commit `da71faaa0`, "resolve all 6 findings") | `fix/post-merge-audit-agent-runtime-mcp-2026-07-30` |
+| `http-kit` | 12 | **Fixed** — cloud routine `trig_01P3obaCLTpMqEq6aTMPaN1N` completed and pushed (commit `5a6da50e2`, "resolve 11 of 12; refute 1") | `fix/post-merge-audit-http-kit-2026-07-30` |
 
 Routine status/logs: https://claude.ai/code/routines (each routine ID above links to its own run).
+
+### Unplanned 7th branch: MCP bridge delivery generalization
+
+Separately from the audit above, the working tree on `main` had uncommitted local WIP left over
+from before the cloud routines were dispatched — a generalization of the `a490e6775` MCP
+auto-discovery fix (which only patched `claude.ts`) to all four `externalMcpInjection` strategies
+(`claude-mcp-json` for claude+codebuddy, `acp-merge` for the 8 ACP-native defs, and the
+opencode/mimo env-content mechanisms). Verified green (agent-runtime: 1858 tests, daemon: 687
+tests, both typecheck clean, `pnpm guard` zero violations) and committed to its own branch,
+`fix/mcp-bridge-delivery-all-strategies-2026-07-30` (commit `8239f1af2`), pushed to origin. Not
+merged, no PR — same checkpoint discipline as the rest of this batch.
+
+### ⚠️ Merge-conflict warning before landing any of these
+
+`packages/daemon/src/agent-executor.ts` (+ its test file) is independently modified by **three**
+of the branches above: `fix/post-merge-audit-daemon-2026-07-30`,
+`fix/post-merge-audit-agent-runtime-mcp-2026-07-30`, and
+`fix/mcp-bridge-delivery-all-strategies-2026-07-30`. These will conflict with each other on merge —
+none has been merged into another, so pick a merge order and resolve by hand (or re-dispatch a
+rebase) rather than merging blind. The other 4 branches (`server`/`chat-core`, `agentic`,
+`http-kit`) don't share touched files with each other or with these three.
 
 **Total: 35 BLOCKING findings.** Every finding independently spot-verified by the coordinating
 session before dispatch has come back real (server: 2/2 checked, agentic: 3/3 checked, http-kit:
@@ -31,7 +52,7 @@ session before dispatch has come back real (server: 2/2 checked, agentic: 3/3 ch
 finding is real; each fix-agent is instructed to independently re-verify before touching code, and
 to report a finding as a false positive (with reasoning, no code change) rather than force a fix.
 
-## What to check in the morning
+## What to check in the morning (historical — all resolved, see status table above)
 
 1. Each branch above (once its fix-agent has run) has its own local commit(s) with a full report
    in the commit message: which findings were confirmed real vs. false positive, the failing-test
