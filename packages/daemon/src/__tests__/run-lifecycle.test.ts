@@ -234,6 +234,103 @@ describe('RunLifecycle — get/list direct queries', () => {
   });
 });
 
+/**
+ * `start()` inserts the in-memory record *before* awaiting its durable `'start'` append, and unwinds
+ * it if that append rejects (see the "unwinds the run and idempotency reservation" test above). The
+ * window between those two moments is observable to anyone holding the run id — an explicit
+ * `startInput.runId`, or a concurrent caller reading `list()` — and durability is the whole point of
+ * the append: a run that was never persisted must never have been reported as live.
+ */
+describe('RunLifecycle — a durable start that has not committed yet', () => {
+  /** An EventLog whose `'start'` append parks until the test settles it, so the window is a real, controllable interval. */
+  function gatedStartLog(): { eventLog: EventLog; commit: () => void; fail: (error: Error) => void } {
+    const inner = createInMemoryEventLog();
+    let release!: () => void;
+    let abort!: (error: Error) => void;
+    const gate = new Promise<void>((resolve, reject) => {
+      release = resolve;
+      abort = reject;
+    });
+    return {
+      commit: () => release(),
+      fail: (error: Error) => abort(error),
+      eventLog: {
+        ...inner,
+        append: async (input) => {
+          if (input.event === 'start') await gate;
+          return inner.append(input);
+        },
+      },
+    };
+  }
+
+  /** Lets already-queued microtasks and timers run, so `start()` actually reaches its parked append. */
+  function settleQueues(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 0));
+  }
+
+  it('never reports a run through get() or list() when its durable start append fails', async () => {
+    const { eventLog, fail } = gatedStartLog();
+    const lifecycle = createRunLifecycle({ eventLog });
+
+    const starting = lifecycle.start({ contextRef: 'ctx-ghost', runId: 'ghost-run' });
+    await settleQueues();
+
+    // Both queries are issued *inside* the uncommitted window — the only place the ghost is
+    // reachable — and asserted after it closes.
+    const observed = lifecycle.get('ghost-run');
+    const listed = lifecycle.list('ctx-ghost');
+
+    fail(new Error('start append failed'));
+    await expect(starting).rejects.toThrow('start append failed');
+
+    expect(await observed).toBeUndefined();
+    expect(await listed).toEqual([]);
+  });
+
+  it('rejects a waitForTerminal() registered before a failing start append, instead of leaving it pending forever', async () => {
+    const { eventLog, fail } = gatedStartLog();
+    const lifecycle = createRunLifecycle({ eventLog });
+
+    const starting = lifecycle.start({ contextRef: 'ctx-ghost', runId: 'ghost-run' });
+    await settleQueues();
+    const waiting = lifecycle.waitForTerminal('ghost-run');
+
+    fail(new Error('start append failed'));
+    await expect(starting).rejects.toThrow('start append failed');
+
+    // Raced against a timer rather than plainly awaited: the pre-fix behavior is a promise that
+    // never settles at all, which would otherwise surface as a whole-test timeout instead of a
+    // readable assertion about which of the three outcomes happened.
+    const outcome = await Promise.race([
+      waiting.then(() => 'resolved' as const, () => 'rejected' as const),
+      settleQueues().then(() => 'pending' as const),
+    ]);
+    expect(outcome).toBe('rejected');
+    await expect(waiting).rejects.toThrow('start append failed');
+  });
+
+  it('still serves get(), list(), and waitForTerminal() normally once a slow start append commits', async () => {
+    const { eventLog, commit } = gatedStartLog();
+    const lifecycle = createRunLifecycle({ eventLog });
+
+    const starting = lifecycle.start({ contextRef: 'ctx-slow', runId: 'slow-run' });
+    await settleQueues();
+    const observed = lifecycle.get('slow-run');
+    const listed = lifecycle.list('ctx-slow');
+    const waiting = lifecycle.waitForTerminal('slow-run');
+
+    commit();
+    await starting;
+
+    expect(await observed).toMatchObject({ id: 'slow-run', state: 'running' });
+    expect((await listed).map((r) => r.id)).toEqual(['slow-run']);
+
+    await lifecycle.finish({ runId: 'slow-run', status: 'succeeded', code: 0, signal: null, resumable: false });
+    await expect(waiting).resolves.toMatchObject({ id: 'slow-run', state: 'succeeded' });
+  });
+});
+
 describe('RunLifecycle — emit', () => {
   it('appends driver events in call order and fans them out live', async () => {
     const { lifecycle } = makeLifecycle();

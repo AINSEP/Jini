@@ -201,7 +201,16 @@ export function createFrontendSessionRegistry(
   const newInvocationId = options.newInvocationId ?? randomUUID;
   const newBindToken = options.newBindToken ?? randomUUID;
   const sessions = new Map<string, AttachedSession>();
-  const runBindings = new Map<string, string>();
+  /**
+   * run id → the *attachment* serving it, deliberately not its session id.
+   *
+   * A session id is reusable by design: a surface that reconnects (tab reload, dropped stream)
+   * re-attaches under the same id, which is what makes the id useless as an ownership test. Keying
+   * on the attachment object makes every ownership comparison below identity-based, so a handle or
+   * unbind closure left over from a previous attachment is inert instead of silently unrouting the
+   * live surface that replaced it.
+   */
+  const runBindings = new Map<string, AttachedSession>();
   /** bind token → session id. Cleared on detach, so a token dies with the surface it proves. */
   const bindTokens = new Map<string, string>();
 
@@ -229,8 +238,7 @@ export function createFrontendSessionRegistry(
 
   /** Resolves the surface that may serve this call, or explains precisely what is missing. */
   function resolveTarget(runId: string, capabilityId: string): AttachedSession {
-    const sessionId = runBindings.get(runId);
-    const session = sessionId === undefined ? undefined : sessions.get(sessionId);
+    const session = runBindings.get(runId);
     if (session === undefined) {
       throw new Error(`no frontend is bound to run "${runId}", so "${capabilityId}" cannot be executed`);
     }
@@ -259,10 +267,16 @@ export function createFrontendSessionRegistry(
       sessionId: descriptor.sessionId,
       bindToken,
       detach(): void {
-        sessions.delete(descriptor.sessionId);
+        // Only tear down state this attachment still owns. A stale handle — one whose attachment
+        // already detached and whose session id has since been re-attached — must not remove the
+        // replacement or its bindings; the replacement's own token/pending state is not this
+        // handle's to invalidate. `bindTokens` is safe to delete unconditionally: `bindToken` is
+        // minted per attachment, so this entry can only ever be this attachment's own.
+        const current = sessions.get(descriptor.sessionId);
         bindTokens.delete(bindToken);
+        if (current === session) sessions.delete(descriptor.sessionId);
         for (const [runId, boundTo] of runBindings) {
-          if (boundTo === descriptor.sessionId) runBindings.delete(runId);
+          if (boundTo === session) runBindings.delete(runId);
         }
         for (const [, entry] of session.pending) {
           entry.dispose();
@@ -274,14 +288,16 @@ export function createFrontendSessionRegistry(
   }
 
   function bindRun(runId: string, sessionId: string): () => void {
-    if (!sessions.has(sessionId)) {
+    const session = sessions.get(sessionId);
+    if (session === undefined) {
       throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" to unattached session "${sessionId}"`);
     }
-    runBindings.set(runId, sessionId);
+    runBindings.set(runId, session);
     return () => {
       // Only release a binding this call still owns: a run taken over by another surface must not
-      // have its newer binding torn down by the older one\'s cleanup.
-      if (runBindings.get(runId) === sessionId) runBindings.delete(runId);
+      // have its newer binding torn down by the older one\'s cleanup. Compared by attachment
+      // identity, not session id, so re-attaching under the same id also counts as a takeover.
+      if (runBindings.get(runId) === session) runBindings.delete(runId);
     };
   }
 
@@ -348,8 +364,7 @@ export function createFrontendSessionRegistry(
   }
 
   function sessionFor(runId: string): FrontendSessionDescriptor | undefined {
-    const sessionId = runBindings.get(runId);
-    return sessionId === undefined ? undefined : sessions.get(sessionId)?.descriptor;
+    return runBindings.get(runId)?.descriptor;
   }
 
   function capabilitiesFor(runId: string): readonly string[] {

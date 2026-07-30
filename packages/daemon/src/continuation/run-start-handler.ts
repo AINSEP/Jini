@@ -59,6 +59,16 @@ export interface ResolvedRunInput {
    * needs, delegated explicitly by the host and never read implicitly from `process.env` (SEC-001).
    */
   readonly credentialEnv?: Record<string, string>;
+  /**
+   * Forwarded verbatim to `AgentExecutorRunInput.imagePaths` — host-validated image files the run's
+   * prompt refers to. Omitting these three fields was not neutral either: a host that resolved an
+   * attached screenshot got a run whose agent could not see it, with nothing reporting why.
+   */
+  readonly imagePaths?: readonly string[];
+  /** Forwarded verbatim to `AgentExecutorRunInput.extraAllowedDirs` — additional host-validated directories the runtime may read. */
+  readonly extraAllowedDirs?: readonly string[];
+  /** Forwarded verbatim to `AgentExecutorRunInput.uploadRoot` — the trusted root pi-rpc image paths must resolve inside. */
+  readonly uploadRoot?: string;
 }
 
 /** Host-owned composition seam: turns a durably-started run's identity into what `AgentExecutor.run()` actually needs. No generic default exists — see module doc. */
@@ -117,6 +127,9 @@ export function createDefaultRunStartHandler(
       ...(resolved.model !== undefined ? { model: resolved.model } : {}),
       ...(resolved.reasoning !== undefined ? { reasoning: resolved.reasoning } : {}),
       ...(resolved.credentialEnv !== undefined ? { credentialEnv: resolved.credentialEnv } : {}),
+      ...(resolved.imagePaths !== undefined ? { imagePaths: resolved.imagePaths } : {}),
+      ...(resolved.extraAllowedDirs !== undefined ? { extraAllowedDirs: resolved.extraAllowedDirs } : {}),
+      ...(resolved.uploadRoot !== undefined ? { uploadRoot: resolved.uploadRoot } : {}),
     });
   };
 }

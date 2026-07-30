@@ -648,13 +648,31 @@ async function terminateChildTree(deps: TerminateChildTreeDeps, child: ChildProc
   await deps.stopProcesses(pids);
 }
 
-/** Which caller invoked {@link terminateChildTreeBestEffort} — carried through to `onCleanupFailure` (SEC-007) for diagnosis. */
-export type AgentCleanupFailurePhase = 'cancel' | 'acp-attach-failure' | 'pi-rpc-attach-failure';
+/**
+ * Which step reported a contained failure through `onCleanupFailure` (SEC-007).
+ *
+ * The first three come from {@link terminateChildTreeBestEffort} (process-tree teardown). The last
+ * two are the two fallible steps that sit between a child's `'close'` and `finish()` — staged-file
+ * removal and the host's own `classifyFailure` — neither of which may prevent the terminal
+ * transition, and neither of which may fail silently either. See each close handler.
+ */
+export type AgentCleanupFailurePhase =
+  | 'cancel'
+  | 'acp-attach-failure'
+  | 'pi-rpc-attach-failure'
+  | 'staged-file-cleanup'
+  | 'failure-classification';
 
 export interface AgentCleanupFailureContext {
   readonly runId: string;
   readonly phase: AgentCleanupFailurePhase;
-  readonly pid: number;
+  /**
+   * The child's pid. `undefined` only for the post-close phases on a child that never had one
+   * assigned (a spawn that produced no process): those phases are about this run's own bookkeeping
+   * rather than about signalling a process, so an absent pid is reportable rather than a
+   * contradiction.
+   */
+  readonly pid: number | undefined;
   readonly error: unknown;
 }
 
@@ -665,6 +683,83 @@ function defaultCleanupFailureSink(context: AgentCleanupFailureContext): void {
     `[@jini-ai/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})`,
     redactSecrets(errorMessage(context.error)),
   );
+}
+
+/**
+ * Reports a contained post-close failure through the host's sink, absorbing a throwing sink.
+ *
+ * A diagnostic sink is host code too, and the whole point of the two callers below is that nothing
+ * between `'close'` and `finish()` can strand the run — a sink that throws must not reintroduce
+ * exactly that. Same reasoning `run-lifecycle.ts`'s `handleInactivityTimeout` already applies to its
+ * own `onInternalError`.
+ */
+function reportPostCloseFailure(
+  onCleanupFailure: (context: AgentCleanupFailureContext) => void,
+  context: AgentCleanupFailureContext,
+): void {
+  try {
+    onCleanupFailure(context);
+  } catch {
+    // Nothing further can be done from here, and the terminal transition below still must happen.
+  }
+}
+
+/** The subset of a close handler's context the two post-close guards below need. */
+interface PostCloseGuardContext {
+  readonly runId: string;
+  readonly child: ChildProcess;
+  readonly cleanupStagedFiles: () => Promise<void>;
+  readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
+}
+
+/**
+ * Removes this run's staged files, reporting rather than propagating a failure.
+ *
+ * Unguarded, a rejecting cleanup (EBUSY, a temp directory yanked out from under the daemon, a host
+ * stager bug) escaped the `void (async () => …)()` wrapper in each close handler and took `finish()`
+ * with it: the child was already gone, yet the run stayed `'running'` forever — unfinishable and
+ * unresumable — and the rejection surfaced only as an unhandled promise. A leaked temp file is a real
+ * problem, but it is strictly smaller than a permanently stranded run, and reporting it keeps it
+ * visible.
+ */
+async function cleanupStagedFilesSafely(ctx: PostCloseGuardContext): Promise<void> {
+  try {
+    await ctx.cleanupStagedFiles();
+  } catch (error) {
+    reportPostCloseFailure(ctx.onCleanupFailure, {
+      runId: ctx.runId,
+      phase: 'staged-file-cleanup',
+      pid: ctx.child.pid,
+      error,
+    });
+  }
+}
+
+/**
+ * Resolves `finish()`'s `resumable` flag from the host's classifier, falling back to `false` when the
+ * classifier itself rejects.
+ *
+ * `classifyFailure` is host-supplied and may do real work (a keystore read, an HTTP call), so it can
+ * fail for reasons unrelated to this run. `false` is the right fallback: it is already the answer for
+ * every run with no classifier configured at all, so an unavailable classifier degrades to the
+ * documented default rather than losing the run.
+ */
+async function classifyFailureSafely(
+  ctx: PostCloseGuardContext,
+  classifyFailure: ClassifyFailure,
+  context: FailureClassificationContext,
+): Promise<boolean> {
+  try {
+    return await classifyFailure(context);
+  } catch (error) {
+    reportPostCloseFailure(ctx.onCleanupFailure, {
+      runId: ctx.runId,
+      phase: 'failure-classification',
+      pid: ctx.child.pid,
+      error,
+    });
+    return false;
+  }
 }
 
 /**
@@ -807,10 +902,18 @@ export interface McpJsonInjectionOptions {
    * `AGENT_SPAWN_FAILED` failure rather than spawning a child that cannot authenticate.
    */
   readonly credential?: (runId: string) => string | Promise<string>;
-  /** Reads an existing `.mcp.json` at the given absolute path so this driver merges rather than clobbers a project's own file. Rejecting (ENOENT or otherwise) is treated as "no existing file" — see `writeMcpJsonForRun`. @default the real `fs.promises.readFile` (utf8) */
+  /** Reads the project's own `cwd/.mcp.json` so this driver merges its servers in rather than dropping them. Rejecting (ENOENT or otherwise) is treated as "no existing file" — see `writeMcpJsonForRun`. This file is only ever *read*. @default the real `fs.promises.readFile` (utf8) */
   readonly readFile?: (path: string) => Promise<string>;
-  /** Writes the merged `.mcp.json` content back out. @default the real `fs.promises.writeFile` (utf8) */
+  /** Writes the merged content to this run's own config path (see {@link mcpJsonPathForRun}), never to the project's `.mcp.json`. @default the real `fs.promises.writeFile` (utf8) */
   readonly writeFile?: (path: string, content: string) => Promise<void>;
+  /**
+   * Removes this run's config file once the run is over — it holds a live per-run bearer token, so
+   * leaving it behind is the same class of confidentiality gap as a leaked prompt file (see
+   * `WireChildLifecycleContext.cleanupStagedFiles`). Called on the close handler and on every
+   * pre-spawn/spawn-failure path, and a rejection is reported rather than allowed to strand the run.
+   * @default `fs.promises.rm(path, { force: true })` — already-gone is success, not an error.
+   */
+  readonly removeFile?: (path: string) => Promise<void>;
 }
 
 const JINI_MCP_SERVER_KEY = 'jini';
@@ -890,14 +993,54 @@ function defaultWriteMcpJsonFile(path: string, content: string): Promise<void> {
   return fsPromises.writeFile(path, content, 'utf8');
 }
 
+function defaultRemoveMcpJsonFile(path: string): Promise<void> {
+  return fsPromises.rm(path, { force: true });
+}
+
 /**
- * Writes (merging, never clobbering — see {@link mergeMcpJsonContent}) `.mcp.json` into `cwd`
- * before spawn, so Claude Code's own spawn-time config load (confirmed in `@jini-ai/agent-runtime`'s
- * `defs/claude.ts` doc: "Claude Code auto-loads `.mcp.json` from the project cwd at spawn")
- * discovers the `jini-mcp` bridge server without this driver needing to pass any CLI flag at all.
+ * This run's own MCP config path, inside `cwd` but deliberately **not** `cwd/.mcp.json`.
+ *
+ * A shared filename cannot carry two runs' identities at once, and that is exactly what the file
+ * carries: `mcpServers.jini.env` holds this run's `JINI_RUN_ID` and its bearer `JINI_DAEMON_TOKEN`.
+ * A spawned CLI reads its MCP config when it starts its client, not synchronously at spawn — so with
+ * one shared file, a second run in the same directory overwrote the entry the first run's child had
+ * not read yet, and that child's `jini-mcp` subprocess then called back carrying the *other* run's id
+ * and token: run A's tool calls executing inside run B's authority context. Concurrent runs in one
+ * working directory are supported by design (see `McpJsonInjectionOptions.credential`'s doc on why the
+ * credential is a per-run resolver at all), so the resolution is one file per run, not a lock that
+ * refuses the second run.
+ *
+ * Naming it after the run also means the project's own `.mcp.json` is never written at all — it stays
+ * purely a merge source, so there is no original content to restore afterwards either.
+ *
+ * The run id is host-supplied and lands in a filename, so everything outside `[A-Za-z0-9_-]` is
+ * replaced (dots included — a `..` segment must not survive) and the result is length-capped. Real run
+ * ids are UUIDs, which pass through untouched; the cap could in principle collide two ids sharing a
+ * 128-character prefix, which no id shape this daemon mints can produce.
+ * @complexity O(n) in the run id's length.
+ */
+function mcpJsonPathForRun(cwd: string, runId: string): string {
+  const safeRunId = runId.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 128);
+  return join(cwd, `.mcp.jini-${safeRunId}.json`);
+}
+
+/**
+ * Writes this run's MCP config — the project's own servers merged with this run's `jini` bridge entry
+ * (see {@link mergeMcpJsonContent}) — to the run-scoped path the def was already handed via
+ * `RuntimeContext.mcpJsonPath`, so the spawned CLI loads it through an explicit
+ * `--strict-mcp-config --mcp-config <path>` rather than by auto-discovering `cwd/.mcp.json` (which
+ * needs an interactive trust prompt a headless spawn can never answer — confirmed live 2026-07-30,
+ * see `@jini-ai/agent-runtime`'s `defs/claude.ts`).
+ *
+ * Reads `cwd/.mcp.json` and writes `writePath`: the project's file is a merge source only, never a
+ * write target. See {@link mcpJsonPathForRun} for why one file per run is load-bearing rather than
+ * cosmetic.
+ *
  * A no-op when `mcpJsonInjection` is `undefined` (opt-in, see `CreateAgentExecutorOptions`'s doc)
  * or `def.externalMcpInjection !== 'claude-mcp-json'` (every other injection strategy delivers
  * `mcpServers` a different way — see this module's own doc above).
+ * @returns `true` when a file was actually written (so the caller knows to remove it afterwards),
+ * `false` on the no-op paths.
  * @throws Whatever `writeFile` rejects with — the caller (`run()`) turns that into a pre-spawn
  * `AGENT_SPAWN_FAILED` failure, matching every other pre-spawn filesystem guard in this file
  * (`preparePromptFileForAgentFn`'s own try/catch).
@@ -906,17 +1049,17 @@ function defaultWriteMcpJsonFile(path: string, content: string): Promise<void> {
  */
 async function writeMcpJsonForRun(
   cwd: string,
+  writePath: string,
   runId: string,
   def: RuntimeAgentDef,
   mcpJsonInjection: McpJsonInjectionOptions | undefined,
-): Promise<void> {
-  if (mcpJsonInjection === undefined || def.externalMcpInjection !== 'claude-mcp-json') return;
+): Promise<boolean> {
+  if (mcpJsonInjection === undefined || def.externalMcpInjection !== 'claude-mcp-json') return false;
   const readFileFn = mcpJsonInjection.readFile ?? defaultReadMcpJsonFile;
   const writeFileFn = mcpJsonInjection.writeFile ?? defaultWriteMcpJsonFile;
-  const filePath = join(cwd, '.mcp.json');
   let existingRaw: string | undefined;
   try {
-    existingRaw = await readFileFn(filePath);
+    existingRaw = await readFileFn(join(cwd, '.mcp.json'));
   } catch {
     // No existing file (ENOENT — the common case) or unreadable for any other reason: both
     // degrade to "start fresh", matching mergeMcpJsonContent's own doc.
@@ -926,7 +1069,8 @@ async function writeMcpJsonForRun(
   // synchronous. `undefined` when the host supplied no resolver, which omits the env var entirely.
   const credential = await mcpJsonInjection.credential?.(runId);
   const serverEntry = buildMcpJsonServerEntry(runId, mcpJsonInjection, credential);
-  await writeFileFn(filePath, mergeMcpJsonContent(existingRaw, serverEntry));
+  await writeFileFn(writePath, mergeMcpJsonContent(existingRaw, serverEntry));
+  return true;
 }
 
 /**
@@ -974,6 +1118,32 @@ export interface FailureClassificationContext {
  */
 export type ClassifyFailure = (context: FailureClassificationContext) => boolean | Promise<boolean>;
 
+/**
+ * Default ceiling on the `'until-close'` stdout accumulator (see `RuntimeStdoutPolicy` in
+ * `@jini-ai/agent-runtime`), in bytes of received UTF-8.
+ *
+ * A buffered def holds its child's entire stdout in one in-memory string until the process closes,
+ * which is exactly what makes the accumulator a denial-of-service surface: the child is a
+ * prompt-influenced agent CLI this driver already treats as potentially adversarial (SEC-001), and
+ * nothing obliges it to ever close or to stop emitting. Without a ceiling one run could exhaust the
+ * daemon's heap and take every unrelated run in the process down with it.
+ *
+ * 8 MiB is chosen to sit far above any real buffered-agent transcript (antigravity's print-mode
+ * output — the only `'until-close'` def — is a few KiB of auth prompt and result text) while staying
+ * small enough that a hostile child cannot meaningfully pressure the heap. A host that genuinely
+ * needs more passes `CreateAgentExecutorOptions.bufferedStdoutMaxBytes`.
+ */
+export const DEFAULT_BUFFERED_STDOUT_MAX_BYTES = 8 * 1024 * 1024;
+
+/**
+ * The host-authored note appended to a truncated flush. Written *after* the def's own `sanitize`
+ * runs, never before: it is this driver's own text, not agent output, and passing it through a
+ * consumer-supplied redactor could silently delete the one line that says output is missing.
+ */
+function bufferedStdoutTruncationNotice(droppedBytes: number, maxBytes: number): string {
+  return `\n[jini] agent stdout truncated: ${droppedBytes} byte(s) dropped after the ${maxBytes}-byte buffer limit was reached.\n`;
+}
+
 interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly runId: string;
   readonly def: RuntimeAgentDef;
@@ -998,6 +1168,8 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly continuation: ContinuationOptions | undefined;
   /** Gap 4's failure classifier. `undefined` means every `'failed'` outcome stays `resumable: false` — byte-identical to pre-gap-4 behavior. See `ClassifyFailure`'s own doc. */
   readonly classifyFailure: ClassifyFailure | undefined;
+  /** Ceiling on the `'until-close'` stdout accumulator — see {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES}. Always resolved by `run()`, never left to this function to default. */
+  readonly bufferedStdoutMaxBytes: number;
 }
 
 /**
@@ -1085,8 +1257,13 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   const bufferStdoutUntilClose = stdoutPolicy?.buffering === 'until-close';
   const sanitizeBufferedStdout = stdoutPolicy?.buffering === 'until-close' ? stdoutPolicy.sanitize : undefined;
   // Accumulator for the `'until-close'` path. Stays `''` for every live def, and the flush below
-  // is then a no-op that emits nothing.
+  // is then a no-op that emits nothing. Bounded by `ctx.bufferedStdoutMaxBytes` — see
+  // {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES} for why an unbounded accumulator was a
+  // denial-of-service surface rather than merely untidy.
   let bufferedStdout = '';
+  let bufferedStdoutBytes = 0;
+  /** Bytes the ceiling refused, reported verbatim on flush so truncation is never silent. */
+  let droppedStdoutBytes = 0;
 
   function enqueueEmit(task: () => Promise<unknown>): void {
     emitQueue = emitQueue.then(async () => {
@@ -1193,14 +1370,24 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
    * flush is ordered after every already-queued event and before `finish()`'s `'end'`. A no-op for
    * every live-streaming def (nothing was ever accumulated) and for a buffered run that produced
    * no stdout at all — an empty `text_delta` is noise, not information.
+   *
+   * A run whose accumulator hit its ceiling is the one case that still emits when the sanitized text
+   * is empty: "the sanitizer redacted everything" and "we dropped output on the floor" must not look
+   * identical to a client, so the truncation notice is information in its own right.
    */
   function flushBufferedStdout(): void {
-    if (bufferedStdout.length === 0) return;
+    if (bufferedStdout.length === 0 && droppedStdoutBytes === 0) return;
     const safe = sanitizeBufferedStdout ? sanitizeBufferedStdout(bufferedStdout) : bufferedStdout;
     bufferedStdout = '';
-    if (safe.length === 0) return;
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: safe } }));
-    enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: { type: 'text_delta', delta: safe } }));
+    bufferedStdoutBytes = 0;
+    const text =
+      droppedStdoutBytes > 0
+        ? `${safe}${bufferedStdoutTruncationNotice(droppedStdoutBytes, ctx.bufferedStdoutMaxBytes)}`
+        : safe;
+    droppedStdoutBytes = 0;
+    if (text.length === 0) return;
+    enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
+    enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: { type: 'text_delta', delta: text } }));
   }
 
   child.stdout?.on('data', (chunk: Buffer | string) => {
@@ -1211,7 +1398,19 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       if (bufferStdoutUntilClose) {
         // Nothing is emitted on *either* channel yet — see this function's doc on why holding the
         // raw echo back matters as much as holding back the chat copy.
+        //
+        // Whole chunks only: a chunk that would cross the ceiling is dropped entirely rather than
+        // sliced to fit, which keeps the accumulator free of half-written multi-byte characters (a
+        // `data` event boundary already need not align with one) and makes the kept prefix exactly
+        // the bytes some prefix of chunks produced. Everything after the first refusal is dropped
+        // too — the point is a hard ceiling on resident bytes, not a best-effort tail.
+        const chunkBytes = Buffer.byteLength(text, 'utf8');
+        if (droppedStdoutBytes > 0 || bufferedStdoutBytes + chunkBytes > ctx.bufferedStdoutMaxBytes) {
+          droppedStdoutBytes += chunkBytes;
+          return;
+        }
         bufferedStdout += text;
+        bufferedStdoutBytes += chunkBytes;
         return;
       }
       enqueueEmit(() => lifecycle.emit(runId, { event: 'stdout', data: { chunk: text } }));
@@ -1262,11 +1461,13 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       flushBufferedStdout();
       await emitQueue;
       unsubscribeCancel();
-      await ctx.cleanupStagedFiles();
+      // Both of the next two steps are guarded: neither a failed cleanup nor a rejecting host
+      // classifier may prevent the terminal transition below — see each helper's own doc.
+      await cleanupStagedFilesSafely(ctx);
       const status = classifyRunCloseStatus({ cancelRequested, code, signal });
       const resumable =
         status === 'failed' && classifyFailure !== undefined
-          ? await classifyFailure({
+          ? await classifyFailureSafely(ctx, classifyFailure, {
               runId,
               agentId: def.id,
               code,
@@ -1393,11 +1594,12 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
     void (async () => {
       await emitQueue;
       unsubscribeCancel();
-      await ctx.cleanupStagedFiles();
+      // Guarded for the same reasons as the child-driven handler above.
+      await cleanupStagedFilesSafely(ctx);
       const status = cancelRequested ? 'cancelled' : controller?.completedSuccessfully() ? 'succeeded' : 'failed';
       const resumable =
         status === 'failed' && classifyFailure !== undefined
-          ? await classifyFailure({
+          ? await classifyFailureSafely(ctx, classifyFailure, {
               runId,
               agentId,
               code,
@@ -1535,11 +1737,12 @@ function wirePiRpcLifecycle(ctx: WirePiRpcLifecycleContext): PiRpcSession {
     void (async () => {
       await emitQueue;
       unsubscribeCancel();
-      await ctx.cleanupStagedFiles();
+      // Guarded for the same reasons as the child-driven handler above.
+      await cleanupStagedFilesSafely(ctx);
       const status = cancelRequested ? 'cancelled' : session?.hasFatalError() ? 'failed' : 'succeeded';
       const resumable =
         status === 'failed' && classifyFailure !== undefined
-          ? await classifyFailure({
+          ? await classifyFailureSafely(ctx, classifyFailure, {
               runId,
               agentId,
               code,
@@ -1703,6 +1906,13 @@ export interface CreateAgentExecutorOptions {
    * `command`/`daemonUrl` this package could assume on a caller's behalf.
    */
   readonly mcpJsonInjection?: McpJsonInjectionOptions;
+  /**
+   * Ceiling on how many bytes of a `'until-close'` def's stdout this driver will hold in memory
+   * before it stops accumulating and reports the shortfall — see
+   * {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES} for the threat this closes and why 8 MiB.
+   * @default {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES}
+   */
+  readonly bufferedStdoutMaxBytes?: number;
 }
 
 /**
@@ -1739,6 +1949,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
   const continuation = options.continuation;
   const classifyFailure = options.classifyFailure;
   const mcpJsonInjection = options.mcpJsonInjection;
+  const bufferedStdoutMaxBytes = options.bufferedStdoutMaxBytes ?? DEFAULT_BUFFERED_STDOUT_MAX_BYTES;
 
   /**
    * Transitions `runId` to `'failed'` (idempotent, never resumable — no
@@ -1840,22 +2051,33 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // containing the full prompt, or whatever the CLI chose to write into its log, is a
     // confidentiality gap, not just a disk leak. One composed closure covering both staged files;
     // see `WireChildLifecycleContext.cleanupStagedFiles`'s doc for why they are not two fields.
-    const cleanupStagedFiles: () => Promise<void> =
-      preparedPromptFile || preparedLogFile
-        ? async () => {
-            if (preparedPromptFile) await preparedPromptFile.cleanup();
-            if (preparedLogFile) await preparedLogFile.cleanup();
-          }
-        : async () => {};
+    /**
+     * Set once `writeMcpJsonForRun` has actually written this run's MCP config, so `cleanupStagedFiles`
+     * knows there is a file holding a live bearer token to remove. Cleared as it is consumed, so the
+     * removal happens exactly once across the several paths that may call the cleanup.
+     */
+    let writtenMcpJsonPath: string | undefined;
+    const removeMcpJsonFileFn = mcpJsonInjection?.removeFile ?? defaultRemoveMcpJsonFile;
+    const cleanupStagedFiles: () => Promise<void> = async () => {
+      if (preparedPromptFile) await preparedPromptFile.cleanup();
+      if (preparedLogFile) await preparedLogFile.cleanup();
+      if (writtenMcpJsonPath !== undefined) {
+        const mcpJsonFileToRemove = writtenMcpJsonPath;
+        writtenMcpJsonPath = undefined;
+        await removeMcpJsonFileFn(mcpJsonFileToRemove);
+      }
+    };
     // Same condition `writeMcpJsonForRun` uses internally to decide whether it will actually write
     // the file below — computed here, ahead of that write, so a `'claude-mcp-json'` def's buildArgs
     // can pass the path explicitly via `--mcp-config` rather than relying on Claude Code's
     // auto-discovery (which needs an interactive trust prompt neither this daemon nor a headless
     // spawn can ever answer). Safe to compute before the file exists: `writeMcpJsonForRun` runs
     // after buildArgs but before spawn, so the path is real by the time the child process starts.
+    // Run-scoped, not `cwd/.mcp.json` — see `mcpJsonPathForRun` for the cross-run credential leak
+    // a shared filename caused.
     const mcpJsonPath: string | undefined =
       mcpJsonInjection !== undefined && def.externalMcpInjection === 'claude-mcp-json'
-        ? join(input.cwd, '.mcp.json')
+        ? mcpJsonPathForRun(input.cwd, input.runId)
         : undefined;
     const runtimeContext: RuntimeContext | undefined =
       preparedPromptFile || preparedLogFile || mcpJsonPath
@@ -1890,25 +2112,52 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       await cleanupStagedFiles();
     };
 
-    const args = def.buildArgs(
-      input.prompt,
-      [...(input.imagePaths ?? [])],
-      input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
-      input.model !== undefined || input.reasoning !== undefined || input.permissionMode !== undefined
-        ? {
-            ...(input.model !== undefined ? { model: input.model } : {}),
-            ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
-            ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
-          }
-        : undefined,
-      runtimeContext,
-    );
-
-    // Gap 3, part 2 — write .mcp.json into the managed cwd before spawn, so a 'claude-mcp-json'
-    // def's own spawn-time config load discovers the jini-mcp bridge server. A no-op for every
-    // other def and whenever mcpJsonInjection is unconfigured — see writeMcpJsonForRun's doc.
+    // Guarded, like every other step between staging and spawn: a `runtimeLock` def's `buildArgs` is
+    // guarded precisely *because* it performs real filesystem writes (antigravity writes its model
+    // choice into a shared settings file), so EACCES on a read-only home, ENOSPC, or a malformed
+    // existing settings file all reach here as a throw. Unguarded, that escaped `run()` as a bare
+    // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
+    // — and left the run `'running'` forever while still holding the process-global mutex and both
+    // staged files, so no later run of that def could ever acquire the lock either.
+    let args: string[];
     try {
-      await writeMcpJsonForRun(input.cwd, input.runId, def, mcpJsonInjection);
+      args = def.buildArgs(
+        input.prompt,
+        [...(input.imagePaths ?? [])],
+        input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
+        input.model !== undefined || input.reasoning !== undefined || input.permissionMode !== undefined
+          ? {
+              ...(input.model !== undefined ? { model: input.model } : {}),
+              ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
+              ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+            }
+          : undefined,
+        runtimeContext,
+      );
+    } catch (err) {
+      await releaseStagedResources();
+      return failBeforeSpawn(
+        input.runId,
+        'AGENT_SPAWN_FAILED',
+        `AgentExecutor: could not build launch arguments for agent "${def.id}": ${errorMessage(err)}`,
+      );
+    }
+
+    // Gap 3, part 2 — write this run's own MCP config before spawn, so a 'claude-mcp-json' def's
+    // config load finds the jini-mcp bridge server scoped to *this* run. A no-op for every other def
+    // and whenever mcpJsonInjection is unconfigured — see writeMcpJsonForRun's doc. `mcpJsonPath` is
+    // non-undefined on exactly the paths that write, so the non-null assertion mirrors the two
+    // conditions being the same one.
+    //
+    // Requires the def to tell its child where this file is, via the `mcpJsonPath` it was handed in
+    // `runtimeContext` (`claude.ts`: `--strict-mcp-config --mcp-config <path>`). A def that instead
+    // relies on its CLI auto-discovering `cwd/.mcp.json` gets a file nothing reads — see
+    // `mcpJsonPathForRun` for why the shared filename cannot be kept, and `packages/daemon/source-map.md`
+    // for the one def (`codebuddy`) still on auto-discovery and what it needs.
+    try {
+      if (await writeMcpJsonForRun(input.cwd, mcpJsonPath!, input.runId, def, mcpJsonInjection)) {
+        writtenMcpJsonPath = mcpJsonPath;
+      }
     } catch (err) {
       await releaseStagedResources();
       return failBeforeSpawn(
@@ -1974,6 +2223,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
             journal,
             continuation,
             classifyFailure,
+            bufferedStdoutMaxBytes,
           });
 
     try {

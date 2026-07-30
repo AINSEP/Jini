@@ -408,6 +408,60 @@ describe('createFrontendSessionRegistry', () => {
       expect(registry.sessionFor('run-2')?.sessionId).toBe('session-2');
     });
 
+    // A handle is a capability over *one attachment*, not over a session id. A surface that
+    // reconnects (tab reload, dropped SSE stream) legitimately re-attaches under the same id, so a
+    // handle left over from the previous attachment must be inert — otherwise a late `detach()`
+    // from the old connection silently unroutes the live one, and every subsequent capability call
+    // fails closed against a surface that is in fact still there.
+    it('ignores a stale handle\'s detach once its session id has been re-attached', async () => {
+      const registry = createFrontendSessionRegistry({ newInvocationId: () => 'inv-1' });
+      const stale = attachAndBind(registry, 'tab', 'run-1');
+      stale.handle.detach();
+
+      const replacement = recordingSurface();
+      const replacementHandle = registry.attach({ sessionId: 'tab', capabilities: ['page.click'] }, replacement.deliver);
+      registry.bindRun('run-1', 'tab');
+
+      stale.handle.detach();
+
+      expect(registry.sessionFor('run-1')?.sessionId).toBe('tab');
+      const pending = registry.invoke('run-1', 'page.click', { element: 'save' });
+      expect(replacement.delivered).toHaveLength(1);
+      expect(registry.settle('tab', 'inv-1', { ok: true, output: 'clicked' })).toBe(true);
+      await expect(pending).resolves.toBe('clicked');
+      expect(replacementHandle.bindToken).not.toBe(stale.handle.bindToken);
+    });
+
+    // Same hazard reached through the wire-safe door: the replacement's bind token is the only
+    // authority a reconnecting surface has, and it must not be invalidated by the previous
+    // attachment's teardown.
+    it('leaves a replacement attachment\'s bind token usable after the stale handle detaches', () => {
+      const registry = createFrontendSessionRegistry();
+      const stale = attachAndBind(registry, 'tab', 'run-1');
+      stale.handle.detach();
+      const replacementHandle = registry.attach({ sessionId: 'tab', capabilities: ['page.click'] }, recordingSurface().deliver);
+
+      stale.handle.detach();
+
+      expect(() => registry.bindRunByToken('run-2', replacementHandle.bindToken)).not.toThrow();
+      expect(registry.sessionFor('run-2')?.sessionId).toBe('tab');
+    });
+
+    // The unbind closure has the same ownership question as `detach`, and the existing
+    // "stale unbind" test above only covers the easy case where the newer binding names a
+    // *different* session id. Reusing the id is what defeats an id-only comparison.
+    it('does not let a stale unbind release a binding owned by a re-attachment of the same session id', () => {
+      const registry = createFrontendSessionRegistry();
+      const stale = attachAndBind(registry, 'tab', 'run-1');
+      stale.handle.detach();
+      registry.attach({ sessionId: 'tab', capabilities: ['page.click'] }, recordingSurface().deliver);
+      registry.bindRun('run-1', 'tab');
+
+      stale.unbind();
+
+      expect(registry.sessionFor('run-1')?.sessionId).toBe('tab');
+    });
+
     it('refuses to attach a session id that is already attached', () => {
       const registry = createFrontendSessionRegistry();
       attachAndBind(registry, 'session-1', 'run-1');
