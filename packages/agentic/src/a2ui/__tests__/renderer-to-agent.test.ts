@@ -73,4 +73,20 @@ describe('parseRendererToAgentMessage — adversarial', () => {
   it('rejects a VALIDATION_FAILED error missing its required path', () => {
     expect(parseRendererToAgentMessage({ version: 'v1.0', error: { code: 'VALIDATION_FAILED', surfaceId: 's1', message: 'm' } }).ok).toBe(false);
   });
+
+  // Regression (2026-07-29 audit), the mirror of the `updateDataModel.value` hole:
+  // `renderer_to_agent.json` says `"required": ["functionCallId", "call", "value"]` for
+  // functionResponse, and `z.unknown()` accepted a message with no `value` key at all. JSON has
+  // no `undefined`, so a function that returns nothing has to say `null`, not say nothing.
+  it('rejects a functionResponse with no value at all, which the real schema requires', () => {
+    expect(parseRendererToAgentMessage({ version: 'v1.0', functionResponse: { functionCallId: 'c1', call: 'f' } }).ok)
+      .toBe(false);
+  });
+
+  it('accepts a functionResponse whose value is any legal JSON value, including the falsy ones', () => {
+    for (const value of [null, false, 0, '']) {
+      expect(parseRendererToAgentMessage({ version: 'v1.0', functionResponse: { functionCallId: 'c1', call: 'f', value } }).ok)
+        .toBe(true);
+    }
+  });
 });

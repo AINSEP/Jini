@@ -76,6 +76,24 @@ export const UpdateComponentsMessageSchema = z
   .strict();
 export type UpdateComponentsMessage = z.infer<typeof UpdateComponentsMessageSchema>;
 
+/**
+ * `value` is required by the real schema (`"required": ["surfaceId", "value"]`, re-fetched and
+ * checked 2026-07-29) — but declaring it `z.unknown()` did not make it so. In Zod 3 a key whose
+ * schema accepts `undefined` is satisfied by the key being absent entirely, and `undefined`
+ * inhabits `unknown`; `z.unknown().isOptional()` is literally `true`. So `{updateDataModel:
+ * {surfaceId: "s1"}}` parsed clean, and `interpreter.ts` then wrote that missing value at the
+ * default `'/'` pointer — replacing the surface's whole data model with `undefined`, silently,
+ * with no error message and no way for the agent to learn it had happened.
+ *
+ * Presence is therefore asserted on the object rather than on the field: there is no Zod 3 schema
+ * for "any value, but it has to be there," because optionality is decided by the field's *type*.
+ * `'value' in body` rather than a `!== undefined` check, so every legal JSON value — `null`
+ * (the spec's own delete verb), `false`, `0`, `""` — is still accepted as content.
+ *
+ * The same limitation leaves `value` typed `value?: unknown` on the inferred type. That is
+ * unavoidable in Zod 3 for an `unknown`-typed key (`undefined extends unknown`), and is why this
+ * is enforced at runtime rather than trusted to the type.
+ */
 export const UpdateDataModelMessageSchema = z
   .object({
     version: z.literal(PROTOCOL_VERSION),
@@ -85,7 +103,11 @@ export const UpdateDataModelMessageSchema = z
         path: z.string().optional(),
         value: z.unknown(),
       })
-      .strict(),
+      .strict()
+      .refine((body) => 'value' in body, {
+        message: 'updateDataModel requires an explicit "value" (use null to delete the key at "path")',
+        path: ['value'],
+      }),
   })
   .strict();
 export type UpdateDataModelMessage = z.infer<typeof UpdateDataModelMessageSchema>;

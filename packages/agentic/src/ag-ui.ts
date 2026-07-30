@@ -75,6 +75,35 @@ export function toAgUiTools(capabilities: readonly CapabilityDef[]): readonly Ag
 }
 
 /**
+ * JSON, or a description of why there is none — always a string, which `JSON.stringify` alone is
+ * not.
+ *
+ * `output` is `unknown`: whatever a host's capability actually returned. `JSON.stringify` is not
+ * total over that domain, in two different ways, and `content` is declared `string`:
+ *
+ * - it **throws** for a BigInt or a circular structure — landing on the transport, where the
+ *   agent never learns its tool call produced anything at all;
+ * - it **returns `undefined`** (not a string) for a function or a symbol, so `content` was
+ *   genuinely `undefined` despite its type, and whatever serialized the message downstream
+ *   dropped the field or wrote `undefined` into the wire.
+ *
+ * Both become a result the agent can read, because that is this channel's whole premise: a
+ * failure it can see and reason about beats one that disappears.
+ */
+function encodeToolContent(output: unknown): string {
+  let encoded: string | undefined;
+  try {
+    encoded = JSON.stringify(output ?? null);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return JSON.stringify({ error: `tool output could not be encoded as JSON: ${detail}` });
+  }
+  // `undefined` here means "not representable in JSON" (a function, a symbol), which is what
+  // `null` means in every other JSON position — an array element, an object property.
+  return encoded ?? 'null';
+}
+
+/**
  * Builds the result message for a completed frontend tool call.
  *
  * AG-UI carries the result as a string, so structured output is JSON-encoded. Errors are
@@ -92,7 +121,7 @@ export function createAgUiToolResult(
   outcome: { ok: true; output: unknown } | { ok: false; error: string },
 ): AgUiToolResultMessage {
   const content = outcome.ok
-    ? typeof outcome.output === 'string' ? outcome.output : JSON.stringify(outcome.output ?? null)
+    ? typeof outcome.output === 'string' ? outcome.output : encodeToolContent(outcome.output)
     : JSON.stringify({ error: outcome.error });
   return { id: messageId, role: 'tool', content, toolCallId };
 }

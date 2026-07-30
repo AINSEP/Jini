@@ -92,9 +92,20 @@ export interface AgentElementDescriptor {
  * `text` and any `value` are page-authored and therefore untrusted, exactly like `label`.
  */
 export interface AgentElementState {
-  /** Live text rendered inside the element, normalized and bounded. Empty for a bare input. */
+  /**
+   * Live text rendered inside the element, normalized and bounded. Empty for a bare input, and
+   * empty when withheld — see {@link AgentElementState.textWithheld}.
+   */
   readonly text: string;
   readonly textTruncated: boolean;
+  /**
+   * Why `text` is empty on an element that has some — so a caller reads "withheld", not "blank".
+   *
+   * Only ever set for an editable region (a `contenteditable`), whose text is the field's own
+   * contents rather than page-authored chrome. Every other element's text is what the page already
+   * renders openly to anyone looking at it.
+   */
+  readonly textWithheld?: string;
   /** The field's current contents. Absent when the element is not a field, or when withheld. */
   readonly value?: string;
   readonly valueTruncated?: boolean;
@@ -124,6 +135,16 @@ export interface AgentElementState {
 export interface AgentElementRawState {
   /** Raw text content. The executor normalizes and bounds it. */
   readonly text: string;
+  /**
+   * True when this element's `text` IS the field's contents rather than page-authored chrome —
+   * i.e. it is an editable region (`contenteditable`), which has no `value` of its own.
+   *
+   * A mechanical fact about the element, which is why a driver reports it: only the driver can
+   * tell. What follows from it is policy and stays in `projectElementState`, which gates such text
+   * with the same read guard it applies to `value`. Without this, a `<div contenteditable
+   * name="password">` had no `value` to withhold and handed the secret back as `text` instead.
+   */
+  readonly textIsValue?: boolean | undefined;
   /** Raw field contents, reported unconditionally; the executor applies the read guard. */
   readonly value?: string | undefined;
   readonly checked?: boolean | undefined;

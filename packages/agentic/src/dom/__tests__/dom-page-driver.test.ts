@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { findFieldFillRefusal } from '../../guards.js';
+import { executePageCapability, type FindElementsResult } from '../../page-executor.js';
 
 import { createDomPageDriver, currentAgentPage } from '../dom-page-driver.js';
 
@@ -215,39 +216,56 @@ describe('describeField', () => {
   });
 });
 
-describe('accessibleLabel', () => {
+describe('accessibleLabels', () => {
   // `name`/`id` are machine names; a CMS or form builder emitting `name="field_47"` next to a
   // visibly-labelled "Card number" leaves the guard nothing to judge unless this is populated.
-  it('prefers aria-label over placeholder', async () => {
+  //
+  // Every source is carried, not just the first that resolves (2026-07-29 audit): first-match
+  // resolution let a page hide a sensitive field behind a benign one — see the masking test at
+  // the end of this block for the exact markup, which read back a card number in full.
+  it('carries aria-label and placeholder together, aria-label first', async () => {
     root.insertAdjacentHTML(
       'beforeend',
       '<input data-agent-element="al-aria" aria-label="Card number" placeholder="1234" name="cc" />',
     );
-    expect(await makeDriver().describeField('al-aria')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-aria')).toMatchObject({ accessibleLabels: ['Card number', '1234'] });
   });
 
-  it('falls back to placeholder when there is no aria-label', async () => {
+  it('reports placeholder when there is no aria-label', async () => {
     root.insertAdjacentHTML(
       'beforeend',
       '<input data-agent-element="al-placeholder" placeholder="Card number" name="cc" />',
     );
-    expect(await makeDriver().describeField('al-placeholder')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-placeholder')).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
-  it('falls back to an explicit <label for> when there is no aria-label or placeholder', async () => {
+  it('reports an explicit <label for> when there is no aria-label or placeholder', async () => {
     root.insertAdjacentHTML(
       'beforeend',
       '<label for="al-for-target">Card number</label><input id="al-for-target" data-agent-element="al-for" name="cc" />',
     );
-    expect(await makeDriver().describeField('al-for')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-for')).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
-  it('falls back to an ancestor <label> that wraps the control', async () => {
+  it('reports an ancestor <label> that wraps the control', async () => {
     root.insertAdjacentHTML(
       'beforeend',
       '<label>Card number <input data-agent-element="al-wrap" name="cc" /></label>',
     );
-    expect(await makeDriver().describeField('al-wrap')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-wrap')).toMatchObject({ accessibleLabels: ['Card number'] });
+  });
+
+  it('reports every <label> associated with a control, not only the first', async () => {
+    // The platform allows more than one <label> per control, and `.labels` lists all of them. A
+    // page can put the harmless one first.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label for="al-multi-target">Optional</label><label for="al-multi-target">Card number</label>'
+      + '<input id="al-multi-target" data-agent-element="al-multi" name="f" />',
+    );
+    expect(await makeDriver().describeField('al-multi')).toMatchObject({
+      accessibleLabels: ['Optional', 'Card number'],
+    });
   });
 
   it('resolves the same way for a contenteditable region', async () => {
@@ -255,15 +273,24 @@ describe('accessibleLabel', () => {
       'beforeend',
       '<div data-agent-element="al-ce" contenteditable="true" aria-label="Card number"></div>',
     );
-    expect(await makeDriver().describeField('al-ce')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-ce')).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
-  it('leaves accessibleLabel undefined when nothing on the page names the field', async () => {
+  it('reports no labels at all when nothing on the page names the field', async () => {
     // `bio-input` (from MARKUP) carries no aria-label, placeholder or associated <label>. This is
-    // proof the property is actually SET (to undefined) rather than merely absent: `toMatchObject`
-    // treats a missing key differently from a key present with value `undefined`, so this genuinely
-    // fails pre-fix (no `accessibleLabel` key at all) and passes post-fix.
-    expect(await makeDriver().describeField('bio-input')).toMatchObject({ accessibleLabel: undefined });
+    // proof the property is actually SET (to an empty list) rather than merely absent:
+    // `toMatchObject` treats a missing key differently from a present one.
+    expect(await makeDriver().describeField('bio-input')).toMatchObject({ accessibleLabels: [] });
+  });
+
+  it('does not repeat one naming source that resolves twice', async () => {
+    // A wrapping <label> is also reachable through `.labels`; reporting it twice would be noise
+    // in every refusal message built from these.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label>Card number <input data-agent-element="al-dupe" name="f" /></label>',
+    );
+    expect(await makeDriver().describeField('al-dupe')).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('end to end: a field named only "field_47" but visibly labelled "Card number" is refused by the fill guard', async () => {
@@ -291,7 +318,7 @@ describe('accessibleLabel', () => {
     );
     expect(await makeDriver().describeField('al-ce-wrap')).toMatchObject({
       type: 'contenteditable',
-      accessibleLabel: 'Card number',
+      accessibleLabels: ['Card number'],
     });
   });
 
@@ -300,7 +327,7 @@ describe('accessibleLabel', () => {
       'beforeend',
       '<label for="ce-cc">Card number</label><div id="ce-cc" data-agent-element="al-ce-for" contenteditable="true"></div>',
     );
-    expect(await makeDriver().describeField('al-ce-for')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-ce-for')).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('skips a <label for> that names a different id and keeps looking', async () => {
@@ -311,18 +338,18 @@ describe('accessibleLabel', () => {
       '<label for="some-other-field">Not this one</label><label for="ce-picked">Card number</label>' +
         '<div id="ce-picked" data-agent-element="al-ce-pick" contenteditable="true"></div>',
     );
-    expect(await makeDriver().describeField('al-ce-pick')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-ce-pick')).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
-  it('ignores an empty wrapping <label> and falls through to the for-linked one', async () => {
-    // A wrapper that contributes no text is not a label: preferring it would report `''` and hide
-    // the real name. The contenteditable itself is empty, so the wrapper's textContent is empty too.
+  it('ignores an empty wrapping <label> and still reports the for-linked one', async () => {
+    // A wrapper that contributes no text is not a label: reporting it would put `''` in the list
+    // and name nothing. The contenteditable itself is empty, so the wrapper's textContent is too.
     root.insertAdjacentHTML(
       'beforeend',
       '<label for="ce-empty-wrap">Card number</label>' +
         '<label><div id="ce-empty-wrap" data-agent-element="al-ce-empty" contenteditable="true"></div></label>',
     );
-    expect(await makeDriver().describeField('al-ce-empty')).toMatchObject({ accessibleLabel: 'Card number' });
+    expect(await makeDriver().describeField('al-ce-empty')).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
   it('reports no accessible label for a hidden input, whose .labels is null rather than an empty list', async () => {
@@ -332,7 +359,111 @@ describe('accessibleLabel', () => {
       'beforeend',
       '<input type="hidden" data-agent-element="al-hidden" name="csrf" value="t" />',
     );
-    expect(await makeDriver().describeField('al-hidden')).toMatchObject({ type: 'hidden', accessibleLabel: undefined });
+    expect(await makeDriver().describeField('al-hidden')).toMatchObject({ type: 'hidden', accessibleLabels: [] });
+  });
+
+  // The attack this whole plural shape exists to stop, end to end through the executor rather
+  // than at the descriptor: the field's machine name says nothing, its placeholder is innocuous,
+  // and only the <label> a human reads says "Card number". With first-match resolution the guard
+  // saw "Enter value" and reported the card number in full.
+  it('a benign placeholder does not mask a sensitive <label> — the value stays withheld', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<label for="field_47">Card number</label>'
+      + '<input id="field_47" data-agent-element="masked-field" data-agent-label="Payment detail"'
+      + ' name="field_47" placeholder="Enter value" value="4111111111111111" />',
+    );
+    const driver = makeDriver();
+
+    const field = await driver.describeField('masked-field');
+    expect(field).not.toBeNull();
+    expect(findFieldFillRefusal(field!)).toBe('suspicious-name');
+
+    const result = await executePageCapability(driver, 'page.find_elements', {
+      query: 'masked-field',
+      withState: true,
+    }) as FindElementsResult;
+    const masked = result.elements[0]!;
+    expect(masked.state?.value).toBeUndefined();
+    expect(masked.state?.valueWithheld).toBe('this field name indicates a secret or anti-forgery token');
+    expect(JSON.stringify(result)).not.toContain('4111111111111111');
+  });
+
+  it('a <select> whose only sensitive signal is its aria-label withholds its value too', async () => {
+    // `describeState` builds its own descriptor for a dropdown rather than going through
+    // `fieldDescriptorOf`, and that descriptor used to carry no label at all — so the same
+    // masking hole existed there independently of the resolution order above.
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<select data-agent-element="cc-select" data-agent-label="Choose" aria-label="Card number" name="f9">'
+      + '<option value="4111111111111111">Visa ending 1111</option></select>',
+    );
+    const driver = makeDriver();
+    const result = await executePageCapability(driver, 'page.find_elements', {
+      query: 'cc-select',
+      withState: true,
+    }) as FindElementsResult;
+    const state = result.elements[0]!.state;
+    expect(state?.value).toBeUndefined();
+    expect(state?.valueWithheld).toBe('this field name indicates a secret or anti-forgery token');
+    // ...while the option texts a caller needs to pass a valid choice stay readable.
+    expect(state?.options).toEqual(['Visa ending 1111']);
+  });
+});
+
+// Regression (2026-07-29 audit): a contenteditable region's text content IS the field's value.
+// Both channels that carry element text — `label` (which falls back to live text when the page
+// tagged no `data-agent-label`) and `state.text` — handed it back verbatim on a field the read
+// guard refuses.
+describe('a contenteditable region holding a secret', () => {
+  const secretMarkup =
+    '<div data-agent-element="notes" contenteditable="true" name="password">hunter2</div>';
+
+  it('does not report the region\'s contents as its label', async () => {
+    root.insertAdjacentHTML('beforeend', secretMarkup);
+    const [element] = await makeDriver().findElements({ query: 'notes' });
+    expect(element!.label).not.toBe('hunter2');
+  });
+
+  it('names the region by its accessible label instead, when the page supplies one', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<div data-agent-element="notes2" contenteditable="true" aria-label="Recovery phrase">correct horse</div>',
+    );
+    const [element] = await makeDriver().findElements({ query: 'notes2' });
+    expect(element!.label).toBe('Recovery phrase');
+  });
+
+  it('withholds the contents from state.text, through the executor', async () => {
+    root.insertAdjacentHTML('beforeend', secretMarkup);
+    const result = await executePageCapability(makeDriver(), 'page.find_elements', {
+      query: 'notes',
+      withState: true,
+    }) as FindElementsResult;
+    expect(JSON.stringify(result)).not.toContain('hunter2');
+    expect(result.elements[0]!.state?.textWithheld)
+      .toBe('this field name indicates a secret or anti-forgery token');
+  });
+
+  it('still reports the contents of an ordinary editable region', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<div data-agent-element="bio-region" contenteditable="true" name="bio" aria-label="Bio">A short bio</div>',
+    );
+    const result = await executePageCapability(makeDriver(), 'page.find_elements', {
+      query: 'bio-region',
+      withState: true,
+    }) as FindElementsResult;
+    expect(result.elements[0]!.state?.text).toBe('A short bio');
+    expect(result.elements[0]!.state?.textWithheld).toBeUndefined();
+  });
+
+  it('leaves an ordinary element\'s text-derived label untouched', async () => {
+    // The label fallback is only withdrawn for editable regions — for everything else, live text
+    // is the page's own ontology and is what `status-line` (from MARKUP) relies on.
+    root.insertAdjacentHTML('beforeend', '<span data-agent-element="plain-span">Ready.</span>');
+    const [element] = await makeDriver().findElements({ query: 'plain-span' });
+    expect(element!.label).toBe('Ready.');
   });
 });
 
@@ -856,6 +987,70 @@ describe('selectOption with an explicit `selected`', () => {
   });
 });
 
+// Regression (2026-07-29 audit): the per-<option> `!entry.disabled` filter above reads like it
+// enforces "an agent may only do what a user could," but it only ever looked at each option. The
+// CONTROL's own disabled state was never checked, so a `<select disabled>` — and a `<select>`
+// inside a `<fieldset disabled>`, which the platform also treats as disabled and excludes from
+// form submission — could still be written to, and the write reported as a real change.
+describe('selectOption on a dropdown the user cannot touch', () => {
+  const disabledMarkup = `
+    <select data-agent-element="plan-select" data-agent-label="Plan" name="plan" disabled>
+      <option value="free" selected>Free</option>
+      <option value="pro">Pro</option>
+    </select>
+    <fieldset disabled>
+      <select data-agent-element="tier-select" data-agent-label="Tier" name="tier">
+        <option value="a" selected>A</option>
+        <option value="b">B</option>
+      </select>
+    </fieldset>
+  `;
+
+  beforeEach(() => root.insertAdjacentHTML('beforeend', disabledMarkup));
+
+  const valueOf = (handle: string) =>
+    (root.querySelector(`[data-agent-element="${handle}"]`) as HTMLSelectElement).value;
+
+  it('refuses a dropdown disabled by its own attribute, and leaves its value alone', async () => {
+    await expect(makeDriver().selectOption('plan-select', 'Pro'))
+      .rejects.toThrow(/"plan-select" is disabled/);
+    expect(valueOf('plan-select')).toBe('free');
+  });
+
+  it('refuses a dropdown disabled only by an ancestor <fieldset disabled>', async () => {
+    // `.disabled` reflects only the element's own attribute; `:disabled` is the platform's answer
+    // for both, and is what decides whether the value reaches form submission at all.
+    await expect(makeDriver().selectOption('tier-select', 'B'))
+      .rejects.toThrow(/"tier-select" is disabled/);
+    expect(valueOf('tier-select')).toBe('a');
+  });
+
+  it('refuses before considering whether the option exists at all', async () => {
+    // The refusal is about the control, so it must not depend on the caller having named a real
+    // option — otherwise the error message leaks which options a disabled control offers.
+    await expect(makeDriver().selectOption('plan-select', 'Astronaut'))
+      .rejects.toThrow(/"plan-select" is disabled/);
+  });
+
+  it('refuses a deselect on a disabled multi-select too', async () => {
+    root.insertAdjacentHTML(
+      'beforeend',
+      '<select data-agent-element="tags-select" name="tags" multiple disabled>'
+      + '<option value="x" selected>X</option></select>',
+    );
+    await expect(makeDriver().selectOption('tags-select', 'X', false))
+      .rejects.toThrow(/"tags-select" is disabled/);
+    expect(Array.from(
+      (root.querySelector('[data-agent-element="tags-select"]') as HTMLSelectElement).selectedOptions,
+    ).map((entry) => entry.value)).toEqual(['x']);
+  });
+
+  it('still writes to an enabled dropdown, so the refusal is scoped to disabled controls', async () => {
+    await makeDriver().selectOption('role-select', 'Engineer');
+    expect(valueOf('role-select')).toBe('engineer');
+  });
+});
+
 describe('navigate', () => {
   it('runs the host-supplied navigation for a published page', async () => {
     await makeDriver().navigate('signup');
@@ -882,6 +1077,26 @@ describe('navigate', () => {
     expect(message).not.toContain(bidiOverride);
     expect(message).not.toContain('w'.repeat(5000));
     expect(message.length).toBeLessThan(500);
+  });
+
+  // Regression (2026-07-29 audit): the lookup was a bare `pages[page]`, which reaches everything
+  // `Object.prototype` contributes. `navigate("constructor")` therefore resolved a function the
+  // host never published and called it, reporting a navigation that never happened; and
+  // `navigate("__proto__")` resolved a non-callable object and failed with "go is not a function"
+  // instead of the refusal this method exists to give.
+  it.each(['constructor', 'toString', 'valueOf', 'hasOwnProperty', '__proto__'])(
+    'refuses "%s", which a host never published but Object.prototype supplies',
+    async (inherited) => {
+      await expect(makeDriver().navigate(inherited)).rejects.toThrow(/is not a published page/);
+      expect(navigated).toEqual([]);
+    },
+  );
+
+  it('refuses an inherited name even when the host built its page map from a bare object', async () => {
+    // A host that hands over `Object.create(null)` has no inherited names to leak; one that hands
+    // over an object literal does. Both must behave identically.
+    const driver = createDomPageDriver({ root, pages: Object.assign(Object.create(null), { home: () => {} }) });
+    await expect(driver.navigate('constructor')).rejects.toThrow(/is not a published page/);
   });
 });
 

@@ -8,7 +8,8 @@
  * walk the data model to answer.
  *
  * **Never throws.** Every failure mode (a path that doesn't resolve, a function that isn't
- * registered, a function that crosses a `callableFrom` boundary it isn't allowed to cross, `@index`
+ * registered, a function that crosses a `callableFrom` boundary it isn't allowed to cross, a
+ * registered function whose implementation throws on the arguments it was handed, `@index`
  * used outside a list-template context) returns a tagged `ResolveFailure` instead — this is the
  * direct answer to this task's adversarial question "a binding whose path doesn't resolve — does
  * it crash or degrade sanely?": it degrades sanely, always, by construction (no code path in this
@@ -41,6 +42,7 @@ export type ResolveFailureReason =
   | 'FUNCTION_NOT_REGISTERED'
   | 'FUNCTION_NOT_CALLABLE_FROM_SIDE'
   | 'FUNCTION_NOT_IMPLEMENTED'
+  | 'FUNCTION_THREW'
   | 'INDEX_OUTSIDE_LIST_CONTEXT'
   | 'RELATIVE_PATH_OUTSIDE_LIST_CONTEXT';
 
@@ -55,8 +57,21 @@ export interface ResolveOk {
 }
 export type ResolveResult = ResolveOk | ResolveFailure;
 
+/**
+ * `path` must actually be a *string*, not merely present — the same check `isFunctionCall` already
+ * makes on `call`, and its absence here was a live crash rather than a nicety. `FunctionCall.args`
+ * accepts a plain object (`common-types.ts`'s `ArgValueSchema` record branch), so an agent could
+ * send `{path: 7}` as an arg, pass wire validation, get classified as a binding here, and blow up
+ * on `path.startsWith` inside `resolveBindingPath` — a throw straight out through
+ * `applyAgentMessage`, which this module's own doc says cannot happen.
+ */
 function isDataBinding(value: unknown): value is DataBinding {
-  return typeof value === 'object' && value !== null && !Array.isArray(value) && 'path' in value && Object.keys(value).length === 1;
+  return typeof value === 'object'
+    && value !== null
+    && !Array.isArray(value)
+    && 'path' in value
+    && typeof (value as { path: unknown }).path === 'string'
+    && Object.keys(value).length === 1;
 }
 function isFunctionCall(value: unknown): value is FunctionCall {
   return typeof value === 'object' && value !== null && !Array.isArray(value) && 'call' in value && typeof (value as { call: unknown }).call === 'string';
@@ -118,7 +133,18 @@ function resolveFunctionCall(call: FunctionCall, ctx: ResolveContext): ResolveRe
     if (!argResult.ok) return argResult;
     resolvedArgs[key] = argResult.value;
   }
-  return { ok: true, value: spec.impl(resolvedArgs) };
+  // `impl` is host-supplied code handed agent-supplied arguments, and this module validates
+  // neither against the other (the catalog's per-function arg schemas are not implemented — see
+  // `catalog.ts`'s module doc). An entirely ordinary implementation therefore throws the moment an
+  // agent sends the wrong shape (`args.name.toUpperCase()` on a number), and that throw used to
+  // travel out through `applyAgentMessage` into the host's render, where nothing catches it. It is
+  // a resolution failure like any other: reported, not propagated.
+  try {
+    return { ok: true, value: spec.impl(resolvedArgs) };
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return { ok: false, reason: 'FUNCTION_THREW', detail: `function "${call.call}" threw while evaluating: ${detail}` };
+  }
 }
 
 /**

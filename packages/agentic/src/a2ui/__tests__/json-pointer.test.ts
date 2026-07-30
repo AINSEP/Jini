@@ -116,3 +116,54 @@ describe('setAtPointer', () => {
     expect(setAtPointer(doc, 'a', 2)).toBe(doc);
   });
 });
+
+// Regression (2026-07-29 audit). A JSON Pointer names a property of the document, and a JSON
+// document has no inherited properties — but both halves of this module reached the prototype
+// chain anyway: `token in record` answers `true` for everything `Object.prototype` contributes,
+// and a plain `record[token] = value` assignment fires the inherited `__proto__` accessor-setter
+// instead of defining a key.
+describe('prototype chain — a pointer addresses the document, never what it inherits', () => {
+  it.each(['/constructor', '/toString', '/hasOwnProperty', '/__proto__', '/valueOf'])(
+    'reports not-found for %s on a plain object rather than resolving the inherited member',
+    (pointer) => {
+      expect(getAtPointer({}, pointer)).toEqual({ found: false, value: undefined });
+    },
+  );
+
+  it('reports not-found for an inherited member reached through an intermediate segment', () => {
+    expect(getAtPointer({ user: {} }, '/user/constructor/name')).toEqual({ found: false, value: undefined });
+  });
+
+  it('still resolves an own property that shadows an inherited name', () => {
+    // The key itself is legal RFC 6901 — only the *inherited* member must be unreachable.
+    expect(getAtPointer({ constructor: 'mine' }, '/constructor')).toEqual({ found: true, value: 'mine' });
+  });
+
+  it('writing /__proto__ defines an own key instead of changing the result\'s prototype', () => {
+    const written = setAtPointer({}, '/__proto__', { polluted: true }) as Record<string, unknown>;
+    expect(Object.getPrototypeOf(written)).toBe(Object.prototype);
+    expect(Object.keys(written)).toEqual(['__proto__']);
+    expect((written as { polluted?: unknown }).polluted).toBeUndefined();
+    // ...and the key it defined is readable back through the same pointer, so read and write agree.
+    expect(getAtPointer(written, '/__proto__')).toEqual({ found: true, value: { polluted: true } });
+  });
+
+  it('writing through a /__proto__ intermediate segment does the same', () => {
+    // NB: `{ __proto__: ... }` written as an object *literal* sets the prototype rather than a
+    // key, so the expectation is spelled through the pointer API and Object.keys instead.
+    const written = setAtPointer({}, '/__proto__/x', 1) as Record<string, unknown>;
+    expect(Object.getPrototypeOf(written)).toBe(Object.prototype);
+    expect(Object.keys(written)).toEqual(['__proto__']);
+    expect(getAtPointer(written, '/__proto__/x')).toEqual({ found: true, value: 1 });
+  });
+
+  it('never reaches the global Object.prototype', () => {
+    setAtPointer({}, '/__proto__/globallyPolluted', true);
+    expect(({} as { globallyPolluted?: unknown }).globallyPolluted).toBeUndefined();
+  });
+
+  it('deleting an inherited name is a no-op on a document that never had that key', () => {
+    expect(setAtPointer({ a: 1 }, '/__proto__', null)).toEqual({ a: 1 });
+    expect(Object.getPrototypeOf(setAtPointer({ a: 1 }, '/__proto__', null))).toBe(Object.prototype);
+  });
+});

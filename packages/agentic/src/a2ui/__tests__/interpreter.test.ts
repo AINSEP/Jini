@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLabCatalog } from '../catalog.js';
 import { createA2uiInterpreter } from '../interpreter.js';
+import { parseRendererToAgentMessage } from '../renderer-to-agent.js';
 
 const CATALOG_ID = createLabCatalog().catalogId;
 
@@ -261,6 +262,75 @@ describe('createA2uiInterpreter — adversarial: callFunction / callableFrom exe
       callFunction: { call: 'greetUser', args: { name: { path: '/whatever' } } },
     });
     expect(result.rendererMessages).toMatchObject([{ error: { code: 'PATH_NOT_FOUND', functionCallId: 'call-6' } }]);
+  });
+
+  // Regression (2026-07-29 audit): the reachable end of `resolve.ts`'s broken never-throws
+  // contract. `FunctionCall.args` accepts a plain object (`ArgValueSchema`'s record branch), so
+  // `{path: 7}` passes wire validation, is then misread as a DataBinding, and used to throw
+  // `path.startsWith is not a function` straight out of applyAgentMessage — through the host's
+  // render, with no error boundary between here and the chat React root.
+  it('a callFunction arg shaped like a binding but with a non-string path does not throw out of applyAgentMessage', () => {
+    const interpreter = freshInterpreter();
+    const result = interpreter.applyAgentMessage({
+      version: 'v1.0',
+      functionCallId: 'call-7',
+      wantResponse: true,
+      callFunction: { call: 'greetUser', args: { name: { path: 7 } } },
+    });
+    // Not a binding, so it reaches the impl as the literal object it is; greetUser's own
+    // non-string fallback then applies.
+    expect(result.rendererMessages).toMatchObject([{ functionResponse: { functionCallId: 'call-7', value: 'Hello, there!' } }]);
+  });
+
+  it('reports a void function\'s return as null rather than omitting it from the wire message', () => {
+    // `renderer_to_agent.json` requires `functionResponse.value`, and JSON has no `undefined` —
+    // a function that returns nothing must say `null`, or the emitted message is one this
+    // package's own parser (correctly) refuses.
+    const interpreter = freshInterpreter();
+    const [message] = interpreter.applyAgentMessage({
+      version: 'v1.0',
+      functionCallId: 'call-8',
+      wantResponse: true,
+      callFunction: { call: 'logServerEvent' },
+    }).rendererMessages;
+    expect(message).toEqual({
+      version: 'v1.0',
+      functionResponse: { functionCallId: 'call-8', call: 'logServerEvent', value: null },
+    });
+    expect(parseRendererToAgentMessage(message).ok).toBe(true);
+  });
+});
+
+// Regression (2026-07-29 audit). `updateDataModel.value` is required by the real schema, but
+// `z.unknown()` accepted its absence — so `{updateDataModel: {surfaceId: "s1"}}` parsed, and
+// `setAtPointer(model, '/', undefined)` replaced the surface's entire data model with
+// `undefined`. No error, no renderer message: a whole surface's state silently gone.
+describe('createA2uiInterpreter — a value-less updateDataModel cannot erase a data model', () => {
+  it('refuses the message and leaves the data model exactly as it was', () => {
+    const interpreter = freshInterpreter();
+    interpreter.applyAgentMessage(createSurfaceMsg('s1', { dataModel: { greeting: 'Hello', count: 3 } }));
+
+    const result = interpreter.applyAgentMessage({ version: 'v1.0', updateDataModel: { surfaceId: 's1' } });
+
+    expect(result.rendererMessages).toMatchObject([
+      { error: { code: 'VALIDATION_FAILED', surfaceId: 's1', path: '/updateDataModel/value' } },
+    ]);
+    expect(interpreter.getSurface('s1')?.dataModel).toEqual({ greeting: 'Hello', count: 3 });
+  });
+
+  it('refuses it at a nested path too, rather than deleting the key', () => {
+    const interpreter = freshInterpreter();
+    interpreter.applyAgentMessage(createSurfaceMsg('s1', { dataModel: { user: { name: 'Ada' } } }));
+    interpreter.applyAgentMessage({ version: 'v1.0', updateDataModel: { surfaceId: 's1', path: '/user/name' } });
+    expect(interpreter.getSurface('s1')?.dataModel).toEqual({ user: { name: 'Ada' } });
+  });
+
+  it('still accepts an explicit null, which is the spec\'s own delete verb', () => {
+    const interpreter = freshInterpreter();
+    interpreter.applyAgentMessage(createSurfaceMsg('s1', { dataModel: { user: { name: 'Ada' } } }));
+    const result = interpreter.applyAgentMessage({ version: 'v1.0', updateDataModel: { surfaceId: 's1', path: '/user/name', value: null } });
+    expect(result.rendererMessages).toEqual([]);
+    expect(interpreter.getSurface('s1')?.dataModel).toEqual({ user: {} });
   });
 });
 
