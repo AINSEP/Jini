@@ -112,6 +112,31 @@ describe('createDefaultRunStartHandler — optional executor passthroughs', () =
     });
   });
 
+  // The three file-bearing inputs `AgentExecutorRunInput` grew and this handler never caught up with.
+  // A host that adopts the default handler and needs any of them — an attached screenshot, a second
+  // readable directory, a pi-rpc upload root — silently got a run without them: the agent simply
+  // cannot see the image it was asked about, with nothing anywhere saying why.
+  it('forwards imagePaths, extraAllowedDirs, and uploadRoot', async () => {
+    const { executor, calls } = fakeExecutor();
+    const handler = createDefaultRunStartHandler({
+      agentExecutor: executor,
+      resolveRunInput: () => ({
+        ...base,
+        imagePaths: ['/uploads/run-1/shot.png'],
+        extraAllowedDirs: ['/work/vendor', '/work/docs'],
+        uploadRoot: '/uploads/run-1',
+      }),
+    });
+
+    await handler({ request: { contextRef: 'ctx-1' }, run: { id: 'run-1' } });
+
+    expect(calls[0]).toMatchObject({
+      imagePaths: ['/uploads/run-1/shot.png'],
+      extraAllowedDirs: ['/work/vendor', '/work/docs'],
+      uploadRoot: '/uploads/run-1',
+    });
+  });
+
   // Absent must stay absent, not become an explicit `undefined`: for permissionMode the executor
   // treats absence as "use the def's own auto-approve default", so the two are not equivalent.
   it('omits every optional passthrough the resolver did not supply', async () => {

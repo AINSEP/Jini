@@ -1858,3 +1858,83 @@ untouched). **`@jini-ai/agent-runtime` 1822 → 1845**; `log-file.ts`, `defs/ant
 pre-change figure. `src/types.ts` stays in that package's coverage `exclude` list, re-verified as
 still legitimate: `grep -nE '^(export )?(const|function|class|let|var) '` finds no runtime
 declarations after these additions. `pnpm guard`: clean. `pnpm typecheck`: clean.
+
+## 2026-07-30 addition — post-merge audit fixes (Codex gpt-5.6-sol findings on `9cb4ffc50…085c4799a`)
+
+Full verification write-up, per finding, with the observed red/green output:
+`ADS-memory/reports/post-merge-audit-2026-07-29/daemon-fix-report.md`. Findings list:
+`daemon-findings.md` in that same directory. All 5 blocking and 2 of 3 non-blocking findings were real
+— no false positives. Every fix landed behind a test confirmed failing first.
+
+**`.mcp.json` is now one file per run.** `mcpServers.jini.env` carries this run's `JINI_RUN_ID` and its
+bearer `JINI_DAEMON_TOKEN`, and a shared `cwd/.mcp.json` cannot hold two runs' identities at once — a
+CLI loads its MCP config when it starts its client, not at spawn, so a second run in the same directory
+overwrote the entry the first run's child had not read yet and that child then called back with the
+*other* run's id and token. `mcpJsonPathForRun` writes `<cwd>/.mcp.jini-<runId>.json`; `cwd/.mcp.json`
+is now read-only (still the merge source, so a project's own servers survive, and nothing needs
+restoring); the run's file is removed through `cleanupStagedFiles` via a new
+`McpJsonInjectionOptions.removeFile` seam, so a live token no longer outlives the run. Refusing the
+second run instead was rejected: concurrent runs in one cwd are a documented design point (that is why
+`credential` is a per-run resolver at all).
+
+**One follow-up this leaves open, in `@jini-ai/agent-runtime` rather than here.** The run-scoped path
+only reaches the child because the def passes it on — `claude.ts` emits
+`--strict-mcp-config --mcp-config <runtimeContext.mcpJsonPath>`. **`codebuddy.ts`, the other
+`externalMcpInjection: 'claude-mcp-json'` def, ignores `mcpJsonPath`** and relies on its CLI
+auto-discovering `cwd/.mcp.json`, so a codebuddy run with `mcpJsonInjection` configured now writes a
+file nothing reads. That def wants the same two flags under the same guard — deliberately not done
+blind, because codebuddy's acceptance of those flags is unverified and an unsupported flag fails the
+run outright, which is worse than losing tools on a path `claude.ts`'s own live 2026-07-30 note says
+never worked headlessly anyway (auto-discovery needs an interactive trust prompt; the connection sat at
+`"pending"` forever). Verify with one live codebuddy run, then add the flags.
+
+**The `'until-close'` stdout accumulator is bounded.** `DEFAULT_BUFFERED_STDOUT_MAX_BYTES` (8 MiB,
+overridable via `CreateAgentExecutorOptions.bufferedStdoutMaxBytes`) — an `until-close` child can emit
+indefinitely or never close, and this driver treats agent CLIs as potentially adversarial elsewhere
+(SEC-001), so one run could exhaust the daemon heap and take every unrelated run with it. Whole chunks
+only (no sliced multi-byte characters), everything after the first refusal dropped, and truncation is
+reported in a host-authored note appended *after* the def's `sanitize` runs — a consumer redactor must
+not be able to delete the line saying output is missing, and a truncated run emits even when the
+sanitized text is empty.
+
+**Nothing fallible now sits in front of `finish()`.** `buildArgs` is guarded like every other
+staging→spawn step (it performs real filesystem writes — that is what `runtimeLock` exists for — so
+EACCES/ENOSPC used to escape `run()` as a bare `Error`, stranding the run *and* holding the
+process-global mutex forever). In all three close handlers, staged-file cleanup and the host's
+`classifyFailure` are guarded by `cleanupStagedFilesSafely`/`classifyFailureSafely`: previously either
+rejection took the terminal transition with it, leaving a `'running'` run whose child was already gone
+and surfacing only as an unhandled rejection. The finding cited only the child-driven handler; the ACP
+and pi-rpc handlers had the identical shape and the identical bug. `reportPostCloseFailure` also
+absorbs a throwing `onCleanupFailure` sink. `AgentCleanupFailurePhase` gains `'staged-file-cleanup'`
+and `'failure-classification'`; `AgentCleanupFailureContext.pid` widens to `number | undefined`.
+
+**`RunLifecycle` no longer exposes uncommitted starts.** `get`/`list` await a pending `startPromise` (a
+failed durable start reads as "no such run" rather than as a running one no restart could rehydrate),
+and `waitForTerminal` awaits *and propagates* it before parking a waiter — which is what closes the
+hang: nothing ever calls `finish()` for an unwound record, so such a waiter was previously never
+resolved or rejected.
+
+**Two smaller ones.** `FrontendSessionRegistry` keys run bindings on the attachment object, not the
+session id: a session id is reusable by design (a reconnecting tab re-attaches under the same id), so a
+stale handle's `detach()` used to remove the *replacement* session, its bindings, and the usability of
+its still-current bind token. `createDefaultRunStartHandler` now forwards `imagePaths`,
+`extraAllowedDirs` and `uploadRoot` — the same silent-drop failure mode `permissionMode` was already
+documented for.
+
+**Left as a note, not patched:** `remote-tool-bridge.ts` does not dedup on `toolUseId`, so a retried
+cross-process POST appends duplicate tool events. Real, but every in-reach fix is worse than the bug:
+the recorder holds only a `RunLifecycle` (no read API, so dedup could only be non-durable in-memory
+state that a restart defeats), it would need per-run lifetime machinery this module has no hook for,
+and `delegated-tool-bridge.ts`'s `execute()` does not dedup either — deduping one half would split two
+paths this module exists to keep byte-identical. The honest fix is idempotency at the
+`RunLifecycle.emit` (or transport) boundary.
+
+Tests: **`@jini-ai/daemon` 654 → 682**, 26 files, zero failures — `agent-executor.test.ts` 189 → 210,
+`frontend-session-registry.test.ts` 41 → 44, `run-lifecycle.test.ts` 53 → 56,
+`run-start-handler.test.ts` 7 → 8. No test deleted or weakened; three existing `.mcp.json` tests were
+updated for the genuinely-changed write path (two of them strengthened — see the report). Coverage:
+package 99.85/99.93/99.64/99.85, with `agent-executor.ts`, `frontend-session-registry.ts` and
+`run-start-handler.ts` all fully covered; the only residual gap is the pre-existing, deliberately
+uncovered `handleInactivityTimeout` guard in `run-lifecycle.ts` that function's own doc already explains.
+`pnpm typecheck` (package and `-r` workspace-wide, since two exported types changed): clean.
+`pnpm guard`: clean.

@@ -324,6 +324,24 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     return runEvent;
   }
 
+  /**
+   * Waits out a record's in-flight durable `'start'` append, swallowing its failure.
+   *
+   * The read-only queries (`get`/`list`) use this so they never observe the window in which the
+   * in-memory record exists but its durable `'start'` entry does not: a rejecting append unwinds the
+   * record entirely, so anything reported from inside that window is a run that never existed. The
+   * rejection itself belongs to `start()`'s own caller, which is why it is dropped here rather than
+   * propagated out of a query that was only asked "what runs are there".
+   */
+  async function settlePendingStart(record: RunRecord | undefined): Promise<void> {
+    if (record?.startPromise === undefined) return;
+    try {
+      await record.startPromise;
+    } catch {
+      // Reported to `start()`'s caller — see above.
+    }
+  }
+
   function resolveTerminalWaiters(record: RunRecord): void {
     const waiters = record.terminalWaiters.splice(0, record.terminalWaiters.length);
     const status = toPublicStatus(record);
@@ -488,11 +506,16 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     },
 
     async get(runId: string): Promise<RunStatus | undefined> {
+      await settlePendingStart(runs.get(runId));
+      // Re-read rather than reusing the record above: a failed start deletes it (see `start()`'s
+      // unwind), and reporting a run whose durable `'start'` entry does not exist would advertise a
+      // run no restart could ever rehydrate.
       const record = runs.get(runId);
       return record ? toPublicStatus(record) : undefined;
     },
 
     async list(contextRef?: string): Promise<readonly RunStatus[]> {
+      await Promise.all(Array.from(runs.values(), settlePendingStart));
       const all = Array.from(runs.values());
       const filtered = contextRef === undefined ? all : all.filter((record) => record.contextRef === contextRef);
       return filtered.map(toPublicStatus);
@@ -611,6 +634,12 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
 
     async waitForTerminal(runId: string): Promise<RunStatus> {
       const record = requireRun(runId);
+      // Awaited (and *propagated*, unlike in `get`/`list`) before any waiter is registered. A run
+      // whose durable start append rejects is unwound, and nothing ever calls `finish()` for it — so
+      // a waiter parked inside that window would never be resolved by anyone. Failing the wait with
+      // the same error that failed the start is the only honest terminal answer, and awaiting first
+      // means `terminalWaiters` can only ever hold waiters for a run that really does exist.
+      await record.startPromise;
       if (isTerminalRunState(record.status.state)) {
         return toPublicStatus(record);
       }
