@@ -1,4 +1,4 @@
-import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '@jini-ai/chat-react';
+import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '@jini-ai/ui/chat';
 
 async function readAgents(response: Response): Promise<readonly ChatPaneAgent[]> {
   if (!response.ok) throw new Error('Agent inventory is unavailable');

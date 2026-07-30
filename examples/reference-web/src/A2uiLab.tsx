@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
-import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat-react';
+import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/ui/chat';
 
 /**
  * A2UI Lab — a real, agent-driven A2UI (a2ui.org v1.0) surface, streamed from the actual Jini

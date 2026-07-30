@@ -183,7 +183,7 @@ async function runDemo(
     project === 'bug-hunt'
       ? 'The sample has an intentional cart-total defect and a focused Node test that exposes it. A good first live-agent task is: **“run the tests, explain the failure, and fix only the bug.”**'
       : 'This is a zero-dependency browser project. A good first live-agent task is: **“add a filter for completed items while preserving the existing visual style.”**',
-    '\n\nThis response used a durable run, replayable SSE events, and the shared `@jini-ai/chat-react` renderer.',
+    '\n\nThis response used a durable run, replayable SSE events, and the shared `@jini-ai/ui/chat` renderer.',
   ];
 
   for (const chunk of response) {

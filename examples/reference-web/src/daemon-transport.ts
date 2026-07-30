@@ -5,7 +5,7 @@ import {
   type ChatMessage,
   type ChatRunStatus,
 } from '@jini-ai/chat-core';
-import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/chat-react';
+import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/ui/chat';
 
 interface RunStatusWire {
   id: string;

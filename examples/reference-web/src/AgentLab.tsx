@@ -6,7 +6,7 @@ import {
   createDomPageDriver,
   createFrontendSessionBridge,
   type FrontendSessionBridge,
-} from '@jini-ai/chat-react';
+} from '@jini-ai/ui/chat';
 import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { EMPTY_SUBMISSION, LabSignupForm, LabSummary, type SignupSubmission } from './LabPages.js';
