@@ -11,7 +11,27 @@ vs. false positive.
 Fixes follow test-first (TDD) discipline: a failing test demonstrating the bug is written and run
 BEFORE the fix, then the fix is applied and the test (plus the package's full suite) is re-run green.
 
-## Status as of 2026-07-30 ~09:15 PDT — all 4 queued routines done; merge coordination now the blocker
+## Status as of 2026-07-30 ~09:35 PDT — DONE: all 7 branches reconciled and merged to `main` (`7fab9f42a`)
+
+All 4 findings tables below are historical — everything in this report has landed on `main` and
+been pushed to origin. The three-way `agent-executor.ts` conflict flagged below was resolved by
+hand (not blind-merged): `mcpJsonPathForRun`'s run-scoped path was threaded through
+`buildMcpBridgeDelivery`'s `'claude-mcp-json'` case so the credential-leak fix (B1) and the
+4-strategy generalization compose correctly; the duplicate `buildArgs` try/catch guard (B2 ==
+AR-2, found independently by both the daemon and agent-runtime-mcp audits) was de-duplicated to
+one copy; one test assertion was updated for the run-scoped path filename change, and one test
+`describe` block gained a de-duplicated superset of both branches' assertions. Full verification
+after every merge step: `@jini-ai/daemon` 716/716, `@jini-ai/agent-runtime` 1876/1876,
+`@jini-ai/mcp` 369/369, then a full `pnpm -r typecheck` (31/31 projects) and `pnpm -r test`
+workspace-wide (exit 0) after all 7 branches landed, plus `pnpm guard` clean. One non-conflict
+snag: `packages/server`'s typecheck failed against a stale `@jini-ai/http-kit` `dist/` (this
+repo's known "workspace packages resolve through built dist, not source" gotcha) — fixed with
+`pnpm -r build`, not a code change.
+
+All 7 branches, the 7 now-redundant worktrees tied to them, and the associated origin branches
+have been deleted post-merge. `main` is the only place this work lives now.
+
+## Status as of 2026-07-30 ~09:15 PDT — all 4 queued routines done; merge coordination now the blocker (superseded above)
 
 | package | blocking findings | status | branch |
 |---|---|---|---|
