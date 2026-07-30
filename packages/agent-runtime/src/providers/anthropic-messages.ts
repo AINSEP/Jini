@@ -56,7 +56,7 @@
  *    for the integration-level regression proof.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { redactSecrets, validateBaseUrl } from './connection-guard.js';
+import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 
@@ -223,7 +223,9 @@ async function runSingleAnthropicRequest(
 ): Promise<SingleRequestOutcome> {
   const { onEvent } = options;
 
-  const baseUrlCheck = validateBaseUrl(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL);
+  // DNS-resolving, not merely textual — see the identical note in `openai-chat.ts`. A literal
+  // private IP was already rejected; a hostname resolving to one was not.
+  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, defaultDnsLookup);
   if (baseUrlCheck.error) {
     onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');

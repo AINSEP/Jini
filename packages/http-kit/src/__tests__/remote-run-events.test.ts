@@ -332,16 +332,88 @@ describe('remote-run-events — remaining contract surface', () => {
     }
   });
 
-  it('stringifies a non-Error rejection rather than losing it', async () => {
+  // Rewritten from an earlier assertion that this became `CONFLICT` with the raw rejection as its
+  // message. That encoded the very defect this suite now guards against: a bare string rejection is
+  // not a terminal-run conflict, and echoing whatever it happens to contain is the leak. It is
+  // routed to the SEC-005 path instead — the value is not lost, it goes to the sink.
+  it('routes a non-Error rejection to the internal-error sink rather than echoing it', async () => {
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-nonerror' });
+    const onInternalError = vi.fn();
     const result = await remoteToolUseRoute.handle({ runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, {
       ...deps,
+      onInternalError,
       recorder: {
         recordToolUse: () => Promise.reject('a bare string rejection'),
         recordToolResult: deps.recorder.recordToolResult.bind(deps.recorder),
       },
     });
-    expect(result).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: 'a bare string rejection' } });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(onInternalError).toHaveBeenCalledOnce();
+    expect(onInternalError.mock.calls[0]![0]).toMatchObject({ error: 'a bare string rejection' });
+  });
+
+  // A storage/driver fault is not a business conflict. Reporting it as 409 with the raw message
+  // hands the caller whatever the exception happened to carry — here a filesystem path and a
+  // credential — so this asserts on the response *not containing* those, not merely on the code.
+  it('never echoes an unexpected recorder failure — it becomes a redacted INTERNAL_ERROR', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-storage-fault' });
+    const secret = 'sqlite failed at /srv/private/runs.db; token=bridge-secret';
+    const onInternalError = vi.fn();
+
+    const result = await remoteToolUseRoute.handle({ runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, {
+      ...deps,
+      onInternalError,
+      recorder: {
+        recordToolUse: () => Promise.reject(new Error(secret)),
+        recordToolResult: deps.recorder.recordToolResult.bind(deps.recorder),
+      },
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.code).toBe('INTERNAL_ERROR');
+    expect(JSON.stringify(result.error)).not.toContain('/srv/private/runs.db');
+    expect(JSON.stringify(result.error)).not.toContain('bridge-secret');
+    // The operator still gets the real thing, correlated to what the caller was told.
+    expect(onInternalError).toHaveBeenCalledOnce();
+    const context = onInternalError.mock.calls[0]![0] as { correlationId: string; error: unknown };
+    expect((context.error as Error).message).toBe(secret);
+    expect(result.error.requestId).toBe(context.correlationId);
+  });
+
+  it('applies the same redaction to tool-result, not just tool-use', async () => {
+    const deps = makeDeps();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-storage-fault-result' });
+    const onInternalError = vi.fn();
+
+    const result = await remoteToolResultRoute.handle({ runId: run.id, toolUseId: 'tu-1', content: 'x' }, {
+      ...deps,
+      onInternalError,
+      recorder: {
+        recordToolUse: deps.recorder.recordToolUse.bind(deps.recorder),
+        recordToolResult: () => Promise.reject(new Error('disk on fire at /srv/private/runs.db')),
+      },
+    });
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    expect(JSON.stringify(result)).not.toContain('/srv/private/runs.db');
+    expect(onInternalError).toHaveBeenCalledOnce();
+  });
+
+  // The other half of the contract: a genuine terminal-run conflict must still be a 409, and must
+  // still say enough for the caller to understand it lost a legitimate race.
+  it('still reports a real terminal-run conflict as CONFLICT', async () => {
+    const deps = makeDeps();
+    const onInternalError = vi.fn();
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-still-conflict' });
+    await deps.lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: false });
+
+    const result = await remoteToolUseRoute.handle({ runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, { ...deps, onInternalError });
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'CONFLICT', details: { runId: run.id } } });
+    // A legitimate business conflict is not an internal fault and must not page anyone.
+    expect(onInternalError).not.toHaveBeenCalled();
   });
 });

@@ -22,8 +22,9 @@
  * would also present, and this route grants direct run-event-injection, a materially different
  * capability from what the general API token was designed to gate.
  */
+import { randomUUID } from 'node:crypto';
 import type { Express, NextFunction, Request, Response } from 'express';
-import { createApiError } from '@jini-ai/protocol';
+import { createApiError, isTerminalRunState } from '@jini-ai/protocol';
 import type { RemoteToolEventRecorder, RunLifecycle } from '@jini-ai/daemon';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { bearerTokenFromHeader, timingSafeTokenMatch } from './api-security-middleware.js';
@@ -35,13 +36,26 @@ export interface RemoteToolBridgeTokenConfig {
   readonly tokenEnvVar?: string;
 }
 
+export interface RemoteRunEventInternalErrorContext {
+  readonly source: 'tool-use' | 'tool-result';
+  readonly correlationId: string;
+  readonly error: unknown;
+}
+
 export interface RemoteRunEventHttpDeps {
-  /** Used only to distinguish "unknown run" (404) from other outcomes before recording — same precedent as `delegated-tools.ts`'s `delegatedToolExecuteRoute`. */
+  /** Used to distinguish "unknown run" (404) from other outcomes before recording — same precedent as `delegated-tools.ts`'s `delegatedToolExecuteRoute` — and again afterwards to classify a recorder failure (see {@link toRemoteEventError}). */
   readonly lifecycle: RunLifecycle;
   readonly recorder: RemoteToolEventRecorder;
   readonly tokenConfig?: RemoteToolBridgeTokenConfig;
   /** Defaults to `process.env`. Threaded through so tests never have to mutate real process env. */
   readonly env?: NodeJS.ProcessEnv;
+  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
+  readonly onInternalError?: (context: RemoteRunEventInternalErrorContext) => void;
+}
+
+function defaultInternalErrorSink(context: RemoteRunEventInternalErrorContext): void {
+  // eslint-disable-next-line no-console
+  console.error(`[@jini-ai/http-kit] internal error (remote-run-events/${context.source}, correlationId=${context.correlationId})`, context.error);
 }
 
 const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';
@@ -179,15 +193,50 @@ function parseRemoteToolResult(input: RouteInputContext): Result<RemoteToolResul
 }
 
 /**
- * Records a caught `recordToolUse`/`recordToolResult` throw as the right HTTP outcome:
- * `RunLifecycle.emit()` throws for two distinct reasons (see `run-lifecycle.ts`'s own `emit`) —
- * unknown `runId` (already ruled out by the `lifecycle.get()` check above this call, but kept as a
- * defensive fallback) and "already terminal", which is a legitimate business conflict, not a
- * server fault, so it is reported as `CONFLICT` with the real message rather than SEC-005-redacted.
+ * Records a caught `recordToolUse`/`recordToolResult` throw as the right HTTP outcome.
+ *
+ * `RunLifecycle.emit()` throws for two documented reasons (see `run-lifecycle.ts`'s own `emit`) —
+ * unknown `runId` and "already terminal" — but the recorder call it sits behind can also fail for
+ * reasons that are nobody's business but the operator's: an event-log write hitting a full disk, a
+ * SQLite error naming its own file path, a driver fault carrying a credential in its message.
+ *
+ * This previously reported *every* one of those as `CONFLICT` carrying `error.message` verbatim,
+ * which turned any such fault into an unauthenticated-adjacent information leak and mislabelled a
+ * server fault as a client-resolvable conflict. So the outcome is now decided by the run's actual
+ * state rather than by whatever the exception happened to say:
+ *
+ * - run is gone -> `NOT_FOUND` (it was there for the pre-check; it isn't now).
+ * - run is terminal -> `CONFLICT`, the one legitimate business conflict. The message is
+ *   *constructed here* from data this module already owns rather than forwarded from the
+ *   exception, so even a misattributed error cannot smuggle its text out through this branch.
+ * - anything else -> SEC-005: a generic `INTERNAL_ERROR` plus a correlation id, with the real
+ *   error handed to the host's sink so it is diagnosable server-side but never echoed.
+ *
+ * Residual, deliberately accepted: a genuine storage fault that happens to coincide with an
+ * already-terminal run is reported as `CONFLICT` rather than `INTERNAL_ERROR`. Distinguishing those
+ * would require matching on `emit`'s message text, trading a rare wrong status code for a check
+ * that breaks silently the next time that string is reworded. Either way nothing leaks, which is
+ * the property that mattered.
  */
-function toRemoteEventError(error: unknown, runId: string): ReturnType<typeof createApiError> {
-  const message = error instanceof Error ? error.message : String(error);
-  return createApiError('CONFLICT', message, { details: { runId } });
+async function toRemoteEventError(
+  error: unknown,
+  runId: string,
+  deps: RemoteRunEventHttpDeps,
+  source: RemoteRunEventInternalErrorContext['source'],
+): Promise<ReturnType<typeof createApiError>> {
+  const status = await deps.lifecycle.get(runId).catch(() => undefined);
+  if (status === undefined) {
+    return createApiError('NOT_FOUND', `run "${runId}" was not found`);
+  }
+  if (isTerminalRunState(status.state)) {
+    return createApiError('CONFLICT', `run "${runId}" is already terminal — no further events can be recorded`, {
+      details: { runId },
+    });
+  }
+  const correlationId = randomUUID();
+  const sink = deps.onInternalError ?? defaultInternalErrorSink;
+  sink({ source, correlationId, error });
+  return createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId });
 }
 
 export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRunEventResponse, RemoteRunEventHttpDeps>({
@@ -201,7 +250,7 @@ export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRu
       await deps.recorder.recordToolUse(input.runId, { toolUseId: input.toolUseId, toolId: input.toolId, input: input.input });
       return ok({ recorded: true });
     } catch (error) {
-      return err(toRemoteEventError(error, input.runId));
+      return err(await toRemoteEventError(error, input.runId, deps, 'tool-use'));
     }
   },
 });
@@ -221,7 +270,7 @@ export const remoteToolResultRoute = defineJsonRoute<RemoteToolResultRequest, Re
       });
       return ok({ recorded: true });
     } catch (error) {
-      return err(toRemoteEventError(error, input.runId));
+      return err(await toRemoteEventError(error, input.runId, deps, 'tool-result'));
     }
   },
 });

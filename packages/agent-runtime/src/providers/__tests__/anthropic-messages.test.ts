@@ -5,6 +5,23 @@ import {
   type AnthropicTurnEvent,
 } from '../anthropic-messages.js';
 
+/**
+ * `node:dns` is mocked so the DNS-resolving SSRF guard is exercised deterministically. Only hosts
+ * registered in `dnsAnswers` resolve; anything else rejects, which the guard deliberately treats as
+ * "allow" (a resolver hiccup must not become a security verdict — see `validateBaseUrlResolved`),
+ * so every pre-existing test in this file keeps its original behaviour.
+ */
+const dnsAnswers = new Map<string, Array<{ address: string; family: number }>>();
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      const answer = dnsAnswers.get(hostname);
+      if (!answer) throw new Error(`ENOTFOUND ${hostname}`);
+      return answer;
+    },
+  },
+}));
+
 function sseBody(...lines: string[]): AsyncIterable<string> {
   return {
     async *[Symbol.asyncIterator]() {
@@ -75,6 +92,51 @@ describe('runAnthropicToolTurn', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'error' }]);
     expect(result.stopReason).toBeNull();
+  });
+
+  // Same textual-only guard as the OpenAI runner had: `http://10.0.0.5` was rejected, but a
+  // hostname resolving to it was not, so `baseUrl` could steer this runner at internal
+  // infrastructure. The DNS-resolving guard already existed and was already used by Azure/Google/
+  // Ollama — it simply was not wired in here.
+  it('rejects a public hostname that resolves into private address space, without making any request', async () => {
+    dnsAnswers.set('internal.example.com', [{ address: '10.0.0.5', family: 4 }]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const events: AnthropicTurnEvent[] = [];
+
+    await runAnthropicToolTurn({
+      apiKey: 'sk-ant-test',
+      model: 'claude-opus-4-8',
+      maxTokens: 256,
+      baseUrl: 'https://internal.example.com',
+      messages: baseMessages,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(events).toContainEqual({ type: 'error', message: 'Internal IPs blocked' });
+    expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'error' }]);
+  });
+
+  it('still allows a hostname that resolves to public address space', async () => {
+    dnsAnswers.set('api.vendor.example', [{ address: '203.0.113.10', family: 4 }]);
+    const fetchMock = vi.fn().mockRejectedValue(new Error('ECONNRESET'));
+    vi.stubGlobal('fetch', fetchMock);
+    const events: AnthropicTurnEvent[] = [];
+
+    await runAnthropicToolTurn({
+      apiKey: 'sk-ant-test',
+      model: 'claude-opus-4-8',
+      maxTokens: 256,
+      baseUrl: 'https://api.vendor.example',
+      messages: baseMessages,
+      onEvent: (e) => events.push(e),
+    });
+
+    // The guard let it through — the request was attempted and failed at the network, not at the
+    // guard. Asserting on the *reason* it failed is what distinguishes "allowed" from "blocked".
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(events).toContainEqual({ type: 'error', message: 'ECONNRESET' });
   });
 
   it('reports a network error (non-Error rejection) as a redacted error event and ends once', async () => {

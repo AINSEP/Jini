@@ -23,11 +23,15 @@ function makeReq(overrides: {
   authorization?: string;
   origin?: string;
   host?: string;
+  extraHeaders?: Record<string, string>;
 } = {}) {
   const headers: Record<string, string> = {};
   if (overrides.authorization !== undefined) headers.authorization = overrides.authorization;
   if (overrides.origin !== undefined) headers.origin = overrides.origin;
   if (overrides.host !== undefined) headers.host = overrides.host;
+  for (const [name, value] of Object.entries(overrides.extraHeaders ?? {})) {
+    headers[name.toLowerCase()] = value;
+  }
   return {
     method: overrides.method ?? 'GET',
     path: overrides.path ?? '/whatever',
@@ -114,6 +118,58 @@ describe('registerApiBearerAuthMiddleware', () => {
     const next = vi.fn();
     middlewares[0]!(makeReq({ remoteAddress: '127.0.0.1' }), makeRes(), next);
     expect(next).toHaveBeenCalledOnce();
+  });
+
+  // A same-host reverse proxy (nginx/caddy on the same box, proxying to a daemon bound to
+  // 127.0.0.1) makes EVERY externally-originated request's socket address loopback, which would
+  // otherwise hand the loopback exemption to the whole public internet. A proxy announces itself
+  // with a forwarding header; a genuine desktop-UI/local-CLI caller never sets one. The header is
+  // therefore read as "this request was proxied", never as a source of trusted identity — its
+  // *value* is ignored entirely, so a spoofed one can only ever cost a caller the exemption.
+  it.each([
+    ['x-forwarded-for', '203.0.113.9'],
+    ['x-forwarded-host', 'public.example.com'],
+    ['x-forwarded-proto', 'https'],
+    ['forwarded', 'for=203.0.113.9;proto=https'],
+  ])('refuses the loopback exemption to a request carrying %s', (header, value) => {
+    const { app, middlewares } = makeApp();
+    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    const next = vi.fn();
+    const res = makeRes();
+    middlewares[0]!(makeReq({ remoteAddress: '127.0.0.1', extraHeaders: { [header]: value } }), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it('still lets a proxied loopback request through when it forwards a valid bearer token', () => {
+    const { app, middlewares } = makeApp();
+    registerApiBearerAuthMiddleware(app as any, { env: { JINI_API_TOKEN: 'secret' } });
+    const next = vi.fn();
+    const res = makeRes();
+    middlewares[0]!(
+      makeReq({
+        remoteAddress: '127.0.0.1',
+        authorization: 'Bearer secret',
+        extraHeaders: { 'x-forwarded-for': '203.0.113.9' },
+      }),
+      res,
+      next,
+    );
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('drops the loopback exemption entirely when trustLoopbackPeers is false', () => {
+    const { app, middlewares } = makeApp();
+    registerApiBearerAuthMiddleware(app as any, {
+      env: { JINI_API_TOKEN: 'secret' },
+      trustLoopbackPeers: false,
+    });
+    const next = vi.fn();
+    const res = makeRes();
+    middlewares[0]!(makeReq({ remoteAddress: '127.0.0.1' }), res, next);
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
   });
 
   it.each(['/health', '/api/health', '/ready', '/api/ready', '/version', '/api/version'])(

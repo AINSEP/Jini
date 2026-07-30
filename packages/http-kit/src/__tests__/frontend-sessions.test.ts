@@ -18,7 +18,7 @@ import {
 /** A request/response pair standing in for Express's, which already ARE Node's raw pair. */
 function makeReqRes(query: Record<string, unknown> = {}) {
   const req = Object.assign(new EventEmitter(), { query }) as unknown as Request;
-  const res = { writeHead: vi.fn(), write: vi.fn(), end: vi.fn() };
+  const res = Object.assign(new EventEmitter(), { writeHead: vi.fn(), write: vi.fn().mockReturnValue(true), end: vi.fn() });
   return { req, res: res as unknown as Response, raw: res, emitter: req as unknown as EventEmitter };
 }
 
@@ -162,7 +162,7 @@ describe('registerFrontendSessionRoutes', () => {
     registerFrontendSessionRoutes(fakeApp as never, makeDeps(registry, { onInternalError: vi.fn() }), adapter as never);
 
     const end = vi.fn();
-    const res = { headersSent: true, writableEnded: false, writeHead: vi.fn(), write: vi.fn(), end, status: vi.fn(), json: vi.fn() };
+    const res = Object.assign(new EventEmitter(), { headersSent: true, writableEnded: false, writeHead: vi.fn(), write: vi.fn().mockReturnValue(true), end, status: vi.fn(), json: vi.fn() });
     getHandler!(Object.assign(new EventEmitter(), { query: { capability: 'page.click' } }) as never, res as never);
 
     expect(end).toHaveBeenCalled();

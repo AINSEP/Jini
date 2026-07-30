@@ -127,43 +127,83 @@ describe('http adapter', () => {
     });
   });
 
-  it('catches thrown handler errors as INTERNAL_ERROR (500)', async () => {
+  // Both of these previously asserted the thrown message was echoed verbatim into the 500 body.
+  // That is the leak: this catch is the last-resort handler for *unanticipated* exceptions, which
+  // are exactly the ones carrying filesystem paths, connection strings and credentials — and it
+  // covers `health.ts`'s probes, which mount ahead of the security middleware and are therefore
+  // reachable unauthenticated. The value is not discarded, it is routed to the host's sink and
+  // tied to the caller's response by a correlation id.
+  it('redacts a thrown handler error to a generic INTERNAL_ERROR (500) and reports it to the sink', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({
       method: 'get',
       path: '/boom',
       parse: () => ok(undefined),
       handle: () => {
-        throw new Error('boom');
+        throw new Error('sqlite failed at /srv/secret/data.db; token=hunter2');
       },
     });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    const onInternalError = vi.fn();
+    mountJsonRoute(app as any, route, {}, { ...adapter, onInternalError });
     const res = makeRes();
     await app.handlers['GET /boom']!({ body: {}, query: {}, params: {} }, res);
+
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({
-      error: { code: 'INTERNAL_ERROR', message: 'boom' },
-    });
+    const body = res.json.mock.calls[0]![0] as { error: { code: string; message: string; requestId?: string } };
+    expect(body.error.code).toBe('INTERNAL_ERROR');
+    expect(body.error.message).toBe('an internal error occurred');
+    expect(JSON.stringify(body)).not.toContain('/srv/secret/data.db');
+    expect(JSON.stringify(body)).not.toContain('hunter2');
+
+    expect(onInternalError).toHaveBeenCalledOnce();
+    const context = onInternalError.mock.calls[0]![0] as { correlationId: string; error: unknown; method: string; path: string };
+    expect((context.error as Error).message).toBe('sqlite failed at /srv/secret/data.db; token=hunter2');
+    expect(context.path).toBe('/boom');
+    expect(body.error.requestId).toBe(context.correlationId);
   });
 
-  it('catches a thrown non-Error value as INTERNAL_ERROR (500) via String(e)', async () => {
+  it('redacts a thrown non-Error value the same way', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({
       method: 'get',
       path: '/boom-string',
       parse: () => ok(undefined),
       handle: () => {
         // eslint-disable-next-line @typescript-eslint/no-throw-literal
-        throw 'boom-string';
+        throw 'boom-string-with-/srv/secret/data.db';
       },
     });
     const app = makeApp();
-    mountJsonRoute(app as any, route, {}, adapter);
+    const onInternalError = vi.fn();
+    mountJsonRoute(app as any, route, {}, { ...adapter, onInternalError });
     const res = makeRes();
     await app.handlers['GET /boom-string']!({ body: {}, query: {}, params: {} }, res);
+
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({
-      error: { code: 'INTERNAL_ERROR', message: 'boom-string' },
+    expect(JSON.stringify(res.json.mock.calls[0]![0])).not.toContain('/srv/secret/data.db');
+    expect(onInternalError).toHaveBeenCalledOnce();
+    expect(onInternalError.mock.calls[0]![0]).toMatchObject({ error: 'boom-string-with-/srv/secret/data.db' });
+  });
+
+  it('falls back to a console sink when the host supplies none, still without leaking', async () => {
+    const route = defineJsonRoute<void, unknown, unknown>({
+      method: 'get',
+      path: '/boom-nosink',
+      parse: () => ok(undefined),
+      handle: () => {
+        throw new Error('secret-at-/srv/secret/data.db');
+      },
     });
+    const app = makeApp();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      mountJsonRoute(app as any, route, {}, adapter);
+      const res = makeRes();
+      await app.handlers['GET /boom-nosink']!({ body: {}, query: {}, params: {} }, res);
+      expect(JSON.stringify(res.json.mock.calls[0]![0])).not.toContain('/srv/secret/data.db');
+      expect(consoleError).toHaveBeenCalledOnce();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it('passes deps through to the handler', async () => {

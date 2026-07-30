@@ -213,14 +213,29 @@ describe('memoryWriteIndexRoute', () => {
     expect(notes.writeIndex).toHaveBeenCalledWith('/data', '# new index');
   });
 
-  it('parse defaults to an empty string when index is missing/non-string', () => {
-    expect(memoryWriteIndexRoute.parse({ body: {}, query: {}, params: {} })).toEqual({ ok: true, value: '' });
-    expect(memoryWriteIndexRoute.parse({ body: { index: 42 }, query: {}, params: {} })).toEqual({ ok: true, value: '' });
+  // These two previously asserted that a missing, mistyped, or entirely absent body parsed to `''`
+  // — which then *succeeded*, writing an empty string over the user's whole memory index. A typo in
+  // the field name (`{ typo: "…" }`) silently destroyed the document it was meant to update, and
+  // the caller got a 200. Clearing the index is a legitimate thing to want, so it stays possible —
+  // but it now takes explicitly saying so with `{ index: "" }`, which no typo produces.
+  it('parse rejects a body with no index field rather than treating it as a clear', () => {
+    expect(memoryWriteIndexRoute.parse({ body: {}, query: {}, params: {} }).ok).toBe(false);
+    expect(memoryWriteIndexRoute.parse({ body: { typo: 'intended content' }, query: {}, params: {} }).ok).toBe(false);
   });
 
-  it('parse defaults to an empty string when the body itself is not an object', () => {
-    expect(memoryWriteIndexRoute.parse({ body: 'nope', query: {}, params: {} })).toEqual({ ok: true, value: '' });
-    expect(memoryWriteIndexRoute.parse({ body: null, query: {}, params: {} })).toEqual({ ok: true, value: '' });
+  it('parse rejects a non-string index rather than treating it as a clear', () => {
+    for (const index of [42, null, [], {}, true]) {
+      expect(memoryWriteIndexRoute.parse({ body: { index }, query: {}, params: {} }).ok).toBe(false);
+    }
+  });
+
+  it('parse rejects a body that is not an object at all', () => {
+    expect(memoryWriteIndexRoute.parse({ body: 'nope', query: {}, params: {} }).ok).toBe(false);
+    expect(memoryWriteIndexRoute.parse({ body: null, query: {}, params: {} }).ok).toBe(false);
+  });
+
+  it('parse still allows an explicit clear', () => {
+    expect(memoryWriteIndexRoute.parse({ body: { index: '' }, query: {}, params: {} })).toEqual({ ok: true, value: '' });
   });
 
   it('parse passes a genuine string index value through', () => {

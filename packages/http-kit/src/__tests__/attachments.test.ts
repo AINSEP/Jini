@@ -553,6 +553,43 @@ describe('createDiskAttachmentStore', () => {
     await expect(store.claim([attachment], 'run-swapped')).rejects.toThrow('changed after upload');
   });
 
+  // The exactly-once claim guarantee is what stops two runs being handed the same real path on
+  // disk. `claim` checks `claimedRunId`, then awaits `lstat` + `realpath`, and only writes
+  // `claimedRunId` after — so two claims that interleave at those awaits both observe "unclaimed".
+  // Node's single thread does not save this: `await` is precisely where the second call gets in.
+  it('fulfils only one of two concurrent claims for the same attachment', async () => {
+    const { store } = await diskStore();
+    const { attachment } = await stage(store, 'batch-0100', 'contended.txt', 'payload');
+
+    const settled = await Promise.allSettled([
+      store.claim([attachment], 'run-A'),
+      store.claim([attachment], 'run-B'),
+    ]);
+
+    const fulfilled = settled.filter((outcome) => outcome.status === 'fulfilled');
+    const rejected = settled.filter((outcome) => outcome.status === 'rejected');
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(AttachmentRejectedError);
+    expect((rejected[0] as PromiseRejectedResult).reason.message).toMatch(/unknown or already claimed/);
+  });
+
+  // The losing claim must not take the winner's attachment down with it: a partially-validated
+  // batch that rolls back has to release exactly what it reserved and nothing else.
+  it('leaves a rejected claim with nothing reserved, so a corrected retry still succeeds', async () => {
+    const { store } = await diskStore();
+    const { attachment: first } = await stage(store, 'batch-0101', 'one.txt', 'aaa');
+    const { attachment: second } = await stage(store, 'batch-0102', 'two.txt', 'bbb');
+
+    // Mixed batches are rejected — but only after `first` has already been walked and reserved.
+    await expect(store.claim([first, second], 'run-mixed')).rejects.toThrow(/one batch/);
+
+    // If the failed claim leaked a reservation, this retry would wrongly report "already claimed".
+    const retried = await store.claim([first], 'run-retry');
+    expect(retried.attachments).toHaveLength(1);
+    expect(retried.attachments[0]!.name).toBe('one.txt');
+  });
+
   it('rejects a file appended to after registration', async () => {
     const { store } = await diskStore();
     const { attachment, filePath } = await stage(store, 'batch-0011', 'grow.txt', 'short');

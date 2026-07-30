@@ -1,6 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runOpenAiToolTurn, type OpenAiMessageParam, type OpenAiTurnEvent } from '../openai-chat.js';
 
+/**
+ * `node:dns` is mocked so the DNS-resolving SSRF guard is exercised deterministically. Only hosts
+ * registered in `dnsAnswers` resolve; anything else rejects, which the guard deliberately treats as
+ * "allow" (a resolver hiccup must not become a security verdict — see `validateBaseUrlResolved`),
+ * so every pre-existing test in this file keeps its original behaviour.
+ */
+const dnsAnswers = new Map<string, Array<{ address: string; family: number }>>();
+vi.mock('node:dns', () => ({
+  promises: {
+    lookup: async (hostname: string) => {
+      const answer = dnsAnswers.get(hostname);
+      if (!answer) throw new Error(`ENOTFOUND ${hostname}`);
+      return answer;
+    },
+  },
+}));
+
+
 function sseBody(...lines: string[]): AsyncIterable<string> {
   return {
     async *[Symbol.asyncIterator]() {
@@ -68,6 +86,47 @@ describe('runOpenAiToolTurn', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'error' }]);
     expect(result.finishReason).toBeNull();
+  });
+
+  // A literal `http://10.0.0.5` was already rejected, but the check was purely textual: a hostname
+  // that *resolves* into private space sailed through and this runner issued the request, exposing
+  // whatever internal endpoint it pointed at to whoever supplied `baseUrl`. The Azure, Google and
+  // Ollama runners already resolved DNS before connecting; this one and Anthropic's did not.
+  it('rejects a public hostname that resolves into private address space, without making any request', async () => {
+    dnsAnswers.set('internal.example.com', [{ address: '10.0.0.5', family: 4 }]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const events: OpenAiTurnEvent[] = [];
+
+    await runOpenAiToolTurn({
+      apiKey: 'sk-test',
+      model: 'gpt-4o',
+      baseUrl: 'https://internal.example.com',
+      messages: baseMessages,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(events).toContainEqual({ type: 'error', message: 'Internal IPs blocked' });
+    expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'error' }]);
+  });
+
+  it('still allows a hostname that resolves to public address space', async () => {
+    dnsAnswers.set('api.vendor.example', [{ address: '203.0.113.10', family: 4 }]);
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(textChunk('hi'), finishChunk('stop'), done())));
+    vi.stubGlobal('fetch', fetchMock);
+    const events: OpenAiTurnEvent[] = [];
+
+    await runOpenAiToolTurn({
+      apiKey: 'sk-test',
+      model: 'gpt-4o',
+      baseUrl: 'https://api.vendor.example',
+      messages: baseMessages,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(events).not.toContainEqual({ type: 'error', message: 'Internal IPs blocked' });
   });
 
   it('reports a network error (Error instance) redacted, and a non-Error rejection stringified', async () => {
