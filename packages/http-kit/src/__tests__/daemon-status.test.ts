@@ -137,7 +137,11 @@ describe('daemonStatusRoute', () => {
     const res = makeRes();
     await app.handlers['GET /api/daemon/status']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'boom' } });
+    // Redacted, not echoed — the adapter's catch is a last-resort handler for unanticipated
+    // exceptions and must not forward their text to the caller (see `adapter.test.ts`).
+    const body = res.json.mock.calls[0]![0] as { error: { code: string; message: string } };
+    expect(body.error.code).toBe('INTERNAL_ERROR');
+    expect(body.error.message).toBe('an internal error occurred');
   });
 });
 

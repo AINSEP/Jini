@@ -3,6 +3,7 @@
  * `handle`, and response serialization into a single Express route handler. This is the only
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
+import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { rawInput } from './request.js';
@@ -10,8 +11,32 @@ import { sendApiError, sendJson, statusForError } from './response.js';
 import { guardSameOrigin, type OriginContext } from './origin.js';
 import type { JsonRouteSpec } from './types.js';
 
+export interface AdapterInternalErrorContext {
+  /** HTTP method of the route whose handler threw. */
+  readonly method: string;
+  /** Registered path of the route whose handler threw. */
+  readonly path: string;
+  /** Echoed back to the caller as the response's `requestId`, so an operator can tie a user's report to this log line. */
+  readonly correlationId: string;
+  /** The exception exactly as thrown — never sent to the caller. */
+  readonly error: unknown;
+}
+
 /** Server startup state a mounted route needs to evaluate its same-origin guard. */
-export interface AdapterContext extends OriginContext {}
+export interface AdapterContext extends OriginContext {
+  /**
+   * Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005).
+   * Defaults to `console.error`. Mirrors the per-module `onInternalError` seams (`connectors.ts`,
+   * `delegated-tools.ts`, …); this one is the catch-all for a route that throws outside its own
+   * guarded path.
+   */
+  readonly onInternalError?: (context: AdapterInternalErrorContext) => void;
+}
+
+function defaultInternalErrorSink(context: AdapterInternalErrorContext): void {
+  // eslint-disable-next-line no-console
+  console.error(`[@jini-ai/http-kit] internal error (${context.method.toUpperCase()} ${context.path}, correlationId=${context.correlationId})`, context.error);
+}
 
 /**
  * Identity function that pins a route spec's generic parameters at the definition site so
@@ -56,8 +81,17 @@ export function mountJsonRoute<Input, Output, Deps>(
       }
       sendJson(res, spec.successStatus ?? 200, result.value);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      sendApiError(res, 500, createApiError('INTERNAL_ERROR', message));
+      // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely
+      // the path most likely to be holding something private: a driver error naming a database
+      // file, a connection string, a credential a provider echoed back. Serializing `e.message`
+      // into the response handed all of that to the caller — and because `health.ts`'s probes are
+      // mounted ahead of the security middleware and exempted from the bearer gate, an unauthorized
+      // caller could read it too, simply by getting a readiness dependency to fail. The real error
+      // still reaches the operator through the sink, correlated to what the caller was told.
+      const correlationId = randomUUID();
+      const sink = adapter.onInternalError ?? defaultInternalErrorSink;
+      sink({ method: spec.method, path: spec.path, correlationId, error: e });
+      sendApiError(res, 500, createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
     }
   });
 }

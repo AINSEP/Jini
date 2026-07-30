@@ -220,6 +220,27 @@ describe('storage routes', () => {
     expect(parsed.ok).toBe(false);
   });
 
+  // `Buffer.from(x, 'base64')` never throws — it skips whatever it cannot decode. So a body that
+  // was corrupted in transit, or a client that sent the wrong encoding, used to be accepted and
+  // silently written as truncated or zero-length bytes over whatever was already at that key.
+  // Losing data quietly is worse than refusing it.
+  it.each([
+    ['!!!!', 'characters outside the base64 alphabet'],
+    ['aGVsbG8=extra', 'trailing data after the padding'],
+    ['aGVsbG8', 'a length that cannot be whole base64'],
+    ['====', 'padding only'],
+    ['  ', 'whitespace only'],
+  ])('put: parse rejects %s (%s)', (dataBase64) => {
+    const parsed = connectorsStoragePutRoute.parse({ body: { dataBase64 }, query: {}, params: { key: 'k1' } });
+    expect(parsed.ok).toBe(false);
+  });
+
+  it('put: parse accepts well-formed base64, padded or not', () => {
+    for (const dataBase64 of ['aGVsbG8=', Buffer.from('hello world').toString('base64'), 'AAAA']) {
+      expect(connectorsStoragePutRoute.parse({ body: { dataBase64 }, query: {}, params: { key: 'k1' } }).ok).toBe(true);
+    }
+  });
+
   it('get: base64-encodes the returned bytes', async () => {
     const storage = makeStorageProvider();
     const result = await connectorsStorageGetRoute.handle('k1', makeDeps({ storage }));
@@ -286,6 +307,28 @@ describe('payments routes', () => {
     expect(
       connectorsPaymentsChargeRoute.parse({ body: { amountCents: 100, customerRef: 'c1' }, query: {}, params: {} }).ok,
     ).toBe(false);
+  });
+
+  // "Cents" is a unit, and the check was only `typeof === 'number' && isFinite`. A negative amount
+  // at a payment boundary is a refund the caller never asked for; a fractional one is a value the
+  // provider will round somewhere the caller cannot predict. This is the last place that can still
+  // say no cheaply, so it has to be the place that does.
+  it.each([
+    ['a negative amount', -125.5],
+    ['a negative integer amount', -1],
+    ['zero', 0],
+    ['a fractional amount', 12.5],
+    ['an amount beyond safe-integer precision', Number.MAX_SAFE_INTEGER + 2],
+  ])('charge: parse rejects %s', (_label, amountCents) => {
+    expect(
+      connectorsPaymentsChargeRoute.parse({ body: { amountCents, currency: 'usd', customerRef: 'c1' }, query: {}, params: {} }).ok,
+    ).toBe(false);
+  });
+
+  it('charge: parse accepts a positive whole number of cents', () => {
+    expect(
+      connectorsPaymentsChargeRoute.parse({ body: { amountCents: 1, currency: 'usd', customerRef: 'c1' }, query: {}, params: {} }),
+    ).toEqual({ ok: true, value: { amountCents: 1, currency: 'usd', customerRef: 'c1' } });
   });
 
   it('get: 404 when unknown', async () => {

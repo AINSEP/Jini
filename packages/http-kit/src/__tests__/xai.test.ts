@@ -163,6 +163,37 @@ describe('xaiOauthStartRoute', () => {
     expect(deps.listenerRef.current).toBeNull();
   });
 
+  // Two starts used to interleave at their `await`s: both cleared the shared ref, B installed its
+  // listener and returned `ok` to its caller, then A's `startCallbackListener` rejected and A's
+  // catch called `stopListener` on the *shared* ref — stopping B's listener. B's caller had already
+  // been handed an authorizeUrl pointing at a callback endpoint that no longer existed, so the sign-in
+  // would hang forever with nothing to diagnose.
+  it('a failing concurrent start does not stop the listener a successful one already returned', async () => {
+    const goodListener = makeListener();
+    let call = 0;
+    const startCallbackListener = vi.fn(async () => {
+      call += 1;
+      if (call === 1) {
+        // Lose the race deliberately: yield so the second start gets all the way through first.
+        await new Promise((resolveTick) => setTimeout(resolveTick, 10));
+        throw new Error('port already in use');
+      }
+      return goodListener;
+    });
+    const deps = makeDeps({ startCallbackListener, onInternalError: vi.fn() });
+
+    const [first, second] = await Promise.all([
+      xaiOauthStartRoute.handle(undefined, deps),
+      xaiOauthStartRoute.handle(undefined, deps),
+    ]);
+
+    // Exactly one start succeeded, and whichever one did still owns a live listener.
+    const succeeded = [first, second].filter((result) => result.ok);
+    expect(succeeded).toHaveLength(1);
+    expect(deps.listenerRef.current).toBe(goodListener);
+    expect(goodListener.stop).not.toHaveBeenCalled();
+  });
+
   it('respects overridden callback host/port/path', async () => {
     const listener = makeListener({ address: { host: '0.0.0.0', port: 9999 } });
     const startCallbackListener = vi.fn(async () => listener);
@@ -586,6 +617,68 @@ describe('xaiSearchRoute.handle', () => {
     const result = await xaiSearchRoute.handle({ query: 'q' }, makeDeps({ fetchImpl }));
     expect(result).toEqual({ ok: false, error: { code: 'NOT_CONFIGURED', message: 'no xAI account connected — sign in via /api/xai/oauth/start first' } });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  // `research.ts` in this same package carries an abort deadline through both `fetch` and body
+  // consumption for exactly this failure mode; the xAI search path had none, so a stalled upstream
+  // held the HTTP request, its socket and its handler open indefinitely. These model a real
+  // `fetch`: the signal aborts the request *and* any body read already in flight.
+  //
+  // Aborting the request itself:
+  it('aborts a search request that never responds, rather than hanging forever', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(okTokenResponse({ access_token: 'atk-timeout' }))
+      .mockImplementationOnce((_url: string, init: { signal?: AbortSignal }) =>
+        new Promise((_resolveNever, rejectOnAbort) => {
+          init.signal?.addEventListener('abort', () => {
+            rejectOnAbort(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' }));
+          });
+        }),
+      );
+    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, onInternalError: vi.fn() });
+    await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, deps);
+
+    const result = await xaiSearchRoute.handle({ query: 'what is xAI' }, deps);
+
+    expect(result.ok).toBe(false);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  // Aborting a body that stalls after the headers arrive — the case a deadline armed only around
+  // `fetch` would miss entirely, since the response resolves promptly and only the read hangs.
+  it('aborts a search whose response body never arrives', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    let bodySignal: AbortSignal | undefined;
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(okTokenResponse({ access_token: 'atk-body-timeout' }))
+      .mockImplementationOnce(async (_url: string, init: { signal?: AbortSignal }) => {
+        bodySignal = init.signal;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => '',
+          json: () =>
+            new Promise((_resolveNever, rejectOnAbort) => {
+              bodySignal?.addEventListener('abort', () => {
+                rejectOnAbort(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' }));
+              });
+            }),
+        };
+      });
+    const deps = makeDeps({ pending, fetchImpl, searchTimeoutMs: 25, onInternalError: vi.fn() });
+    await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, deps);
+
+    const result = await xaiSearchRoute.handle({ query: 'what is xAI' }, deps);
+
+    expect(result.ok).toBe(false);
+    // The deadline must still have been armed when the body read began, not cleared at `fetch`'s
+    // resolution — that is the whole distinction this test exists to draw.
+    expect(bodySignal?.aborted).toBe(true);
   });
 
   it('happy path: calls the Responses API with the bearer token and the documented x_search tool shape', async () => {

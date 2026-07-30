@@ -262,9 +262,24 @@ export interface MemoryIndexResponse {
   readonly index: string;
 }
 
+/**
+ * Requires `index` to be present and a string — it is not defaulted.
+ *
+ * Coercing anything else to `''` meant a malformed PUT *succeeded* and wrote an empty document over
+ * the caller's entire memory index: a misspelled field (`{ notes: "…" }`), a client that sent the
+ * value as a number, or a body that failed to serialize all landed on the same destructive path and
+ * returned 200. Clearing the index is still supported, because it is a real thing to want — it just
+ * has to be asked for explicitly with `{ index: "" }`, which no typo and no serialization accident
+ * produces by chance.
+ */
 function parseIndexBody(input: RouteInputContext): Result<string> {
-  const body = isRecord(input.body) ? input.body : {};
-  const index = typeof body.index === 'string' ? body.index : '';
+  if (!isRecord(input.body)) return err(validationError('body must be a JSON object'));
+  const index = input.body.index;
+  if (typeof index !== 'string') {
+    return err(validationError('index must be a string — send an explicit empty string to clear it', [
+      { path: 'index', message: 'required string' },
+    ]));
+  }
   return ok(index);
 }
 

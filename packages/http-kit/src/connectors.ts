@@ -285,12 +285,30 @@ interface StoragePutRequest {
   readonly contentType?: string;
 }
 
+/**
+ * Strict base64 well-formedness check.
+ *
+ * `Buffer.from(value, 'base64')` cannot be used as the validator here because it never rejects
+ * anything: it silently skips every character outside the alphabet and returns whatever it managed
+ * to decode. `"!!!!"` decodes to zero bytes, and a payload truncated in transit decodes to a
+ * shorter one — both of which would then be written over whatever already lived at that key. A
+ * storage `put` that quietly persists the wrong bytes is worse than one that refuses them, so this
+ * insists on a canonical encoding: alphabet only, at most two trailing pad characters, a length
+ * that is a whole number of 4-character groups, and at least one real data character.
+ */
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+
+function isWellFormedBase64(value: string): boolean {
+  if (value.length === 0 || value.length % 4 !== 0) return false;
+  return BASE64_PATTERN.test(value);
+}
+
 function parseStoragePut(input: RouteInputContext): Result<StoragePutRequest> {
   const keyResult = parseStorageKey(input);
   if (!keyResult.ok) return keyResult;
   if (!isRecord(input.body)) return err(validationError('body must be a JSON object'));
   const dataBase64 = input.body.dataBase64;
-  if (typeof dataBase64 !== 'string' || dataBase64.length === 0) {
+  if (typeof dataBase64 !== 'string' || !isWellFormedBase64(dataBase64)) {
     return err(validationError('dataBase64 must be a non-empty base64-encoded string', [{ path: 'dataBase64', message: 'required base64 string' }]));
   }
   const contentType = input.body.contentType;
@@ -375,8 +393,13 @@ export const connectorsStorageListRoute = defineJsonRoute<string | undefined, Co
 function parseChargeInput(input: RouteInputContext): Result<ChargeInput> {
   if (!isRecord(input.body)) return err(validationError('body must be a JSON object'));
   const amountCents = input.body.amountCents;
-  if (typeof amountCents !== 'number' || !Number.isFinite(amountCents)) {
-    return err(validationError('amountCents must be a finite number', [{ path: 'amountCents', message: 'required number' }]));
+  // Cents are a whole, positive unit. `isFinite` alone let `-125.5` reach `payments.charge()`,
+  // where a negative amount is a refund nobody requested and a fractional one is rounded by the
+  // provider in a way the caller cannot predict — and neither is recoverable once the charge
+  // exists. `isSafeInteger` also rejects magnitudes past the point where JSON round-trips stop
+  // being exact, which at a money boundary is a value nobody should be allowed to guess at.
+  if (typeof amountCents !== 'number' || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
+    return err(validationError('amountCents must be a positive whole number of cents', [{ path: 'amountCents', message: 'required positive integer' }]));
   }
   const currency = nonEmptyString(input.body.currency);
   if (!currency) return err(validationError('currency must be a non-empty string', [{ path: 'currency', message: 'required non-empty string' }]));

@@ -89,6 +89,34 @@ export interface ApiBearerAuthMiddlewareDeps {
   tokenConfig?: ApiTokenAuthEnvConfig;
   /** Defaults to `process.env`. Threaded through so tests never have to mutate real process env. */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Whether an unproxied loopback peer may skip the bearer check. Defaults to `true` — the
+   * affordance a desktop UI or local CLI talking to its own daemon relies on.
+   *
+   * Set to `false` for any deployment where a process other than a trusted local client can open a
+   * loopback connection to this daemon, which includes every same-host reverse-proxy deployment
+   * (see the forwarded-header note at the check itself) and any multi-tenant or shared host. There
+   * is no way to tell those peers apart by socket address alone, so this is the host's call to
+   * make, not one this middleware can infer. {@link requireStrictBearerToken} is the same posture
+   * for a daemon that should never have had the exemption in the first place.
+   */
+  trustLoopbackPeers?: boolean;
+}
+
+/**
+ * Headers a reverse proxy adds when it forwards a request on behalf of some other client. Their
+ * *values* are deliberately never read — this package does not trust them to identify anyone (that
+ * is the `X-Forwarded-For` spoofing trap the loopback check was written to avoid). Only their
+ * presence is used, and only to withhold a privilege: a request carrying one was relayed by a
+ * proxy, so it is not the local desktop/CLI peer the loopback exemption exists for.
+ */
+const PROXY_FORWARDING_HEADERS = ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'forwarded'] as const;
+
+function looksProxied(req: Request): boolean {
+  return PROXY_FORWARDING_HEADERS.some((header) => {
+    const value = req.headers[header];
+    return typeof value === 'string' ? value.length > 0 : Array.isArray(value) && value.length > 0;
+  });
 }
 
 const DEFAULT_TOKEN_CONFIG: ApiTokenAuthEnvConfig = {
@@ -116,15 +144,30 @@ export function registerApiBearerAuthMiddleware(app: Express, deps: ApiBearerAut
   if (!isApiTokenMiddlewareEnabled(tokenConfig, env)) return;
 
   const apiToken = apiTokenFromEnv(tokenConfig, env);
+  const trustLoopbackPeers = deps.trustLoopbackPeers ?? true;
   app.use('/api', (req: Request, res: Response, next: NextFunction) => {
     if (OPEN_PROBE_PATHS.has(req.path)) {
       next();
       return;
     }
-    // Loopback short-circuit: the desktop UI / local CLI never carry a bearer, and a reverse
-    // proxy in front of a non-loopback bind must always forward the real bearer itself — so this
-    // is intentionally not fooled by a proxied `X-Forwarded-For` header.
-    if (isLoopbackPeerAddress(req.socket?.remoteAddress)) {
+    // Loopback short-circuit: the desktop UI / local CLI never carry a bearer, and the peer address
+    // is read from the socket rather than `X-Forwarded-For` so a spoofed forwarding header can
+    // never *grant* the exemption.
+    //
+    // That alone is not enough. A reverse proxy running on the same host as the daemon — nginx or
+    // caddy on the same box, proxying to a bind on 127.0.0.1, an extremely common deployment —
+    // terminates the client's connection itself and opens its own from loopback, so every
+    // externally-originated request through it arrives with a loopback socket address. Trusting the
+    // socket address alone would hand the exemption to the entire public internet.
+    //
+    // So the exemption is withheld from any request carrying a forwarding header: those are added
+    // by the proxy, not by the local desktop/CLI clients this exemption exists for. The header's
+    // value is still never read — presence only ever *removes* the exemption, so a caller who
+    // forges one gains nothing and simply has to present the bearer like anyone else. A proxy
+    // deployment that strips its own forwarding headers is not covered by this and must set
+    // `trustLoopbackPeers: false`, which is also the correct setting for any host where an
+    // untrusted co-resident process can reach the port.
+    if (trustLoopbackPeers && isLoopbackPeerAddress(req.socket?.remoteAddress) && !looksProxied(req)) {
       next();
       return;
     }

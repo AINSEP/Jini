@@ -10,9 +10,14 @@ import {
   type RunStreamEncoder,
 } from '../run-stream.js';
 
+/**
+ * `res` is an `EventEmitter` because the real `ServerResponse` is one: `createSseResponse`
+ * subscribes to `'drain'` to honour backpressure, and a fake without `.on` would only prove the
+ * stream works against a socket that never pushes back.
+ */
 function makeReqRes() {
   const req = new EventEmitter();
-  const res = { writeHead: vi.fn(), write: vi.fn(), end: vi.fn() };
+  const res = Object.assign(new EventEmitter(), { writeHead: vi.fn(), write: vi.fn().mockReturnValue(true), end: vi.fn() });
   return { req, res };
 }
 
@@ -366,15 +371,15 @@ describe('handleRunStreamRequest — disconnect and failure containment', () => 
     const app = { get: vi.fn((_path: string, routeHandler: typeof handler) => { handler = routeHandler; }) };
     const onInternalError = vi.fn();
     registerRunStreamRoute(app as any, { lifecycle: {} as RunLifecycle, encoder: testEncoder, onInternalError });
-    const res = {
+    const res = Object.assign(new EventEmitter(), {
       writeHead: vi.fn(),
-      write: vi.fn(),
+      write: vi.fn().mockReturnValue(true),
       end: vi.fn(),
       status: vi.fn().mockReturnThis(),
       json: vi.fn().mockReturnThis(),
       headersSent: true,
       writableEnded,
-    };
+    });
     const req = {
       params: { runId: writableEnded ? 'run-already-ended' : 'run-headers-sent' },
       on: vi.fn(() => { throw new Error('listener registration failed'); }),

@@ -593,47 +593,70 @@ export async function createDiskAttachmentStore({
       if (requestedPaths.size !== attachments.length) {
         throw new AttachmentRejectedError('duplicate-attachment', 'Duplicate attachment');
       }
+      // Phase 1 — reserve, synchronously. The check and the write must not be separated by an
+      // `await`: this store's exactly-once guarantee is what stops two runs being handed the same
+      // real path on disk, and `claim` is reachable concurrently (two run starts, one shared
+      // attachment). Validating first and marking afterwards left the whole `lstat`/`realpath`
+      // window open for a second claim to observe the same record as unclaimed and be fulfilled
+      // too. Being single-threaded is not protection here — `await` is exactly where the other
+      // call gets its turn. Nothing between the `records.get` and the assignment below may ever
+      // become asynchronous.
       const claimed: AttachmentRecord[] = [];
-      // Overwritten on the first iteration, which always runs — `attachments` is non-empty by the
-      // early return above — so the initial value is never the one returned.
-      let batchDirectory = '';
+      const releaseReservations = (): void => {
+        for (const record of claimed) delete record.claimedRunId;
+      };
       for (const requested of attachments) {
         const record = records.get(requested.path);
         if (!record || record.claimedRunId !== undefined) {
+          releaseReservations();
           throw new AttachmentRejectedError(
             'attachment-unknown-or-claimed',
             'Attachment is unknown or already claimed',
           );
         }
-        // Re-verified against what registration recorded, not merely re-read: someone able to write
-        // into the batch directory between upload and run start would otherwise get the agent to
-        // read a file of their choosing.
-        const info = await lstat(record.filePath);
-        const canonicalPath = await realpath(record.filePath);
-        if (!isUnchangedAttachment(record, {
-          isRegularFile: info.isFile(),
-          dev: info.dev,
-          ino: info.ino,
-          size: info.size,
-          canonicalPath,
-        })) {
-          throw new AttachmentRejectedError(
-            'attachment-integrity',
-            'Attachment changed after upload',
-          );
-        }
-        if (claimed.length > 0 && record.batchDirectory !== batchDirectory) {
-          throw new AttachmentRejectedError(
-            'mixed-batch',
-            'Attachments must belong to one batch',
-          );
-        }
-        batchDirectory = record.batchDirectory;
+        record.claimedRunId = runId;
         claimed.push(record);
       }
-      // Marked only after every attachment validated, so a rejected claim leaves nothing
-      // half-claimed and the caller can retry with a corrected set.
-      for (const record of claimed) record.claimedRunId = runId;
+
+      // Phase 2 — validate what is now held exclusively. Any failure releases the whole
+      // reservation, so a rejected claim still leaves nothing half-claimed and the caller can
+      // retry with a corrected set — the same guarantee the previous ordering provided, now
+      // without the window. Only reservations made by *this* call are released, so a concurrent
+      // winner's claim is never revoked by a loser's rollback.
+      // Overwritten on the first iteration, which always runs — `attachments` is non-empty by the
+      // early return above — so the initial value is never the one returned.
+      let batchDirectory = '';
+      try {
+        for (const [index, record] of claimed.entries()) {
+          // Re-verified against what registration recorded, not merely re-read: someone able to
+          // write into the batch directory between upload and run start would otherwise get the
+          // agent to read a file of their choosing.
+          const info = await lstat(record.filePath);
+          const canonicalPath = await realpath(record.filePath);
+          if (!isUnchangedAttachment(record, {
+            isRegularFile: info.isFile(),
+            dev: info.dev,
+            ino: info.ino,
+            size: info.size,
+            canonicalPath,
+          })) {
+            throw new AttachmentRejectedError(
+              'attachment-integrity',
+              'Attachment changed after upload',
+            );
+          }
+          if (index > 0 && record.batchDirectory !== batchDirectory) {
+            throw new AttachmentRejectedError(
+              'mixed-batch',
+              'Attachments must belong to one batch',
+            );
+          }
+          batchDirectory = record.batchDirectory;
+        }
+      } catch (error) {
+        releaseReservations();
+        throw error;
+      }
       return {
         attachments: claimed.map((record) => ({
           path: record.filePath,

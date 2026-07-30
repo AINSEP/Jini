@@ -34,7 +34,7 @@
  * strings, not necessarily matching OpenAI's own model-naming scheme).
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { redactSecrets, validateBaseUrl } from './connection-guard.js';
+import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
 import { decodeSseStream } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -361,7 +361,11 @@ async function runSingleOpenAiRequest(
   emitEnd: (reason: OpenAiTurnEndReason) => void,
   hasEnded: () => boolean,
 ): Promise<OpenAiCompatibleRequestOutcome> {
-  const baseUrlCheck = validateBaseUrl(options.baseUrl ?? DEFAULT_OPENAI_BASE_URL);
+  // DNS-resolving, not merely textual: the synchronous check only inspects the literal hostname,
+  // so `https://internal.example.com -> 10.0.0.5` passed it and this runner connected to private
+  // infrastructure on behalf of whoever supplied `baseUrl`. Matches what the Azure, Google and
+  // Ollama runners in this directory already did.
+  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_OPENAI_BASE_URL, defaultDnsLookup);
   if (baseUrlCheck.error) {
     options.onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');

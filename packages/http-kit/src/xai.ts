@@ -153,6 +153,9 @@ const DEFAULT_SEARCH_BASE_URL = 'https://api.x.ai/v1';
 /** xAI's real Responses-API model id for `x_search`, per OD's origin `X_SEARCH_DEFAULT_MODEL`. */
 const DEFAULT_SEARCH_MODEL = 'grok-4.20-reasoning';
 
+/** Deadline for one xAI search request, covering the response body as well as the request. Matches `research.ts`'s `DEFAULT_TAVILY_TIMEOUT_MS` — the two outbound-provider paths in this package should not disagree about how long a stalled upstream may pin a handler. */
+const DEFAULT_SEARCH_TIMEOUT_MS = 30_000;
+
 export interface XaiInternalErrorContext {
   readonly source: 'oauth-start' | 'oauth-complete' | 'oauth-disconnect' | 'auth-status' | 'search';
   readonly correlationId: string;
@@ -183,6 +186,8 @@ export interface XaiHttpDeps {
   /** Model id sent to the Responses API when a search request doesn't supply its own. Defaults to xAI's real `grok-4.20-reasoning`. */
   readonly searchDefaultModel?: string;
   readonly fetchImpl?: typeof fetch;
+  /** Deadline for one search request *and* its response body, in milliseconds. Defaults to {@link DEFAULT_SEARCH_TIMEOUT_MS}. */
+  readonly searchTimeoutMs?: number;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: XaiInternalErrorContext) => void;
 }
@@ -200,6 +205,7 @@ interface ResolvedXaiHttpDeps {
   searchBaseUrl: string;
   searchDefaultModel: string;
   fetchImpl: typeof fetch;
+  searchTimeoutMs: number;
   onInternalError: (context: XaiInternalErrorContext) => void;
 }
 
@@ -223,6 +229,7 @@ function resolveXaiHttpDeps(deps: XaiHttpDeps): ResolvedXaiHttpDeps {
     searchBaseUrl: deps.searchBaseUrl ?? DEFAULT_SEARCH_BASE_URL,
     searchDefaultModel: deps.searchDefaultModel ?? DEFAULT_SEARCH_MODEL,
     fetchImpl: deps.fetchImpl ?? fetch,
+    searchTimeoutMs: deps.searchTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS,
     onInternalError: deps.onInternalError ?? defaultInternalErrorSink,
   };
 }
@@ -241,6 +248,32 @@ async function stopListener(listenerRef: { current: OAuthCallbackListener | null
   } catch {
     // Best-effort only — see this function's own doc.
   }
+}
+
+/**
+ * Serializes OAuth starts that share one `listenerRef`, keyed by the ref object itself (a
+ * `WeakMap`, so a host that discards a registration's deps does not leak an entry here).
+ *
+ * The loopback callback port is a singleton, and `oauth/start` reaches for it across two `await`s —
+ * stop the previous listener, then open a new one. Two starts could interleave there: both cleared
+ * the shared ref, the second installed its listener and returned `ok` to its caller, and then the
+ * first one's failure path called `stopListener` on that same shared ref and tore down the second's
+ * listener. Its caller had already been handed an authorizeUrl whose callback endpoint was now
+ * dead, so the sign-in hung with nothing to diagnose. Serializing makes "stop the old one, open a
+ * new one" the single indivisible step it always read as, so a start only ever stops a listener
+ * that is genuinely finished with.
+ */
+const oauthStartQueues = new WeakMap<object, Promise<unknown>>();
+
+function serializeOauthStart<T>(key: object, task: () => Promise<T>): Promise<T> {
+  const previous = oauthStartQueues.get(key) ?? Promise.resolve();
+  // `then(task, task)` so a rejected predecessor still lets the next start run — this is a mutex,
+  // not a dependency chain.
+  const next = previous.then(task, task);
+  // The stored link must never reject, or an unhandled rejection escapes and every later start
+  // inherits it. Only the returned promise carries the outcome.
+  oauthStartQueues.set(key, next.then(() => undefined, () => undefined));
+  return next;
 }
 
 /** Redacts any Bearer/api-key/`key=`-shaped secret out of a thrown value's message before it reaches the internal-error sink — belt-and-braces even on paths (token exchange/refresh) that don't send a bearer header of our own, since the upstream error body is otherwise passed through verbatim. Matches `callXaiSearch`'s own redaction; kept as a separate helper since those two paths have no exact-secret value in common to pass as `redactSecrets`' second argument. */
@@ -353,33 +386,38 @@ export const xaiOauthStartRoute = defineJsonRoute<void, XaiOauthStartResponse, X
     const resolved = resolveXaiHttpDeps(deps);
     // Only one OAuth dance can be in flight at a time — the loopback port is a singleton. Stop
     // any prior listener (e.g. the user closed the browser tab and clicked "Sign in" again)
-    // before opening a new one, matching OD's origin `oauth/start` handler.
-    await stopListener(resolved.listenerRef);
-    try {
-      const { authorizeUrl, state } = beginOAuthPkce({
-        config: resolved.providerConfig,
-        pending: resolved.pending,
-        redirectUri: xaiRedirectUri(resolved),
-      });
-      const listener = await resolved.startCallbackListener({
-        host: resolved.callbackHost,
-        port: resolved.callbackPort,
-        path: resolved.callbackPath,
-        expectedState: state,
-        onCallback: (outcome) => handleListenerCallback(resolved, outcome),
-      });
-      resolved.listenerRef.current = listener;
-      return ok({
-        authorizeUrl,
-        state,
-        callback: { host: listener.address.host, port: listener.address.port },
-      });
-    } catch (error) {
+    // before opening a new one, matching OD's origin `oauth/start` handler. The whole stop-then-
+    // start sequence runs under `serializeOauthStart` so two concurrent starts cannot interleave
+    // across its `await`s — see that function's doc for the listener a failing start used to
+    // destroy out from under a successful one.
+    return serializeOauthStart(resolved.listenerRef, async () => {
       await stopListener(resolved.listenerRef);
-      const correlationId = randomUUID();
-      resolved.onInternalError({ source: 'oauth-start', correlationId, error });
-      return err(createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
-    }
+      try {
+        const { authorizeUrl, state } = beginOAuthPkce({
+          config: resolved.providerConfig,
+          pending: resolved.pending,
+          redirectUri: xaiRedirectUri(resolved),
+        });
+        const listener = await resolved.startCallbackListener({
+          host: resolved.callbackHost,
+          port: resolved.callbackPort,
+          path: resolved.callbackPath,
+          expectedState: state,
+          onCallback: (outcome) => handleListenerCallback(resolved, outcome),
+        });
+        resolved.listenerRef.current = listener;
+        return ok({
+          authorizeUrl,
+          state,
+          callback: { host: listener.address.host, port: listener.address.port },
+        });
+      } catch (error) {
+        await stopListener(resolved.listenerRef);
+        const correlationId = randomUUID();
+        resolved.onInternalError({ source: 'oauth-start', correlationId, error });
+        return err(createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
+      }
+    });
   },
 });
 
@@ -647,23 +685,44 @@ async function callXaiSearch(resolved: ResolvedXaiHttpDeps, accessToken: string,
     store: false,
   };
 
-  let response: Response;
+  // One deadline covering the request *and* the body read, mirroring `research.ts`'s Tavily call.
+  // Arming it only around `fetch` would leave the far more common stall unbounded: an upstream that
+  // returns headers promptly and then never finishes the body still pins this handler, its socket
+  // and the caller's connection forever. The timer is cleared in a `finally` so a fast response
+  // does not leave one armed.
+  const timeoutController = new AbortController();
+  const timeoutHandle = setTimeout(() => timeoutController.abort(), resolved.searchTimeoutMs);
+  const timedOutMessage = `xAI request timed out after ${resolved.searchTimeoutMs}ms`;
   try {
-    response = await resolved.fetchImpl(`${base}/responses`, {
-      method: 'POST',
-      headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(redactSecrets(`xAI request failed: ${message}`, [accessToken]));
+    let response: Response;
+    try {
+      response = await resolved.fetchImpl(`${base}/responses`, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+        body: JSON.stringify(requestBody),
+        signal: timeoutController.signal,
+      });
+    } catch (error) {
+      if (timeoutController.signal.aborted) throw new Error(timedOutMessage);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(redactSecrets(`xAI request failed: ${message}`, [accessToken]));
+    }
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(redactSecrets(`xAI ${response.status}: ${text.slice(0, 240) || 'no body'}`, [accessToken]));
+    }
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch (error) {
+      if (timeoutController.signal.aborted) throw new Error(timedOutMessage);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(redactSecrets(`xAI response could not be read: ${message}`, [accessToken]));
+    }
+    return { answer: extractAnswerText(data), citations: extractUrlCitations(data), model };
+  } finally {
+    clearTimeout(timeoutHandle);
   }
-  if (!response.ok) {
-    const text = await response.text().catch(() => '');
-    throw new Error(redactSecrets(`xAI ${response.status}: ${text.slice(0, 240) || 'no body'}`, [accessToken]));
-  }
-  const data: unknown = await response.json();
-  return { answer: extractAnswerText(data), citations: extractUrlCitations(data), model };
 }
 
 export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchResponse, XaiHttpDeps>({
