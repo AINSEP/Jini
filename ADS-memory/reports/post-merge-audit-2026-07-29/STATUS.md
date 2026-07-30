@@ -18,10 +18,11 @@ BEFORE the fix, then the fix is applied and the test (plus the package's full su
 | `server` | 6 | **Fixed** (6/6 real, all fixed + 2 non-blocking) | `fix/post-merge-audit-2026-07-29` |
 | `chat-core` | 2 | **Fixed** (1/2 real+fixed, 1 false-positive-on-mechanism/doc-fixed) | `fix/post-merge-audit-2026-07-29` |
 | `agentic` | 7 | Fix-agent running locally as of this writing | `fix/post-merge-audit-agentic-2026-07-29` |
-| `daemon` | 5 | Queued — scheduled cloud run, 2026-07-30 03:00 PDT | `fix/post-merge-audit-daemon-2026-07-30` |
-| `agent-runtime` | 2 | Queued — scheduled cloud run, 2026-07-30 03:30 PDT | `fix/post-merge-audit-agent-runtime-2026-07-30` |
-| `http-kit` | 12 | Queued — scheduled cloud run, 2026-07-30 04:00 PDT | `fix/post-merge-audit-http-kit-2026-07-30` |
-| `mcp` | 1 | Queued — scheduled cloud run, 2026-07-30 04:30 PDT | `fix/post-merge-audit-mcp-2026-07-30` |
+| `daemon` | 5 | Queued — cloud routine `trig_01LKsrqn1uQ4xZn3F1ZhkqUY`, fires 2026-07-30 03:00 PDT | `fix/post-merge-audit-daemon-2026-07-30` |
+| `agent-runtime` + `mcp` | 2 + 1 = 3 | Queued — combined into one cloud routine (both small), `trig_01Ji2QriSVA5Y7NBTWejnWr3`, fires 2026-07-30 03:30 PDT | `fix/post-merge-audit-agent-runtime-mcp-2026-07-30` |
+| `http-kit` | 12 | Queued — cloud routine `trig_01P3obaCLTpMqEq6aTMPaN1N`, fires 2026-07-30 04:00 PDT (largest — agent was told to prioritize by severity and report honestly if it can't finish all 12) | `fix/post-merge-audit-http-kit-2026-07-30` |
+
+Routine status/logs: https://claude.ai/code/routines (each routine ID above links to its own run).
 
 **Total: 35 BLOCKING findings.** Every finding independently spot-verified by the coordinating
 session before dispatch has come back real (server: 2/2 checked, agentic: 3/3 checked, http-kit:
@@ -35,9 +36,10 @@ to report a finding as a false positive (with reasoning, no code change) rather 
    in the commit message: which findings were confirmed real vs. false positive, the failing-test
    output before the fix, and the passing output after. None of these branches are merged into
    `main` and none have PRs opened — that's a deliberate human checkpoint.
-2. The 4 scheduled runs (`daemon`, `agent-runtime`, `http-kit`, `mcp`) are **cloud** agents (via
-   Claude Code routines / `RemoteTrigger`) — they run in Anthropic's cloud infrastructure, not on
-   this machine, so they do NOT depend on this laptop staying on. Each one clones `main` fresh,
+2. The 3 scheduled runs (`daemon`, `agent-runtime`+`mcp`, `http-kit`) are **cloud** agents (via
+   Claude Code routines / `RemoteTrigger`, model `claude-opus-5`) — they run in Anthropic's cloud
+   infrastructure, not on this machine, so they do NOT depend on this laptop staying on. Each one
+   clones `main` fresh (as of commit `d84c09e4a`, which already has these findings files on it),
    creates its own branch, and — unlike a local worktree — MUST push that branch to `origin` for
    its work to be retrievable (the routine has no other way to hand back results). If a branch
    listed above doesn't exist on `origin` in the morning, that run failed or is still in progress;
