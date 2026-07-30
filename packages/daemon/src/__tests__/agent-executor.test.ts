@@ -1,18 +1,25 @@
 import { EventEmitter } from 'node:events';
+import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
 import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import {
   AGENT_DEFS,
+  _resetAntigravityModelLockForTests,
+  antigravityModelLock,
   attachAcpSession,
   attachPiRpcSession,
   getAgentDef,
+  prepareAgentLogFile,
   preparePromptFileForAgent,
   type AcpSessionController,
   type AgentLaunchResolution,
   type PiRpcSession,
   type RuntimeAgentDef,
+  type RuntimeLock,
+  type RuntimeLockAcquireContext,
+  type RuntimeLockHandoffContext,
 } from '@jini-ai/agent-runtime';
 import type { Principal, RunRef } from '@jini-ai/core';
 import type { JournalEntry } from '@jini-ai/protocol';
@@ -175,6 +182,8 @@ interface HarnessOptions {
   listProcessSnapshotsRejects?: unknown;
   /** Overrides the real `@jini-ai/agent-runtime` prompt-file stager (default: real — touches real disk under `os.tmpdir()`, a no-op for every def without `promptViaFile: true`). */
   preparePromptFileForAgent?: typeof preparePromptFileForAgent;
+  /** Overrides the real `@jini-ai/agent-runtime` log-file stager (default: real — same deal, a no-op for every def without `needsAgentLogFile: true`). */
+  prepareAgentLogFile?: typeof prepareAgentLogFile;
   /** Gap 1's byte-journal — omitted by default, matching `CreateAgentExecutorOptions.journal`'s own opt-in default. */
   journal?: RunByteJournal;
   /** Gap 3's stdin-tool-result injection config — omitted by default, matching `CreateAgentExecutorOptions.continuation`'s own opt-in default. */
@@ -240,6 +249,7 @@ function createHarness(options: HarnessOptions = {}): Harness {
     ...(options.preparePromptFileForAgent !== undefined
       ? { preparePromptFileForAgent: options.preparePromptFileForAgent }
       : {}),
+    ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}),
     listProcessSnapshots: async () => {
       if (options.listProcessSnapshotsRejects !== undefined) throw options.listProcessSnapshotsRejects;
       const pid = child.pid ?? 0;
@@ -422,19 +432,25 @@ describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
     expect((await lifecycle.get(run.id))?.state).toBe('failed');
   });
 
-  it('rejects with AGENT_RUNTIME_UNSUPPORTED for antigravity specifically, even though it otherwise satisfies every plain-format guard (streamFormat + promptViaStdin)', async () => {
-    const { lifecycle, executor } = createHarness({
+  // Inverted deliberately. This test used to assert that antigravity was
+  // rejected *by id* even though it satisfied every other guard. Antigravity's
+  // two real needs are now met by declarative def fields (`needsAgentLogFile`/
+  // `stdoutPolicy`/`runtimeLock`) the driver reads generically, so the id
+  // branch is gone. What must stay true — and is what this now pins — is that
+  // no guard keys off an agent id at all: the id `'antigravity'` must not by
+  // itself change the answer either way.
+  it('no longer rejects a def by its id: the literal id "antigravity" is not what any guard reads', async () => {
+    const { lifecycle, executor, child } = createHarness({
       def: createFakeDef({ id: 'antigravity', streamFormat: 'plain', promptViaStdin: true }),
     });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
-    await expect(
-      executor.run({ runId: run.id, agentId: 'antigravity', prompt: 'x', cwd: '/work' }),
-    ).rejects.toMatchObject({
-      code: 'AGENT_RUNTIME_UNSUPPORTED',
-      message: expect.stringContaining('antigravity'),
-    });
-    expect((await lifecycle.get(run.id))?.state).toBe('failed');
+    const runPromise = executor.run({ runId: run.id, agentId: 'antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await expect(runPromise).resolves.toBeUndefined();
+
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal(run.id)).state).toBe('succeeded');
   });
 
   it('rejects with AGENT_RUNTIME_UNSUPPORTED for a def that does not deliver its prompt via stdin', async () => {
@@ -2188,6 +2204,747 @@ describe('AgentExecutor — plain-format prompt-file delivery (grok-build: promp
   });
 });
 
+// ---------------------------------------------------------------------------
+// Antigravity — the 24th def, driven through declarative `RuntimeAgentDef`
+// fields rather than a `def.id === 'antigravity'` branch. Its two needs:
+//   (1) `agy` can print an OAuth sign-in URL to stdout and still exit 0, so
+//       stdout must be buffered until close, sanitized, then emitted;
+//   (2) its model choice is written into one process-global settings.json that
+//       `agy` reads at its own startup, so concurrent runs must serialize.
+// Every test below drives those through the *generic* fields, using fake defs
+// that declare them — so the driver is proved to key off the fields, never the
+// id. See packages/daemon/source-map.md's 2026-07-29 addition.
+// ---------------------------------------------------------------------------
+
+/** A staged-log-file stager whose path is caller-controlled, recording each call and its cleanup. */
+function createFakeLogFileStager(logPath = '/fake/tmp/agent.log'): {
+  prepareAgentLogFile: typeof prepareAgentLogFile;
+  calls: string[];
+  cleanup: ReturnType<typeof vi.fn>;
+} {
+  const calls: string[] = [];
+  const cleanup = vi.fn(async () => {});
+  return {
+    calls,
+    cleanup,
+    prepareAgentLogFile: (async (def: RuntimeAgentDef | null | undefined, label: string) => {
+      if (!def?.needsAgentLogFile) return null;
+      calls.push(label);
+      return { path: logPath, cleanup };
+    }) as unknown as typeof prepareAgentLogFile,
+  };
+}
+
+describe('AgentExecutor — stdoutPolicy: buffer-until-close + sanitize (antigravity)', () => {
+  /** The real agy print-mode auth-prompt stdout, split so the URL straddles two `'data'` events. */
+  const AUTH_CHUNKS = [
+    'Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oa',
+    'uth2/auth?client_id=12345&redirect_uri=antigravity-redirect\n',
+    'Waiting for authentication (timeout 30s)...\nError: authentication timed out.\n',
+  ];
+
+  function createBufferedDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
+    return createFakeDef({
+      id: 'fake-antigravity',
+      name: 'Fake Antigravity',
+      streamFormat: 'plain',
+      promptViaStdin: true,
+      needsAgentLogFile: true,
+      stdoutPolicy: {
+        buffering: 'until-close',
+        sanitize: (fullText) => fullText.replace(/https:\/\/accounts\.google\.com\/\S*/g, '[redacted sign-in URL]'),
+      },
+      buildArgs: (_prompt, _imagePaths, _extra, _options, runtimeContext) =>
+        runtimeContext?.agentLogFilePath ? ['--log-file', runtimeContext.agentLogFilePath, '-p', '-'] : ['-p', '-'],
+      ...overrides,
+    });
+  }
+
+  it('emits nothing at all until the child closes, then exactly one sanitized text_delta with the leaked URL absent', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef();
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'hello', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    for (const chunk of AUTH_CHUNKS) child.stdout.emit('data', chunk);
+    await flushAsync();
+
+    // THE assertion this whole feature exists for: with the child still alive
+    // and the URL already on stdout, the client has seen nothing — on either
+    // the chat channel or the raw echo channel.
+    const midRun = await collectEvents(lifecycle, run.id);
+    expect(midRun.filter((e) => e.kind === 'agent')).toEqual([]);
+    expect(midRun.filter((e) => e.kind === 'stdout')).toEqual([]);
+
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal(run.id)).state).toBe('succeeded');
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(agentPayloadTypes(events)).toEqual(['text_delta']);
+    const delta = (events.find((e) => e.kind === 'agent')!.payload as RunAgentPayload & { type: 'text_delta' }).delta;
+
+    // The URL straddled two chunks, which is exactly why a per-chunk sanitizer
+    // could not have caught it.
+    expect(delta).not.toContain('accounts.google.com');
+    expect(delta).not.toContain('client_id=12345');
+    expect(delta).toContain('Please visit the URL to log in: [redacted sign-in URL]');
+    expect(delta).toContain('Error: authentication timed out.');
+
+    // The raw 'stdout' echo is held back and sanitized too — emitting it raw
+    // would leak the exact string the sanitizer exists to remove.
+    const stdoutChunks = events.filter((e) => e.kind === 'stdout').map((e) => (e.payload as { chunk: string }).chunk);
+    expect(stdoutChunks).toEqual([delta]);
+
+    // …and finish() still lands last.
+    expect(events[events.length - 1]).toMatchObject({ kind: 'end', payload: { status: 'succeeded', code: 0 } });
+  });
+
+  it('concatenates many chunks in arrival order through the FIFO emit queue, flushing before finish()', async () => {
+    const stager = createFakeLogFileStager();
+    // No sanitizer, so the flushed text is provably the raw concatenation and
+    // this test measures ordering only.
+    const def = createBufferedDef({ stdoutPolicy: { buffering: 'until-close' } });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    const chunkCount = 25;
+    const expected = Array.from({ length: chunkCount }, (_, i) => `chunk-${i}`);
+    // Synchronously back-to-back, and interleaved with stderr, whose events go
+    // out live — the buffered stdout must still land as one event after them.
+    for (let i = 0; i < chunkCount; i++) {
+      child.stdout.emit('data', expected[i]);
+      if (i === 12) child.stderr.emit('data', 'a warning mid-stream');
+    }
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const events = await collectEvents(lifecycle, run.id);
+    const kinds = events.map((e) => e.kind);
+    const deltas = events
+      .filter((e) => e.kind === 'agent')
+      .map((e) => (e.payload as RunAgentPayload & { type: 'text_delta' }).delta);
+    expect(deltas).toEqual([expected.join('')]);
+    // Ordering, positionally: stderr (live) → stdout flush → agent flush → end.
+    expect(kinds).toEqual(['start', 'stderr', 'stdout', 'agent', 'end']);
+  });
+
+  it('emits nothing when a buffered run produces no stdout at all (an empty text_delta is noise)', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef();
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.filter((e) => e.kind === 'agent' || e.kind === 'stdout')).toEqual([]);
+  });
+
+  it('emits nothing when the sanitizer redacts the output down to nothing', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef({ stdoutPolicy: { buffering: 'until-close', sanitize: () => '' } });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.stdout.emit('data', 'entirely unsafe output');
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.filter((e) => e.kind === 'agent' || e.kind === 'stdout')).toEqual([]);
+  });
+
+  it('records the raw, unsanitized bytes in the byte journal — a host-owned log that is never replayed to run-event subscribers', async () => {
+    // The journal's contract is "every byte received" and it deliberately lives
+    // in a separate EventLog instance (see continuation/journal.ts's module
+    // doc), so it is the one place raw bytes are still kept.
+    const { journal, calls } = createSpyJournal();
+    const stager = createFakeLogFileStager();
+    const def = createBufferedDef();
+    const { lifecycle, executor, child } = createHarness({ def, journal, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    for (const chunk of AUTH_CHUNKS) child.stdout.emit('data', chunk);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const received = calls.filter((c) => c.entry.trust === 'untrusted').map((c) => c.entry.content);
+    expect(received).toEqual(AUTH_CHUNKS);
+    // But the client-facing stream carries only the sanitized copy.
+    const events = await collectEvents(lifecycle, run.id);
+    expect(JSON.stringify(events)).not.toContain('accounts.google.com');
+  });
+
+  it('keeps streaming live, per chunk, for a plain def that declares no stdoutPolicy at all (the other 4)', async () => {
+    // The explicit regression pin for grok-build/aider/deepseek/qwen: the same
+    // fake def, the same chunks, differing only in the absence of stdoutPolicy.
+    const def = createFakeDef({ id: 'fake-qwen', streamFormat: 'plain', promptViaStdin: true });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-qwen', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    for (const chunk of AUTH_CHUNKS) child.stdout.emit('data', chunk);
+    await flushAsync();
+
+    // Already visible — before any close event.
+    const midRun = await collectEvents(lifecycle, run.id);
+    const midDeltas = midRun
+      .filter((e) => e.kind === 'agent')
+      .map((e) => (e.payload as RunAgentPayload & { type: 'text_delta' }).delta);
+    expect(midDeltas).toEqual(AUTH_CHUNKS);
+    expect(midRun.filter((e) => e.kind === 'stdout').map((e) => (e.payload as { chunk: string }).chunk)).toEqual(AUTH_CHUNKS);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+    // No extra flush event appended on close for a live def.
+    const events = await collectEvents(lifecycle, run.id);
+    expect(agentPayloadTypes(events)).toEqual(['text_delta', 'text_delta', 'text_delta']);
+  });
+
+  it("does not buffer a def whose stdoutPolicy explicitly says 'live'", async () => {
+    const def = createFakeDef({ streamFormat: 'plain', promptViaStdin: true, stdoutPolicy: { buffering: 'live' } });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.stdout.emit('data', 'live chunk');
+    await flushAsync();
+    expect(agentPayloadTypes(await collectEvents(lifecycle, run.id))).toEqual(['text_delta']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('ignores stdoutPolicy for a structured (JSON-stream) def, whose events come from the parser', async () => {
+    // `stdoutPolicy` is documented as only meaningful for `plain`. A JSON-stream
+    // def that declared it must keep feeding its parser, not silently swallow
+    // every event until close.
+    const def = createFakeDef({ stdoutPolicy: { buffering: 'until-close', sanitize: () => 'SHOULD NOT APPEAR' } });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.stdout.emit('data', '{"type":"item.completed","item":{"type":"agent_message","text":"parsed reply"}}\n');
+    await flushAsync();
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(agentPayloadTypes(events)).toContain('text_delta');
+    expect(JSON.stringify(events)).not.toContain('SHOULD NOT APPEAR');
+    expect(JSON.stringify(events)).toContain('parsed reply');
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+});
+
+describe('AgentExecutor — needsAgentLogFile staging (antigravity)', () => {
+  function createLogFileDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
+    return createFakeDef({
+      id: 'fake-antigravity',
+      streamFormat: 'plain',
+      promptViaStdin: true,
+      needsAgentLogFile: true,
+      buildArgs: (_prompt, _imagePaths, _extra, _options, runtimeContext) => {
+        if (!runtimeContext?.agentLogFilePath) throw new Error('fake-antigravity expected agentLogFilePath');
+        return ['--log-file', runtimeContext.agentLogFilePath, '-p', '-'];
+      },
+      ...overrides,
+    });
+  }
+
+  it('stages a real 0o700-directory log path, threads it into buildArgs before spawn, and removes it once the child exits', async () => {
+    // prepareAgentLogFile left at its real default — the one test here proving
+    // the actual @jini-ai/agent-runtime filesystem behavior end to end.
+    const def = createLogFileDef();
+    const { lifecycle, executor, child, spawnCalls } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    expect(spawnCalls).toHaveLength(1);
+    const args = spawnCalls[0]!.args;
+    // Flag order is load-bearing on agy v1.0.3 (`--log-file` before `-p`).
+    expect(args[0]).toBe('--log-file');
+    const logPath = args[1]!;
+    expect(args.slice(2)).toEqual(['-p', '-']);
+    expect(logPath).toContain('agent-runtime-fake-antigravity-');
+    expect(logPath.endsWith('/agent.log')).toBe(true);
+
+    // The directory exists (so the CLI can write into it) but the file does not
+    // — the CLI creates that itself.
+    const dirStat = await fs.stat(path.dirname(logPath));
+    expect(dirStat.isDirectory()).toBe(true);
+    expect(dirStat.mode & 0o777).toBe(0o700);
+    await expect(fs.access(logPath)).rejects.toThrow();
+
+    // Simulate the CLI writing its diagnostic log, then exiting.
+    await fs.writeFile(logPath, 'Propagating selected model override to backend: label="M"\n', 'utf8');
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal(run.id)).state).toBe('succeeded');
+
+    // Cleaned up — a leaked log can hold whatever the CLI chose to write.
+    await expect(fs.access(logPath)).rejects.toThrow();
+    await expect(fs.access(path.dirname(logPath))).rejects.toThrow();
+  });
+
+  it('stages nothing for a def that did not opt in', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createFakeDef({ streamFormat: 'plain', promptViaStdin: true });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    expect(stager.calls).toEqual([]);
+    expect(stager.cleanup).not.toHaveBeenCalled();
+  });
+
+  it('stages prompt file and log file together, threading both into one runtimeContext', async () => {
+    const stager = createFakeLogFileStager();
+    const promptCleanup = vi.fn(async () => {});
+    const fakePreparePromptFile = (async () => ({ path: '/fake/tmp/prompt.md', cleanup: promptCleanup })) as unknown as
+      typeof preparePromptFileForAgent;
+    const def = createFakeDef({
+      id: 'fake-both',
+      streamFormat: 'plain',
+      promptViaFile: true,
+      needsAgentLogFile: true,
+      buildArgs: (_p, _i, _e, _o, ctx) => ['--prompt-file', ctx!.promptFilePath!, '--log-file', ctx!.agentLogFilePath!],
+    });
+    const { lifecycle, executor, child, spawnCalls } = createHarness({
+      def,
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+      preparePromptFileForAgent: fakePreparePromptFile,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-both', prompt: 'x', cwd: '/work' });
+    expect(spawnCalls[0]!.args).toEqual(['--prompt-file', '/fake/tmp/prompt.md', '--log-file', '/fake/tmp/agent.log']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+    // Both released by the single composed cleanup.
+    expect(promptCleanup).toHaveBeenCalledTimes(1);
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['spawn() throws synchronously', { spawnThrows: new Error('EACCES') }],
+    ['the child emits "error" before "spawn"', { spawnErrorEvent: new Error('ENOENT') }],
+  ])('removes the staged log file when %s', async (_label, harnessOverrides) => {
+    const stager = createFakeLogFileStager();
+    const def = createLogFileDef();
+    const { lifecycle, executor } = createHarness({
+      def,
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+      ...harnessOverrides,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject(
+      { code: 'AGENT_SPAWN_FAILED' },
+    );
+
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+    expect((await lifecycle.get(run.id))?.state).toBe('failed');
+  });
+
+  it('removes the staged log file when the Windows command-line budget guard rejects post-buildArgs', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createLogFileDef({
+      maxPromptArgBytes: 30_000,
+      buildArgs: (prompt, _i, _e, _o, ctx) => ['--log-file', ctx!.agentLogFilePath!, '--message', prompt],
+    });
+    const { lifecycle, executor } = createHarness({
+      def,
+      launchPath: 'C:\\fake\\agy.cmd',
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: '"'.repeat(20_000), cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_PROMPT_TOO_LARGE' });
+
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('removes the staged log file when .mcp.json injection fails', async () => {
+    const stager = createFakeLogFileStager();
+    const def = createLogFileDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+      mcpJsonInjection: {
+        command: 'jini-mcp',
+        daemonUrl: 'http://127.0.0.1:4242',
+        readFile: async () => '',
+        writeFile: async () => {
+          throw new Error('EROFS: read-only file system');
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject(
+      { code: 'AGENT_SPAWN_FAILED', message: expect.stringContaining('.mcp.json') },
+    );
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects cleanly with AGENT_SPAWN_FAILED (never a bare throw) when log-file staging itself fails, releasing the already-staged prompt file', async () => {
+    const promptCleanup = vi.fn(async () => {});
+    const fakePreparePromptFile = (async () => ({ path: '/fake/tmp/prompt.md', cleanup: promptCleanup })) as unknown as
+      typeof preparePromptFileForAgent;
+    const failingLogStager = (async () => {
+      throw new Error('ENOSPC: no space left on device');
+    }) as unknown as typeof prepareAgentLogFile;
+    const def = createLogFileDef({ promptViaFile: true });
+    const { lifecycle, executor } = createHarness({
+      def,
+      preparePromptFileForAgent: fakePreparePromptFile,
+      prepareAgentLogFile: failingLogStager,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject({
+      code: 'AGENT_SPAWN_FAILED',
+      message: expect.stringContaining('could not stage a log file'),
+    });
+    // The prompt file was staged first and must not leak because the log file failed.
+    expect(promptCleanup).toHaveBeenCalledTimes(1);
+    expect((await lifecycle.get(run.id))?.state).toBe('failed');
+  });
+
+  it('rejects cleanly when log-file staging fails and no prompt file was staged', async () => {
+    const failingLogStager = (async () => {
+      throw new Error('EMFILE');
+    }) as unknown as typeof prepareAgentLogFile;
+    const def = createLogFileDef();
+    const { lifecycle, executor } = createHarness({ def, prepareAgentLogFile: failingLogStager });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' })).rejects.toMatchObject({
+      code: 'AGENT_SPAWN_FAILED',
+      message: expect.stringContaining('could not stage a log file'),
+    });
+  });
+});
+
+describe('AgentExecutor — runtimeLock (antigravity model-selection mutex)', () => {
+  /** A `RuntimeLock` whose acquire/handoff/release are fully caller-controlled. */
+  function createRecordingLock(options: { waitForHandoff?: boolean } = {}) {
+    const events: string[] = [];
+    let releaseHandoff: (() => void) | undefined;
+    let rejectHandoff: ((err: unknown) => void) | undefined;
+    const seen: {
+      acquire?: RuntimeLockAcquireContext;
+      handoff?: { logFilePath: string | undefined; model: string | undefined };
+    } = {};
+    const lock: RuntimeLock = {
+      acquire: async (context) => {
+        events.push('acquire');
+        seen.acquire = context;
+        return {
+          release: () => events.push('release'),
+          ...(options.waitForHandoff === false
+            ? {}
+            : {
+                waitForHandoff: (handoffContext: RuntimeLockHandoffContext) => {
+                  events.push('waitForHandoff');
+                  seen.handoff = { logFilePath: handoffContext.logFilePath, model: handoffContext.model };
+                  return new Promise<void>((resolve, reject) => {
+                    releaseHandoff = () => resolve();
+                    rejectHandoff = reject;
+                  });
+                },
+              }),
+        };
+      },
+    };
+    return {
+      lock,
+      events,
+      seen,
+      settleHandoff: () => releaseHandoff?.(),
+      failHandoff: (err: unknown) => rejectHandoff?.(err),
+    };
+  }
+
+  function createLockedDef(lock: RuntimeLock, overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
+    return createFakeDef({
+      id: 'fake-antigravity',
+      streamFormat: 'plain',
+      promptViaStdin: true,
+      needsAgentLogFile: true,
+      runtimeLock: lock,
+      buildArgs: () => ['-p', '-'],
+      ...overrides,
+    });
+  }
+
+  it('acquires before buildArgs runs, passing the selected model, and hands the staged log path to waitForHandoff after spawn', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager('/fake/tmp/agy.log');
+    const buildArgsAt: string[] = [];
+    const def = createLockedDef(recording.lock, {
+      buildArgs: (_p, _i, _e, _o, ctx) => {
+        buildArgsAt.push(recording.events.join(','));
+        return ['--log-file', ctx!.agentLogFilePath!, '-p', '-'];
+      },
+    });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({
+      runId: run.id,
+      agentId: 'fake-antigravity',
+      prompt: 'x',
+      cwd: '/work',
+      model: 'Gemini 3.1 Pro (High)',
+    });
+
+    // Ordering: acquire strictly precedes buildArgs (which is what performs the
+    // process-global settings.json write).
+    expect(buildArgsAt).toEqual(['acquire']);
+    expect(recording.seen.acquire).toEqual({ model: 'Gemini 3.1 Pro (High)' });
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff']);
+    expect(recording.seen.handoff).toMatchObject({ logFilePath: '/fake/tmp/agy.log', model: 'Gemini 3.1 Pro (High)' });
+
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases as soon as waitForHandoff resolves, without waiting for the child to exit', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    expect(recording.events).not.toContain('release');
+
+    recording.settleHandoff();
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff', 'release']);
+
+    // The child is still alive; its later exit must not break anything.
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases on child exit when waitForHandoff never settles (a cold-starting CLI that never logs its signal)', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    expect(recording.events).not.toContain('release');
+
+    child.emit('exit', 0, null);
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff', 'release']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases even when waitForHandoff rejects — a lock stuck open is worse than an early release', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    recording.failHandoff(new Error('log watcher blew up'));
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'waitForHandoff', 'release']);
+
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releasing twice is harmless (handoff settles, then the child exits)', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    recording.settleHandoff();
+    await flushAsync();
+    child.emit('exit', 0, null);
+    await flushAsync();
+    // Both release paths fired; the driver makes no attempt to suppress the
+    // second, per RuntimeLockHold.release's idempotence contract.
+    expect(recording.events.filter((e) => e === 'release')).toHaveLength(2);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('holds until child exit when the def declares a lock with no waitForHandoff at all', async () => {
+    const recording = createRecordingLock({ waitForHandoff: false });
+    const def = createLockedDef(recording.lock, { needsAgentLogFile: false, buildArgs: () => ['-p', '-'] });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' });
+    expect(recording.events).toEqual(['acquire']);
+
+    child.emit('exit', 0, null);
+    await flushAsync();
+    expect(recording.events).toEqual(['acquire', 'release']);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('passes model: undefined to acquire when the caller selected no model', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work' });
+    expect(recording.seen.acquire).toEqual({ model: undefined });
+
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('releases the lock on every pre-spawn failure path, where no child exists to signal exit', async () => {
+    const recording = createRecordingLock();
+    const stager = createFakeLogFileStager();
+    const def = createLockedDef(recording.lock);
+    const { lifecycle, executor } = createHarness({
+      def,
+      spawnThrows: new Error('EACCES'),
+      prepareAgentLogFile: stager.prepareAgentLogFile,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+
+    // Released, and waitForHandoff was never started (no live process could
+    // have consumed the guarded write).
+    expect(recording.events).toEqual(['acquire', 'release']);
+    expect(stager.cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it('proves two overlapping runs of the real antigravity lock genuinely serialize', async () => {
+    // Uses the REAL antigravityModelLock (not a fake), driven through two
+    // concurrent executor runs — the actual race this feature closes.
+    _resetAntigravityModelLockForTests();
+    try {
+      const buildOrder: string[] = [];
+      const makeDef = (id: string): RuntimeAgentDef =>
+        createFakeDef({
+          id,
+          streamFormat: 'plain',
+          promptViaStdin: true,
+          needsAgentLogFile: true,
+          runtimeLock: antigravityModelLock,
+          buildArgs: () => {
+            buildOrder.push(id);
+            return ['-p', '-'];
+          },
+        });
+
+      const defA = makeDef('run-a');
+      const defB = makeDef('run-b');
+      const stagerA = createFakeLogFileStager();
+      const stagerB = createFakeLogFileStager();
+      const harnessA = createHarness({ def: defA, prepareAgentLogFile: stagerA.prepareAgentLogFile });
+      const harnessB = createHarness({ def: defB, prepareAgentLogFile: stagerB.prepareAgentLogFile });
+      const { run: runA } = await harnessA.lifecycle.start({ contextRef: 'ctx-a' });
+      const { run: runB } = await harnessB.lifecycle.start({ contextRef: 'ctx-b' });
+
+      const promiseA = harnessA.executor.run({
+        runId: runA.id,
+        agentId: 'run-a',
+        prompt: 'x',
+        cwd: '/work',
+        model: 'Gemini 3.1 Pro (High)',
+      });
+      const promiseB = harnessB.executor.run({
+        runId: runB.id,
+        agentId: 'run-b',
+        prompt: 'x',
+        cwd: '/work',
+        model: 'Claude Opus 4.6 (Thinking)',
+      });
+
+      await promiseA;
+      // A holds the lock (its handoff watcher is polling a log file that will
+      // never contain the line), so B's buildArgs — the settings.json write —
+      // must not have run yet.
+      await flushAsync();
+      expect(buildOrder).toEqual(['run-a']);
+
+      // A's process exits, releasing.
+      harnessA.child.emit('exit', 0, null);
+      harnessA.child.emit('close', 0, null);
+      await harnessA.lifecycle.waitForTerminal(runA.id);
+
+      await promiseB;
+      expect(buildOrder).toEqual(['run-a', 'run-b']);
+
+      harnessB.child.emit('exit', 0, null);
+      harnessB.child.emit('close', 0, null);
+      await harnessB.lifecycle.waitForTerminal(runB.id);
+    } finally {
+      _resetAntigravityModelLockForTests();
+    }
+  });
+});
+
 describe('AgentExecutor — plain-format argv prompt-budget guard (aider/deepseek: maxPromptArgBytes)', () => {
   function createArgvBoundDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
     return createFakeDef({
@@ -3225,10 +3982,45 @@ describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
     expect(isAgentExecutorSupported(def)).toBe(true);
   });
 
-  it('rejects antigravity, naming the deferred work rather than a generic failure', () => {
-    const result = assessAgentExecutorCompatibility(defOf('antigravity'));
-    expect(result.supported).toBe(false);
-    expect(result.supported === false && result.reason).toContain('auth-URL-leak buffering');
+  // Antigravity was the one registered def this predicate rejected. It is now
+  // accepted, and its two former blockers are met by def fields the driver
+  // reads generically — asserted here from the *real registry def*, not a fake,
+  // so the def and the driver cannot drift apart silently.
+  it('accepts the real antigravity def, which declares all three spawn-orchestration fields', () => {
+    const def = defOf('antigravity');
+    expect(def.needsAgentLogFile).toBe(true);
+    expect(def.stdoutPolicy?.buffering).toBe('until-close');
+    expect(def.stdoutPolicy?.buffering === 'until-close' && typeof def.stdoutPolicy.sanitize).toBe('function');
+    expect(typeof def.runtimeLock?.acquire).toBe('function');
+    expect(isAgentExecutorSupported(def)).toBe(true);
+  });
+
+  // All 24 registered defs are now driveable. A def added later that this
+  // driver cannot actually run should fail *here*, at the point someone can
+  // still decide what to do about it, rather than at a user's first run.
+  it('accepts every one of the 24 registered defs', () => {
+    const rejected = AGENT_DEFS.filter((def) => !isAgentExecutorSupported(def)).map((def) => def.id);
+    expect(rejected).toEqual([]);
+    expect(AGENT_DEFS).toHaveLength(24);
+  });
+
+  // The three new fields must stay opt-in: exactly one def declares them, and
+  // the other 23 keep their pre-existing behavior by declaring none.
+  it('leaves the other 23 defs — including the 4 other plain-format ones — declaring none of the three new fields', () => {
+    const withNewFields = AGENT_DEFS.filter(
+      (def) => def.needsAgentLogFile !== undefined || def.stdoutPolicy !== undefined || def.runtimeLock !== undefined,
+    ).map((def) => def.id);
+    expect(withNewFields).toEqual(['antigravity']);
+
+    for (const id of ['grok-build', 'aider', 'deepseek', 'qwen']) {
+      const def = defOf(id);
+      expect(def.streamFormat).toBe('plain');
+      // No `stdoutPolicy` at all — so `wireChildLifecycle` takes the live path,
+      // byte-for-byte as before this feature existed.
+      expect(def.stdoutPolicy).toBeUndefined();
+      expect(def.needsAgentLogFile).toBeUndefined();
+      expect(def.runtimeLock).toBeUndefined();
+    }
   });
 
   it('rejects an unrecognized streamFormat', () => {

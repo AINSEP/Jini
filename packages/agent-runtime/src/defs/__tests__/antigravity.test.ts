@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
 // This whole test file mocks node:os's homedir() to a fake, isolated temp
 // location so `writeAntigravityModelSelection`'s default settingsPath
@@ -23,6 +23,8 @@ import {
   _resetAntigravityModelLockForTests,
   acquireAntigravityModelLock,
   antigravityAgentDef,
+  antigravityModelLock,
+  redactAntigravityAuthUrls,
   waitForAgyToReadModel,
   writeAntigravityModelSelection,
 } from '../antigravity.js';
@@ -39,6 +41,197 @@ describe('antigravityAgentDef shape', () => {
     expect(antigravityAgentDef.promptViaStdin).toBe(true);
     expect(antigravityAgentDef.streamFormat).toBe('plain');
     expect(antigravityAgentDef.fallbackModels[0]?.id).toBe('default');
+  });
+
+  // The three fields that make a generic driver able to run agy at all — see
+  // packages/daemon/src/agent-executor.ts's "Antigravity's two extra needs,
+  // met declaratively" section. Pinned here because a driver reads them by
+  // name: silently dropping one degrades to a live-streaming, unlocked,
+  // log-less run that leaks a sign-in URL, with nothing failing loudly.
+  it('opts into a staged log file, buffered+sanitized stdout, and the model lock', () => {
+    expect(antigravityAgentDef.needsAgentLogFile).toBe(true);
+    expect(antigravityAgentDef.stdoutPolicy.buffering).toBe('until-close');
+    expect(antigravityAgentDef.stdoutPolicy.sanitize).toBe(redactAntigravityAuthUrls);
+    expect(antigravityAgentDef.runtimeLock).toBe(antigravityModelLock);
+  });
+});
+
+describe('redactAntigravityAuthUrls', () => {
+  // The exact stdout agy v1.0.3 prints (and exits 0 on) when its keyring entry
+  // is missing — the same text `auth.ts`'s isAntigravityAuthFailureText
+  // classifies, and the same fixture OD's own chat-route test used.
+  const REAL_AUTH_PROMPT =
+    'Authentication required. Please visit the URL to log in: https://accounts.google.com/o/oauth2/auth?client_id=12345&redirect_uri=antigravity-redirect\n' +
+    'Waiting for authentication (timeout 30s)...\n' +
+    'Error: authentication timed out.\n';
+
+  it('removes the real agy sign-in URL while keeping the surrounding text', () => {
+    const redacted = redactAntigravityAuthUrls(REAL_AUTH_PROMPT);
+    expect(redacted).not.toContain('accounts.google.com');
+    expect(redacted).not.toContain('client_id=12345');
+    expect(redacted).not.toContain('antigravity-redirect');
+    expect(redacted).toContain('Authentication required. Please visit the URL to log in: [redacted sign-in URL]');
+    // The non-URL diagnostic lines are still useful and still forwarded.
+    expect(redacted).toContain('Error: authentication timed out.');
+  });
+
+  it('redacts every occurrence, not just the first', () => {
+    const redacted = redactAntigravityAuthUrls(
+      'first https://accounts.google.com/o/oauth2/auth?a=1 then https://accounts.google.com/o/oauth2/auth?b=2 end',
+    );
+    expect(redacted).toBe('first [redacted sign-in URL] then [redacted sign-in URL] end');
+  });
+
+  it('redacts a non-Google URL that still carries OAuth/credential query parameters', () => {
+    // Degrades to "redacted" rather than "leaked" if upstream ever moves off
+    // accounts.google.com.
+    for (const param of ['client_id', 'code_challenge', 'code_verifier', 'access_token', 'id_token', 'refresh_token']) {
+      expect(redactAntigravityAuthUrls(`go to https://login.example.test/authorize?${param}=abc123`)).toBe(
+        'go to [redacted sign-in URL]',
+      );
+    }
+  });
+
+  it('leaves ordinary assistant output — including ordinary links — byte-identical', () => {
+    const ordinary =
+      'Here is the fix. See the docs at https://example.test/guide/auth-setup and\n' +
+      'the Google Cloud console at https://console.cloud.google.com/apis.\n' +
+      'The client identifier is configured server-side.\n';
+    expect(redactAntigravityAuthUrls(ordinary)).toBe(ordinary);
+  });
+
+  it('returns empty text unchanged', () => {
+    expect(redactAntigravityAuthUrls('')).toBe('');
+  });
+});
+
+describe('antigravityModelLock', () => {
+  afterEach(() => {
+    _resetAntigravityModelLockForTests();
+  });
+
+  /** An AbortController's signal plus an `abort()` shortcut, standing in for the driver's child-exit signal. */
+  function exitSignal(): { signal: AbortSignal; exit: () => void } {
+    const controller = new AbortController();
+    return { signal: controller.signal, exit: () => controller.abort() };
+  }
+
+  it.each([
+    ['no model was selected', undefined],
+    ["the model is the 'default' sentinel", 'default'],
+  ])('hands back an inert hold, without joining the chain, when %s', async (_label, model) => {
+    // Mirrors buildArgs' own guard: no settings.json write happens for these,
+    // so there is nothing to serialize. Proven by showing a *concurrent*
+    // acquire is not blocked by this hold.
+    const inert = await antigravityModelLock.acquire({ model });
+    expect(inert.waitForHandoff).toBeUndefined();
+
+    let concreteAcquired = false;
+    await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' }).then((hold) => {
+      concreteAcquired = true;
+      hold.release();
+    });
+    expect(concreteAcquired).toBe(true);
+    // Still callable, and still a no-op — the driver releases without knowing
+    // which kind of hold it got.
+    expect(inert.release()).toBeUndefined();
+  });
+
+  it('serializes two concurrent concrete-model runs: the second acquire waits for the first release', async () => {
+    const first = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
+
+    let secondAcquired = false;
+    const secondPromise = antigravityModelLock.acquire({ model: 'Claude Opus 4.6 (Thinking)' }).then((hold) => {
+      secondAcquired = true;
+      return hold;
+    });
+
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(secondAcquired).toBe(false);
+
+    first.release();
+    const second = await secondPromise;
+    expect(secondAcquired).toBe(true);
+    second.release();
+  });
+
+  it('resolves waitForHandoff as soon as the log file shows agy propagated the model', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-lock-handoff-'));
+    const logPath = path.join(dir, 'agent.log');
+    writeFileSync(logPath, 'Propagating selected model override to backend: label="Gemini 3.1 Pro (High)"', 'utf8');
+    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
+    const { signal } = exitSignal();
+    try {
+      // `model: 'ignored-by-design'` is the point of this assertion, not a
+      // typo: the label matched against the log is the one `acquire` captured,
+      // so a driver cannot accidentally change which model the handoff waits
+      // for by passing a different one post-spawn.
+      await expect(
+        hold.waitForHandoff!({ logFilePath: logPath, model: 'ignored-by-design', processExited: signal }),
+      ).resolves.toBeUndefined();
+    } finally {
+      hold.release();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('holds until process exit when there is no log file to watch at all', async () => {
+    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
+    const { signal, exit } = exitSignal();
+    let settled = false;
+    const handoff = hold.waitForHandoff!({ logFilePath: undefined, model: 'Gemini 3.1 Pro (High)', processExited: signal }).then(
+      () => {
+        settled = true;
+      },
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    // No observable propagation signal exists, so resolving early would
+    // release the lock while a cold-starting agy might still read the file.
+    expect(settled).toBe(false);
+
+    exit();
+    await handoff;
+    expect(settled).toBe(true);
+    hold.release();
+  });
+
+  it('holds until process exit when the watcher gives up without seeing the propagation line', async () => {
+    // A `false` return from waitForAgyToReadModel means "stopped polling",
+    // never "agy did not read the file" — so it must NOT release.
+    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-lock-timeout-'));
+    const logPath = path.join(dir, 'agent.log');
+    writeFileSync(logPath, 'some unrelated log line\n', 'utf8');
+    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
+    const { signal, exit } = exitSignal();
+    let settled = false;
+    const handoff = hold
+      .waitForHandoff!({ logFilePath: logPath, model: 'Gemini 3.1 Pro (High)', processExited: signal })
+      .then(() => {
+        settled = true;
+      });
+
+    // The poller aborts on the same signal, so exiting is what ends both.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(settled).toBe(false);
+    exit();
+    await handoff;
+    expect(settled).toBe(true);
+    hold.release();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('resolves waitForHandoff immediately when the process has already exited', async () => {
+    // Covers the already-aborted fast path in `waitUntilAborted` — the driver
+    // can register the watcher after a child that exited instantly.
+    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
+    const { signal, exit } = exitSignal();
+    exit();
+    await expect(
+      hold.waitForHandoff!({ logFilePath: undefined, model: 'Gemini 3.1 Pro (High)', processExited: signal }),
+    ).resolves.toBeUndefined();
+    hold.release();
   });
 });
 

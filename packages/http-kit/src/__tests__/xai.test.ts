@@ -1,6 +1,9 @@
 import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   beginOAuthPkce,
@@ -221,6 +224,10 @@ describe('xaiOauthStartRoute', () => {
 
 describe('xaiOauthCompleteRoute', () => {
   it('parse requires non-empty state and code', () => {
+    expect(xaiOauthCompleteRoute.parse({ body: 'not an object', query: {}, params: {} })).toEqual({
+      ok: false,
+      error: { code: 'BAD_REQUEST', message: 'body must be a JSON object' },
+    });
     expect(xaiOauthCompleteRoute.parse({ body: {}, query: {}, params: {} }).ok).toBe(false);
     expect(xaiOauthCompleteRoute.parse({ body: { state: 'a' }, query: {}, params: {} }).ok).toBe(false);
     expect(xaiOauthCompleteRoute.parse({ body: { state: '  ', code: 'b' }, query: {}, params: {} }).ok).toBe(false);
@@ -295,6 +302,28 @@ describe('xaiOauthCompleteRoute', () => {
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 
+  // A non-Error rejection reaches both the `String(error)` fallback in the BAD_REQUEST prefix check
+  // and the one inside `redactError`. Neither may assume the thrown value has a `.message`, and the
+  // redaction still has to strip a credential embedded in the stringified form.
+  it('SEC-005: a non-Error rejection during exchange is stringified and redacted, not crashed on', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    const onInternalError = vi.fn();
+    const deps = makeDeps({
+      pending,
+      fetchImpl: vi.fn(async () => { throw 'token endpoint blew up with Bearer atk-leaked-123'; }),
+      onInternalError,
+    });
+
+    const result = await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, deps);
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    const reported = onInternalError.mock.calls[0]![0].error as Error;
+    expect(reported).toBeInstanceOf(Error);
+    expect(reported.message).toContain('token endpoint blew up with Bearer [REDACTED]');
+    expect(reported.message).not.toContain('atk-leaked-123');
+  });
+
   it('SEC-005: a network-level fetch rejection during exchange is also reported as INTERNAL_ERROR', async () => {
     const pending = new PendingAuthCache(30 * 60 * 1000);
     const state = seedPendingState(pending);
@@ -345,6 +374,18 @@ describe('xaiOauthCancelRoute', () => {
     const result = await xaiOauthCancelRoute.handle(undefined, deps);
     expect(result).toEqual({ ok: true, value: { ok: true } });
   });
+
+  // `stopListener` is best-effort by contract: the listener self-closes on completion/timeout anyway,
+  // so a failure to stop it must not fail the caller's cancel. It also must still clear the slot, or
+  // a dead listener would block the next `oauth/start` forever.
+  it('still succeeds and clears the listener slot when stopping the listener throws', async () => {
+    const listener = makeListener({ stop: vi.fn(async () => { throw new Error('socket already gone'); }) });
+    const deps = makeDeps({ listenerRef: { current: listener } });
+    const result = await xaiOauthCancelRoute.handle(undefined, deps);
+    expect(result).toEqual({ ok: true, value: { ok: true } });
+    expect(listener.stop).toHaveBeenCalledTimes(1);
+    expect(deps.listenerRef.current).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -365,6 +406,60 @@ describe('xaiAuthStatusRoute', () => {
     const deps = makeDeps({ listenerRef: { current: makeListener() } });
     const result = await xaiAuthStatusRoute.handle(undefined, deps);
     expect(result).toEqual({ ok: true, value: { connected: false, expiresAt: null, scope: null, savedAt: null, listening: true } });
+  });
+
+  // Every other SEC-005 case in this file injects `onInternalError`, so the console.error fallback a
+  // host gets by default was never exercised — and it is the only record of a redacted failure.
+  it('falls back to console.error when no onInternalError sink is supplied', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    // A directory where the token file belongs makes `readFile` fail for a real reason (EISDIR),
+    // no fs mocking and no network involved — same technique as the injected-sink case below.
+    await mkdir(path.join(dataDir, 'xai-oauth-token.json'));
+
+    const result = await xaiAuthStatusRoute.handle(undefined, { dataDir });
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (xai/auth-status, correlationId=');
+    consoleErrorSpy.mockRestore();
+  });
+
+  // A token endpoint may legally omit `token_type`, `expires_in`, and `scope`. The stored token must
+  // then default to Bearer and report the two unknown fields as null rather than `undefined`, which
+  // would drop them from the JSON response body entirely and break the declared response shape.
+  it('defaults token_type to Bearer and reports absent expiry/scope as null, still connected', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    const minimalToken = { access_token: 'atk-minimal' };
+    const deps = makeDeps({
+      pending,
+      fetchImpl: vi.fn(async () => ({ ok: true, status: 200, json: async () => minimalToken, text: async () => JSON.stringify(minimalToken) })),
+    });
+
+    expect(await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, deps)).toEqual({ ok: true, value: { ok: true } });
+    expect(await xaiAuthStatusRoute.handle(undefined, deps)).toEqual({
+      ok: true,
+      value: { connected: true, expiresAt: null, scope: null, savedAt: expect.any(Number), listening: false },
+    });
+  });
+
+  // `dataDir` defaults to `process.cwd()`. Stubbing cwd to the temp dir this test already owns makes
+  // that fallback observable: the token written under an explicit dataDir is found again by a deps
+  // object that omits it entirely.
+  it('defaults dataDir to process.cwd() when omitted', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    const seeded = makeDeps({ pending, fetchImpl: vi.fn(async () => okTokenResponse()) });
+    await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, seeded);
+
+    const cwdSpy = vi.spyOn(process, 'cwd').mockReturnValue(dataDir);
+    try {
+      const result = await xaiAuthStatusRoute.handle(undefined, {});
+      expect(result).toMatchObject({ ok: true, value: { connected: true, scope: 'openid api:access' } });
+      expect(cwdSpy).toHaveBeenCalled();
+    } finally {
+      cwdSpy.mockRestore();
+    }
   });
 
   it('SEC-005: a genuine token-file read failure is reported and redacted to INTERNAL_ERROR', async () => {
@@ -431,11 +526,18 @@ describe('xaiSearchRoute.parse', () => {
     expect(xaiSearchRoute.parse({ body: { query: '   ' }, query: {}, params: {} }).ok).toBe(false);
   });
 
-  it('rejects malformed optional fields', () => {
-    expect(xaiSearchRoute.parse({ body: { query: 'q', allowedXHandles: 'not-an-array' }, query: {}, params: {} }).ok).toBe(false);
-    expect(xaiSearchRoute.parse({ body: { query: 'q', excludedXHandles: [1, 2] }, query: {}, params: {} }).ok).toBe(false);
-    expect(xaiSearchRoute.parse({ body: { query: 'q', fromDate: 5 }, query: {}, params: {} }).ok).toBe(false);
-    expect(xaiSearchRoute.parse({ body: { query: 'q', enableImageUnderstanding: 'yes' }, query: {}, params: {} }).ok).toBe(false);
+  // Every optional field gets its own rejection case: the parse is a straight-line sequence of
+  // guards, so a missing case means one field silently accepts the wrong type.
+  it.each([
+    ['allowedXHandles', 'not-an-array'],
+    ['excludedXHandles', [1, 2]],
+    ['fromDate', 5],
+    ['toDate', 5],
+    ['enableImageUnderstanding', 'yes'],
+    ['enableVideoUnderstanding', 'yes'],
+    ['model', 7],
+  ])('rejects a malformed %s', (field, value) => {
+    expect(xaiSearchRoute.parse({ body: { query: 'q', [field]: value }, query: {}, params: {} }).ok).toBe(false);
   });
 
   it('trims incidental whitespace off query, matching OD real handler\'s server-side .trim() (routes/xai.ts:258)', () => {
@@ -612,6 +714,85 @@ describe('xaiSearchRoute.handle', () => {
     expect(result).toEqual({ ok: true, value: { answer: '', citations: [], model: 'grok-4.20-reasoning' } });
   });
 
+  /**
+   * The Responses API payload is untrusted input, and both extractors walk it defensively. Each
+   * malformed shape below must be skipped rather than throwing — a single bad `output` item must not
+   * cost the caller the whole answer.
+   */
+  it('skips malformed output items, content blocks, and annotations while keeping the well-formed ones', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(okTokenResponse())
+      .mockResolvedValueOnce(
+        okSearchResponse({
+          output: [
+            'not an object',
+            { content: 'not an array' },
+            {
+              content: [
+                'not an object',
+                { text: 42 },
+                { text: '' },
+                {
+                  text: 'kept text.',
+                  annotations: [
+                    'not an object',
+                    { type: 'file_citation', url: 'https://ignored.example.com' },
+                    { type: 'url_citation', url: 99 },
+                    { type: 'url_citation', url: '   ' },
+                    { type: 'url_citation', url: '  https://x.com/kept  ' },
+                    { type: 'url_citation', url: 'https://x.com/kept' },
+                  ],
+                },
+                { annotations: 'not an array' },
+              ],
+            },
+          ],
+        }),
+      );
+    const deps = makeDeps({ pending, fetchImpl });
+    await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, deps);
+    const result = await xaiSearchRoute.handle({ query: 'q' }, deps);
+    // Only the one usable text block survives, and the duplicate/blank/non-string citation URLs
+    // collapse to a single trimmed entry.
+    expect(result).toEqual({ ok: true, value: { answer: 'kept text.', citations: ['https://x.com/kept'], model: 'grok-4.20-reasoning' } });
+  });
+
+  it('reports an empty-bodied non-ok Responses API reply as "no body"', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(okTokenResponse())
+      .mockResolvedValueOnce({ ok: false, status: 503, text: async () => '' });
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, deps);
+    const result = await xaiSearchRoute.handle({ query: 'q' }, deps);
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    expect((onInternalError.mock.calls[0]![0].error as Error).message).toBe('xAI 503: no body');
+  });
+
+  it('redacts a non-Error rejection from the search fetch without assuming it has a .message', async () => {
+    const pending = new PendingAuthCache(30 * 60 * 1000);
+    const state = seedPendingState(pending);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(okTokenResponse())
+      // A bare string rejection — real fetch polyfills and proxies do this.
+      .mockRejectedValueOnce('socket hang up while sending Bearer atk-123');
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ pending, fetchImpl, onInternalError });
+    await xaiOauthCompleteRoute.handle({ state, code: 'c1' }, deps);
+    const result = await xaiSearchRoute.handle({ query: 'q' }, deps);
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
+    const reported = onInternalError.mock.calls[0]![0].error as Error;
+    expect(reported.message).toContain('xAI request failed: socket hang up');
+    expect(reported.message).not.toContain('atk-123');
+  });
+
   it('SEC-005: a non-ok Responses API response is reported to onInternalError and never leaks the bearer token', async () => {
     const pending = new PendingAuthCache(30 * 60 * 1000);
     const state = seedPendingState(pending);
@@ -756,5 +937,115 @@ describe('registerXaiRoutes', () => {
     await app.handlers['GET /api/xai/auth/status']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({ connected: false, expiresAt: null, scope: null, savedAt: null, listening: false });
+  });
+});
+
+/**
+ * Real Express app on a real socket, one genuine round-trip per mounted route. Everything above uses
+ * a handler-capturing fake app, which cannot catch a path that fails to resolve, an Express-parsed
+ * body the spec's `parse` reads differently, or a declared status that never reaches the wire. The
+ * full OAuth handshake is driven here as one sequence, because the shared `pending`/`listenerRef`
+ * state is exactly the thing a per-request mount would break.
+ */
+describe('registerXaiRoutes — real Express server on a real socket', () => {
+  const servers: Server[] = [];
+  const adapterRef = { resolvedPortRef: { current: 0 } };
+
+  afterEach(() => {
+    for (const server of servers.splice(0)) server.close();
+  });
+
+  async function listen(deps: XaiHttpDeps): Promise<string> {
+    const app = express();
+    app.use(express.json());
+    registerXaiRoutes(app as never, deps, adapterRef as never);
+    const server = await new Promise<Server>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    servers.push(server);
+    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+  }
+
+  async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
+    const response = await fetch(`${base}${routePath}`, {
+      method,
+      headers: { 'content-type': 'application/json', origin },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  }
+
+  it('drives the whole OAuth handshake over the wire: start -> complete -> status -> disconnect', async () => {
+    const listener = makeListener();
+    const base = await listen({
+      dataDir,
+      startCallbackListener: vi.fn(async () => listener),
+      fetchImpl: vi.fn(async () => okTokenResponse()) as unknown as typeof fetch,
+    });
+
+    const started = await send(base, 'POST', '/api/xai/oauth/start');
+    expect(started.status).toBe(200);
+    expect(typeof started.body.authorizeUrl).toBe('string');
+    expect(typeof started.body.state).toBe('string');
+
+    const completed = await send(base, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'browser-code' });
+    expect(completed).toEqual({ status: 200, body: { ok: true } });
+
+    const status = await send(base, 'GET', '/api/xai/auth/status');
+    expect(status.status).toBe(200);
+    expect(status.body).toMatchObject({ connected: true, scope: 'openid api:access', listening: false });
+
+    const disconnected = await send(base, 'POST', '/api/xai/oauth/disconnect');
+    expect(disconnected).toEqual({ status: 200, body: { ok: true } });
+    expect((await send(base, 'GET', '/api/xai/auth/status')).body).toMatchObject({ connected: false });
+  });
+
+  it('serves oauth/cancel over the wire, stopping the in-flight listener', async () => {
+    const listener = makeListener();
+    const base = await listen({ dataDir, startCallbackListener: vi.fn(async () => listener) });
+    expect((await send(base, 'POST', '/api/xai/oauth/start')).status).toBe(200);
+    expect(await send(base, 'POST', '/api/xai/oauth/cancel')).toEqual({ status: 200, body: { ok: true } });
+    expect(listener.stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves a real search round-trip once connected', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(okTokenResponse())
+      .mockResolvedValueOnce(okSearchResponse({ output_text: 'grok says hi' }));
+    const base = await listen({
+      dataDir,
+      startCallbackListener: vi.fn(async () => makeListener()),
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    const started = await send(base, 'POST', '/api/xai/oauth/start');
+    await send(base, 'POST', '/api/xai/oauth/complete', { state: started.body.state, code: 'c1' });
+
+    const searched = await send(base, 'POST', '/api/xai/search', { query: 'latest on grok' });
+    expect(searched.status).toBe(200);
+    expect(searched.body).toMatchObject({ answer: 'grok says hi', citations: [] });
+  });
+
+  it('answers 503 over the wire for a search with no xAI account connected', async () => {
+    const base = await listen({ dataDir });
+    expect(await send(base, 'POST', '/api/xai/search', { query: 'q' })).toEqual({
+      status: 503,
+      body: { error: { code: 'NOT_CONFIGURED', message: 'no xAI account connected — sign in via /api/xai/oauth/start first' } },
+    });
+  });
+
+  it('answers 400 over the wire for a malformed search body', async () => {
+    const base = await listen({ dataDir });
+    expect((await send(base, 'POST', '/api/xai/search', { query: '   ' })).status).toBe(400);
+  });
+
+  it('answers 403 over the wire for a cross-origin request', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const startCallbackListener = vi.fn();
+    const base = await listen({ dataDir, startCallbackListener });
+    const response = await send(base, 'POST', '/api/xai/oauth/start', undefined, 'http://evil.example.com');
+    expect(response.status).toBe(403);
+    expect(startCallbackListener).not.toHaveBeenCalled();
   });
 });

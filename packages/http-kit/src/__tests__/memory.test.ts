@@ -1,5 +1,8 @@
 import { EventEmitter } from 'node:events';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import express from 'express';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   memoryClearExtractionsRoute,
@@ -578,5 +581,150 @@ describe('registerMemoryRoutes', () => {
     await app.handlers['POST /api/memory']!({ body: { name: 'n' }, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(400);
     expect(notes.upsertEntry).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Real Express server on a real socket. Every test above calls a route's `handle`/`parse` directly
+ * or drives a handler-capturing `MockApp` stub — neither actually resolves an Express path, feeds a
+ * spec's `parse` a body Express itself parsed from real JSON bytes, or observes the status code
+ * Express writes to the wire. This block is the only place `registerMemoryRoutes`/
+ * `registerMemoryEventStream` are exercised as a listening server: it proves all sixteen mounted
+ * paths actually route (including the six static sub-resources — `/tree`, `/index`, `/config`,
+ * `/events`, `/extractions`, `/verifications` — that must resolve before the `/api/memory/:id`
+ * catch-all shapes), that `express.json()` feeds each spec's `parse` step the shape it expects, and
+ * that a real SSE response is readable over a real socket rather than only through a hand-rolled
+ * fake `res`.
+ */
+describe('registerMemoryRoutes / registerMemoryEventStream — real Express server on a real socket', () => {
+  const servers: Server[] = [];
+  const adapterRef = { resolvedPortRef: { current: 0 } };
+
+  afterEach(() => {
+    for (const server of servers.splice(0)) server.close();
+  });
+
+  async function listen(deps: MemoryHttpDeps): Promise<string> {
+    const app = express();
+    app.use(express.json());
+    registerMemoryRoutes(app as never, deps, adapterRef as never);
+    const server = await new Promise<Server>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    servers.push(server);
+    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+  }
+
+  async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
+    const response = await fetch(`${base}${routePath}`, {
+      method,
+      headers: { 'content-type': 'application/json', origin },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return { status: response.status, body: await response.json() };
+  }
+
+  it('serves the overview and tree GET routes end to end', async () => {
+    const base = await listen(makeDeps());
+    expect(await send(base, 'GET', '/api/memory')).toEqual({
+      status: 200,
+      body: { enabled: true, rootDir: '/data/notes', index: '# Notes\n', entries: [entry] },
+    });
+    expect(await send(base, 'GET', '/api/memory/tree')).toEqual({
+      status: 200,
+      body: { enabled: true, rootDir: '/data/notes', tree: [] },
+    });
+  });
+
+  it('serves entry CRUD end to end: create, read, update, delete, each forwarding the real parsed body to the note store', async () => {
+    const notes = makeNoteStore();
+    const base = await listen(makeDeps({ notes }));
+
+    const created = await send(base, 'POST', '/api/memory', { name: 'n', type: 'user' });
+    expect(created.status).toBe(200);
+    expect(notes.upsertEntry).toHaveBeenCalledWith('/data', { name: 'n', type: 'user' });
+
+    expect(await send(base, 'GET', `/api/memory/${entry.id}`)).toEqual({ status: 200, body: { entry } });
+
+    const updated = await send(base, 'PUT', `/api/memory/${entry.id}`, { name: 'n2', type: 'user' });
+    expect(updated.status).toBe(200);
+    expect(notes.upsertEntry).toHaveBeenCalledWith('/data', { name: 'n2', type: 'user', id: entry.id });
+
+    expect(await send(base, 'DELETE', `/api/memory/${entry.id}`)).toEqual({ status: 200, body: { ok: true } });
+    expect(notes.deleteEntry).toHaveBeenCalledWith('/data', entry.id);
+  });
+
+  it('serves the tree-node patch, raw-index write, and config-patch routes end to end', async () => {
+    const notes = makeNoteStore();
+    const base = await listen(makeDeps({ notes }));
+
+    const patched = await send(base, 'PATCH', `/api/memory/tree/${entry.id}`, { name: 'renamed' });
+    expect(patched).toEqual({ status: 200, body: { entry, tree: [] } });
+    expect(notes.updateTreeNode).toHaveBeenCalledWith('/data', entry.id, { name: 'renamed' });
+
+    expect(await send(base, 'PUT', '/api/memory/index', { index: '# hi' })).toEqual({
+      status: 200,
+      body: { index: '# hi' },
+    });
+    expect(notes.writeIndex).toHaveBeenCalledWith('/data', '# hi');
+
+    expect(await send(base, 'PATCH', '/api/memory/config', { enabled: false })).toEqual({
+      status: 200,
+      body: { enabled: false },
+    });
+    expect(notes.writeConfig).toHaveBeenCalledWith('/data', { enabled: false });
+  });
+
+  it('serves the extraction and verification history routes end to end (list, remove-one, clear)', async () => {
+    const extractions = makeExtractionLog();
+    const verifications = makeVerifyLog();
+    const base = await listen(makeDeps({ extractions, verifications }));
+
+    expect(await send(base, 'GET', '/api/memory/extractions')).toEqual({ status: 200, body: { extractions: [{ id: 'ext-1' }] } });
+    expect(await send(base, 'DELETE', '/api/memory/extractions/ext-1')).toEqual({ status: 200, body: { removed: 1 } });
+    expect(extractions.remove).toHaveBeenCalledWith('ext-1');
+    expect(await send(base, 'DELETE', '/api/memory/extractions')).toEqual({ status: 200, body: { removed: 3 } });
+
+    expect(await send(base, 'GET', '/api/memory/verifications')).toEqual({ status: 200, body: { verifications: [{ id: 'ver-1' }] } });
+    expect(await send(base, 'DELETE', '/api/memory/verifications/ver-1')).toEqual({ status: 200, body: { removed: 1 } });
+    expect(verifications.remove).toHaveBeenCalledWith('ver-1');
+    expect(await send(base, 'DELETE', '/api/memory/verifications')).toEqual({ status: 200, body: { removed: 2 } });
+  });
+
+  it('answers 404 over the wire for a memory entry that does not exist', async () => {
+    const base = await listen(makeDeps());
+    expect(await send(base, 'GET', '/api/memory/missing')).toEqual({
+      status: 404,
+      body: { error: { code: 'NOT_FOUND', message: 'memory not found' } },
+    });
+  });
+
+  it('rejects a cross-origin mutating request with 403 before reaching the note store', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const notes = makeNoteStore();
+    const base = await listen(makeDeps({ notes }));
+    const response = await send(base, 'POST', '/api/memory', { name: 'n', type: 'user' }, 'http://evil.example.com');
+    expect(response.status).toBe(403);
+    expect(notes.upsertEntry).not.toHaveBeenCalled();
+  });
+
+  it('serves a real SSE stream on /api/memory/events, readable over a real socket', async () => {
+    const base = await listen(makeDeps());
+    const controller = new AbortController();
+    const response = await fetch(`${base}/api/memory/events`, { signal: controller.signal });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    const { value } = await reader.read();
+    const text = decoder.decode(value);
+    const dataLine = text.split('\n').find((line) => line.startsWith('data: '));
+    const firstEvent = JSON.parse(dataLine!.slice('data: '.length)) as { kind: string; data: { at: number } };
+    expect(firstEvent.kind).toBe('connected');
+    expect(typeof firstEvent.data.at).toBe('number');
+
+    controller.abort();
   });
 });

@@ -727,8 +727,31 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
     return body.agents.map((a) => a.id);
   }
 
-  it('drops antigravity, which AgentExecutor refuses to drive', async () => {
-    expect(await listAgentIds(['claude', 'antigravity'])).toEqual(['claude']);
+  // All 24 real registered defs are driveable today (see `agent-executor.test.ts`'s "accepts every
+  // one of the 24 registered defs") — antigravity was the last holdout and is now supported, so there
+  // is no real def left to demonstrate the drop path with. This scopes a `getAgentDef` override to
+  // exactly one fake id via `vi.spyOn` + `mockRestore` in `finally`, rather than a file-wide
+  // `vi.mock('@jini-ai/agent-runtime', ...)` that would also have to fake out every other test in this
+  // describe block's real registry lookups (`aider`/`deepseek`/unrecognized ids).
+  async function withUnsupportedFakeDef<T>(fakeId: string, run: () => Promise<T>): Promise<T> {
+    const agentRuntime = await import('@jini-ai/agent-runtime');
+    const actualGetAgentDef = agentRuntime.getAgentDef;
+    const claudeDef = actualGetAgentDef('claude');
+    if (!claudeDef) throw new Error('test setup: no "claude" def registered');
+    const spy = vi.spyOn(agentRuntime, 'getAgentDef').mockImplementation((id: string) =>
+      id === fakeId ? { ...claudeDef, id: fakeId, streamFormat: 'made-up-format' } : actualGetAgentDef(id),
+    );
+    try {
+      return await run();
+    } finally {
+      spy.mockRestore();
+    }
+  }
+
+  it('drops an agent whose registered def AgentExecutor cannot drive', async () => {
+    await withUnsupportedFakeDef('fake-unsupported-agent', async () => {
+      expect(await listAgentIds(['claude', 'fake-unsupported-agent'])).toEqual(['claude']);
+    });
   });
 
   // The counterpart guard to the predicate's own: these two qualify only via `maxPromptArgBytes`, a
@@ -748,16 +771,18 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
   });
 
   it('applies the same filter to an explicit rescan', async () => {
-    const { url } = await boot({
-      storage: { kind: 'memory' },
-      profile: 'agent-core-v1',
-      featureOptions: {
-        agents: { detector: async () => [detected('claude'), detected('antigravity')] as never },
-      },
+    await withUnsupportedFakeDef('fake-unsupported-agent', async () => {
+      const { url } = await boot({
+        storage: { kind: 'memory' },
+        profile: 'agent-core-v1',
+        featureOptions: {
+          agents: { detector: async () => [detected('claude'), detected('fake-unsupported-agent')] as never },
+        },
+      });
+      const body = (await (
+        await fetch(`${url}/api/agents/rescan`, { method: 'POST', headers: { origin: `${url}` } })
+      ).json()) as { agents: { id: string }[] };
+      expect(body.agents.map((a) => a.id)).toEqual(['claude']);
     });
-    const body = (await (
-      await fetch(`${url}/api/agents/rescan`, { method: 'POST', headers: { origin: `${url}` } })
-    ).json()) as { agents: { id: string }[] };
-    expect(body.agents.map((a) => a.id)).toEqual(['claude']);
   });
 });

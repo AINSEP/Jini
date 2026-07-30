@@ -7,7 +7,7 @@ import {
   createFrontendSessionBridge,
   type FrontendSessionBridge,
 } from '@jini-ai/chat-react';
-import { uploadChatAttachments } from './attachments.js';
+import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { EMPTY_SUBMISSION, LabSignupForm, LabSummary, type SignupSubmission } from './LabPages.js';
 import { LabNav } from './LabNav.js';
@@ -407,7 +407,7 @@ export function AgentLab() {
           initialMessages={LAB_INITIAL_MESSAGES}
           initialSelection={{ agentId: 'claude' }}
           placeholder="Ask about this page…"
-          uploadAttachments={uploadChatAttachments}
+          uploadAttachments={PLAYGROUND_ATTACHMENT_UPLOADER}
           initialWorkingDirectory="examples/reference-web"
           // No `suggestions`: the row sits in normal flow directly above the composer and never
           // goes away, so in a pane this narrow it costs the transcript a line for the whole life

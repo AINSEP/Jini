@@ -41,6 +41,7 @@ export * from './diagnostics.js';
 export * from './detection.js';
 export * from './prompt-budget.js';
 export * from './prompt-file.js';
+export * from './log-file.js';
 export * from './amr-model-cache.js';
 
 // Registry + defs.

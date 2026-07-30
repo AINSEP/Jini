@@ -184,10 +184,16 @@ export interface StrictBearerTokenDeps {
  * costs one property lookup.
  *
  * @param deps - See {@link StrictBearerTokenDeps}. `tokenEnvVar` is required.
- * @returns Express middleware. Mount it with `app.use(...)` before any route registrar and before
- * the JSON body parser, so an unauthenticated caller's body is never parsed.
+ * @returns Express middleware. Mount it **unprefixed** — `app.use(handler)` — before any route
+ * registrar and before the JSON body parser, so an unauthenticated caller's body is never parsed.
  * @complexity O(1) per request plus O(n) in the token length for the constant-time comparison.
- * @overallScore 100/100
+ * @overallScore 95/100 — Medium: mounting under a prefix (`app.use('/api', handler)`) silently breaks
+ * `exemptPaths`. Express strips the mount prefix from `req.path`, so an entry written as a full path
+ * (`/api/delegated-tool-calls`) stops matching and the gate rejects a caller the mount site meant to
+ * exempt. Nothing type-checks that, and the failure is a 401 on a route that is supposed to be open
+ * rather than the reverse — noisy rather than dangerous, but confusing to diagnose. Documented rather
+ * than defended against in code: normalizing `req.baseUrl + req.path` here would silently accept both
+ * mount styles and remove the caller's ability to reason about which paths its entries refer to.
  */
 export function requireStrictBearerToken(deps: StrictBearerTokenDeps) {
   const { tokenEnvVar } = deps;

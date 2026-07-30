@@ -123,6 +123,8 @@ export interface ChatPaneProps {
   /** Opt-in agent-control surface: WebMCP tool registration plus, when `bridgeAccess` is supplied, the daemon-relayed transports. */
   agentControl?: ChatPaneAgentControlOptions;
   onActivityChange?: (activity: ChatPaneActivity) => void;
+  /** Fires with the full message list whenever it changes — the read side of an otherwise write-only pane, for a host that needs to inspect or test what the conversation actually contains. */
+  onMessagesChange?: (messages: ChatMessage[]) => void;
   onRescanAgents?: () => void;
   scanningAgents?: boolean;
   daemonOnline?: boolean;

@@ -65,6 +65,28 @@ describe('useChatPane', () => {
     expect(result.current.composer.draft).toBe('');
   });
 
+  it('reports the live message list via onMessagesChange as the conversation grows', async () => {
+    const transport = createFakeChatTransport();
+    const onMessagesChange = vi.fn();
+    const { result } = renderHook(() => useChatPane({
+      transport,
+      agents,
+      selection: { agentId: 'codex' },
+      initialDraft: 'Hello there',
+      onMessagesChange,
+    }));
+
+    expect(onMessagesChange).toHaveBeenCalledWith([]);
+
+    await act(() => result.current.send());
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+
+    const lastCallMessages = onMessagesChange.mock.calls.at(-1)?.[0];
+    expect(lastCallMessages).toHaveLength(2);
+    expect(lastCallMessages).toContainEqual(expect.objectContaining({ role: 'user', content: 'Hello there' }));
+    expect(result.current.conversation.messages).toBe(lastCallMessages);
+  });
+
   it('normalizes attachment failures and accepts controlled working-directory state', async () => {
     const transport = createFakeChatTransport();
     const uploadAttachments = vi.fn(async () => {

@@ -374,6 +374,9 @@ importers:
         specifier: ^4.21.0
         version: 4.22.2
     devDependencies:
+      '@jini-ai/chat-core':
+        specifier: workspace:*
+        version: link:../chat-core
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
@@ -383,6 +386,9 @@ importers:
 
   packages/mcp:
     dependencies:
+      '@cfworker/json-schema':
+        specifier: ^4.1.1
+        version: 4.1.1
       '@jini-ai/cli':
         specifier: workspace:*
         version: link:../cli

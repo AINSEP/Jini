@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import express from 'express';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   createInMemoryRoutineStore,
   validateSchedule,
@@ -951,5 +954,107 @@ describe('registerRoutineRoutes', () => {
       ).resolves.toBeUndefined();
       expect(res.status).toHaveBeenCalledWith(500);
     });
+  });
+});
+
+/**
+ * Real Express server on a real socket. Every test above calls a route's `handle` directly or drives
+ * a handler-capturing `MockApp` stub — neither actually resolves an Express path (including the two
+ * overlapping `/api/routines/:id` and `/api/routines/:id/run`/`/api/routines/:id/runs` shapes), feeds
+ * a spec's `parse` a body Express itself parsed from real JSON bytes, or observes the declared
+ * `201`/`202`/`200`/`404` status codes reaching the wire. This block is the only place
+ * `registerRoutineRoutes` is exercised as a listening server.
+ */
+describe('registerRoutineRoutes — real Express server on a real socket', () => {
+  const servers: Server[] = [];
+  const adapterRef = { resolvedPortRef: { current: 0 } };
+
+  afterEach(() => {
+    for (const server of servers.splice(0)) server.close();
+  });
+
+  async function listen(deps: RoutineHttpDeps): Promise<string> {
+    const app = express();
+    app.use(express.json());
+    registerRoutineRoutes(app as never, deps, adapterRef as never);
+    const server = await new Promise<Server>((resolve) => {
+      const s = app.listen(0, '127.0.0.1', () => resolve(s));
+    });
+    servers.push(server);
+    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+  }
+
+  async function send(base: string, method: string, routePath: string, body?: unknown, origin = base) {
+    const response = await fetch(`${base}${routePath}`, {
+      method,
+      headers: { 'content-type': 'application/json', origin },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    return { status: response.status, body: await response.json() };
+  }
+
+  it('serves GET and POST /api/routines end to end, creating a routine through the real Adapter pipeline', async () => {
+    const base = await listen(makeDeps());
+    const created = await send(base, 'POST', '/api/routines', validCreateBody());
+    expect(created.status).toBe(201);
+    const createdBody = created.body as { routine: { id: string; name: string } };
+    expect(createdBody.routine.name).toBe('Daily brief');
+
+    const listed = await send(base, 'GET', '/api/routines');
+    expect(listed.status).toBe(200);
+    expect((listed.body as { routines: { id: string }[] }).routines.map((routine) => routine.id)).toEqual([
+      createdBody.routine.id,
+    ]);
+  });
+
+  it('serves GET, PATCH, and DELETE /api/routines/:id end to end, then 404s the deleted id', async () => {
+    const store = createInMemoryRoutineStore();
+    const routine = await store.create(validCreateBody() as any);
+    const scheduler = makeScheduler();
+    const base = await listen(makeDeps({ store, scheduler }));
+
+    const got = await send(base, 'GET', `/api/routines/${routine.id}`);
+    expect(got.status).toBe(200);
+    expect((got.body as { routine: { id: string } }).routine.id).toBe(routine.id);
+
+    const patched = await send(base, 'PATCH', `/api/routines/${routine.id}`, { name: 'renamed' });
+    expect(patched.status).toBe(200);
+    expect((patched.body as { routine: { name: string } }).routine.name).toBe('renamed');
+    expect(scheduler.rescheduleOne).toHaveBeenCalledWith(routine.id);
+
+    expect(await send(base, 'DELETE', `/api/routines/${routine.id}`)).toEqual({ status: 200, body: { ok: true } });
+
+    expect(await send(base, 'GET', `/api/routines/${routine.id}`)).toEqual({
+      status: 404,
+      body: { error: { code: 'NOT_FOUND', message: 'routine not found' } },
+    });
+  });
+
+  it('serves POST /api/routines/:id/run and GET /api/routines/:id/runs end to end', async () => {
+    const store = createInMemoryRoutineStore();
+    const routine = await store.create(validCreateBody() as any);
+    const base = await listen(makeDeps({ store }));
+
+    const started = await send(base, 'POST', `/api/routines/${routine.id}/run`);
+    expect(started.status).toBe(202);
+    expect(started.body).toMatchObject({
+      run: null, // no host bridge wired in this test — see module doc
+      projectId: 'project-1',
+      conversationId: 'conversation-1',
+      agentRunId: 'agent-run-1',
+    });
+
+    expect(await send(base, 'GET', `/api/routines/${routine.id}/runs`)).toEqual({ status: 200, body: { runs: [] } });
+  });
+
+  it('rejects a cross-origin create request with 403 before the routine store is ever called', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const store = createInMemoryRoutineStore();
+    const createSpy = vi.spyOn(store, 'create');
+    const base = await listen(makeDeps({ store }));
+    const response = await send(base, 'POST', '/api/routines', validCreateBody(), 'http://evil.example.com');
+    expect(response.status).toBe(403);
+    expect(createSpy).not.toHaveBeenCalled();
   });
 });

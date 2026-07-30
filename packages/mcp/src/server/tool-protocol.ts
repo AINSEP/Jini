@@ -12,6 +12,8 @@
  * layer that wires this to a real `Server` + `StdioServerTransport`.
  */
 import { sanitizeUntrustedText } from '@jini-ai/cli';
+import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker';
+import type { JsonSchemaType, JsonSchemaValidator } from '@modelcontextprotocol/sdk/validation';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
@@ -108,14 +110,41 @@ export function buildToolIndex(tools: readonly McpToolDef[]): Map<string, McpToo
 }
 
 /**
- * `tools/call` dispatch: looks up `name` in `tools`, runs its handler against `rawArgs`, and
- * converts the outcome to a `CallToolResult` — an unknown tool name or a thrown error both
- * produce an `{isError:true}` result rather than rejecting, matching MCP's convention that tool
- * failures are protocol-level results, not JSON-RPC errors. A thrown error's message is passed
- * through {@link sanitizeUntrustedText} before it reaches the result: `handler` may re-throw text
- * that ultimately traces back to the daemon (untrusted network peer), and a caller-thrown
- * validation error is cheap to sanitize unconditionally rather than trying to prove which case
- * applies at each call site.
+ * The SDK's own edge-runtime-compatible (no `eval`/codegen) JSON Schema validator — the same
+ * mechanism `McpServer.registerTool()`'s high-level helper uses internally, borrowed here because
+ * `createMcpToolServer` is built on the SDK's low-level `Server.setRequestHandler` instead (see
+ * `tool-server.ts`'s module doc), which does not validate a tool's declared `inputSchema` against
+ * arguments before its handler runs. One provider instance is reused across every tool: it holds no
+ * per-schema state itself (see {@link compiledValidators} for the actual compiled-validator cache).
+ */
+const schemaValidatorProvider = new CfWorkerJsonSchemaValidator();
+
+/**
+ * Compiling a validator from a schema is real work `CfWorkerJsonSchemaValidator` does not cache
+ * internally (per its own doc), so it is cached here per `McpToolDef` instance — stable for a
+ * server's whole lifetime, since tool defs are created once at module load and never rebuilt.
+ */
+const compiledValidators = new WeakMap<McpToolDef, JsonSchemaValidator<Record<string, unknown>>>();
+
+function validatorForTool(tool: McpToolDef): JsonSchemaValidator<Record<string, unknown>> {
+  const cached = compiledValidators.get(tool);
+  if (cached) return cached;
+  const validator = schemaValidatorProvider.getValidator<Record<string, unknown>>(tool.inputSchema as JsonSchemaType);
+  compiledValidators.set(tool, validator);
+  return validator;
+}
+
+/**
+ * `tools/call` dispatch: looks up `name` in `tools`, validates `rawArgs` against the tool's
+ * declared `inputSchema`, runs its handler, and converts the outcome to a `CallToolResult` — an
+ * unknown tool name, a schema violation, or a thrown error all produce an `{isError:true}` result
+ * rather than rejecting, matching MCP's convention that tool failures are protocol-level results,
+ * not JSON-RPC errors. Schema validation runs before every handler unconditionally: a caller (an
+ * agent, not this repo's own code) supplies `rawArgs`, so a handler must never be trusted to check
+ * its own declared contract on the untrusted-input path. Both a validation failure's message and a
+ * thrown error's message are passed through {@link sanitizeUntrustedText} before reaching the
+ * result: either can end up echoing caller- or daemon-supplied text, and it is cheaper to sanitize
+ * unconditionally than to prove which call site needs it.
  */
 export async function handleToolCall(
   name: string,
@@ -127,8 +156,13 @@ export async function handleToolCall(
   if (tool === undefined) {
     return errorResult(`unknown tool: ${name}`);
   }
+  const args = rawArgs ?? {};
+  const validation = validatorForTool(tool)(args);
+  if (!validation.valid) {
+    return errorResult(sanitizeUntrustedText(`invalid arguments for ${name}: ${validation.errorMessage}`));
+  }
   try {
-    const result = await tool.handler(rawArgs ?? {}, ctx);
+    const result = await tool.handler(validation.data, ctx);
     return okResult(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

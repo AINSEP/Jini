@@ -42,6 +42,7 @@ export interface UseChatPaneOptions {
     options?: ChatPaneAttachmentUploadOptions,
   ) => Promise<ChatAttachment[]>;
   onActivityChange?: (activity: ChatPaneActivity) => void;
+  onMessagesChange?: (messages: ChatMessage[]) => void;
   workingDirectory?: string | null;
   initialWorkingDirectory?: string | null;
   onChangeWorkingDirectory?: (workingDirectory: string | null) => void;
@@ -173,6 +174,10 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   useEffect(() => {
     options.onActivityChange?.(activity);
   }, [activity, options.onActivityChange]);
+
+  useEffect(() => {
+    options.onMessagesChange?.(conversation.messages);
+  }, [conversation.messages, options.onMessagesChange]);
 
   useEffect(() => {
     mountedRef.current = true;

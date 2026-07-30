@@ -246,6 +246,80 @@ describe('handleRunStreamRequest — disconnect and failure containment', () => 
     });
   });
 
+  // The three `reportRunStreamInternalError` paths a host never configures explicitly. Each one is a
+  // "the diagnostic channel itself misbehaved" path — precisely the kind that only surfaces in
+  // production, where an unhandled rejection out of an async Express handler takes the process down.
+  it('falls back to console.error when no onInternalError sink is supplied', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const encoderError = new Error('encoder exploded');
+    const fakeLifecycle = {
+      stream: vi.fn(async (_runId: string, onEvent: (event: any) => void): Promise<StreamSubscribeResult> => {
+        onEvent({ kind: 'agent', payload: { type: 'text_delta', delta: 'hi' } });
+        return { kind: 'ok', unsubscribe: vi.fn() };
+      }),
+    } as unknown as RunLifecycle;
+    const { req, res } = makeReqRes();
+
+    await handleRunStreamRequest(req as any, res as any, 'run-default-sink', {
+      lifecycle: fakeLifecycle,
+      encoder: { encode: () => { throw encoderError; } },
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[@jini-ai/http-kit] internal error (run-stream:encoder, runId=run-default-sink)',
+      encoderError,
+    );
+    // Still contained: the stream closed rather than the rejection escaping the handler.
+    expect(res.end).toHaveBeenCalledTimes(1);
+  });
+
+  it('contains a host sink that throws, without turning it into an unhandled rejection', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const sinkError = new Error('the host sink itself exploded');
+    const onInternalError = vi.fn(() => { throw sinkError; });
+    const fakeLifecycle = {
+      stream: vi.fn(async () => { throw new Error('sqlite replay failed'); }),
+    } as unknown as RunLifecycle;
+    const { req, res } = makeReqRes();
+
+    await expect(
+      handleRunStreamRequest(req as any, res as any, 'run-bad-sink', {
+        lifecycle: fakeLifecycle,
+        encoder: testEncoder,
+        onInternalError,
+      }),
+    ).resolves.toBeUndefined();
+
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '[@jini-ai/http-kit] internal error sink failed (run-stream:lifecycle, runId=run-bad-sink)',
+      sinkError,
+    );
+    expect(res.end).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops an event that arrives after the client already disconnected', async () => {
+    const encode = vi.fn(() => ({ kind: 'agent.message', text: 'late' }));
+    let deliver: ((event: any) => void) | undefined;
+    const fakeLifecycle = {
+      stream: vi.fn(async (_runId: string, onEvent: (event: any) => void): Promise<StreamSubscribeResult> => {
+        deliver = onEvent;
+        return { kind: 'ok', unsubscribe: vi.fn() };
+      }),
+    } as unknown as RunLifecycle;
+    const { req, res } = makeReqRes();
+
+    await handleRunStreamRequest(req as any, res as any, 'run-late-event', { lifecycle: fakeLifecycle, encoder: { encode } });
+
+    // The real disconnect signal `createSseResponse` listens for.
+    req.emit('close');
+    deliver!({ kind: 'agent', payload: { type: 'text_delta', delta: 'late' } });
+
+    // The guard returns before the encoder is consulted at all — a closed connection must not pay
+    // an encoder's per-event cost, and must never write to a dead socket.
+    expect(encode).not.toHaveBeenCalled();
+  });
+
   it('the Express glue converts an unexpected pre-stream throw into a generic 500 response', async () => {
     let handler: ((req: any, res: any) => Promise<void>) | undefined;
     const app = {
@@ -278,6 +352,60 @@ describe('handleRunStreamRequest — disconnect and failure containment', () => 
     expect(onInternalError).toHaveBeenCalledWith(
       expect.objectContaining({ source: 'route', runId: 'run-route-failure', error: expect.any(Error) }),
     );
+  });
+
+  /**
+   * The other two arms of that same fallback. `createSseResponse` commits the `text/event-stream`
+   * headers *before* it registers the disconnect listener, so a `req.on` that throws is the real
+   * shape of "the handler failed with headers already on the wire" — and at that point there is no
+   * status code left to send. Writing a JSON error body after SSE headers would corrupt a stream the
+   * client is already parsing, so the only correct move is to end the response.
+   */
+  function mountWithFailingListenerRegistration(writableEnded: boolean) {
+    let handler: ((req: any, res: any) => Promise<void>) | undefined;
+    const app = { get: vi.fn((_path: string, routeHandler: typeof handler) => { handler = routeHandler; }) };
+    const onInternalError = vi.fn();
+    registerRunStreamRoute(app as any, { lifecycle: {} as RunLifecycle, encoder: testEncoder, onInternalError });
+    const res = {
+      writeHead: vi.fn(),
+      write: vi.fn(),
+      end: vi.fn(),
+      status: vi.fn().mockReturnThis(),
+      json: vi.fn().mockReturnThis(),
+      headersSent: true,
+      writableEnded,
+    };
+    const req = {
+      params: { runId: writableEnded ? 'run-already-ended' : 'run-headers-sent' },
+      on: vi.fn(() => { throw new Error('listener registration failed'); }),
+    };
+    return { handler: handler!, req, res, onInternalError };
+  }
+
+  it('ends the response instead of sending a 500 when SSE headers were already committed', async () => {
+    const { handler, req, res, onInternalError } = mountWithFailingListenerRegistration(false);
+
+    await handler(req, res);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
+    expect(res.end).toHaveBeenCalledTimes(1);
+    expect(onInternalError).toHaveBeenCalledWith(
+      expect.objectContaining({ source: 'route', runId: 'run-headers-sent', error: expect.any(Error) }),
+    );
+  });
+
+  // Third arm: headers sent AND the response already finished. Nothing left to do — in particular
+  // `res.end()` must not be called a second time on an already-ended response.
+  it('does nothing further when the response was already fully ended', async () => {
+    const { handler, req, res, onInternalError } = mountWithFailingListenerRegistration(true);
+
+    await handler(req, res);
+
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
+    expect(res.end).not.toHaveBeenCalled();
+    expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 });
 

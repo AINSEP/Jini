@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Server } from 'node:http';
+import express from 'express';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import { createToolExecutor, type ToolExecutor } from '@jini-ai/daemon';
 import { isLocalSameOrigin } from '../origin-validation.js';
@@ -442,5 +444,58 @@ describe('registerDaemonDbRoutes', () => {
     await app.handlers['POST /api/daemon/db/verify']!({ body: {}, query: { quick: ['a', 'b'] }, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(400);
     expect(operations.verify).not.toHaveBeenCalled();
+  });
+});
+
+describe('registerDaemonDbRoutes — real Express server on a real socket, not fake req/res', () => {
+  let server: Server | undefined;
+
+  afterEach(() => {
+    server?.close();
+    server = undefined;
+  });
+
+  it('real GET /api/daemon/db, POST /api/daemon/db/verify?quick=true, and POST /api/daemon/db/vacuum all round-trip real HTTP responses through a real ToolExecutor', async () => {
+    const app = express();
+    app.use(express.json());
+    const { deps, operations } = makeDeps();
+    const realAdapter = { resolvedPortRef: { current: 0 } };
+    registerDaemonDbRoutes(app, deps, realAdapter);
+    server = app.listen(0);
+    const port = (server.address() as { port: number }).port;
+    realAdapter.resolvedPortRef.current = port;
+    const base = `http://127.0.0.1:${port}`;
+
+    const inspectRes = await fetch(`${base}/api/daemon/db`);
+    expect(inspectRes.status).toBe(200);
+    expect(inspectRes.headers.get('content-type')).toContain('application/json');
+    expect(await inspectRes.json()).toEqual(inspectReport);
+
+    const verifyRes = await fetch(`${base}/api/daemon/db/verify?quick=true`, { method: 'POST' });
+    expect(verifyRes.status).toBe(200);
+    expect(operations.verify).toHaveBeenCalledWith(true);
+    expect(await verifyRes.json()).toEqual(verifyReportClean);
+
+    const vacuumRes = await fetch(`${base}/api/daemon/db/vacuum`, { method: 'POST' });
+    expect(vacuumRes.status).toBe(200);
+    expect(await vacuumRes.json()).toEqual(vacuumResult);
+    expect(operations.vacuum).toHaveBeenCalledTimes(1);
+  });
+
+  it('the real production deny-by-default policy blocks a genuine HTTP request with a real 403, never reaching the operation', async () => {
+    const app = express();
+    app.use(express.json());
+    const { deps, operations } = makeDenyByDefaultDeps();
+    const realAdapter = { resolvedPortRef: { current: 0 } };
+    registerDaemonDbRoutes(app, deps, realAdapter);
+    server = app.listen(0);
+    const port = (server.address() as { port: number }).port;
+    realAdapter.resolvedPortRef.current = port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/daemon/db`);
+    expect(res.status).toBe(403);
+    const body = (await res.json()) as { error: { code: string } };
+    expect(body.error.code).toBe('TOOL_OPERATION_DENIED');
+    expect(operations.inspect).not.toHaveBeenCalled();
   });
 });

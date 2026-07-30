@@ -127,6 +127,19 @@ describe('registerAgentRoutes', () => {
     }
   });
 
+  // The rescan route was previously only ever driven through its 403 path, so its own `parse` (and
+  // therefore the mounted happy path a host actually calls) was never executed.
+  it('triggers a real rescan and returns the refreshed inventory through the mounted handler', async () => {
+    const rescanAgents = vi.fn(async () => AGENTS);
+    const app = makeApp();
+    registerAgentRoutes(app as any, makeDeps({ rescanAgents }), adapter);
+    const res = makeRes();
+    await app.handlers['POST /api/agents/rescan']!({ body: {}, query: {}, params: {} }, res);
+    expect(rescanAgents).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({ agents: AGENTS });
+  });
+
   it('requires same-origin for a rescan', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     try {

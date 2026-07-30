@@ -258,7 +258,9 @@ classify-then-fix loop, not a test padding it out or a suppression comment.
 `features/model-picker/`, see above). No `@jini/ui`, no `@jini/renderers-react`
 (see Deferred above), no `@open-design/*`.
 
-**DOM/transport note (updated 2026-07-23)**: every network/runtime I/O reaches
+**DOM/transport note (updated 2026-07-23; amended 2026-07-30 — see the
+`createDaemonAttachmentUploader` section below for the one deliberate
+exception)**: every network/runtime I/O reaches
 the host through `ChatTransport`,
 `ProjectContextValue`, or an injected persistence port, with zero direct
 `fetch`/`EventSource`/`localStorage` calls in production. The model picker and
@@ -272,3 +274,75 @@ not transport calls. Verified by search across
 Design`/`OD_`/`--od-stamp`/`/tmp/open-design` product-identity string. Only
 the presentation API sites named above remain; there is no product-identity
 or OD-specific transport coupling.
+
+## 2026-07-30 addition — `features/chat-pane/create-daemon-attachment-uploader.ts`
+
+**Provenance: not an OD port.** Generalized from `examples/reference-web/src/attachments.ts` (161 lines),
+which is now deleted; the example consumes this instead. The server half went to `@jini-ai/http-kit`'s
+`attachments.ts` (`POST`/`DELETE /api/attachments`) in the same pass.
+
+`createDaemonAttachmentUploader(baseUrl, options?)` returns a ready-made
+`ChatPaneProps['uploadAttachments']`, which is what turns composer drag-and-drop and the file picker from
+"wire up ~160 lines yourself" into:
+
+```tsx
+<ChatPane transport={transport} uploadAttachments={createDaemonAttachmentUploader(daemonUrl)} />
+```
+
+`ChatPane` already gated both the drop target and the paperclip on this prop being present (see
+`resolveDropTargetProps` / `resolveComposerAttachmentPicker`); nothing about that changed, it just now
+has a real default implementation to point at.
+
+What it carries over from the host implementation, none of which is host-specific: a bounded-concurrency
+worker pool over a shared index (so results land at their input positions while at most `concurrency`
+requests are in flight), per-turn count/byte accounting, abort + timeout plumbing, and deletion of files
+that already landed when a later one in the same turn fails.
+
+### Deliberate departure from the "zero direct `fetch`" invariant above
+
+This module calls `fetch` directly, and that is the point of it rather than an oversight. The invariant
+exists so that *chat state and run I/O* stay behind `ChatTransport` — this is neither: it is a concrete,
+opt-in HTTP client for one specific documented endpoint pair, which a host chooses by passing it to a
+prop. A host with its own upload endpoint keeps supplying its own function, exactly as before; a host
+that passes nothing still gets no drop target. The alternative — an `AttachmentTransport` port every host
+must then implement — would recreate the ~160 lines this exists to delete. Every other network path in
+the package remains injected.
+
+### Behavioral changes worth knowing when porting hand-rolled code onto this
+
+- **Always sends `content-type: application/octet-stream`, never `file.type`.** This fixes a real bug,
+  not a style preference: the daemon sniffs `kind` from the leading bytes and ignores the header, while
+  forwarding the browser's guess meant a dropped **`.json` file** arrived as `application/json` and was
+  swallowed by the app-wide `express.json()` that `compose-jini-kernel.ts` mounts — surfacing as the
+  useless "attachment is empty". See `@jini-ai/http-kit`'s `source-map.md` for the server-side half.
+- **Batch accounting is per uploader instance**, not module-global as the host version's `batchUsage` map
+  was, so two panes pointed at two daemons cannot consume each other's per-turn quota.
+- **A failed turn's quota reservation is rolled back**, so retrying it is not refused for headroom it
+  never actually used.
+- Error messages are read from **either** envelope — this repo's `{ error: { message } }` or a bare
+  `{ message }` — so it works against a host's own upload route too.
+
+Client-side quotas are a courtesy (tell a user their 400 MB video is too big *before* the browser streams
+it), never the security boundary; the daemon re-derives all of them.
+
+### Tests
+
+`features/chat-pane/__tests__/createDaemonAttachmentUploader.test.ts` — 25 tests. The 6 cases from the
+example's deleted `attachments.test.ts` were ported rather than dropped, plus new coverage for
+configurable base URL/quotas, per-instance accounting, reservation rollback, abort (pre-aborted,
+mid-flight, non-`Error` reason), timeout, observed concurrency ceilings at default and raised values, and
+batch-usage TTL/LRU eviction.
+
+One unreachable branch was **refactored away rather than ignored**: the eviction loop's
+`keys().next().value === undefined` guard could not fire (a `Map` at or above its cap is necessarily
+non-empty), and is now an order-preserving `slice` over the keys with the reasoning recorded inline. The
+`try/catch/finally` was also restructured to capture the failure and rethrow *after* the `finally` — a
+`catch` ending in `throw` gives the `finally` a third entry path that nothing can exercise, and the two
+that matter (turn succeeded / turn did not) are now both covered.
+
+**Verified, personally, this session**: `create-daemon-attachment-uploader.ts` at a genuine
+**100/100/100/100**, and the package back at **100/100/100/100 overall** — which is where it was at
+baseline, so the committed gate still passes. Suite **603/603 passing** (44 files), up from 578/43.
+Confirmed in a real browser against the live playground: the paperclip renders, the chip shows
+`dragdrop.png · 23 B`, `POST /api/attachments?batch=<uuid>&name=dragdrop.png` returns `201` with request
+`content-type: application/octet-stream`, and the console is clean.

@@ -1,6 +1,4 @@
 import { resolve } from 'node:path';
-import { tmpdir } from 'node:os';
-import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
@@ -8,8 +6,6 @@ import {
   decodePlaygroundRunRequest,
   failPlaygroundRunBeforeExecutor,
   promptWithPlaygroundAttachments,
-  sanitizePlaygroundAttachmentName,
-  writeBoundedAttachmentBody,
 } from './playground-request.js';
 
 const allowedProjects = new Set(['starter-site', 'bug-hunt']);
@@ -107,44 +103,10 @@ describe('decodePlaygroundRunRequest', () => {
   });
 });
 
-describe('playground upload boundaries', () => {
-  it('strips path components/control characters and provides a safe fallback name', () => {
-    expect(sanitizePlaygroundAttachmentName('../../evil\nname?.png')).toBe('evil_name_.png');
-    expect(sanitizePlaygroundAttachmentName('???')).toBe('___');
-    expect(sanitizePlaygroundAttachmentName(null)).toBe('attachment');
-    expect(sanitizePlaygroundAttachmentName('')).toBe('attachment');
-  });
-
-  it('streams mixed chunks privately and removes a max-plus-one partial file', async () => {
-    const directory = await mkdtemp(resolve(tmpdir(), 'jini-upload-test-'));
-    const validPath = resolve(directory, 'valid.bin');
-    const oversizedPath = resolve(directory, 'oversized.bin');
-    async function* validBody() {
-      yield Buffer.from('ab');
-      yield 'cd';
-    }
-    async function* oversizedBody() {
-      yield Buffer.from('12345');
-    }
-    await expect(writeBoundedAttachmentBody({
-      request: validBody(),
-      filePath: validPath,
-      maxBytes: 4,
-    })).resolves.toEqual({
-      size: 4,
-      signature: Buffer.from('abcd'),
-    });
-    expect(await readFile(validPath, 'utf8')).toBe('abcd');
-    expect((await stat(validPath)).mode & 0o777).toBe(0o600);
-    await expect(writeBoundedAttachmentBody({
-      request: oversizedBody(),
-      filePath: oversizedPath,
-      maxBytes: 4,
-    })).rejects.toThrow('20 MB playground limit');
-    await expect(stat(oversizedPath)).rejects.toMatchObject({ code: 'ENOENT' });
-    await rm(directory, { recursive: true, force: true });
-  });
-});
+// The "playground upload boundaries" cases that used to live here moved with their subjects:
+// `sanitizePlaygroundAttachmentName` and `writeBoundedAttachmentBody` are now
+// `@jini-ai/http-kit`'s `sanitizeAttachmentName` / `writeBoundedAttachmentBody`, covered (with more
+// cases than before) in `packages/http-kit/src/__tests__/attachments.test.ts`.
 
 describe('playground runtime input forwarding', () => {
   it('forwards only narrow runtime environment values to agent children', () => {

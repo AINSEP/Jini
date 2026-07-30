@@ -217,6 +217,19 @@ describe('nextRunAtForSchedule DST handling', () => {
       /Invalid time zone/,
     );
   });
+
+  it('returns null instead of throwing when the requested wall time is past the maximum representable Date', () => {
+    // `now` is the largest instant a `Date` can hold (+275760-09-13T00:00:00Z). Asking for a
+    // later wall time *on that same day* makes `Date.UTC(...)` overflow to `NaN`, so
+    // `new Date(NaN)` makes Intl's `formatToParts` throw `RangeError: Invalid time value` —
+    // swallowed by both `tzWallToUtcCandidates` (yielding an empty candidate list, which looks
+    // exactly like a spring-forward gap) and `tzWallToUtcGapFallback` (yielding null). This is
+    // the one real input that reaches the gap-fallback null guard even though `timezone` itself
+    // is perfectly valid, and it must degrade to `null` rather than throw or spin all 14 days.
+    const maxDate = new Date(8_640_000_000_000_000);
+    expect(maxDate.getTime()).toBe(8_640_000_000_000_000); // sanity: still a valid Date
+    expect(nextWallTimeMatching('UTC', '23:59', () => true, maxDate)).toBeNull();
+  });
 });
 
 describe('isValidWallTime / isValidTimezone', () => {

@@ -9,7 +9,7 @@ import {
   type WebMcpUserInteraction,
 } from '@jini-ai/agentic';
 import { getAgentModelContext } from '@jini-ai/agentic/dom';
-import { uploadChatAttachments } from './attachments.js';
+import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { PLAYGROUND_RUNTIME_ACCESS } from './runtime-access.js';
 import { installWebMcpLabPolyfill } from './webmcp-lab-polyfill.js';
@@ -421,7 +421,7 @@ export function WebMcpLab() {
           initialMessages={WEBMCP_LAB_INITIAL_MESSAGES}
           initialSelection={{ agentId: 'claude' }}
           placeholder="Ask about the notebook…"
-          uploadAttachments={uploadChatAttachments}
+          uploadAttachments={PLAYGROUND_ATTACHMENT_UPLOADER}
           initialWorkingDirectory="examples/reference-web"
           runContext={runContext}
         />

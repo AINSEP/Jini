@@ -1920,3 +1920,138 @@ for "has no routes".
 package's full suite **1002/1002 passing** (36 files), including 17 new strict-gate tests and 14 new
 manifest tests. The pre-existing `remote-run-events` and `api-security-middleware` suites pass
 **unmodified**.
+
+## 2026-07-30 addition — `attachments.ts` (`POST`/`DELETE /api/attachments` + the disk store)
+
+**Provenance: not an OD port.** This is a generalization of a *working host implementation* that had
+grown inside `examples/reference-web` — `playground-attachment-registry.ts` (289 lines) plus two inline
+route handlers in `daemon.ts` (~70 lines) plus `sanitizePlaygroundAttachmentName` /
+`writeBoundedAttachmentBody` in `playground-request.ts`. All four are now deleted from the example, which
+consumes this module instead. The client half went to `@jini-ai/chat-react`'s
+`createDaemonAttachmentUploader`.
+
+### What it provides
+
+| export | role |
+|---|---|
+| `AttachmentStore` | the DI port: `createBatchDirectory`, `register`, `claim`, `deleteUnclaimed`, `cleanupRun`, `pruneExpired`, `dispose` |
+| `createDiskAttachmentStore(options)` | the batteries-included disk implementation; every quota defaulted |
+| `registerAttachmentRoutes(app, deps, adapter)` | mounts `POST`/`DELETE /api/attachments` |
+| `handleAttachmentUpload` / `handleAttachmentCleanup` | the two handler bodies, for a host mounting its own path |
+| `StoredAttachment` | the wire record |
+| `AttachmentRejectedError` / `AttachmentRejectionReason` | classified refusals |
+| `sanitizeAttachmentName`, `detectAttachmentKind`, `writeBoundedAttachmentBody`, `isUnchangedAttachment` | the pure pieces |
+
+### Design decisions
+
+**`StoredAttachment` mirrors `@jini-ai/chat-core`'s `ChatAttachment` instead of importing it.** Same
+reasoning as `media.ts` declaring its own `MediaTask`/`MediaDispatchEngine` rather than depending on
+`@jini-ai/media`: a `jini.domain: "server"` transport package should not acquire a dependency on a
+*domain* package (`chat`) to describe an upload that is not chat-specific. There is no cycle — the edge
+would be legal — it is simply the wrong direction, and it would be the first `server` → `chat` package
+edge in the graph. The drift risk that makes a mirror tempting to avoid is paid for with a test instead
+of a dependency: `attachments.test.ts` holds a compile-time assignability assertion in **both**
+directions against the real `ChatAttachment` (`@jini-ai/chat-core` is a **devDependency** only, so
+nothing is added to the published dependency graph). A field added, removed, renamed, or retyped on
+either side fails the build.
+
+**Hand-mounted, not `defineJsonRoute`/`mountJsonRoute`.** Two hard reasons: the upload reads the raw
+request stream, so a JSON-parsed `req.body` is precisely what must *not* have happened; and the cleanup
+answers `204` with no body, which a JSON responder cannot express. `requireSameOrigin` is therefore a
+dep flag (defaulting to `true`) rather than a spec field, evaluated through the same `guardSameOrigin`.
+
+**Run-lifecycle wiring stays host-owned**, following `@jini-ai/daemon`'s `createRunScopedContextStore`
+precedent exactly: there is no generic post-run-start hook to auto-wire into, and inventing one for this
+would be a larger and worse change than documenting ten lines. The module doc carries the pattern
+(claim in `onRunStarted`, thread into `AgentExecutor.run()`'s pre-existing
+`imagePaths`/`extraAllowedDirs`/`uploadRoot`, `cleanupRun` in a `finally`). `daemon.ts` in the example is
+the live reference.
+
+**Typed rejections replaced substring matching.** The example's route decided status codes with
+`message.includes('20 MB') || message.includes('limited to') || ...` across a module boundary. Since one
+package now owns both the store and the routes, `AttachmentRejectedError.reason` maps to a status in one
+table. The externally-visible status mapping is unchanged (quota → 413, bad batch → 400, integrity →
+redacted 500); it is just no longer coupled to message wording. Reasons that describe a broken or
+hostile server-side state never expose their real message over HTTP, but exist so a host catching a
+rejection from `claim()` outside HTTP can still classify it.
+
+### Two redundant checks removed (both provably unable to fire)
+
+Recorded here because deleting a security check is exactly what a coverage-driven diff should be
+suspected of, and neither of these was one:
+
+1. **`isContainedPath` (a `path.relative`-based containment test).** It ran in two places, behind a
+   sufficient guard both times. In `resolveBatchDirectory`, `BATCH_ID_PATTERN` (`^[a-zA-Z0-9-]{8,80}$`)
+   admits no `.`, `/`, or `\` *and* `resolve` normalizes, so the result is always one non-traversing
+   segment deeper. In `register`, `dirname(filePath) === batchDirectory` is sufficient **because
+   `filePath = resolve(input.path)` runs first**.
+
+   That precondition is the whole argument, and an independent review of this deletion caught the first
+   version of this note (and the code comment) overstating it as an unconditional path identity. It is
+   not: `dirname('/a/..') === '/a'` is true while `/a/..` escapes `/a`, so parent-directory equality
+   *alone* is **not** strictly stronger than containment — 1,603 such pairs exist on posix and 2,941 on
+   win32. `resolve` is what removes them, emitting no `..` in the path body (verified over 18,088,180
+   resolved paths per platform, including UNC/drive-relative/`\\?\`/root shapes). A differential fuzz of
+   6,000,000 `input.path` values against the previous two-part check found **zero** inputs the new gate
+   accepts that the old one rejected, so **the accepted-input set is unchanged** — but the reason is
+   `resolve`, not algebra. Both comments now say so, because the `resolve` looks removable (the route
+   already resolves before calling) and removing it would silently reintroduce traversal. Regression
+   tests cover the `..` shapes, a relative path, and the nested-subdirectory case.
+
+   The same review flagged a second undocumented load-bearing detail, now commented and tested: the
+   containment guard sits **outside** the `try` whose `catch` unlinks `filePath`. Moving it inside would
+   turn this public port method into an arbitrary-file-delete primitive for any path the daemon can
+   unlink.
+2. **`info.isSymbolicLink()` behind `!info.isFile()`.** With `lstat` — and this code correctly uses
+   `lstat`, not `stat` — a file has exactly one type, so `isFile()` and `isSymbolicLink()` are mutually
+   exclusive: the second operand is only ever evaluated for a regular file, for which it is always
+   `false`. Confirmed by probe (`real.txt: isFile=true isSymbolicLink=false`, `link.txt: isFile=false
+   isSymbolicLink=true`). `!isFile()` already rejects symlinks *and* directories.
+
+The claim-time integrity decision was simultaneously **extracted** into the pure, exported
+`isUnchangedAttachment(recorded, observed)`. That is the opposite of cutting scope: a device change
+(`dev` mismatch) for a file that keeps its path cannot be staged on a real filesystem in a test, so
+before extraction that condition could only ever have been exercised in production. It is now directly
+asserted, alongside real-filesystem tests for symlink retargeting, same-size inode replacement, and
+append-after-registration.
+
+### One real bug found and fixed
+
+**A global body parser silently ate uploads.** `compose-jini-kernel.ts` mounts `express.json()`
+app-wide for every daemon, before `onAfterApiRoutes` (where `httpExtensions` register). `express.json()`
+claims any request whose content type it matches — so a user dropping a **`.json` file**, which the
+browser labels `application/json`, had its body consumed before the upload route read a byte. The
+symptom was a zero-length file and the useless `"Attachment is empty"`. Two independent fixes:
+
+- server side, `handleAttachmentUpload` checks `req.readableEnded` **before writing anything** and
+  reports `'attachment-body-consumed'` with an actionable message. Probed to confirm the signal is
+  precise: `true` only for a parser-consumed body, `false` for octet-stream *and* for a genuinely empty
+  body, so it cannot false-positive on the real empty-upload case;
+- client side, `createDaemonAttachmentUploader` always sends `application/octet-stream` rather than
+  `file.type`. The server sniffs the kind from the bytes and ignores the header, so forwarding the
+  browser's guess bought nothing and cost this bug.
+
+### Tests
+
+`src/__tests__/attachments.test.ts` — 56 tests at three levels: the pure helpers directly; the disk
+store against a real temp filesystem (opaque ids, forged-metadata replacement, one-time claim, symlink
+retargeting, quota race safety via `Promise.allSettled`, inherited-directory purge, TTL); and the routes
+over a real `express()` on `app.listen(0)` driven by real `fetch`, with `express.json()` mounted app-wide
+exactly as a real host does.
+
+**Verified, personally, this session**: `attachments.ts` at a genuine **100/100/100/100** (statements/
+branches/functions/lines, read from `coverage-summary.json`, no `ignore` comments and no `exclude`
+additions). Package suite **1058/1058 passing** (37 files), up from 1002/36.
+
+**Pre-existing, not caused by this change**: the package's committed 100% coverage gate was *already*
+failing on this branch before this addition — measured at `93.92/95.63/95.60/93.92` with my changes
+stashed, from gaps in `connectors.ts`, `model-proxy.ts`, `research.ts`, `run-stream.ts`, and `xai.ts`.
+This addition moves every total **up** (to `94.47/95.91/95.89/94.47`); it does not close those five.
+
+**Verified live**, against the real playground daemon on a scratch port with the browser's own `Origin`
+header through the Vite proxy: upload `201` with a sanitized name and byte-sniffed `kind`; the `.json`
+case reporting `attachment-body-consumed` in the daemon log; cross-origin `403`; empty `400`; bad batch
+`400`; the 11th file in a batch `413`; `DELETE` `204` removing both the file and its now-empty batch
+directory. On disk, stored filenames are fresh UUIDs carrying only the extension — the client's
+`../../evil name?.png` never became a filename. Composer drag-and-drop confirmed in a real browser
+(chip renders, `POST /api/attachments?batch=<uuid>&name=dragdrop.png` → `201`, zero console errors).

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat-core';
 import { ChatFab, ChatPane, registerToolRenderer } from '@jini-ai/chat-react';
-import { uploadChatAttachments } from './attachments.js';
+import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { McpUiLabHostFrame } from './McpUiLabHost.js';
 import { MCPUI_LAB_VIEW_MODES, type McpUiLabViewMode } from './mcpui-lab-view.js';
@@ -131,7 +131,7 @@ export function McpUiLab() {
           initialMessages={MCPUI_INITIAL_MESSAGES}
           initialSelection={{ agentId: 'claude' }}
           placeholder="Ask me to open the widget…"
-          uploadAttachments={uploadChatAttachments}
+          uploadAttachments={PLAYGROUND_ATTACHMENT_UPLOADER}
           initialWorkingDirectory="examples/reference-web"
           agentControl={AGENT_CONTROL}
           runContext={() => ({ project: 'starter-site' })}

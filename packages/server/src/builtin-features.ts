@@ -192,10 +192,11 @@ export function buildDaemonDbOperations(db: import('better-sqlite3').Database, f
 /**
  * Whether the `agents` feature should advertise this probe result.
  *
- * Discovery scans every runtime definition, but `AgentExecutor` refuses to drive some of them
- * (`antigravity` today, for reasons recorded in `@jini-ai/daemon`'s own module doc). Advertising one
- * of those yields an agent a user can select and then cannot run — so the executor's own
- * compatibility answer is applied here, at the surface that offers the choice.
+ * Discovery scans every runtime definition, but `AgentExecutor` refuses to drive any def its
+ * `assessAgentExecutorCompatibility` rejects — see `@jini-ai/daemon`'s own module doc. All currently
+ * registered defs pass that check, but a future def may not. Advertising one that doesn't yields an
+ * agent a user can select and then cannot run — so the executor's own compatibility answer is applied
+ * here, at the surface that offers the choice.
  *
  * Assessed against the **full** `RuntimeAgentDef` resolved by id, not the `DetectedAgent` passed in:
  * the projected type omits `maxPromptArgBytes`, and the argv-bound defs (`aider`, `deepseek`) qualify

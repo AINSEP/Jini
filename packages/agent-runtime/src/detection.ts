@@ -236,7 +236,12 @@ function stripFns(def: RuntimeAgentDef): Omit<DetectedAgent, 'models' | 'modelsS
   // metadata and shouldn't bleed into an API response either.
   // `inactivityTimeoutMs` is a spawn-time hint for a chat-run watchdog and
   // is not part of a public AgentInfo contract — strip it here so the
-  // runtime registry stays the only consumer.
+  // runtime registry stays the only consumer. `needsAgentLogFile` /
+  // `stdoutPolicy` / `runtimeLock` are stripped for the same reason: they
+  // instruct whoever spawns the CLI, not whoever lists agents. The latter two
+  // matter extra because they carry closures — `JSON.stringify` would drop
+  // the functions but keep their enclosing objects, publishing a misleading
+  // `{"buffering":"until-close"}` / `{}` instead of omitting them.
   const {
     buildArgs: _buildArgs,
     listModels: _listModels,
@@ -250,6 +255,9 @@ function stripFns(def: RuntimeAgentDef): Omit<DetectedAgent, 'models' | 'modelsS
     env: _env,
     inactivityTimeoutMs: _inactivityTimeoutMs,
     authProbe: _authProbe,
+    needsAgentLogFile: _needsAgentLogFile,
+    stdoutPolicy: _stdoutPolicy,
+    runtimeLock: _runtimeLock,
     ...rest
   } = def;
   return rest;

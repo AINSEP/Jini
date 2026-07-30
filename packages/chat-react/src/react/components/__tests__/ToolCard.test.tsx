@@ -15,6 +15,28 @@ describe('ToolCard', () => {
     expect(document.querySelector('.op-output')?.textContent).toBe('a.txt\nb.txt');
   });
 
+  it('tags every tool call for agent inspection with a handle unique to that call, regardless of which card variant renders', () => {
+    const { container: bashContainer } = render(<ToolCard use={{ kind: 'tool_use', id: 'call-1', name: 'Bash', input: { command: 'ls' } }} runSucceeded />);
+    const bashEl = bashContainer.querySelector('[data-agent-element="tool-call-call-1"]');
+    expect(bashEl).toHaveAttribute('data-agent-role', 'region');
+    expect(bashEl).toHaveAttribute('data-agent-label', 'A Bash tool call the AI made');
+    // The collapsed accordion detail lives inside this same tagged element, not gated behind it —
+    // `textContent` (what a `page.*` DOM reader actually uses) sees it whether or not a human has
+    // clicked to expand the accordion.
+    expect(bashEl?.textContent).toContain('ls');
+
+    const { container: genericContainer } = render(<ToolCard use={{ kind: 'tool_use', id: 'call-2', name: 'CustomTool', input: {} }} runSucceeded />);
+    const genericEl = genericContainer.querySelector('[data-agent-element="tool-call-call-2"]');
+    expect(genericEl).toHaveAttribute('data-agent-role', 'region');
+  });
+
+  it('registers no wrapper element for a suppressed successful execute_delegated_tool wrapper call', () => {
+    const { container } = render(
+      <ToolCard use={{ kind: 'tool_use', id: 'call-3', name: 'execute_delegated_tool', input: { toolId: 'page.fill', input: {} } }} result={{ kind: 'tool_result', toolUseId: 'call-3', content: 'ok', isError: false }} runSucceeded />,
+    );
+    expect(container.querySelector('[data-agent-element="tool-call-call-3"]')).not.toBeInTheDocument();
+  });
+
   it('falls back to GenericCard for an unrecognized tool', () => {
     render(<ToolCard use={{ kind: 'tool_use', id: 't2', name: 'CustomTool', input: { query: 'hello' } }} runSucceeded />);
     expect(screen.getByText('CustomTool')).toBeInTheDocument();

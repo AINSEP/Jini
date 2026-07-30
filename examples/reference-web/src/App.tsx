@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat-core';
 import { ChatPane } from '@jini-ai/chat-react';
-import { uploadChatAttachments } from './attachments.js';
+import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { getDesktopBridge } from './desktop-bridge.js';
 import { ProjectPreview } from './ProjectPreview.js';
@@ -165,7 +165,7 @@ export function App() {
           }}
           suggestions={selectedProject.prompts}
           placeholder={`Ask Jini about ${selectedProject.name}…`}
-          uploadAttachments={uploadChatAttachments}
+          uploadAttachments={PLAYGROUND_ATTACHMENT_UPLOADER}
           initialWorkingDirectory={`examples/sample-projects/${selectedProject.id}`}
           {...(desktopBridge === undefined ? {} : { workingDirectoryAccess: desktopBridge })}
           projectFileNames={new Set(selectedProject.files)}

@@ -27,6 +27,11 @@ function makeReq(body: unknown) {
   return { body };
 }
 
+/** A request for the generic `/api/proxy/:provider/stream` catch-all, whose handler reads `req.params.provider`. */
+function makeParamReq(params: Record<string, string>, body: unknown) {
+  return { body, params };
+}
+
 function makeSseRes() {
   const closeListeners: Array<() => void> = [];
   const drainListeners: Array<() => void> = [];
@@ -104,6 +109,56 @@ function openAiChunk(text: string): string {
   return `data: ${JSON.stringify(chunk)}\n\ndata: ${JSON.stringify(final)}\n\ndata: [DONE]\n\n`;
 }
 
+/**
+ * Azure OpenAI speaks the same Chat Completions SSE dialect as OpenAI, so this reuses
+ * `openAiChunk`'s shape — matching `@jini-ai/agent-runtime`'s own `azure-chat.test.ts` fixtures.
+ */
+function azureChunk(text: string): string {
+  return openAiChunk(text);
+}
+
+/** One OpenAI/Azure `tool_calls` round: a fragment-bearing delta, a `tool_calls` finish, then `[DONE]`. */
+function openAiToolCallChunk(id: string, name: string, args: string): string {
+  const call = { id: 'c1', choices: [{ index: 0, delta: { tool_calls: [{ index: 0, id, type: 'function', function: { name, arguments: args } }] }, finish_reason: null }] };
+  const finish = { id: 'c1', choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] };
+  return `data: ${JSON.stringify(call)}\n\ndata: ${JSON.stringify(finish)}\n\ndata: [DONE]\n\n`;
+}
+
+/** Gemini `streamGenerateContent` SSE — `candidates[].content.parts[].text`. */
+function googleChunk(text: string): string {
+  return `data: ${JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ text }] }, finishReason: 'STOP', index: 0 }] })}\n\n`;
+}
+
+/** Gemini `functionCall` part, which the turn-runner surfaces as a tool call. */
+function googleFunctionCallChunk(name: string, args: unknown): string {
+  return `data: ${JSON.stringify({ candidates: [{ content: { role: 'model', parts: [{ functionCall: { name, args } }] }, index: 0 }] })}\n\n`;
+}
+
+/** Ollama's native `/api/chat` NDJSON — one JSON object per line, not SSE. */
+function ollamaBody(...lines: string[]): AsyncIterable<string> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const line of lines) yield `${line}\n`;
+    },
+  };
+}
+
+function ollamaTextLine(content: string): string {
+  return JSON.stringify({ model: 'llama3', message: { role: 'assistant', content }, done: false });
+}
+
+function ollamaToolCallLine(name: string, args: Record<string, unknown>): string {
+  return JSON.stringify({
+    model: 'llama3',
+    message: { role: 'assistant', content: '', tool_calls: [{ function: { name, arguments: args } }] },
+    done: false,
+  });
+}
+
+function ollamaDoneLine(): string {
+  return JSON.stringify({ model: 'llama3', message: { role: 'assistant', content: '' }, done: true, done_reason: 'stop' });
+}
+
 function okResponse(body: AsyncIterable<string>) {
   return { ok: true, status: 200, body, text: async () => '' };
 }
@@ -121,6 +176,31 @@ const validOpenAiBody = {
   messages: [{ role: 'user', content: 'hi' }],
 };
 
+// Loopback base URLs throughout the Azure/Ollama bodies below: `connection-guard.ts`'s
+// `validateBaseUrlResolved` short-circuits on a loopback host *before* consulting DNS, so these
+// fixtures never make a real resolver call.
+const validAzureBody = {
+  apiKey: 'azure-test-key',
+  model: 'my-deployment',
+  baseUrl: 'http://127.0.0.1:8443',
+  apiVersion: '2024-10-21',
+  messages: [{ role: 'user', content: 'hi' }],
+};
+
+const validGoogleBody = {
+  apiKey: 'goog-test',
+  model: 'gemini-2.5-flash',
+  baseUrl: 'http://127.0.0.1:8444',
+  messages: [{ role: 'user', parts: [{ text: 'hi' }] }],
+};
+
+const validOllamaBody = {
+  apiKey: 'sk-ollama-cloud',
+  model: 'llama3',
+  baseUrl: 'http://127.0.0.1:11434',
+  messages: [{ role: 'user', content: 'hi' }],
+};
+
 beforeEach(() => {
   vi.mocked(isLocalSameOrigin).mockReturnValue(true);
 });
@@ -131,11 +211,27 @@ afterEach(() => {
 });
 
 describe('registerModelProxyRoutes — route registration', () => {
-  it('mounts both provider streaming routes', () => {
+  it('mounts all five fixed provider streaming routes plus the generic :provider catch-all', () => {
     const app = mount();
     expect(Object.keys(app.handlers)).toEqual(
-      expect.arrayContaining(['POST /api/proxy/anthropic/stream', 'POST /api/proxy/openai/stream']),
+      expect.arrayContaining([
+        'POST /api/proxy/anthropic/stream',
+        'POST /api/proxy/openai/stream',
+        'POST /api/proxy/azure/stream',
+        'POST /api/proxy/google/stream',
+        'POST /api/proxy/ollama/stream',
+        'POST /api/proxy/:provider/stream',
+      ]),
     );
+  });
+
+  // Registration order is load-bearing, not incidental: Express matches in registration order, so
+  // the five literal paths must precede the catch-all or `/api/proxy/anthropic/stream` would be
+  // served by the generic handler instead of its own strongly-typed one (see module doc).
+  it('registers the catch-all last, so a fixed path always wins the match', () => {
+    const app = mount();
+    const paths = Object.keys(app.handlers);
+    expect(paths.at(-1)).toBe('POST /api/proxy/:provider/stream');
   });
 });
 
@@ -300,6 +396,11 @@ describe('POST /api/proxy/openai/stream', () => {
     ['a missing model', { ...validOpenAiBody, model: undefined }, 'model must be a non-empty string'],
     ['an empty messages array', { ...validOpenAiBody, messages: [] }, 'messages must be a non-empty array'],
     ['a non-array tools', { ...validOpenAiBody, tools: 'nope' }, 'tools must be an array when provided'],
+    // `parseCommon`'s own maxTokens type check, distinct from the Anthropic route's stricter
+    // "required positive number" rule: for OpenAI maxTokens is optional, but must be numeric when
+    // present. Anthropic's own suite can never reach this branch, because its parse rejects a
+    // non-number maxTokens with the positive-number message instead.
+    ['a non-number maxTokens', { ...validOpenAiBody, maxTokens: 'lots' }, 'maxTokens must be a number when provided'],
   ])('rejects %s with 400 before touching fetch', async (_label, body, message) => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -323,7 +424,7 @@ describe('POST /api/proxy/openai/stream', () => {
     expect(url).toBe('https://api.openai.com/v1/chat/completions');
   });
 
-  it('forwards optional baseUrl/tools/temperature/maxToolTurns/extraHeaders to the turn-runner', async () => {
+  it('forwards optional baseUrl/tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(openAiChunk('hi'))));
     vi.stubGlobal('fetch', fetchMock);
     const res = makeSseRes();
@@ -333,6 +434,7 @@ describe('POST /api/proxy/openai/stream', () => {
         baseUrl: 'https://gateway.example.com',
         tools: [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }],
         temperature: 0.7,
+        maxTokens: 512,
         maxToolTurns: 3,
         extraHeaders: { 'X-Custom': 'yes' },
       }),
@@ -343,6 +445,9 @@ describe('POST /api/proxy/openai/stream', () => {
     expect(init.headers['X-Custom']).toBe('yes');
     const body = JSON.parse(init.body);
     expect(body.temperature).toBe(0.7);
+    // maxTokens is optional for OpenAI (the turn-runner defaults it to 8192) — this pins that an
+    // explicitly supplied value is actually forwarded rather than silently dropped by the route.
+    expect(body.max_tokens).toBe(512);
     expect(body.tools).toEqual([{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }]);
   });
 
@@ -366,5 +471,532 @@ describe('POST /api/proxy/openai/stream', () => {
     // check itself never trips `scripts/check-engine-boundaries.ts`'s own R5-neutrality scan.
     const productIdentityString = ['Open', 'Design'].join(' ');
     expect(JSON.stringify(init.headers)).not.toContain(productIdentityString);
+  });
+});
+
+describe('POST /api/proxy/azure/stream', () => {
+  function handler(deps: ModelProxyHttpDeps = {}) {
+    return mount(deps).handlers['POST /api/proxy/azure/stream']!;
+  }
+
+  it('rejects a cross-origin request with 403 before touching fetch', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(validAzureBody), res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    // Azure is the one provider whose baseUrl is required — every Azure OpenAI resource has its own
+    // endpoint, so there is no defaultable value (see `azure-chat.ts`'s module doc).
+    ['a missing baseUrl', { ...validAzureBody, baseUrl: undefined }, 'baseUrl must be a non-empty string'],
+    ['an empty-string baseUrl', { ...validAzureBody, baseUrl: '' }, 'baseUrl must be a non-empty string'],
+    ['a missing apiVersion', { ...validAzureBody, apiVersion: undefined }, 'apiVersion must be a non-empty string'],
+    ['a whitespace-only apiVersion', { ...validAzureBody, apiVersion: '   ' }, 'apiVersion must be a non-empty string'],
+    ['a non-array tools', { ...validAzureBody, tools: {} }, 'tools must be an array when provided'],
+    ['a missing apiKey', { ...validAzureBody, apiKey: undefined }, 'apiKey must be a non-empty string'],
+  ])('rejects %s with 400 before touching fetch', async (_label, body, message) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(body), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0]![0].error.message).toBe(message);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('streams SSE events and builds the deployment-scoped Azure URL from baseUrl/model/apiVersion', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(azureChunk('Hello from Azure'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(validAzureBody), res);
+
+    const events = writtenEvents(res);
+    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello from Azure' } });
+    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
+    expect(res.end).toHaveBeenCalledOnce();
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    // `model` is the Azure *deployment* name, and apiVersion rides as a query param, not a header.
+    expect(url).toBe('http://127.0.0.1:8443/openai/deployments/my-deployment/chat/completions?api-version=2024-10-21');
+    expect(init.headers['api-key']).toBe('azure-test-key');
+  });
+
+  it('forwards optional tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(azureChunk('hi'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(
+      makeReq({
+        ...validAzureBody,
+        tools: [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }],
+        temperature: 0.2,
+        maxTokens: 128,
+        maxToolTurns: 4,
+        extraHeaders: { 'X-Custom': 'azure' },
+      }),
+      res,
+    );
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.headers['X-Custom']).toBe('azure');
+    const body = JSON.parse(init.body);
+    expect(body.temperature).toBe(0.2);
+    expect(body.max_tokens).toBe(128);
+    expect(body.tools).toHaveLength(1);
+  });
+
+  it('invokes the injected azureExecuteTool for a tool_calls round and completes the loop', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(sseBody(openAiToolCallChunk('call_az', 'get_weather', '{}'))))
+      .mockResolvedValueOnce(okResponse(sseBody(azureChunk('Sunny.'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const azureExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
+    const res = makeSseRes();
+    await handler({ azureExecuteTool })(makeReq(validAzureBody), res);
+    expect(azureExecuteTool).toHaveBeenCalledWith({ id: 'call_az', name: 'get_weather', input: {} });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(writtenEvents(res).at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
+  });
+
+  it('SEC-005: redacts an executeTool exception behind a correlation id under the azure provider tag', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(openAiToolCallChunk('call_az', 'boom', '{}'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const onInternalError = vi.fn();
+    const azureExecuteTool = vi.fn().mockRejectedValue(new Error('azure tool exploded: key-abc'));
+    const res = makeSseRes();
+    await handler({ azureExecuteTool, onInternalError })(makeReq(validAzureBody), res);
+
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    expect(onInternalError.mock.calls[0]![0].provider).toBe('azure');
+    const errorEvent = writtenEvents(res).find((e) => e.kind === 'error')!;
+    expect((errorEvent.data as { message: string }).message).toBe('an internal error occurred');
+    expect(JSON.stringify(writtenEvents(res))).not.toContain('key-abc');
+  });
+});
+
+describe('POST /api/proxy/google/stream', () => {
+  function handler(deps: ModelProxyHttpDeps = {}) {
+    return mount(deps).handlers['POST /api/proxy/google/stream']!;
+  }
+
+  it('rejects a cross-origin request with 403 before touching fetch', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(validGoogleBody), res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['a missing apiKey', { ...validGoogleBody, apiKey: undefined }, 'apiKey must be a non-empty string'],
+    ['a non-string system', { ...validGoogleBody, system: 7 }, 'system must be a string when provided'],
+    ['a non-array tools', { ...validGoogleBody, tools: 'nope' }, 'tools must be an array when provided'],
+    ['a non-number maxOutputTokens', { ...validGoogleBody, maxOutputTokens: 'many' }, 'maxOutputTokens must be a number when provided'],
+  ])('rejects %s with 400 before touching fetch', async (_label, body, message) => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(body), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0]![0].error.message).toBe(message);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('streams SSE events and sends the uniform `messages` body field as Gemini `contents`', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('Hello from Gemini'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(validGoogleBody), res);
+
+    const events = writtenEvents(res);
+    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello from Gemini' } });
+    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toContain('/models/gemini-2.5-flash:streamGenerateContent');
+    expect(init.headers['x-goog-api-key']).toBe('goog-test');
+    // The HTTP JSON schema stays `messages` across all five providers; only Gemini's own turn-runner
+    // renames it to `contents` on the wire (see `parseGoogleProxyRequest`'s doc).
+    expect(JSON.parse(init.body).contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
+  });
+
+  it('forwards optional system/tools/temperature/maxOutputTokens/maxToolTurns/extraHeaders', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('hi'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(
+      makeReq({
+        ...validGoogleBody,
+        system: 'be terse',
+        tools: [{ functionDeclarations: [{ name: 'get_weather', parameters: { type: 'object', properties: {} } }] }],
+        temperature: 0.9,
+        maxOutputTokens: 64,
+        maxToolTurns: 2,
+        extraHeaders: { 'X-Custom': 'gemini' },
+      }),
+      res,
+    );
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.headers['X-Custom']).toBe('gemini');
+    const body = JSON.parse(init.body);
+    expect(body.systemInstruction).toEqual({ parts: [{ text: 'be terse' }] });
+    expect(body.generationConfig.temperature).toBe(0.9);
+    expect(body.generationConfig.maxOutputTokens).toBe(64);
+    expect(body.tools).toHaveLength(1);
+  });
+
+  it('invokes the injected googleExecuteTool for a functionCall round and completes the loop', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(sseBody(googleFunctionCallChunk('get_weather', { location: 'SF' }))))
+      .mockResolvedValueOnce(okResponse(sseBody(googleChunk('Sunny.'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const googleExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
+    const res = makeSseRes();
+    await handler({ googleExecuteTool })(makeReq(validGoogleBody), res);
+    expect(googleExecuteTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'get_weather', input: { location: 'SF' } }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(writtenEvents(res).at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
+  });
+
+  it('falls back to the public Gemini endpoint when baseUrl is omitted', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('hi'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq({ apiKey: 'goog-test', model: 'gemini-2.5-flash', messages: [{ role: 'user', parts: [{ text: 'hi' }] }] }), res);
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse',
+    );
+  });
+
+  it('SEC-005: redacts an executeTool exception behind a correlation id under the google provider tag', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleFunctionCallChunk('boom', {}))));
+    vi.stubGlobal('fetch', fetchMock);
+    const onInternalError = vi.fn();
+    const googleExecuteTool = vi.fn().mockRejectedValue(new Error('gemini tool exploded: goog-secret'));
+    const res = makeSseRes();
+    await handler({ googleExecuteTool, onInternalError })(makeReq(validGoogleBody), res);
+
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    expect(onInternalError.mock.calls[0]![0].provider).toBe('google');
+    expect(JSON.stringify(writtenEvents(res))).not.toContain('goog-secret');
+  });
+});
+
+describe('POST /api/proxy/ollama/stream', () => {
+  function handler(deps: ModelProxyHttpDeps = {}) {
+    return mount(deps).handlers['POST /api/proxy/ollama/stream']!;
+  }
+
+  it('rejects a cross-origin request with 403 before touching fetch', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(validOllamaBody), res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // apiKey is required for Ollama too — an earlier version of this module made it optional on a
+  // "local install needs no auth" rationale that did not match the real upstream behavior, whose
+  // default target is Ollama Cloud (see `model-proxy.ts`'s BYOK module-doc section).
+  it('rejects a missing apiKey with 400, exactly like the other four providers', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq({ ...validOllamaBody, apiKey: undefined }), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0]![0].error.message).toBe('apiKey must be a non-empty string');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a non-array tools with 400', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq({ ...validOllamaBody, tools: 'nope' }), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0]![0].error.message).toBe('tools must be an array when provided');
+  });
+
+  it('streams NDJSON-sourced SSE events against the native /api/chat endpoint', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(okResponse(ollamaBody(ollamaTextLine('Hello from Ollama'), ollamaDoneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq(validOllamaBody), res);
+
+    const events = writtenEvents(res);
+    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'Hello from Ollama' } });
+    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe('http://127.0.0.1:11434/api/chat');
+    expect(init.headers.authorization).toBe('Bearer sk-ollama-cloud');
+  });
+
+  it('forwards optional tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaDoneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(
+      makeReq({
+        ...validOllamaBody,
+        tools: [{ type: 'function', function: { name: 'get_weather', parameters: { type: 'object', properties: {} } } }],
+        temperature: 0.1,
+        maxTokens: 256,
+        maxToolTurns: 5,
+        extraHeaders: { 'X-Custom': 'ollama' },
+      }),
+      res,
+    );
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.headers['X-Custom']).toBe('ollama');
+    const body = JSON.parse(init.body);
+    expect(body.options.temperature).toBe(0.1);
+    expect(body.tools).toHaveLength(1);
+  });
+
+  it('invokes the injected ollamaExecuteTool for a tool_calls round and completes the loop', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaToolCallLine('get_weather', { location: 'SF' }))))
+      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaTextLine('Sunny.'), ollamaDoneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    const ollamaExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
+    const res = makeSseRes();
+    await handler({ ollamaExecuteTool })(makeReq(validOllamaBody), res);
+    expect(ollamaExecuteTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'get_weather', input: { location: 'SF' } }));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(writtenEvents(res).at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
+  });
+
+  // Ollama Cloud, not a local install — the corrected default (see module doc's BYOK section).
+  it('falls back to https://ollama.com/api/chat when baseUrl is omitted', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaDoneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeReq({ apiKey: 'sk-ollama-cloud', model: 'llama3', messages: [{ role: 'user', content: 'hi' }] }), res);
+    expect(fetchMock.mock.calls[0]![0]).toBe('https://ollama.com/api/chat');
+  });
+
+  it('SEC-005: redacts an executeTool exception behind a correlation id under the ollama provider tag', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaToolCallLine('boom', {}))));
+    vi.stubGlobal('fetch', fetchMock);
+    const onInternalError = vi.fn();
+    const ollamaExecuteTool = vi.fn().mockRejectedValue(new Error('ollama tool exploded: ollama-secret'));
+    const res = makeSseRes();
+    await handler({ ollamaExecuteTool, onInternalError })(makeReq(validOllamaBody), res);
+
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    expect(onInternalError.mock.calls[0]![0].provider).toBe('ollama');
+    expect(JSON.stringify(writtenEvents(res))).not.toContain('ollama-secret');
+  });
+});
+
+/**
+ * The generic `POST /api/proxy/:provider/stream` catch-all. In a real Express app the five fixed
+ * paths always win the match (they register first), so this handler's per-provider registry entries
+ * are only reachable over real traffic for a provider name with no dedicated literal route. Invoking
+ * the handler directly is therefore the only way to exercise the registry itself — which is real,
+ * shipped code a caller reaches by choosing the parameterized endpoint (see module doc).
+ */
+describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
+  function handler(deps: ModelProxyHttpDeps = {}) {
+    return mount(deps).handlers['POST /api/proxy/:provider/stream']!;
+  }
+
+  it('rejects a cross-origin request with 403 before looking at the provider param', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unrecognized provider name with 400 and names it in the message', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeParamReq({ provider: 'openrouter' }, validOpenAiBody), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST', message: 'unknown provider: openrouter' } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Express always supplies a matched `:provider` segment, so the `?? ''` fallback is a
+  // belt-and-braces guard; this pins that it degrades to the same 400 rather than throwing.
+  it('treats an absent provider param as an unknown provider rather than crashing', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeParamReq({}, validOpenAiBody), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST', message: 'unknown provider: ' } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('applies the named provider’s own parse rules, not a generic one', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    // A body that is valid for OpenAI but not for Anthropic (which requires maxTokens) must be
+    // rejected when routed at `anthropic` — proving the registry dispatches to the right parser.
+    const res = makeSseRes();
+    await handler()(makeParamReq({ provider: 'anthropic' }, validOpenAiBody), res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json.mock.calls[0]![0].error.message).toBe('maxTokens must be a positive number');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['anthropic', () => validAnthropicBody, () => sseBody(anthropicChunk('via catch-all')), 'https://api.anthropic.com/v1/messages'],
+    ['openai', () => validOpenAiBody, () => sseBody(openAiChunk('via catch-all')), 'https://api.openai.com/v1/chat/completions'],
+    ['azure', () => validAzureBody, () => sseBody(azureChunk('via catch-all')), 'http://127.0.0.1:8443/openai/deployments/my-deployment/chat/completions?api-version=2024-10-21'],
+    ['ollama', () => validOllamaBody, () => ollamaBody(ollamaTextLine('via catch-all'), ollamaDoneLine()), 'http://127.0.0.1:11434/api/chat'],
+  ])('dispatches %s through its registry entry to the real turn-runner', async (_provider, body, stream, expectedUrl) => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(stream()));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeParamReq({ provider: _provider }, body()), res);
+
+    const events = writtenEvents(res);
+    expect(events).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'via catch-all' } });
+    expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
+    expect(fetchMock.mock.calls[0]![0]).toBe(expectedUrl);
+  });
+
+  it('dispatches google through its registry entry, renaming messages to contents', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('via catch-all'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeParamReq({ provider: 'google' }, validGoogleBody), res);
+
+    expect(writtenEvents(res)).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'via catch-all' } });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toContain('/models/gemini-2.5-flash:streamGenerateContent');
+    expect(JSON.parse(init.body).contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
+  });
+
+  it.each([
+    ['anthropic', 'anthropicExecuteTool', () => validAnthropicBody, () => sseBody(anthropicToolUseChunk('toolu_1', 'get_weather', { location: 'SF' }))],
+    ['openai', 'openaiExecuteTool', () => validOpenAiBody, () => sseBody(openAiToolCallChunk('call_1', 'get_weather', '{"location":"SF"}'))],
+    ['azure', 'azureExecuteTool', () => validAzureBody, () => sseBody(openAiToolCallChunk('call_1', 'get_weather', '{"location":"SF"}'))],
+    ['google', 'googleExecuteTool', () => validGoogleBody, () => sseBody(googleFunctionCallChunk('get_weather', { location: 'SF' }))],
+    ['ollama', 'ollamaExecuteTool', () => validOllamaBody, () => ollamaBody(ollamaToolCallLine('get_weather', { location: 'SF' }))],
+  ])('wires %s’s registry entry to the matching deps.%s executor', async (provider, depsKey, body, stream) => {
+    const executeTool = vi.fn().mockResolvedValue({ content: '72F' });
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(stream()));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler({ [depsKey]: executeTool } as ModelProxyHttpDeps)(makeParamReq({ provider }, body()), res);
+    expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'get_weather', input: { location: 'SF' } }));
+  });
+
+  /**
+   * The registry's per-provider `run` closures are a second, independent copy of each fixed route's
+   * option-forwarding spread, so covering the fixed routes proves nothing about these. Each case
+   * below sends every optional field the provider accepts and asserts it survived onto the wire.
+   *
+   * `google` and `ollama` deliberately omit `baseUrl` here: their fixed-route counterparts above
+   * always supply one, so this is where the default-endpoint arm of the registry spread gets
+   * exercised.
+   */
+  it.each([
+    [
+      'anthropic',
+      { ...validAnthropicBody, baseUrl: 'http://127.0.0.1:9001', apiVersion: '2099-01-01', system: 'be terse', tools: [{ name: 't', input_schema: { type: 'object', properties: {} } }], temperature: 0.4, maxToolTurns: 2, extraHeaders: { 'X-Custom': 'yes' } },
+      () => sseBody(anthropicChunk('ok')),
+      (url: string, init: any) => {
+        expect(url).toBe('http://127.0.0.1:9001/v1/messages');
+        expect(init.headers['anthropic-version']).toBe('2099-01-01');
+        expect(init.headers['X-Custom']).toBe('yes');
+        const body = JSON.parse(init.body);
+        expect(body.system).toBe('be terse');
+        expect(body.temperature).toBe(0.4);
+        expect(body.tools).toHaveLength(1);
+      },
+    ],
+    [
+      'openai',
+      { ...validOpenAiBody, baseUrl: 'http://127.0.0.1:9002', tools: [{ type: 'function', function: { name: 't', parameters: { type: 'object', properties: {} } } }], temperature: 0.7, maxTokens: 512, maxToolTurns: 3, extraHeaders: { 'X-Custom': 'yes' } },
+      () => sseBody(openAiChunk('ok')),
+      (url: string, init: any) => {
+        expect(url).toBe('http://127.0.0.1:9002/v1/chat/completions');
+        expect(init.headers['X-Custom']).toBe('yes');
+        const body = JSON.parse(init.body);
+        expect(body.temperature).toBe(0.7);
+        expect(body.max_tokens).toBe(512);
+        expect(body.tools).toHaveLength(1);
+      },
+    ],
+    [
+      'azure',
+      { ...validAzureBody, tools: [{ type: 'function', function: { name: 't', parameters: { type: 'object', properties: {} } } }], temperature: 0.2, maxTokens: 128, maxToolTurns: 4, extraHeaders: { 'X-Custom': 'yes' } },
+      () => sseBody(azureChunk('ok')),
+      (_url: string, init: any) => {
+        expect(init.headers['X-Custom']).toBe('yes');
+        const body = JSON.parse(init.body);
+        expect(body.temperature).toBe(0.2);
+        expect(body.max_tokens).toBe(128);
+        expect(body.tools).toHaveLength(1);
+      },
+    ],
+    [
+      'google',
+      { apiKey: 'goog-test', model: 'gemini-2.5-flash', messages: [{ role: 'user', parts: [{ text: 'hi' }] }], system: 'be terse', tools: [{ functionDeclarations: [{ name: 't', parameters: { type: 'object', properties: {} } }] }], temperature: 0.9, maxOutputTokens: 64, maxToolTurns: 2, extraHeaders: { 'X-Custom': 'yes' } },
+      () => sseBody(googleChunk('ok')),
+      (url: string, init: any) => {
+        // No baseUrl supplied -> the turn-runner's own public Gemini endpoint.
+        expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse');
+        expect(init.headers['X-Custom']).toBe('yes');
+        const body = JSON.parse(init.body);
+        expect(body.systemInstruction).toEqual({ parts: [{ text: 'be terse' }] });
+        expect(body.generationConfig.temperature).toBe(0.9);
+        expect(body.generationConfig.maxOutputTokens).toBe(64);
+        expect(body.tools).toHaveLength(1);
+      },
+    ],
+    [
+      'ollama',
+      { apiKey: 'sk-ollama-cloud', model: 'llama3', messages: [{ role: 'user', content: 'hi' }], tools: [{ type: 'function', function: { name: 't', parameters: { type: 'object', properties: {} } } }], temperature: 0.1, maxTokens: 256, maxToolTurns: 5, extraHeaders: { 'X-Custom': 'yes' } },
+      () => ollamaBody(ollamaTextLine('ok'), ollamaDoneLine()),
+      (url: string, init: any) => {
+        // No baseUrl supplied -> Ollama Cloud, not a local install (see module doc).
+        expect(url).toBe('https://ollama.com/api/chat');
+        expect(init.headers['X-Custom']).toBe('yes');
+        const body = JSON.parse(init.body);
+        expect(body.options.temperature).toBe(0.1);
+        expect(body.tools).toHaveLength(1);
+      },
+    ],
+  ])('forwards every optional field through %s’s registry entry', async (provider, body, stream, assertWire) => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(stream()));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = makeSseRes();
+    await handler()(makeParamReq({ provider }, body), res);
+    expect(writtenEvents(res)).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'ok' } });
+    const [url, init] = fetchMock.mock.calls[0]!;
+    assertWire(url as string, init);
+  });
+
+  it('SEC-005: tags the internal-error context with the provider read from the path param', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom', {}))));
+    vi.stubGlobal('fetch', fetchMock);
+    const onInternalError = vi.fn();
+    const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom'));
+    const res = makeSseRes();
+    await handler({ anthropicExecuteTool, onInternalError })(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    expect(onInternalError.mock.calls[0]![0].provider).toBe('anthropic');
   });
 });

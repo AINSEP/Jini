@@ -50,7 +50,13 @@ export function MessageList({
   }, [scrollIntent, messages]);
 
   return (
-    <div className="jini-message-list" ref={containerRef}>
+    <div
+      className="jini-message-list"
+      ref={containerRef}
+      data-agent-element="chat-transcript"
+      data-agent-role="list"
+      data-agent-label="The conversation transcript, oldest message first"
+    >
       {messages.map((message) => {
         const isLast = message.id === messages[messages.length - 1]?.id;
         const runStreaming = isLast && isStreaming && !isTerminalRunStatus(message.runStatus);

@@ -38,6 +38,19 @@ describe('@jini-ai/http-kit barrel', () => {
     expect(typeof HttpBarrel.sendCompatApiError).toBe('function');
   });
 
+  it('re-exports the attachment upload capability: routes, store, and helpers', () => {
+    expect(HttpBarrel.ATTACHMENTS_ROUTE_PATH).toBe('/api/attachments');
+    expect(typeof HttpBarrel.registerAttachmentRoutes).toBe('function');
+    expect(typeof HttpBarrel.createDiskAttachmentStore).toBe('function');
+    expect(typeof HttpBarrel.handleAttachmentUpload).toBe('function');
+    expect(typeof HttpBarrel.handleAttachmentCleanup).toBe('function');
+    expect(typeof HttpBarrel.sanitizeAttachmentName).toBe('function');
+    expect(typeof HttpBarrel.detectAttachmentKind).toBe('function');
+    expect(typeof HttpBarrel.writeBoundedAttachmentBody).toBe('function');
+    expect(typeof HttpBarrel.isUnchangedAttachment).toBe('function');
+    expect(new HttpBarrel.AttachmentRejectedError('invalid-batch', 'nope').reason).toBe('invalid-batch');
+  });
+
   it('re-exports the Express-mounting Adapter and security middleware flat at the root', () => {
     expect(typeof HttpBarrel.mountJsonRoute).toBe('function');
     expect(typeof HttpBarrel.registerApiBearerAuthMiddleware).toBe('function');

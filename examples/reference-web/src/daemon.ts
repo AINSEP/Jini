@@ -14,7 +14,13 @@ import {
 import { createGenUiEncoder } from '@jini-ai/agentic';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { ToolRegistration } from '@jini-ai/core';
-import { registerMediaRoutes, registerMemoryRoutes, registerRunStreamRoute } from '@jini-ai/http-kit';
+import {
+  createDiskAttachmentStore,
+  registerAttachmentRoutes,
+  registerMediaRoutes,
+  registerMemoryRoutes,
+  registerRunStreamRoute,
+} from '@jini-ai/http-kit';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/media';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
 import { createFrontendControl, createLocalNodeDaemon } from '@jini-ai/server';
@@ -27,13 +33,7 @@ import {
   decodePlaygroundRunRequest,
   failPlaygroundRunBeforeExecutor,
   promptWithPlaygroundAttachments,
-  sanitizePlaygroundAttachmentName,
-  writeBoundedAttachmentBody,
 } from './playground-request.js';
-import {
-  createPlaygroundAttachmentRegistry,
-  detectPlaygroundAttachmentKind,
-} from './playground-attachment-registry.js';
 import {
   createPlaygroundWorkingDirectoryAuthority,
   isLoopbackAddress,
@@ -41,19 +41,38 @@ import {
 import { resolveJiniMcpBridge, type JiniMcpBridgeInjection } from './mcp-bridge.js';
 
 const PLAYGROUND_PREFIX = 'playground:';
-const PLAYGROUND_PORT = 4317;
+
+/**
+ * Ports, overridable so a second playground can run beside an already-running one — which is what
+ * verifying a change against a live browser needs when someone else's instance already holds the
+ * defaults. Defaults are unchanged, so `pnpm daemon` behaves exactly as before.
+ *
+ * `JINI_PLAYGROUND_WEB_PORT` must match the port Vite is actually serving on, because it is what
+ * `JINI_ALLOWED_ORIGINS` below is built from, and that is what lets the daemon's same-origin guard
+ * accept a browser sitting on the dev server's origin rather than the daemon's own.
+ */
+function portFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65_535) {
+    throw new Error(`${name} must be an integer port between 1 and 65535 (received ${JSON.stringify(raw)})`);
+  }
+  return parsed;
+}
+
+const PLAYGROUND_PORT = portFromEnv('JINI_PLAYGROUND_PORT', 4317);
+const PLAYGROUND_WEB_PORT = portFromEnv('JINI_PLAYGROUND_WEB_PORT', 4173);
 /**
  * The A2UI Lab action relay's own port — deliberately a second, dedicated `node:http` server, not
  * a route bolted onto the daemon's own Express app. See `startA2uiActionRelay`'s doc for why.
  */
-const A2UI_ACTION_PORT = 4318;
+const A2UI_ACTION_PORT = portFromEnv('JINI_PLAYGROUND_A2UI_ACTION_PORT', 4318);
 const A2UI_DEMO_AGENT_ID = 'a2ui-demo';
 const PROJECTS = new Set(['starter-site', 'bug-hunt']);
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const dataDir = resolve(repoRoot, '.jini/playground');
 const uploadDir = resolve(dataDir, 'uploads');
-const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-const MAX_CONCURRENT_UPLOADS = 4;
 
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
@@ -413,7 +432,8 @@ async function main(): Promise<void> {
   // that is the user's own folder, which is exactly why the grant is an explicit, secret-gated act.
   const mcpBridge = resolvePlaygroundMcpBridge();
   process.env.JINI_DISABLE_API_AUTH = '1';
-  process.env.JINI_ALLOWED_ORIGINS = 'http://127.0.0.1:4173,http://localhost:4173';
+  process.env.JINI_ALLOWED_ORIGINS =
+    `http://127.0.0.1:${PLAYGROUND_WEB_PORT},http://localhost:${PLAYGROUND_WEB_PORT}`;
   const env: NodeJS.ProcessEnv = {
     ...process.env,
   };
@@ -429,16 +449,19 @@ async function main(): Promise<void> {
     projects: PROJECTS,
     grantSecret: process.env.JINI_PLAYGROUND_GRANT_SECRET,
   });
-  const attachmentRegistry = await createPlaygroundAttachmentRegistry({
+  // Composer file/image uploads, entirely from `@jini-ai/http-kit`: this store plus
+  // `registerAttachmentRoutes` below plus the `claim`/`cleanupRun` calls in `onRunStarted` are the
+  // whole integration. Every quota here is the package default; they are named rather than omitted
+  // only because a playground is where someone reads them.
+  const attachmentStore = await createDiskAttachmentStore({
     uploadDirectory: uploadDir,
   });
   const attachmentPruneTimer = setInterval(() => {
-    void attachmentRegistry.pruneExpired().catch((error: unknown) => {
+    void attachmentStore.pruneExpired().catch((error: unknown) => {
       console.error('[Jini Playground] attachment retention cleanup failed', error);
     });
   }, 5 * 60 * 1_000);
   attachmentPruneTimer.unref();
-  let activeUploadCount = 0;
 
   /**
    * Agent-driven frontend control. The playground allows every capability outright because it is a
@@ -521,80 +544,10 @@ async function main(): Promise<void> {
             }
           });
         },
-        (app) => {
-          app.post('/api/playground/attachments', async (request, response) => {
-            if (activeUploadCount >= MAX_CONCURRENT_UPLOADS) {
-              response.status(429).json({ message: 'Too many attachment uploads are in progress' });
-              return;
-            }
-            const name = sanitizePlaygroundAttachmentName(request.query.name);
-            const batchId = typeof request.query.batch === 'string' ? request.query.batch : '';
-            activeUploadCount += 1;
-            try {
-              await attachmentRegistry.pruneExpired();
-              const batchDirectory = await attachmentRegistry.createBatchDirectory(batchId);
-              const suffix = extname(name).slice(0, 12);
-              const path = resolve(batchDirectory, `${randomUUID()}${suffix}`);
-              const upload = await writeBoundedAttachmentBody({
-                request,
-                filePath: path,
-                maxBytes: MAX_ATTACHMENT_BYTES,
-              });
-              if (upload.size === 0) {
-                await rm(path, { force: true });
-                response.status(400).json({ message: 'Attachment is empty' });
-                return;
-              }
-              const attachment = await attachmentRegistry.register({
-                batchId,
-                path,
-                name,
-                kind: detectPlaygroundAttachmentKind(upload.signature),
-                size: upload.size,
-              });
-              response.status(201).json({
-                attachment,
-              });
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error);
-              const status = message.includes('20 MB')
-                || message.includes('limited to')
-                || message.includes('too large')
-                || message.includes('storage is full')
-                ? 413
-                : message.includes('Invalid attachment batch')
-                  ? 400
-                  : 500;
-              response.status(status).json({
-                message: status === 500 ? 'Attachment upload failed' : message,
-              });
-            } finally {
-              activeUploadCount -= 1;
-              await attachmentRegistry.deleteUnclaimed(batchId, []).catch(() => undefined);
-            }
-          });
-          app.delete('/api/playground/attachments', async (request, response) => {
-            try {
-              const body = request.body as {
-                batchId?: unknown;
-                paths?: unknown;
-              } | undefined;
-              if (
-                typeof body?.batchId !== 'string'
-                || !Array.isArray(body.paths)
-                || body.paths.length > 10
-                || !body.paths.every((path) => typeof path === 'string')
-              ) {
-                response.status(400).json({ message: 'Invalid attachment cleanup request' });
-                return;
-              }
-              await attachmentRegistry.deleteUnclaimed(body.batchId, body.paths);
-              response.status(204).end();
-            } catch {
-              response.status(400).json({ message: 'Invalid attachment cleanup request' });
-            }
-          });
-        },
+        // `POST`/`DELETE /api/attachments`, replacing ~70 lines of hand-rolled upload plumbing this
+        // file used to carry. The same-origin guard is on by default and works here because
+        // `JINI_ALLOWED_ORIGINS` above already names the Vite dev origin the browser sends.
+        (app, { adapter }) => registerAttachmentRoutes(app, { store: attachmentStore }, adapter),
         (app, { lifecycle }) =>
           registerRunStreamRoute(app, { lifecycle, encoder: createGenUiEncoder() }),
         (app, { adapter }) => registerMemoryRoutes(app, memoryRoutesDeps, adapter),
@@ -610,7 +563,7 @@ async function main(): Promise<void> {
       ],
       onShutdown: async () => {
         clearInterval(attachmentPruneTimer);
-        await attachmentRegistry.dispose();
+        await attachmentStore.dispose();
         await mediaTaskStore.close();
       },
       onRunStarted: (context) => {
@@ -633,7 +586,7 @@ async function main(): Promise<void> {
               allowedProjects: PROJECTS,
               prefix: PLAYGROUND_PREFIX,
             });
-            const claimed = await attachmentRegistry.claim(
+            const claimed = await attachmentStore.claim(
               decoded.attachments ?? [],
               run.id,
             );
@@ -693,14 +646,14 @@ async function main(): Promise<void> {
               runId: run.id,
             });
           } finally {
-            await attachmentRegistry.cleanupRun(run.id);
+            await attachmentStore.cleanupRun(run.id);
           }
         })();
       },
     });
   } catch (error) {
     clearInterval(attachmentPruneTimer);
-    await attachmentRegistry.dispose();
+    await attachmentStore.dispose();
     await mediaTaskStore.close();
     throw error;
   }

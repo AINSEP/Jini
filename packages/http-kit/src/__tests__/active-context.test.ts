@@ -1,4 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Server } from 'node:http';
+import express from 'express';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isLocalSameOrigin } from '../origin-validation.js';
 import {
   ACTIVE_CONTEXT_TTL_MS,
@@ -301,5 +303,61 @@ describe('registerActiveContextRoutes', () => {
     const res = makeRes();
     await app.handlers['POST /api/active']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+});
+
+describe('registerActiveContextRoutes — real Express server on a real socket, not fake req/res', () => {
+  function makeDeps(overrides: Partial<ActiveContextDeps> = {}): ActiveContextDeps {
+    return { resolveResource: () => ({ name: 'Resolved' }), ...overrides };
+  }
+
+  let server: Server | undefined;
+
+  afterEach(() => {
+    server?.close();
+    server = undefined;
+  });
+
+  it('a real POST /api/active followed by a real GET /api/active round-trips through actual body parsing, path routing, and JSON serialization', async () => {
+    const app = express();
+    app.use(express.json());
+    const realAdapter = { resolvedPortRef: { current: 0 } };
+    registerActiveContextRoutes(app, makeDeps({ resolveResource: () => ({ name: 'Widget' }) }), realAdapter);
+    server = app.listen(0);
+    const port = (server.address() as { port: number }).port;
+    realAdapter.resolvedPortRef.current = port;
+    const base = `http://127.0.0.1:${port}`;
+
+    const postRes = await fetch(`${base}/api/active`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ resourceRef: 'w-1', detail: 'notes.md' }),
+    });
+    expect(postRes.status).toBe(200);
+    expect(postRes.headers.get('content-type')).toContain('application/json');
+    const postBody = await postRes.json();
+    expect(postBody).toMatchObject({ active: true, resourceRef: 'w-1', detail: 'notes.md' });
+
+    const getRes = await fetch(`${base}/api/active`);
+    expect(getRes.status).toBe(200);
+    const getBody = await getRes.json();
+    expect(getBody).toMatchObject({ active: true, resourceRef: 'w-1', resourceName: 'Widget', detail: 'notes.md' });
+  });
+
+  it('a real malformed POST /api/active (missing resourceRef) gets a genuine 400 over the wire', async () => {
+    const app = express();
+    app.use(express.json());
+    const realAdapter = { resolvedPortRef: { current: 0 } };
+    registerActiveContextRoutes(app, makeDeps(), realAdapter);
+    server = app.listen(0);
+    const port = (server.address() as { port: number }).port;
+    realAdapter.resolvedPortRef.current = port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/active`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
   });
 });

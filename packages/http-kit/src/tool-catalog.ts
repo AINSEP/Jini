@@ -19,6 +19,7 @@
  * (`packages/daemon/src/delegated-tool-bridge.ts`) — finding a tool id here grants nothing.
  */
 import type { Express } from 'express';
+import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -86,7 +87,19 @@ function parseDescribeInput(input: RouteInputContext): Result<{ id: string }> {
   return ok({ id });
 }
 
-/** `GET /api/tools/:id` — full descriptor (schema included), paid for only once a candidate survives search. */
+/**
+ * `GET /api/tools/:id` — full descriptor (schema included), paid for only once a candidate survives
+ * search.
+ *
+ * An unknown tool id is **404 `NOT_FOUND`**, not 400. A well-formed request naming a catalog entry
+ * that does not exist is a missing resource, not a malformed request — and the three sibling route
+ * families in this package that have the same "the referenced thing isn't there" case
+ * (`memory.ts`'s `memory not found`, `routines.ts`'s `routine not found`, `media.ts`'s
+ * `media task not found`) all already answer 404. This route answered 400 until 2026-07-29 purely
+ * because it reached for `validationError` — the same helper its `parse` step uses, where 400 *is*
+ * correct — so a caller could not distinguish "you sent a bad request" from "that tool is gone".
+ * `parse` failures here (a missing `:id` segment) are still 400.
+ */
 export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCatalogEntry, ToolCatalogHttpDeps>({
   method: 'get',
   path: '/api/tools/:id',
@@ -94,7 +107,7 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
   parse: parseDescribeInput,
   handle: (input, deps) => {
     const entry = deps.catalog.describe(input.id);
-    if (!entry) return err(validationError(`no catalog entry for tool id "${input.id}"`));
+    if (!entry) return err(createApiError('NOT_FOUND', `no catalog entry for tool id "${input.id}"`));
     return ok(entry);
   },
 });

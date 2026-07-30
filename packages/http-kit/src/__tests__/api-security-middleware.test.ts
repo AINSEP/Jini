@@ -380,6 +380,32 @@ describe('requireStrictBearerToken', () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+  // Every other case in this block injects `env`, so the real-`process.env` default this gate uses in
+  // production was never exercised. It matters here more than for the other two middlewares: this is
+  // the fail-closed gate, so "which env did it actually read" decides between 503 and serving.
+  it('defaults env to real process.env when omitted entirely', () => {
+    const original = process.env[TOKEN_ENV_VAR];
+    try {
+      process.env[TOKEN_ENV_VAR] = 'from-real-process-env';
+      const gate = requireStrictBearerToken({ tokenEnvVar: TOKEN_ENV_VAR });
+
+      const okRes = makeRes();
+      const okNext = vi.fn();
+      gate(makeReq({ authorization: 'Bearer from-real-process-env' }) as any, okRes as any, okNext);
+      expect(okNext).toHaveBeenCalledOnce();
+      expect(okRes.status).not.toHaveBeenCalled();
+
+      const badRes = makeRes();
+      const badNext = vi.fn();
+      gate(makeReq({ authorization: 'Bearer wrong' }) as any, badRes as any, badNext);
+      expect(badRes.status).toHaveBeenCalledWith(401);
+      expect(badNext).not.toHaveBeenCalled();
+    } finally {
+      if (original === undefined) delete process.env[TOKEN_ENV_VAR];
+      else process.env[TOKEN_ENV_VAR] = original;
+    }
+  });
+
   it('fails closed with 503 when the token env var is set but empty', () => {
     const res = makeRes();
     const next = vi.fn();

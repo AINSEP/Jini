@@ -410,6 +410,31 @@ export {
 } from './media.js';
 
 export type {
+  AttachmentClaim,
+  AttachmentRejectionReason,
+  AttachmentsHttpDeps,
+  AttachmentsInternalErrorContext,
+  AttachmentStore,
+  AttachmentUploadResponse,
+  CreateDiskAttachmentStoreOptions,
+  ObservedAttachmentIdentity,
+  RecordedAttachmentIdentity,
+  StoredAttachment,
+} from './attachments.js';
+export {
+  ATTACHMENTS_ROUTE_PATH,
+  AttachmentRejectedError,
+  createDiskAttachmentStore,
+  detectAttachmentKind,
+  handleAttachmentCleanup,
+  handleAttachmentUpload,
+  isUnchangedAttachment,
+  registerAttachmentRoutes,
+  sanitizeAttachmentName,
+  writeBoundedAttachmentBody,
+} from './attachments.js';
+
+export type {
   XaiAuthStatusResponse,
   XaiHttpDeps,
   XaiInternalErrorContext,

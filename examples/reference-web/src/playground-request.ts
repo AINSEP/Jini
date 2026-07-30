@@ -1,6 +1,9 @@
-import { basename } from 'node:path';
-import { chmod, open, rm } from 'node:fs/promises';
-
+/**
+ * Structurally `@jini-ai/http-kit`'s `StoredAttachment` (and `@jini-ai/chat-core`'s
+ * `ChatAttachment`), kept as a local name only so this host's own request envelope reads in its own
+ * vocabulary. Assignable to the store's `claim()` parameter without conversion — the compile-time
+ * proof is `daemon.ts` passing `decoded.attachments` straight into `attachmentStore.claim`.
+ */
 export interface PlaygroundAttachment {
   path: string;
   name: string;
@@ -161,63 +164,6 @@ export function decodePlaygroundRunRequest({
     ...(workingDirectory !== undefined ? { workingDirectory } : {}),
     ...(attachments !== undefined && attachments.length > 0 ? { attachments } : {}),
   };
-}
-
-/**
- * Converts an untrusted upload filename to a basename-only display name.
- *
- * @complexity Time/space: O(n) in the supplied filename length.
- * @overallScore 100/100
- */
-export function sanitizePlaygroundAttachmentName(requestedName: unknown): string {
-  if (typeof requestedName !== 'string') return 'attachment';
-  return basename(requestedName).replaceAll(/[^a-zA-Z0-9._ -]/gu, '_') || 'attachment';
-}
-
-/**
- * Streams a request body directly to a private file while enforcing a hard
- * byte cap. Only the first 12 signature bytes remain in memory.
- *
- * @complexity Time: O(n); auxiliary space: O(1).
- * @overallScore 100/100
- */
-export async function writeBoundedAttachmentBody({
-  request,
-  filePath,
-  maxBytes,
-  mode = 0o600,
-}: {
-  request: AsyncIterable<unknown>;
-  filePath: string;
-  maxBytes: number;
-  mode?: number;
-}): Promise<{ size: number; signature: Uint8Array }> {
-  const handle = await open(filePath, 'wx', mode);
-  let total = 0;
-  let signature = Buffer.alloc(0);
-  try {
-    for await (const chunk of request) {
-      const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
-      total += buffer.byteLength;
-      if (total > maxBytes) {
-        throw new Error('Attachment exceeds the 20 MB playground limit');
-      }
-      if (signature.byteLength < 12) {
-        signature = Buffer.concat(
-          [signature, buffer.subarray(0, 12 - signature.byteLength)],
-          Math.min(12, signature.byteLength + buffer.byteLength),
-        );
-      }
-      await handle.write(buffer);
-    }
-    await handle.close();
-    await chmod(filePath, mode);
-    return { size: total, signature };
-  } catch (error) {
-    await handle.close().catch(() => undefined);
-    await rm(filePath, { force: true });
-    throw error;
-  }
 }
 
 /**

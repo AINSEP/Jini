@@ -209,6 +209,88 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     });
   }
 
+  /** Opens the audit record for a fresh execution and records the `requested` transition. */
+  function openAudit(principal: Principal, run: RunRef, toolId: string): string {
+    const executionId = randomUUID();
+    audits.set(executionId, {
+      executionId,
+      toolId,
+      principalId: principal.id,
+      runId: run.id,
+      events: [],
+    });
+    appendEvent(executionId, 'requested');
+    return executionId;
+  }
+
+  function authorize(principal: Principal, run: RunRef, toolId: string, input: unknown) {
+    // `.bind(delegate)` rather than passing the bare method reference: `ExecutionDelegate` is
+    // declared with method syntax, so a host may legitimately implement it as a class instance
+    // whose `onAuthorize` reads `this`. Handing the detached function to `@jini-ai/core` would
+    // call it with `this` bound to the wrapper object, and a `this`-using veto would throw a
+    // TypeError out of `execute()` instead of returning a decision. Re-read per call (not hoisted
+    // to `createToolExecutor`) so a delegate that gains `onAuthorize` after construction still
+    // gets consulted, matching the pre-`authorizeToolInvocation` behaviour.
+    const onAuthorize = delegate.onAuthorize?.bind(delegate);
+    return authorizeToolInvocation(
+      registry,
+      toolId,
+      principal,
+      run,
+      input,
+      onAuthorize ? { onAuthorize } : undefined,
+    );
+  }
+
+  /** Mirrors an externally supplied `AbortSignal` onto this execution's own controller. */
+  function linkAbortSignal(controller: AbortController, signal: AbortSignal | undefined): void {
+    if (!signal) return;
+    if (signal.aborted) {
+      controller.abort();
+      return;
+    }
+    signal.addEventListener('abort', () => controller.abort(), { once: true });
+  }
+
+  /**
+   * Arms the descriptor's execution timeout, if it declares one. The returned `timedOut()` reports
+   * whether the timer (rather than an external cancel) was what aborted the controller, which is
+   * what distinguishes a `timed-out` result from a `cancelled` one.
+   */
+  function startTimeout(
+    controller: AbortController,
+    timeoutMs: number | undefined,
+  ): { handle: ReturnType<typeof setTimeout> | undefined; timedOut: () => boolean } {
+    if (timeoutMs === undefined) return { handle: undefined, timedOut: () => false };
+    let timedOut = false;
+    const handle = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+    handle.unref?.();
+    return { handle, timedOut: () => timedOut };
+  }
+
+  /** Classifies a handler rejection into its terminal result, recording the matching transition. */
+  function failureResult(
+    executionId: string,
+    err: unknown,
+    timedOut: boolean,
+    aborted: boolean,
+  ): ToolExecutionResult {
+    if (timedOut) {
+      appendEvent(executionId, 'timed-out');
+      return { executionId, status: 'timed-out' };
+    }
+    if (aborted) {
+      appendEvent(executionId, 'cancelled');
+      return { executionId, status: 'cancelled' };
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    appendEvent(executionId, 'failed', message);
+    return { executionId, status: 'failed', error: message };
+  }
+
   async function execute(
     principal: Principal,
     run: RunRef,
@@ -226,32 +308,8 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
       throw new Error(`ToolExecutor: unknown tool "${toolId}"`);
     }
 
-    const executionId = randomUUID();
-    audits.set(executionId, {
-      executionId,
-      toolId,
-      principalId: principal.id,
-      runId: run.id,
-      events: [],
-    });
-    appendEvent(executionId, 'requested');
-
-    // `.bind(delegate)` rather than passing the bare method reference: `ExecutionDelegate` is
-    // declared with method syntax, so a host may legitimately implement it as a class instance
-    // whose `onAuthorize` reads `this`. Handing the detached function to `@jini-ai/core` would
-    // call it with `this` bound to the wrapper object, and a `this`-using veto would throw a
-    // TypeError out of `execute()` instead of returning a decision. Re-read per call (not hoisted
-    // to `createToolExecutor`) so a delegate that gains `onAuthorize` after construction still
-    // gets consulted, matching the pre-`authorizeToolInvocation` behaviour.
-    const onAuthorize = delegate.onAuthorize?.bind(delegate);
-    const resolved = await authorizeToolInvocation(
-      registry,
-      toolId,
-      principal,
-      run,
-      input,
-      onAuthorize ? { onAuthorize } : undefined,
-    );
+    const executionId = openAudit(principal, run, toolId);
+    const resolved = await authorize(principal, run, toolId, input);
     // `registry.has(toolId)` above already confirmed the tool exists, and `ToolRegistry` is
     // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
     // resolving the same `toolId` against the same `registry` cannot come back `undefined` here.
@@ -264,6 +322,10 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     appendEvent(executionId, 'authorized');
     const { handler } = resolved!;
 
+    // Kept inline rather than extracted into a helper: hoisting this into an `async` function adds
+    // microtask ticks to the *un*-confirmed path too, and callers observe that timing — a test
+    // cancels an in-flight execution after a fixed number of ticks and needs the handler to have
+    // already started by then.
     if (descriptor.requiresConfirmation) {
       const confirmation = await requestConfirmation({ executionId, principal, run, tool: descriptor, input });
       if (confirmation !== 'confirm') {
@@ -275,23 +337,8 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
 
     const controller = new AbortController();
     activeControllers.set(executionId, controller);
-    if (signal) {
-      if (signal.aborted) {
-        controller.abort();
-      } else {
-        signal.addEventListener('abort', () => controller.abort(), { once: true });
-      }
-    }
-
-    let timedOut = false;
-    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
-    if (descriptor.timeoutMs !== undefined) {
-      timeoutHandle = setTimeout(() => {
-        timedOut = true;
-        controller.abort();
-      }, descriptor.timeoutMs);
-      timeoutHandle.unref?.();
-    }
+    linkAbortSignal(controller, signal);
+    const timeout = startTimeout(controller, descriptor.timeoutMs);
 
     // Cleanup (clear the timeout, drop the abort controller) is repeated at
     // each return below rather than centralized in a `finally` — a
@@ -299,30 +346,22 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     // istanbul/v8 instruments for the finally block itself, which is
     // unreachable in practice (every path through the try/catch below
     // returns normally; nothing here can throw a *second* exception past
-    // the catch). Repeating two lines avoids leaving an uncoverable branch
+    // the catch). Repeating one call avoids leaving an uncoverable branch
     // behind instead of writing a contrived test or suppressing it.
+    const cleanup = () => {
+      if (timeout.handle) clearTimeout(timeout.handle);
+      activeControllers.delete(executionId);
+    };
     appendEvent(executionId, 'started');
     try {
       const rawOutput = await handler({ executionId, principal, run, input, signal: controller.signal });
       const { output, truncated } = truncateOutput(rawOutput, descriptor.maxOutputBytes);
       appendEvent(executionId, 'completed');
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      activeControllers.delete(executionId);
+      cleanup();
       return { executionId, status: 'completed', output, truncated };
     } catch (err) {
-      if (timeoutHandle) clearTimeout(timeoutHandle);
-      activeControllers.delete(executionId);
-      if (timedOut) {
-        appendEvent(executionId, 'timed-out');
-        return { executionId, status: 'timed-out' };
-      }
-      if (controller.signal.aborted) {
-        appendEvent(executionId, 'cancelled');
-        return { executionId, status: 'cancelled' };
-      }
-      const message = err instanceof Error ? err.message : String(err);
-      appendEvent(executionId, 'failed', message);
-      return { executionId, status: 'failed', error: message };
+      cleanup();
+      return failureResult(executionId, err, timeout.timedOut(), controller.signal.aborted);
     }
   }
 

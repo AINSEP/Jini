@@ -16,6 +16,13 @@ describe('MessageList', () => {
     expect(screen.getByText('hello back')).toBeInTheDocument();
   });
 
+  it('tags the transcript container for agent inspection', () => {
+    const { container } = render(<MessageList messages={messages} />);
+    const el = container.querySelector('[data-agent-element="chat-transcript"]');
+    expect(el).toHaveAttribute('data-agent-role', 'list');
+    expect(el).toHaveAttribute('data-agent-label', 'The conversation transcript, oldest message first');
+  });
+
   it('marks only the last message as streaming while isStreaming is true', () => {
     const streamingMessages: ChatMessage[] = [
       { id: '1', role: 'assistant', content: '', runStatus: 'running', events: [{ kind: 'tool_use', id: 't1', name: 'Bash', input: {} }] },

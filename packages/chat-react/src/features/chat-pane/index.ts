@@ -28,6 +28,10 @@ export {
   resolveChatPaneSelection,
 } from './rules.js';
 export {
+  createDaemonAttachmentUploader,
+  type CreateDaemonAttachmentUploaderOptions,
+} from './create-daemon-attachment-uploader.js';
+export {
   useChatPane,
   type UseChatPaneOptions,
   type UseChatPaneResult,

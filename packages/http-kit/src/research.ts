@@ -152,8 +152,17 @@ function defaultInternalErrorSink(context: ResearchInternalErrorContext): void {
   console.error(`[@jini-ai/http-kit] internal error (research/search, correlationId=${context.correlationId})`, context.error);
 }
 
-async function defaultResolveCredentials(providerId: string): Promise<ResearchProviderCredentials> {
-  if (providerId !== 'tavily') return {};
+/**
+ * Default `ResearchHttpDeps.resolveCredentials`: reads `TAVILY_API_KEY` from the environment.
+ *
+ * Takes no `providerId` even though the `resolveCredentials` dep type supplies one (a function of
+ * fewer parameters is assignable, so this still satisfies the interface). It used to accept one and
+ * return `{}` for anything other than `'tavily'`, but that arm was unreachable twice over: the only
+ * call site below passes the literal `'tavily'`, and `validateRequestedProvider` already rejects any
+ * other provider name at parse time. A host that supports a second provider injects its own
+ * `resolveCredentials` rather than reaching this function with a different id.
+ */
+async function defaultResolveCredentials(): Promise<ResearchProviderCredentials> {
   const apiKey = process.env.TAVILY_API_KEY?.trim();
   return apiKey ? { apiKey } : {};
 }
@@ -219,14 +228,23 @@ interface TavilySearchOutput {
   readonly sources: ResearchSource[];
 }
 
-/** Calls Tavily's real `POST /search` endpoint directly — see module doc for the port's exact scope/provenance. Throws (never a `Result`) on any failure; the route handler below is the one place that converts a thrown error into the package's SEC-005 response shape. */
-async function tavilySearch(credentials: ResearchProviderCredentials, request: ResearchSearchRequest): Promise<TavilySearchOutput> {
-  const apiKey = credentials.apiKey;
-  if (!apiKey) {
-    // The caller (the route handler below) always checks this before calling in — see its own
-    // `NOT_CONFIGURED` branch — so this is a defense-in-depth guard, not the primary contract.
-    throw new Error('Tavily API key is not configured');
-  }
+/**
+ * Calls Tavily's real `POST /search` endpoint directly — see module doc for the port's exact
+ * scope/provenance. Throws (never a `Result`) on any failure; the route handler below is the one
+ * place that converts a thrown error into the package's SEC-005 response shape.
+ *
+ * `apiKey` is a separate, non-optional parameter rather than being read off `credentials`, so the
+ * "credential is present" invariant is carried by the type system instead of by a runtime guard.
+ * This function used to take only `credentials` and re-check `credentials.apiKey` itself, but the
+ * sole caller below already returns `NOT_CONFIGURED` before it ever gets here — the check was
+ * unreachable by construction, so it is now expressed as a required argument instead of dead code.
+ * `credentials` is still passed for its optional transport config (`baseUrl`).
+ */
+async function tavilySearch(
+  apiKey: string,
+  credentials: ResearchProviderCredentials,
+  request: ResearchSearchRequest,
+): Promise<TavilySearchOutput> {
   const baseUrl = credentials.baseUrl ?? DEFAULT_TAVILY_BASE_URL;
   const baseUrlCheck = validateBaseUrl(baseUrl);
   if (baseUrlCheck.error) {
@@ -258,6 +276,12 @@ async function tavilySearch(credentials: ResearchProviderCredentials, request: R
 
   const timeoutController = new AbortController();
   const timeoutHandle = setTimeout(() => timeoutController.abort(), DEFAULT_TAVILY_TIMEOUT_MS);
+  // Assigned in the `try` and returned *after* the `finally`, rather than returned from inside the
+  // `try`. Both forms behave identically, but a return-through-`finally` compiles to three copies of
+  // the `finally` body (normal completion, return, throw) and one of those is unreachable here — the
+  // `try` cannot fall off its end and the `catch` always throws. Falling through to a single return
+  // keeps the cleanup path honestly measurable instead of permanently one-third uncovered.
+  let output: TavilySearchOutput;
   try {
     const response = await fetch(`${base}/search`, {
       method: 'POST',
@@ -287,7 +311,7 @@ async function tavilySearch(credentials: ResearchProviderCredentials, request: R
         ...(publishedAt ? { publishedAt } : {}),
       });
     }
-    return { answer, sources };
+    output = { answer, sources };
   } catch (error) {
     if (!timeoutController.signal.aborted && error instanceof TavilyHttpError) {
       throw error;
@@ -304,6 +328,7 @@ async function tavilySearch(credentials: ResearchProviderCredentials, request: R
   } finally {
     clearTimeout(timeoutHandle);
   }
+  return output;
 }
 
 /** Ported verbatim from OD's real `research/index.ts#synthesizeFallbackSummary` — see module doc. Used when Tavily returns no `answer` text so the caller still gets a usable `summary`. */
@@ -333,12 +358,13 @@ export const researchSearchRoute = defineJsonRoute<ResearchSearchRequest, Resear
       return err(createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
     }
 
-    if (!credentials.apiKey) {
+    const apiKey = credentials.apiKey;
+    if (!apiKey) {
       return err(createApiError('NOT_CONFIGURED', 'tavily provider not configured'));
     }
 
     try {
-      const raw = await tavilySearch(credentials, request);
+      const raw = await tavilySearch(apiKey, credentials, request);
       // Matches OD's real `NO_RESEARCH_SOURCES` (404) — see module doc. Zero usable sources is a
       // failure, not an empty success, even when the upstream Tavily call itself succeeded.
       if (raw.sources.length === 0) {

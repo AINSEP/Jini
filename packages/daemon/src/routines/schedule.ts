@@ -184,48 +184,83 @@ export function nextHourlyRunAt(minute: number, now = new Date()): Date {
  * actually passes (daily/weekdays/weekly) structurally guarantees a match within 7 days, making
  * that branch otherwise unreachable through the public schedule-kind API alone.
  */
-export function nextWallTimeMatching(
-  timezone: string,
-  time: string,
-  predicate: (weekday: Weekday) => boolean,
-  now: Date,
-): Date | null {
+/** Parses a strict "HH:MM" 24-hour wall time, returning `null` for any malformed or out-of-range value. */
+function parseWallTime(time: string): { hour: number; minute: number } | null {
   const m = /^(\d{2}):(\d{2})$/.exec(time);
   if (!m) return null;
   const hour = Number(m[1]);
   const minute = Number(m[2]);
   if (!Number.isFinite(hour) || hour < 0 || hour > 23) return null;
   if (!Number.isFinite(minute) || minute < 0 || minute > 59) return null;
+  return { hour, minute };
+}
+
+/**
+ * What one candidate calendar day yielded while walking forward:
+ * fire at this instant, move to the next day, or abandon the walk entirely.
+ */
+type DayResolution =
+  | { kind: 'fire'; at: Date }
+  | { kind: 'next-day' }
+  | { kind: 'abandon' };
+
+/**
+ * Resolves the requested wall time on one specific calendar day in `timezone` to the instant a
+ * routine should fire, given that everything at or before `now` has already passed.
+ *
+ * `abandon` covers the case where the requested wall time cannot be represented as a `Date` at all
+ * — see {@link nextWallTimeMatching} for when that actually happens.
+ */
+function resolveDayFireInstant(
+  timezone: string,
+  date: { year: number; month: number; day: number },
+  hour: number,
+  minute: number,
+  now: Date,
+): DayResolution {
+  const candidates = tzWallToUtcCandidates(timezone, date.year, date.month, date.day, hour, minute);
+  if (candidates.length === 0) {
+    // Spring-forward gap: no valid wall instant exists today; pick the synthesized post-gap
+    // fallback so the routine still fires today.
+    const fallback = tzWallToUtcGapFallback(timezone, date.year, date.month, date.day, hour, minute);
+    if (!fallback) return { kind: 'abandon' };
+    return fallback.getTime() > now.getTime() ? { kind: 'fire', at: fallback } : { kind: 'next-day' };
+  }
+  // Iterate candidates in ascending order so that on a fall-back overlap day, when `now`
+  // already passed the first occurrence (EDT), we still pick the second one (EST) before
+  // walking to the next day.
+  for (const candidate of candidates) {
+    if (candidate.getTime() > now.getTime()) return { kind: 'fire', at: candidate };
+  }
+  return { kind: 'next-day' };
+}
+
+export function nextWallTimeMatching(
+  timezone: string,
+  time: string,
+  predicate: (weekday: Weekday) => boolean,
+  now: Date,
+): Date | null {
+  const wall = parseWallTime(time);
+  if (!wall) return null;
 
   // Walk day by day in the target timezone.
   for (let offset = 0; offset < 14; offset += 1) {
     const probe = new Date(now.getTime() + offset * 24 * 60 * 60_000);
     const parts = partsInTimezone(timezone, probe);
     if (!predicate(parts.weekday)) continue;
-    const candidates = tzWallToUtcCandidates(timezone, parts.year, parts.month, parts.day, hour, minute);
-    if (candidates.length === 0) {
-      // Spring-forward gap: no valid wall instant exists today; pick the synthesized post-gap
-      // fallback so the routine still fires today.
-      const fallback = tzWallToUtcGapFallback(timezone, parts.year, parts.month, parts.day, hour, minute);
-      // Null-safety guard against tzWallToUtcGapFallback's `Date | null` return type (it returns
-      // null only for an invalid timezone). Structurally unreachable from THIS call site: the
-      // unguarded `partsInTimezone(timezone, probe)` two lines above already succeeded for this
-      // exact `timezone` earlier in this same loop iteration, which proves it valid before
-      // `tzWallToUtcGapFallback` (guarding the identical Intl call) is ever reached — so this
-      // branch cannot be exercised without bypassing that invariant. Kept rather than removed:
-      // the guard is still correct defensive programming against the function's real signature,
-      // and `tzWallToUtcGapFallback`'s own null path is independently covered by a direct test
-      // (see schedule.test.ts) against an invalid timezone.
-      if (!fallback) return null;
-      if (fallback.getTime() > now.getTime()) return fallback;
-      continue;
-    }
-    // Iterate candidates in ascending order so that on a fall-back overlap day, when `now`
-    // already passed the first occurrence (EDT), we still pick the second one (EST) before
-    // walking to the next day.
-    for (const candidate of candidates) {
-      if (candidate.getTime() > now.getTime()) return candidate;
-    }
+    const resolution = resolveDayFireInstant(timezone, parts, wall.hour, wall.minute, now);
+    if (resolution.kind === 'fire') return resolution.at;
+    // `abandon` means `tzWallToUtcGapFallback` returned null. Its own `catch` fires whenever the
+    // Intl call inside it throws — which an invalid timezone causes, but so does an
+    // unrepresentable instant. The latter is reachable from right here despite `timezone` being
+    // proven valid by the `partsInTimezone` call above: when `now` sits within a day of the
+    // maximum representable `Date` (+275760-09-13), `Date.UTC(...)` for a later wall time that
+    // same day overflows to `NaN`, `new Date(NaN)` makes `formatToParts` throw `RangeError`, and
+    // both `tzWallToUtcCandidates` (hence the empty candidate list) and `tzWallToUtcGapFallback`
+    // swallow it. No later day can succeed either, so give up rather than spin the remaining
+    // iterations. Covered by a direct test in schedule.test.ts.
+    if (resolution.kind === 'abandon') return null;
   }
   return null;
 }
@@ -267,30 +302,43 @@ export function isValidTimezone(tz: string): boolean {
   }
 }
 
+/** Every schedule kind that fires at a wall-clock time in a named timezone. */
+type WallClockSchedule = Extract<RoutineSchedule, { kind: 'daily' | 'weekdays' | 'weekly' }>;
+
+function validateHourlyMinute(minute: number): void {
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
+    throw new Error('hourly.minute must be an integer 0-59');
+  }
+}
+
+function validateWeekday(weekday: number): void {
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) {
+    throw new Error('weekly.weekday must be 0-6');
+  }
+}
+
+function validateWallClockSchedule(schedule: WallClockSchedule): void {
+  if (!isValidWallTime(schedule.time)) {
+    throw new Error(`Invalid time: ${schedule.time}`);
+  }
+  if (!isValidTimezone(schedule.timezone)) {
+    throw new Error(`Invalid timezone: ${schedule.timezone}`);
+  }
+  if (schedule.kind === 'weekly') {
+    validateWeekday(schedule.weekday);
+  }
+}
+
 export function validateSchedule(schedule: RoutineSchedule): void {
   if (!schedule || typeof schedule !== 'object') {
     throw new Error('schedule is required');
   }
   if (schedule.kind === 'hourly') {
-    const m = schedule.minute;
-    if (!Number.isInteger(m) || m < 0 || m > 59) {
-      throw new Error('hourly.minute must be an integer 0-59');
-    }
+    validateHourlyMinute(schedule.minute);
     return;
   }
   if (schedule.kind === 'daily' || schedule.kind === 'weekdays' || schedule.kind === 'weekly') {
-    if (!isValidWallTime(schedule.time)) {
-      throw new Error(`Invalid time: ${schedule.time}`);
-    }
-    if (!isValidTimezone(schedule.timezone)) {
-      throw new Error(`Invalid timezone: ${schedule.timezone}`);
-    }
-    if (schedule.kind === 'weekly') {
-      const w = schedule.weekday;
-      if (!Number.isInteger(w) || w < 0 || w > 6) {
-        throw new Error('weekly.weekday must be 0-6');
-      }
-    }
+    validateWallClockSchedule(schedule);
     return;
   }
   throw new Error(`Unsupported schedule kind: ${(schedule as { kind: string }).kind}`);

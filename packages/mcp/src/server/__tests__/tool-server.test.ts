@@ -254,6 +254,41 @@ describe('run()', () => {
     await runPromise;
   });
 
+  it('omits authHeaders from every tool context when the caller supplies none', async () => {
+    const server = makeFakeServer();
+    const transport = new FakeTransport();
+    let seenCtx: { authHeaders?: Readonly<Record<string, string>> } | undefined;
+    const handle = createMcpToolServer(baseOptions({
+      tools: [noopTool({ handler: (_args, ctx) => { seenCtx = ctx; return 'ok'; } })],
+      createServer: () => server,
+      createTransport: () => transport,
+    }));
+    const runPromise = handle.run();
+    await flushAsync();
+    await server.callTool({ params: { name: 'noop', arguments: {} } });
+    expect(seenCtx?.authHeaders).toBeUndefined();
+    hoisted.onIdleRef.current?.();
+    await runPromise;
+  });
+
+  it('threads a caller-supplied authHeaders into every tool context', async () => {
+    const server = makeFakeServer();
+    const transport = new FakeTransport();
+    let seenAuthHeaders: Readonly<Record<string, string>> | undefined;
+    const handle = createMcpToolServer(baseOptions({
+      tools: [noopTool({ handler: (_args, ctx) => { seenAuthHeaders = ctx.authHeaders; return 'ok'; } })],
+      authHeaders: { Authorization: 'Bearer test-token' },
+      createServer: () => server,
+      createTransport: () => transport,
+    }));
+    const runPromise = handle.run();
+    await flushAsync();
+    await server.callTool({ params: { name: 'noop', arguments: {} } });
+    expect(seenAuthHeaders).toEqual({ Authorization: 'Bearer test-token' });
+    hoisted.onIdleRef.current?.();
+    await runPromise;
+  });
+
   it('lists tools via the ListToolsRequestSchema handler', async () => {
     const server = makeFakeServer();
     const transport = new FakeTransport();

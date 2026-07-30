@@ -89,7 +89,13 @@ export function MessageRow({
 
   if (message.role === 'user') {
     return (
-      <div className="jini-message jini-message-user" data-message-id={message.id}>
+      <div
+        className="jini-message jini-message-user"
+        data-message-id={message.id}
+        data-agent-element={`chat-message-${message.id}`}
+        data-agent-role="region"
+        data-agent-label="A message from the user"
+      >
         {message.attachments && message.attachments.length > 0 ? (
           <div className="jini-message-attachments">
             {message.attachments.map((a) => (
@@ -109,7 +115,14 @@ export function MessageRow({
   const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
 
   return (
-    <div className="jini-message jini-message-assistant" data-message-id={message.id} data-run-status={message.runStatus}>
+    <div
+      className="jini-message jini-message-assistant"
+      data-message-id={message.id}
+      data-run-status={message.runStatus}
+      data-agent-element={`chat-message-${message.id}`}
+      data-agent-role="region"
+      data-agent-label="A reply from the assistant"
+    >
       {message.agentName ? <div className="jini-message-agent">{message.agentName}</div> : null}
       {segments.map((segment, i) =>
         segment.kind === 'text' ? (

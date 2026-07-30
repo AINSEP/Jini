@@ -443,6 +443,43 @@ describe('RunLifecycle — cancel', () => {
     expect(status.state).toBe('succeeded');
   });
 
+  it('cancelling a run whose finish() is still committing returns that finish\'s outcome instead of recording cancel intent', async () => {
+    // `finish()` reserves the terminal transition with `finishPromise` *before* awaiting the
+    // durable end append, and the run stays non-terminal for that whole window. A `cancel()`
+    // arriving inside it must join the in-flight transition rather than latch cancellation intent
+    // onto a run that is already on its way to a different terminal state — otherwise the run
+    // would report `succeeded` while also claiming a cancel was requested.
+    const inner = createInMemoryEventLog();
+    let releaseEndAppend: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => {
+      releaseEndAppend = resolve;
+    });
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') await gate;
+        return inner.append(input);
+      },
+    };
+    const lifecycle = createRunLifecycle({ eventLog });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-cancel-race' });
+
+    const listener = vi.fn();
+    lifecycle.onCancelRequested(run.id, listener);
+
+    const finishPromise = lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+    // Still mid-flight: the end append is gated, so the run has not committed yet.
+    expect(await lifecycle.get(run.id)).toMatchObject({ state: 'running' });
+
+    const cancelPromise = lifecycle.cancel({ runId: run.id, reason: 'too late' });
+    releaseEndAppend?.();
+
+    expect((await cancelPromise).state).toBe('succeeded');
+    expect((await finishPromise).state).toBe('succeeded');
+    // No cancellation intent was recorded, so no driver was told to tear anything down.
+    expect(listener).not.toHaveBeenCalled();
+  });
+
   it('notifies onCancelRequested listeners without itself forcing a terminal transition', async () => {
     const { lifecycle } = makeLifecycle();
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -834,6 +871,70 @@ describe('RunLifecycle — inactivity watchdog', () => {
     const statusAfterFailure = await lifecycle.get(run.id);
     expect(statusAfterFailure).toMatchObject({ state: 'running' });
     expect(statusAfterFailure).not.toHaveProperty('endedAt');
+  });
+
+  it('logs a durable end-append failure to the console when no onInternalError sink is configured', async () => {
+    // Same containment path as the test above, but with the diagnostic sink omitted: the failure
+    // must still surface somewhere rather than vanishing into a swallowed timer rejection.
+    const inner = createInMemoryEventLog();
+    const appendError = new Error('event database is closed');
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') throw appendError;
+        return inner.append(input);
+      },
+    };
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const lifecycle = createRunLifecycle({ eventLog });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-no-sink', inactivityTimeoutMs: 1_000 });
+
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining(`internal error (inactivity-timeout, runId=${run.id})`),
+        appendError,
+      );
+      // Containment, not recovery: the run is left exactly as it was.
+      expect(await lifecycle.get(run.id)).toMatchObject({ state: 'running' });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('does not let a throwing onInternalError sink turn a contained timer failure into a second unhandled rejection', async () => {
+    const inner = createInMemoryEventLog();
+    const appendError = new Error('event database is closed');
+    const eventLog: EventLog = {
+      ...inner,
+      append: async (input) => {
+        if (input.event === 'end') throw appendError;
+        return inner.append(input);
+      },
+    };
+    const sinkError = new Error('telemetry sink exploded');
+    const onInternalError = vi.fn(() => {
+      throw sinkError;
+    });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const lifecycle = createRunLifecycle({ eventLog, onInternalError });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-bad-sink', inactivityTimeoutMs: 1_000 });
+
+      // Must not reject: the watchdog callback is fire-and-forget, so a throwing sink escaping
+      // here would surface as an unhandled rejection (fatal in modern Node).
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      expect(onInternalError).toHaveBeenCalledTimes(1);
+      expect(consoleError).toHaveBeenCalledWith(
+        expect.stringContaining(`internal error sink failed (inactivity-timeout, runId=${run.id})`),
+        sinkError,
+      );
+      expect(await lifecycle.get(run.id)).toMatchObject({ state: 'running' });
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it('a watchdog armed onto a run that finished during start()\'s own durable append is a no-op once it fires (start/finish race)', async () => {

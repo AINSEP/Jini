@@ -59,6 +59,20 @@ describe('MessageRow', () => {
     expect(screen.getByText('Thinking…')).toBeInTheDocument();
   });
 
+  it('tags each message for agent inspection, distinctly per role and message id', () => {
+    const userMessage: ChatMessage = { id: 'u-9', role: 'user', content: 'hi' };
+    const { container: userContainer } = render(<MessageRow message={userMessage} />);
+    const userEl = userContainer.querySelector('[data-agent-element="chat-message-u-9"]');
+    expect(userEl).toHaveAttribute('data-agent-role', 'region');
+    expect(userEl).toHaveAttribute('data-agent-label', 'A message from the user');
+
+    const assistantMessage: ChatMessage = { id: 'a-9', role: 'assistant', content: 'hi back', runStatus: 'succeeded' };
+    const { container: assistantContainer } = render(<MessageRow message={assistantMessage} />);
+    const assistantEl = assistantContainer.querySelector('[data-agent-element="chat-message-a-9"]');
+    expect(assistantEl).toHaveAttribute('data-agent-role', 'region');
+    expect(assistantEl).toHaveAttribute('data-agent-label', 'A reply from the assistant');
+  });
+
   it('shows a failure indicator for a failed run', () => {
     const message: ChatMessage = { id: 'a6', role: 'assistant', content: 'partial output', runStatus: 'failed' };
     render(<MessageRow message={message} />);

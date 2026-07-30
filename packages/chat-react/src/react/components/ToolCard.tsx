@@ -19,7 +19,7 @@
  * `AskUserQuestion`) falls through to `GenericCard`, which is a correct,
  * generic rendering for it.
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import type { AgentEvent } from '@jini-ai/chat-core';
 import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '@jini-ai/chat-core';
 import { useT } from '../hooks/context.js';
@@ -54,11 +54,33 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
   const name = use.name;
   const isStreaming = runStreaming ?? false;
   const isSucceeded = runSucceeded ?? false;
+  const content = renderToolCardBody(name, use, result, isStreaming, isSucceeded, { projectFileNames, onRequestOpenFile });
+  if (content === null) return null;
+  // Tagged once here, at the single dispatch point every branch below funnels through, rather than
+  // in each of the dozen card variants — one place to keep correct, and every variant (including a
+  // host's own custom-registered renderer) gets it automatically. `use.id` is this tool call's own
+  // stable identifier (unique per call within a message), never reused, so this handle is never
+  // ambiguous the way a repeated literal handle would be.
+  return (
+    <div data-agent-element={`tool-call-${use.id}`} data-agent-role="region" data-agent-label={`A ${humanizeToolId(name)} tool call the AI made`}>
+      {content}
+    </div>
+  );
+}
+
+function renderToolCardBody(
+  name: string,
+  use: ToolUseEvent,
+  result: ToolResultEvent | undefined,
+  isStreaming: boolean,
+  isSucceeded: boolean,
+  fileCtx: FileToolCtx,
+): ReactNode {
   const custom = getToolRenderer(name);
   if (custom) {
     try {
       const node = custom(toRenderProps(use, result, isStreaming, isSucceeded));
-      if (node !== undefined && node !== null && node !== false) return <>{node}</>;
+      if (node !== undefined && node !== null && node !== false) return node;
     } catch (err) {
       console.error(`[ToolCard] custom renderer for "${name}" threw; falling back`, err);
     }
@@ -74,11 +96,10 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
   // visible rather than disappear silently.
   if (EXECUTE_DELEGATED_TOOL_NAMES.has(name) && result && !result.isError) return null;
 
-  const ctx: FileToolCtx = { projectFileNames, onRequestOpenFile };
   if (isTodoWriteToolName(name)) return <TodoCard todos={parseTodoWriteInput(use.input)} runStreaming={isStreaming} />;
-  if (name === 'Write' || name === 'write' || name === 'create_file') return <FileWriteCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={ctx} />;
-  if (name === 'Edit' || name === 'str_replace_edit') return <FileEditCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={ctx} />;
-  if (name === 'Read' || name === 'read_file') return <FileReadCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={ctx} />;
+  if (name === 'Write' || name === 'write' || name === 'create_file') return <FileWriteCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
+  if (name === 'Edit' || name === 'str_replace_edit') return <FileEditCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
+  if (name === 'Read' || name === 'read_file') return <FileReadCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} ctx={fileCtx} />;
   if (name === 'Bash') return <BashCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'Glob' || name === 'list_files') return <GlobCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
   if (name === 'Grep') return <GrepCard input={use.input} result={result} runStreaming={isStreaming} runSucceeded={isSucceeded} />;
