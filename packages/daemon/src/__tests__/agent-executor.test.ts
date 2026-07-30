@@ -31,10 +31,13 @@ import {
   AgentExecutorError,
   DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
   assessAgentExecutorCompatibility,
+  buildAcpMcpBridgeServers,
+  buildMcpBridgeDelivery,
   buildMcpJsonServerEntry,
   createAgentExecutor,
   isAgentExecutorSupported,
   isSupportedStreamFormat,
+  mergeEnvContentMcpConfig,
   mergeMcpJsonContent,
   translateAgentRuntimeEvent,
   type AgentExecutor,
@@ -1341,6 +1344,8 @@ interface FakeAcpAttachCall {
   readonly model: string | null | undefined;
   readonly imagePaths: readonly string[] | undefined;
   readonly envFormat: 'array' | 'map' | undefined;
+  /** The `'acp-merge'` delivery mechanism's payload — `undefined` when `wireAcpLifecycle` passed none at all, which is distinct from passing `[]`. */
+  readonly mcpServers: readonly unknown[] | undefined;
   readonly onPermissionRequest: unknown;
   readonly send: (event: string, payload: unknown) => void;
 }
@@ -1358,6 +1363,8 @@ interface AcpHarnessOptions {
   classifyFailure?: ClassifyFailure;
   /** Overrides the real `@jini-ai/agent-runtime` log-file stager — only meaningful alongside `def: { needsAgentLogFile: true }`. */
   prepareAgentLogFile?: typeof prepareAgentLogFile;
+  /** MCP bridge injection — omitted by default, matching `CreateAgentExecutorOptions.mcpJsonInjection`'s own opt-in default. */
+  mcpJsonInjection?: McpJsonInjectionOptions;
 }
 
 interface AcpHarness {
@@ -1392,6 +1399,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     model?: string | null;
     imagePaths?: readonly string[];
     envFormat?: 'array' | 'map';
+    mcpServers?: readonly unknown[];
     onPermissionRequest?: unknown;
     send: (event: string, payload: unknown) => void;
   }) => {
@@ -1401,6 +1409,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
       model: attachOptions.model,
       imagePaths: attachOptions.imagePaths,
       envFormat: attachOptions.envFormat,
+      mcpServers: attachOptions.mcpServers,
       onPermissionRequest: attachOptions.onPermissionRequest,
       send: attachOptions.send,
     });
@@ -1450,6 +1459,7 @@ function createAcpHarness(options: AcpHarnessOptions = {}): AcpHarness {
     ...(options.journal !== undefined ? { journal: options.journal } : {}),
     ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}),
     ...(options.prepareAgentLogFile !== undefined ? { prepareAgentLogFile: options.prepareAgentLogFile } : {}),
+    ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}),
   });
 
   return { lifecycle, executor, child, attachCalls, abort, stopProcessesCalls, onCleanupFailure };
@@ -4561,6 +4571,389 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
     expect(spawnCalls).toHaveLength(0);
     const events = await collectEvents(lifecycle, run.id);
     expect(events.find((e) => e.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
+  });
+});
+
+describe('buildAcpMcpBridgeServers', () => {
+  const entry = { command: 'jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
+
+  it('shapes the bridge entry as a single stdio ACP server named "jini"', () => {
+    expect(buildAcpMcpBridgeServers(entry)).toEqual([
+      {
+        type: 'stdio',
+        name: 'jini',
+        command: 'jini-mcp',
+        args: ['--quiet'],
+        env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' },
+      },
+    ]);
+  });
+
+  it('copies rather than aliases args and env, so a later mutation cannot reach the emitted descriptor', () => {
+    const [server] = buildAcpMcpBridgeServers(entry);
+    expect(server!.args).not.toBe(entry.args);
+    expect(server!.env).not.toBe(entry.env);
+  });
+
+  // `buildAcpSessionNewParams` owns the array-vs-map env wire-shape difference per def; emitting a
+  // plain object here is what lets it do that. Emitting the array form directly would bypass the
+  // `envFormat: 'map'` defs (reasonix).
+  it('emits env as a plain object for buildAcpSessionNewParams to normalise per def', () => {
+    const [server] = buildAcpMcpBridgeServers(entry);
+    expect(Array.isArray(server!.env)).toBe(false);
+    expect(server!.env).toBeTypeOf('object');
+  });
+
+  // SEC: process arguments are readable by any other local user through `ps`; a process's
+  // environment is not. The credential must never cross into `args`.
+  it('keeps a resolved credential in env and out of args', () => {
+    const withToken = { ...entry, env: { ...entry.env, JINI_DAEMON_TOKEN: 'run-scoped-secret' } };
+    const [server] = buildAcpMcpBridgeServers(withToken);
+    expect(server!.args).toEqual(['--quiet']);
+    expect(JSON.stringify(server!.args)).not.toContain('run-scoped-secret');
+    expect(server!.env).toMatchObject({ JINI_DAEMON_TOKEN: 'run-scoped-secret' });
+  });
+});
+
+describe('mergeEnvContentMcpConfig', () => {
+  const entry = { command: 'jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
+  const jiniEntry = {
+    type: 'local',
+    command: ['jini-mcp', '--quiet'],
+    environment: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' },
+    enabled: true,
+  };
+
+  it('produces a fresh OpenCode-schema document when the variable was unset', () => {
+    expect(JSON.parse(mergeEnvContentMcpConfig(undefined, entry))).toEqual({ mcp: { jini: jiniEntry } });
+  });
+
+  it('treats an empty-string existing value as unset', () => {
+    expect(JSON.parse(mergeEnvContentMcpConfig('', entry))).toEqual({ mcp: { jini: jiniEntry } });
+  });
+
+  // The variable a host uses to hand the CLI the *user's* own MCP servers is the same variable this
+  // bridge rides in. Clobbering it would silently delete them.
+  it('preserves unrelated top-level keys and other registered servers', () => {
+    const existing = JSON.stringify({ provider: { openai: {} }, mcp: { other: { type: 'local', command: ['x'] } } });
+    expect(JSON.parse(mergeEnvContentMcpConfig(existing, entry))).toEqual({
+      provider: { openai: {} },
+      mcp: { other: { type: 'local', command: ['x'] }, jini: jiniEntry },
+    });
+  });
+
+  it('overwrites a stale "jini" entry rather than merging into it', () => {
+    const existing = JSON.stringify({ mcp: { jini: { type: 'local', command: ['stale'], enabled: false } } });
+    expect(JSON.parse(mergeEnvContentMcpConfig(existing, entry)).mcp.jini).toEqual(jiniEntry);
+  });
+
+  it('starts fresh for content that is not valid JSON, a JSON array, or has a non-object "mcp" field', () => {
+    for (const existing of ['{not json', '[1,2,3]', JSON.stringify({ mcp: 'not-an-object' })]) {
+      expect(JSON.parse(mergeEnvContentMcpConfig(existing, entry))).toMatchObject({ mcp: { jini: jiniEntry } });
+    }
+  });
+
+  // SEC: this whole string becomes an *environment variable value*, never argv — see the executor's
+  // `childEnv` comment. Within it, the token must sit in `environment` (the MCP child's env), not in
+  // `command` (which OpenCode spawns, putting it in `ps`).
+  it('keeps a resolved credential in environment and out of command', () => {
+    const withToken = { ...entry, env: { ...entry.env, JINI_DAEMON_TOKEN: 'run-scoped-secret' } };
+    const parsed = JSON.parse(mergeEnvContentMcpConfig(undefined, withToken));
+    expect(parsed.mcp.jini.command).toEqual(['jini-mcp', '--quiet']);
+    expect(JSON.stringify(parsed.mcp.jini.command)).not.toContain('run-scoped-secret');
+    expect(parsed.mcp.jini.environment.JINI_DAEMON_TOKEN).toBe('run-scoped-secret');
+  });
+});
+
+describe('buildMcpBridgeDelivery', () => {
+  const options: McpJsonInjectionOptions = {
+    command: '/usr/bin/jini-mcp',
+    args: ['--quiet'],
+    daemonUrl: 'http://127.0.0.1:4242',
+  };
+  const base = { cwd: '/work/proj', runId: 'run-1', options, credential: undefined };
+
+  it('returns null when the host configured no injection at all', () => {
+    expect(buildMcpBridgeDelivery({ ...base, strategy: 'acp-merge', options: undefined })).toBeNull();
+  });
+
+  it('returns null for a def declaring no externalMcpInjection strategy', () => {
+    expect(buildMcpBridgeDelivery({ ...base, strategy: undefined })).toBeNull();
+  });
+
+  // Run-scoped, not a shared `cwd/.mcp.json` — see `mcpJsonPathForRun`'s own doc for the cross-run
+  // credential leak a shared filename caused (two runs in one cwd overwrite each other's bearer
+  // token before either child has read it).
+  it('maps claude-mcp-json to a run-scoped .mcp.jini-<runId>.json path, not a shared cwd/.mcp.json', () => {
+    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'claude-mcp-json' });
+    expect(delivery).toMatchObject({
+      kind: 'claude-mcp-json',
+      mcpJsonPath: path.join('/work/proj', '.mcp.jini-run-1.json'),
+    });
+  });
+
+  it('maps acp-merge to ACP session/new mcpServers entries', () => {
+    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'acp-merge' });
+    expect(delivery).toMatchObject({ kind: 'acp-merge', mcpServers: [{ name: 'jini', command: '/usr/bin/jini-mcp' }] });
+  });
+
+  it('maps the two env-content strategies to their own env var, sharing one serialiser', () => {
+    expect(buildMcpBridgeDelivery({ ...base, strategy: 'opencode-env-content' })).toMatchObject({
+      kind: 'env-content',
+      envVarName: 'OPENCODE_CONFIG_CONTENT',
+    });
+    expect(buildMcpBridgeDelivery({ ...base, strategy: 'mimo-env-content' })).toMatchObject({
+      kind: 'env-content',
+      envVarName: 'MIMOCODE_CONFIG_CONTENT',
+    });
+  });
+
+  it('threads the resolved credential into every mechanism, not just claude-mcp-json', () => {
+    const withToken = { ...base, credential: 'run-scoped-secret' };
+    const claude = buildMcpBridgeDelivery({ ...withToken, strategy: 'claude-mcp-json' });
+    const acp = buildMcpBridgeDelivery({ ...withToken, strategy: 'acp-merge' });
+    const env = buildMcpBridgeDelivery({ ...withToken, strategy: 'mimo-env-content' });
+    expect(claude).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
+    expect(acp).toMatchObject({ mcpServers: [{ env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } }] });
+    expect(env).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
+  });
+
+  // The registry-level invariant this whole task exists to establish: a def earns a working MCP
+  // bridge by *declaring a strategy*, not by being named anywhere in the executor. If someone adds a
+  // 25th def with a declared strategy, this fails unless the dispatch covers it.
+  it('produces a delivery for every real def that declares a strategy — all 24, no gaps', () => {
+    const declaring = AGENT_DEFS.filter((def) => def.externalMcpInjection !== undefined);
+    expect(declaring.length).toBeGreaterThan(0);
+    const undelivered = declaring
+      .filter((def) => buildMcpBridgeDelivery({ ...base, strategy: def.externalMcpInjection }) === null)
+      .map((def) => def.id);
+    expect(undelivered).toEqual([]);
+  });
+
+  it('covers the 8 acp-merge defs the review found getting zero MCP tools', () => {
+    const acpMergeDefs = AGENT_DEFS.filter((def) => def.externalMcpInjection === 'acp-merge');
+    expect(acpMergeDefs.map((def) => def.id).sort()).toEqual([
+      'devin',
+      'hermes',
+      'kilo',
+      'kimi',
+      'kiro',
+      'reasonix',
+      'trae-cli',
+      'vibe',
+    ]);
+    // Driven from each real def's own declared strategy, not a repeated literal, so a def silently
+    // switching strategies shows up here.
+    for (const def of acpMergeDefs) {
+      expect(buildMcpBridgeDelivery({ ...base, strategy: def.externalMcpInjection })).toMatchObject({
+        kind: 'acp-merge',
+      });
+    }
+  });
+});
+
+describe("AgentExecutor — 'acp-merge' MCP bridge delivery reaches attachAcpSession", () => {
+  const mcpJsonInjection: McpJsonInjectionOptions = {
+    command: '/usr/bin/jini-mcp',
+    args: ['--quiet'],
+    daemonUrl: 'http://127.0.0.1:4242',
+  };
+
+  async function runAcp(options: Parameters<typeof createAcpHarness>[0]) {
+    const harness = createAcpHarness(options);
+    const { run } = await harness.lifecycle.start({ contextRef: 'ctx-acp-mcp' });
+    const runPromise = harness.executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+    harness.child.emit('close', 0, null);
+    await harness.lifecycle.waitForTerminal(run.id);
+    return { ...harness, runId: run.id };
+  }
+
+  // The gap the review found: `attachAcpSession` always accepted `mcpServers`, but `wireAcpLifecycle`
+  // never passed any, so all 8 ACP-native defs got zero MCP tools.
+  it('passes the jini bridge server into the ACP session for an acp-merge def', async () => {
+    const { attachCalls, runId } = await runAcp({
+      def: { streamFormat: 'acp-json-rpc', externalMcpInjection: 'acp-merge' },
+      mcpJsonInjection,
+    });
+
+    expect(attachCalls[0]?.mcpServers).toEqual([
+      {
+        type: 'stdio',
+        name: 'jini',
+        command: '/usr/bin/jini-mcp',
+        args: ['--quiet'],
+        env: { JINI_RUN_ID: runId, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+      },
+    ]);
+  });
+
+  it('delivers a per-run credential as JINI_DAEMON_TOKEN in the server env, never in its args', async () => {
+    const { attachCalls, runId } = await runAcp({
+      def: { streamFormat: 'acp-json-rpc', externalMcpInjection: 'acp-merge' },
+      mcpJsonInjection: { ...mcpJsonInjection, credential: (id: string) => `token-for-${id}` },
+    });
+
+    const server = attachCalls[0]?.mcpServers?.[0] as { args: string[]; env: Record<string, string> };
+    expect(server.env.JINI_DAEMON_TOKEN).toBe(`token-for-${runId}`);
+    expect(server.args).toEqual(['--quiet']);
+  });
+
+  // Passing `mcpServers: []` is not the same as passing nothing for every downstream ACP agent, so
+  // "no bridge configured" has to stay byte-identical to before the field existed.
+  it('passes no mcpServers key at all when the host configured no injection', async () => {
+    const { attachCalls } = await runAcp({ def: { streamFormat: 'acp-json-rpc', externalMcpInjection: 'acp-merge' } });
+    expect(attachCalls[0]?.mcpServers).toBeUndefined();
+  });
+
+  it('passes no mcpServers for an ACP def that declares no injection strategy, even when configured', async () => {
+    const { attachCalls } = await runAcp({ def: { streamFormat: 'acp-json-rpc' }, mcpJsonInjection });
+    expect(attachCalls[0]?.mcpServers).toBeUndefined();
+  });
+
+  // An ACP def must not get the `.mcp.json` mechanism's filesystem effect as a side effect of the
+  // shared credential resolution now covering it.
+  it('writes no .mcp.json for an acp-merge def', async () => {
+    const writeCalls: string[] = [];
+    await runAcp({
+      def: { streamFormat: 'acp-json-rpc', externalMcpInjection: 'acp-merge' },
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        readFile: async () => {
+          throw new Error('should not be read');
+        },
+        writeFile: async (p: string) => {
+          writeCalls.push(p);
+        },
+      },
+    });
+    expect(writeCalls).toEqual([]);
+  });
+});
+
+describe("AgentExecutor — env-content MCP bridge delivery (opencode / mimo)", () => {
+  const mcpJsonInjection: McpJsonInjectionOptions = {
+    command: '/usr/bin/jini-mcp',
+    args: ['--quiet'],
+    daemonUrl: 'http://127.0.0.1:4242',
+  };
+
+  function spawnedEnv(spawnCalls: SpawnCall[]): Record<string, string> {
+    return (spawnCalls[0]!.options.env ?? {}) as Record<string, string>;
+  }
+
+  it("serialises the bridge into OPENCODE_CONFIG_CONTENT for an 'opencode-env-content' def", async () => {
+    const def = createFakeDef({ id: 'opencode', externalMcpInjection: 'opencode-env-content' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'opencode', prompt: 'hi', cwd: '/work' });
+
+    expect(JSON.parse(spawnedEnv(spawnCalls).OPENCODE_CONFIG_CONTENT!)).toEqual({
+      mcp: {
+        jini: {
+          type: 'local',
+          command: ['/usr/bin/jini-mcp', '--quiet'],
+          environment: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+          enabled: true,
+        },
+      },
+    });
+    expect(spawnedEnv(spawnCalls).MIMOCODE_CONFIG_CONTENT).toBeUndefined();
+  });
+
+  it("serialises the same schema under MIMOCODE_CONFIG_CONTENT for a 'mimo-env-content' def", async () => {
+    const def = createFakeDef({ id: 'mimo', externalMcpInjection: 'mimo-env-content' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'mimo', prompt: 'hi', cwd: '/work' });
+
+    const env = spawnedEnv(spawnCalls);
+    expect(env.OPENCODE_CONFIG_CONTENT).toBeUndefined();
+    expect(JSON.parse(env.MIMOCODE_CONFIG_CONTENT!).mcp.jini).toEqual({
+      type: 'local',
+      command: ['/usr/bin/jini-mcp', '--quiet'],
+      environment: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+      enabled: true,
+    });
+  });
+
+  // Both labels, one serialiser: the payloads must be byte-identical apart from which variable
+  // carries them. If they ever need to diverge, this is the test that has to change deliberately.
+  it('emits byte-identical config content for both env-content strategies', async () => {
+    const contents: string[] = [];
+    for (const [id, strategy, varName] of [
+      ['opencode', 'opencode-env-content', 'OPENCODE_CONFIG_CONTENT'],
+      ['mimo', 'mimo-env-content', 'MIMOCODE_CONFIG_CONTENT'],
+    ] as const) {
+      const def = createFakeDef({ id, externalMcpInjection: strategy });
+      const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+      const { run } = await lifecycle.start({ contextRef: `ctx-${id}` });
+      await executor.run({ runId: run.id, agentId: id, prompt: 'hi', cwd: '/work' });
+      contents.push(spawnedEnv(spawnCalls)[varName]!.replace(run.id, '<RUN>'));
+    }
+    expect(contents[0]).toBe(contents[1]);
+  });
+
+  // A host may already be handing OpenCode the *user's* configured MCP servers through this exact
+  // variable; the bridge must merge in beside them, not replace them.
+  it("merges into a host-supplied existing value instead of clobbering it", async () => {
+    const def = createFakeDef({ id: 'opencode', externalMcpInjection: 'opencode-env-content' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({
+      runId: run.id,
+      agentId: 'opencode',
+      prompt: 'hi',
+      cwd: '/work',
+      env: {
+        OPENCODE_CONFIG_CONTENT: JSON.stringify({ provider: { openai: {} }, mcp: { userServer: { type: 'local' } } }),
+      },
+    });
+
+    const parsed = JSON.parse(spawnedEnv(spawnCalls).OPENCODE_CONFIG_CONTENT!);
+    expect(parsed.provider).toEqual({ openai: {} });
+    expect(Object.keys(parsed.mcp).sort()).toEqual(['jini', 'userServer']);
+  });
+
+  // SEC: the credential rides in the child's environment. It must not appear anywhere in argv, where
+  // any other local user could read it out of `ps`.
+  it('delivers the credential through the environment and never through process arguments', async () => {
+    const def = createFakeDef({ id: 'opencode', externalMcpInjection: 'opencode-env-content' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      mcpJsonInjection: { ...mcpJsonInjection, credential: () => 'run-scoped-secret' },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'opencode', prompt: 'hi', cwd: '/work' });
+
+    expect(JSON.stringify(spawnCalls[0]!.args)).not.toContain('run-scoped-secret');
+    expect(JSON.parse(spawnedEnv(spawnCalls).OPENCODE_CONFIG_CONTENT!).mcp.jini.environment.JINI_DAEMON_TOKEN).toBe(
+      'run-scoped-secret',
+    );
+  });
+
+  it('leaves the spawn env untouched when the host configured no injection', async () => {
+    const def = createFakeDef({ id: 'opencode', externalMcpInjection: 'opencode-env-content' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'opencode', prompt: 'hi', cwd: '/work' });
+
+    expect(spawnedEnv(spawnCalls).OPENCODE_CONFIG_CONTENT).toBeUndefined();
+  });
+
+  it('sets no config-content variable for a def declaring a different strategy', async () => {
+    const def = createFakeDef({ externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      mcpJsonInjection: { ...mcpJsonInjection, readFile: async () => '', writeFile: async () => {} },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const env = spawnedEnv(spawnCalls);
+    expect(env.OPENCODE_CONFIG_CONTENT).toBeUndefined();
+    expect(env.MIMOCODE_CONFIG_CONTENT).toBeUndefined();
   });
 });
 

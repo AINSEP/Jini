@@ -145,3 +145,48 @@ describe('codebuddyAgentDef.buildArgs', () => {
     expect(() => codebuddyAgentDef.buildArgs('hi', [])).not.toThrow();
   });
 });
+
+// Codebuddy declares the same `externalMcpInjection: 'claude-mcp-json'` strategy as the claude def,
+// and the executor already staged the same `.mcp.json` for it — but buildArgs never consumed the
+// path, so Codebuddy was left relying on headless auto-discovery, the exact trust-prompt hang the
+// claude fix exists to avoid. These mirror claude.test.ts's equivalent block.
+describe('codebuddyAgentDef.buildArgs — staged .mcp.json delivery', () => {
+  it('adds --strict-mcp-config --mcp-config <path> when runtimeContext.mcpJsonPath is set', () => {
+    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '/tmp/run-abc/.mcp.json' });
+    expect(args).toContain('--strict-mcp-config');
+    const idx = args.indexOf('--mcp-config');
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe('/tmp/run-abc/.mcp.json');
+  });
+
+  it('omits --strict-mcp-config and --mcp-config when mcpJsonPath is absent (default, unchanged behavior)', () => {
+    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, {});
+    expect(args).not.toContain('--strict-mcp-config');
+    expect(args).not.toContain('--mcp-config');
+  });
+
+  it('omits --mcp-config for an empty-string mcpJsonPath', () => {
+    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '' });
+    expect(args).not.toContain('--mcp-config');
+  });
+
+  // `--strict-mcp-config` is what stops the spawned CLI from also loading the interactive
+  // developer's own global/project MCP servers. Both flags are documented on Codebuddy's own CLI
+  // reference, so the isolation guarantee is not quietly weaker here than it is for claude.
+  it('keeps strict isolation rather than passing --mcp-config alone', () => {
+    const args = codebuddyAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '/x/.mcp.json' });
+    expect(args.indexOf('--strict-mcp-config')).toBeLessThan(args.indexOf('--mcp-config'));
+  });
+
+  it('composes with the other flags rather than replacing them', () => {
+    const args = codebuddyAgentDef.buildArgs(
+      'hi',
+      [],
+      ['/a'],
+      { model: 'gpt-5.5', reasoning: 'high' },
+      { resumeSessionId: 'sess-1', mcpJsonPath: '/x/.mcp.json' },
+    );
+    expect(args).toEqual(expect.arrayContaining(['--model', 'gpt-5.5', '--effort', 'high', '--add-dir', '--resume']));
+    expect(args.slice(-3)).toEqual(['--strict-mcp-config', '--mcp-config', '/x/.mcp.json']);
+  });
+});

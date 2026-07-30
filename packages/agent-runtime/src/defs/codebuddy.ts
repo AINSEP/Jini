@@ -1,6 +1,6 @@
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/codebuddy.ts` (import path adjusted only). See `source-map.md`. */
 import { agentCapabilities } from '../capabilities.js';
-import { DEFAULT_MODEL_OPTION } from './shared.js';
+import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 // Codebuddy Code (https://www.codebuddy.cn) — a Claude Code–compatible CLI
@@ -117,6 +117,14 @@ export const codebuddyAgentDef = {
       if (options.permissionMode !== 'restricted') {
         args.push('--permission-mode', 'bypassPermissions');
       }
+      // Same explicit staged-config delivery as the claude def, through the same shared helper —
+      // see `buildClaudeMcpConfigArgs`'s doc. Without this, declaring
+      // `externalMcpInjection: 'claude-mcp-json'` (below) only got the file *written*; Codebuddy
+      // then had to auto-discover it, which is exactly the headless-trust-prompt hang the claude
+      // fix was built to avoid. Both flags are documented on Codebuddy's own CLI reference
+      // (`--mcp-config <fileOrString>`, `--strict-mcp-config`), so the strict-isolation guarantee
+      // is not silently degraded here relative to claude.
+      args.push(...buildClaudeMcpConfigArgs(runtimeContext));
       return args;
     },
     promptViaStdin: true,
