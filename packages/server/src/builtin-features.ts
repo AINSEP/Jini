@@ -327,14 +327,19 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
       const scanAgents = (force: boolean): Promise<readonly AgentSummary[]> => {
         if (force) scan = null;
         if (!scan) {
-          scan = detector()
+          const pending: Promise<readonly AgentSummary[]> = detector()
             // Filtered before projection so the executor's answer is computed from the full def —
             // see `isExecutableDetectedAgent`'s doc for why the projected shape is not enough.
             .then((agents) => agents.filter(isExecutableDetectedAgent).map(projectDetectedAgent))
             .catch((error: unknown) => {
-              scan = null;
+              // Keyed by promise identity, not "whatever is cached when this failure lands": a slow
+              // scan that fails after `POST /api/agents/rescan` already replaced it with a newer,
+              // successful one must invalidate only its own entry. Clearing unconditionally evicts
+              // the newer result and forces a duplicate probe of every agent CLI on the machine.
+              if (scan === pending) scan = null;
               throw error;
             });
+          scan = pending;
         }
         return scan;
       };

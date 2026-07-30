@@ -28,7 +28,19 @@ export const CHAT_CAPABILITIES: readonly CapabilityDef[] = [
       additionalProperties: false,
     },
     risk: 'write',
-    // The one genuinely headless outcome here: a run can be started with no tab open.
+    // The one outcome here that is headless *in principle*: starting a run does not inherently need
+    // a tab open, unlike "highlight this field".
+    //
+    // **No shipped execution path satisfies it headlessly yet.** `@jini-ai/daemon`'s
+    // `createFrontendCapabilityRegistrations` — the only projection of this manifest into callable
+    // tools — routes every capability, this one included, through the frontend session bound to the
+    // run, so a run with no bound surface fails it with `no frontend is bound`. That path also does
+    // not read `surface` at all (see its own "Deliberately NOT projected yet" note), so nothing
+    // today is *advertised* differently because of this value.
+    //
+    // The consequence to know about: `@jini-ai/agentic`'s `availableCapabilities(CHAT_CAPABILITIES,
+    // false)` returns exactly this entry, and every call to it will fail until a genuinely headless
+    // send path lands. Do not filter a manifest with that helper and assume the survivors work.
     surface: 'server',
   },
   {

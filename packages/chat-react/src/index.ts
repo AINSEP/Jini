@@ -16,6 +16,7 @@ export type {
   ChatTransport,
   FeedbackChange,
   OnFeedback,
+  ReattachRunOptions,
   RunContext,
   RunHandlers,
   StartRunInput,

@@ -180,6 +180,39 @@ describe('createFrontendControl', () => {
       });
     });
 
+    // `RunStartHandler` throwing is not a no-op: `@jini-ai/http-kit`'s run-start route catches it,
+    // marks the run `failed` and answers 500. So anything that can throw inside this hook can turn
+    // the documented "degraded, not failed" outcome into exactly the killed run it promises not to
+    // cause — including the host's own `resolveBindToken`, which reads an opaque host blob.
+    it("reports a throwing resolveBindToken without failing the run", () => {
+      const onBindError = vi.fn();
+      const control = createFrontendControl({
+        capabilities: [PAGE_CLICK],
+        resolveBindToken: () => {
+          throw new Error('contextRef was not the JSON this host expected');
+        },
+        onBindError,
+      });
+
+      expect(() => control.bindOnStarted(startContext('run-1', 'x'))).not.toThrow();
+      expect(onBindError).toHaveBeenCalledWith({
+        runId: 'run-1',
+        error: expect.objectContaining({ message: expect.stringContaining('contextRef was not the JSON') }),
+      });
+    });
+
+    it('does not let the bind-error sink itself fail the run', () => {
+      const control = createFrontendControl({
+        capabilities: [PAGE_CLICK],
+        resolveBindToken: () => 'never-issued',
+        onBindError: () => {
+          throw new Error('the host sink exploded');
+        },
+      });
+
+      expect(() => control.bindOnStarted(startContext('run-1', 'x'))).not.toThrow();
+    });
+
     it('falls back to console.error when the host supplies no bind-error sink', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
       const control = createFrontendControl({

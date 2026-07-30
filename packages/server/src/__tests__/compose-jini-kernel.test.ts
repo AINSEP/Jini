@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from 'node:fs';
+import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -344,6 +345,107 @@ describe('product features use the same gate', () => {
   });
 });
 
+/**
+ * The one block in this file that opens a socket, and only because it has to: `sidecar-strict`'s
+ * two gates are request-time middleware, so neither the 401/503 refusals nor the origin guard's
+ * resolved-port lookup exists until a real request runs through the assembled app. This mode had no
+ * end-to-end coverage at all before 2026-07-29 — the gap the package's own function-coverage gate
+ * was already reporting on `main`.
+ */
+describe('security: sidecar-strict', () => {
+  const servers: Server[] = [];
+  afterEach(async () => {
+    while (servers.length > 0) {
+      const server = servers.pop()!;
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  async function bootStrict(env: NodeJS.ProcessEnv, exemptPaths?: readonly string[]) {
+    const app = express();
+    installRouteRegistrationGuard(app);
+    const resolvedPortRef = { current: 0 };
+    const kernel = await composeJiniKernel({
+      app,
+      adapter: { resolvedPortRef, env },
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      env,
+      security: {
+        mode: 'sidecar-strict',
+        host: '127.0.0.1',
+        tokenEnvVar: 'SIDECAR_TOKEN',
+        ...(exemptPaths === undefined ? {} : { exemptPaths }),
+      },
+    });
+    kernels.push(kernel);
+    const server = await new Promise<Server>((resolve, reject) => {
+      const s = app.listen(0, '127.0.0.1');
+      s.once('listening', () => resolve(s));
+      s.once('error', reject);
+    });
+    servers.push(server);
+    const address = server.address() as { port: number };
+    resolvedPortRef.current = address.port;
+    return `http://127.0.0.1:${address.port}`;
+  }
+
+  it('refuses a loopback caller that presents no token — a co-resident process is the threat model', async () => {
+    const url = await bootStrict({ SIDECAR_TOKEN: 'sidecar-secret' });
+    const res = await fetch(`${url}/api/runs`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ contextRef: 'x' }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('admits the same caller once it presents the token, and the origin guard then reads the resolved port', async () => {
+    const url = await bootStrict({ SIDECAR_TOKEN: 'sidecar-secret' });
+    const res = await fetch(`${url}/api/runs`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer sidecar-secret',
+        origin: url,
+      },
+      body: JSON.stringify({ contextRef: 'x' }),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it('still rejects a cross-origin caller holding a valid token — the two gates are independent', async () => {
+    const url = await bootStrict({ SIDECAR_TOKEN: 'sidecar-secret' });
+    const res = await fetch(`${url}/api/runs`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer sidecar-secret',
+        origin: 'https://evil.example.com',
+      },
+      body: JSON.stringify({ contextRef: 'x' }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('fails closed with 503 when the token env var is unset, rather than serving unauthenticated callers', async () => {
+    const url = await bootStrict({});
+    const res = await fetch(`${url}/api/runs`, { method: 'POST' });
+    expect(res.status).toBe(503);
+  });
+
+  it('leaves probe-phase routes reachable with no token at all — monitoring never needs a secret', async () => {
+    const url = await bootStrict({ SIDECAR_TOKEN: 'sidecar-secret' });
+    expect((await fetch(`${url}/api/health`)).status).toBe(200);
+  });
+
+  it('honors an explicit exemptPaths hole in the gate', async () => {
+    const url = await bootStrict({ SIDECAR_TOKEN: 'sidecar-secret' }, ['/api/runs/exempt-probe']);
+    // Past the bearer gate (not 401), into route dispatch, which has no such route.
+    expect((await fetch(`${url}/api/runs/exempt-probe`, { method: 'POST' })).status).toBe(404);
+  });
+});
+
 describe('teardown', () => {
   it('disposeFeatures runs each active pack\'s dispose, in reverse order, exactly once', async () => {
     const order: string[] = [];
@@ -372,6 +474,68 @@ describe('teardown', () => {
     await kernel.disposeFeatures();
     await kernel.disposeFeatures();
     expect(order).toEqual(['second', 'first']);
+  });
+
+  it("close() disposes the CALLER's packs too — the kernel built their services, so the kernel releases them", async () => {
+    const disposedCaller = vi.fn();
+    const callerPack = definePack({
+      name: 'caller.holdsAHandle',
+      deps: [],
+      // Stands in for the socket/timer/db handle a real caller pack opens here.
+      services: () => ({ handle: { open: true } }),
+      dispose: disposedCaller,
+    });
+
+    const { kernel } = await compose({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      packs: [callerPack],
+    });
+
+    await kernel.close();
+    await kernel.close();
+    expect(disposedCaller).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed composition disposes the caller's packs, whose services were already built", async () => {
+    const disposedCaller = vi.fn();
+    const callerPack = definePack({
+      name: 'caller.holdsAHandle',
+      deps: [],
+      services: () => ({ handle: { open: true } }),
+      dispose: disposedCaller,
+    });
+    const exploding = defineJiniFeature({
+      id: 'explodes',
+      provides: [],
+      compose: () => ({
+        pack: definePack({
+          name: 'test.explodes',
+          deps: [],
+          services: () => ({}),
+          http: () => {
+            throw new Error('route mounting blew up');
+          },
+        }),
+      }),
+    });
+
+    const app = express();
+    installRouteRegistrationGuard(app);
+    await expect(
+      composeJiniKernel({
+        app,
+        adapter: { resolvedPortRef: { current: 4000 } },
+        storage: { kind: 'memory' },
+        profile: 'agent-core-v1',
+        packs: [callerPack],
+        extraFeatures: [exploding],
+      }),
+    ).rejects.toThrow('route mounting blew up');
+
+    // `createDaemon` builds every caller pack's services before a single feature composes, so a
+    // failure anywhere after that leaves them open unless this path releases them too.
+    expect(disposedCaller).toHaveBeenCalledTimes(1);
   });
 
   it('a failed composition disposes what it built and closes the kernel base — no leaked handle', async () => {

@@ -38,7 +38,7 @@ export type {
   JiniProfileId,
   ProfileActivation,
 } from './feature.js';
-export { CORE_CAPABILITIES, defineJiniFeature, JINI_PROFILES } from './feature.js';
+export { CAPABILITY_IDS, CORE_CAPABILITIES, defineJiniFeature, isCapabilityId, JINI_PROFILES } from './feature.js';
 
 export type {
   ActivationReason,

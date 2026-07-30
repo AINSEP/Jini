@@ -265,8 +265,10 @@ export function createDaemonChatTransport(): ChatTransport {
       });
       return { runId: body.run.id };
     },
-    async reattachRun(runId, handlers) {
-      await streamRun(runId, handlers);
+    async reattachRun(runId, handlers, options) {
+      // Honoring the signal is what lets the caller detach: without it this SSE read loop outlives
+      // the component that opened it for as long as the run keeps streaming.
+      await streamRun(runId, handlers, options?.signal);
     },
     async fetchRunStatus(runId) {
       const response = await fetch(`/api/runs/${encodeURIComponent(runId)}`);

@@ -137,15 +137,37 @@ export function createFrontendControl(options: CreateFrontendControlOptions): Fr
     registerFrontendSessionRoutes(app, { registry }, context.adapter);
   };
 
+  /**
+   * The error boundary the `onBindError` contract actually needs. A `RunStartHandler` throwing is
+   * not a no-op: `@jini-ai/http-kit`'s run-start route catches it, marks the run `failed` and answers
+   * 500 — so anything inside this hook that can throw can produce exactly the killed run that
+   * contract promises never to cause. `resolveBindToken` is host-supplied and reads an opaque host
+   * blob (a `JSON.parse` away from throwing), and the sink itself is host-supplied too. A sink that
+   * throws leaves nowhere left to report, so that one is swallowed rather than escalated.
+   */
+  const reportBindError = (context: FrontendBindErrorContext): void => {
+    try {
+      onBindError(context);
+    } catch {
+      // Deliberately terminal: the reporting channel is what failed.
+    }
+  };
+
   const bindOnStarted: RunStartHandler = ({ request, run, lifecycle }: RunStartContext) => {
-    const bindToken = options.resolveBindToken(request);
+    let bindToken: string | undefined;
+    try {
+      bindToken = options.resolveBindToken(request);
+    } catch (error) {
+      reportBindError({ runId: run.id, error });
+      return;
+    }
     if (bindToken === undefined) return;
 
     let release: () => void;
     try {
       release = registry.bindRunByToken(run.id, bindToken);
     } catch (error) {
-      onBindError({ runId: run.id, error });
+      reportBindError({ runId: run.id, error });
       return;
     }
 

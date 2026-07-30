@@ -217,3 +217,37 @@ fields:
   origin; retyped to an inline `{ options?: FormOption[] | undefined }` so a
   locally-computed `FormOption[] | undefined` variable can be passed as
   `{ options }` without a spread workaround.
+
+## 2026-07-29 — `reattachRun` gained a cancellation seam (`ReattachRunOptions`)
+
+Post-merge audit fix. `ChatTransport.reattachRun(runId, handlers)` returned `Promise<void>` with no
+signal, no unsubscribe and no disposer — so a reattached SSE/WebSocket stream had no way to be
+detached on unmount, reset or replacement, and kept its connection and read loop alive until the run
+ended on its own. The leak was already visible in the shipped hook: `@jini-ai/chat-react`'s
+`useRunStream.reattach()` created an `AbortController`, stored it, and aborted it on
+unmount/reset/supersession — a controller it had no parameter to hand to the transport. (The hook's
+generation counter kept stale callbacks from clobbering state, which is why this read as correct; it
+never closed anything.)
+
+Added an optional third parameter, `options?: ReattachRunOptions`, carrying `signal?: AbortSignal` —
+the same seam `StartRunInput.signal` already is for `startRun`. Optional and positional-last so every
+existing implementation stays type-compatible unedited. `useRunStream` now passes its subscription
+signal; `examples/reference-web`'s daemon transport threads it into the fetch that opens the stream.
+
+**Also corrected two stale comments, no behavior change:**
+
+- `agentic/index.ts` claimed `chat-react`'s `agent-tools.ts` shim still names `CapabilityDef` through
+  this package. It imports it from `@jini-ai/agentic` directly; the re-export now has no in-repo
+  consumer and is documented as a pure external-compatibility alias.
+- `chat-capabilities.ts`'s `chat.send_message` carried `surface: 'server'` with the comment "the one
+  genuinely headless outcome here". Nothing shipped satisfies it headlessly:
+  `@jini-ai/daemon`'s `createFrontendCapabilityRegistrations` — the only projection of this manifest
+  into callable tools — routes *every* capability through the frontend session bound to the run, and
+  does not read `surface` at all. The declaration is left as-is (it states the intended surface, and
+  nothing is advertised differently because of it today), but the comment now names the gap and the
+  concrete trap: `@jini-ai/agentic`'s `availableCapabilities(CHAT_CAPABILITIES, false)` returns exactly
+  this entry, and every call to it fails with `no frontend is bound`.
+
+Verified: `packages/chat-core` 261/261 passing; `packages/chat-react` 610/610 passing and
+100/100/100/100 coverage (2 new `useRunStream` tests pinning that the signal reaches the transport
+and fires on supersession, unmount and reset).

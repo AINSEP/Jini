@@ -65,6 +65,24 @@ export interface StartRunInput {
 }
 
 /**
+ * Per-reattachment options. Separate from the positional `runId`/`handlers` pair, and optional, so
+ * an existing implementation stays type-compatible without edits.
+ */
+export interface ReattachRunOptions {
+  /**
+   * Stops the browser-side subscription; the run continues host-side. Exactly what
+   * `StartRunInput.signal` is to `startRun`.
+   *
+   * `reattachRun` had no cancellation seam at all until 2026-07-29, and that was a resource leak
+   * rather than a missing convenience: a reattached SSE/WebSocket stream can outlive the component
+   * that opened it by as long as the run itself runs, and the shipped `useRunStream` hook was
+   * already creating (and aborting on unmount/reset/replacement) a controller it had no way to hand
+   * to the transport. The connection and its read loop simply kept going.
+   */
+  readonly signal?: AbortSignal;
+}
+
+/**
  * The transport port. A host binds exactly one implementation (a real
  * SSE/fetch adapter, a WebSocket adapter, or a fake for tests/demos) and
  * passes it to `<JiniChatProvider>`. Every headless hook in this package
@@ -72,8 +90,13 @@ export interface StartRunInput {
  */
 export interface ChatTransport {
   startRun(input: StartRunInput, handlers: RunHandlers): Promise<{ runId: string }>;
-  /** Resume listening to an already-started run (reconnect/replay). */
-  reattachRun(runId: string, handlers: RunHandlers): Promise<void>;
+  /**
+   * Resume listening to an already-started run (reconnect/replay).
+   *
+   * An implementation that opens a long-lived stream **must** honor `options.signal` — it is the
+   * only way a caller can detach. See {@link ReattachRunOptions.signal}.
+   */
+  reattachRun(runId: string, handlers: RunHandlers, options?: ReattachRunOptions): Promise<void>;
   fetchRunStatus(runId: string): Promise<ChatRunStatus | null>;
   stopRun(runId: string): Promise<void>;
   reportFeedback?(change: FeedbackChange): Promise<void>;

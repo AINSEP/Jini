@@ -291,6 +291,64 @@ describe('useRunStream', () => {
     expect(result.current.events).toEqual([]);
   });
 
+  it('hands reattachRun the same abort signal it already tears down, so a reattached stream can actually be detached', async () => {
+    // The hook has always created a subscription AbortController for reattach() and aborted it on
+    // unmount/reset/replacement — but the controller never reached the transport, so a real SSE or
+    // WebSocket reattachment kept its connection and read loop alive until the run ended on its own.
+    const signals: (AbortSignal | undefined)[] = [];
+    const transport = {
+      startRun: vi.fn(),
+      reattachRun: vi.fn(async (_runId: string, _handlers: unknown, options?: { signal?: AbortSignal }) => {
+        signals.push(options?.signal);
+        // A long-lived reattachment: it never settles by itself, which is exactly the case that leaks.
+        await new Promise<void>(() => undefined);
+      }),
+      stopRun: vi.fn(),
+      fetchRunStatus: vi.fn(),
+    } as unknown as ChatTransport;
+    const { result, unmount } = renderHook(() => useRunStream(transport));
+
+    act(() => {
+      void result.current.reattach('run-a');
+    });
+    expect(signals).toHaveLength(1);
+    const first = signals[0];
+    expect(first).toBeInstanceOf(AbortSignal);
+    expect(first!.aborted).toBe(false);
+
+    // A superseding reattach retires the previous subscription…
+    act(() => {
+      void result.current.reattach('run-b');
+    });
+    expect(first!.aborted).toBe(true);
+    expect(signals).toHaveLength(2);
+    expect(signals[1]!.aborted).toBe(false);
+
+    // …and unmounting retires the current one.
+    unmount();
+    expect(signals[1]!.aborted).toBe(true);
+  });
+
+  it('reset() also aborts the reattached subscription rather than leaving it running', async () => {
+    const signals: AbortSignal[] = [];
+    const transport = {
+      startRun: vi.fn(),
+      reattachRun: vi.fn(async (_runId: string, _handlers: unknown, options?: { signal?: AbortSignal }) => {
+        signals.push(options!.signal!);
+        await new Promise<void>(() => undefined);
+      }),
+      stopRun: vi.fn(),
+      fetchRunStatus: vi.fn(),
+    } as unknown as ChatTransport;
+    const { result } = renderHook(() => useRunStream(transport));
+
+    act(() => {
+      void result.current.reattach('run-a');
+    });
+    act(() => result.current.reset());
+    expect(signals[0]!.aborted).toBe(true);
+  });
+
   it('a superseded reattach() whose transport promise later rejects is silently dropped (stale-generation catch guard)', async () => {
     let rejectFirst!: (err: unknown) => void;
     const firstPromise = new Promise<void>((_resolve, reject) => {

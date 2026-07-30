@@ -154,9 +154,20 @@ export interface JiniKernel {
    * two — which is exactly what the standalone daemon does.
    */
   disposeFeatures(): Promise<void>;
+  /**
+   * Runs every **caller** pack's `dispose`, in reverse composition order, best-effort. Idempotent.
+   *
+   * This composition called `createDaemon` on `config.packs`, so it — not the caller — is what
+   * built their services; a pack whose `services()` opened a socket, a timer or a database handle
+   * has no other owner to release it. Kept separate from {@link disposeFeatures} for the same
+   * reason that one is separate from {@link closeBase}: a composition root shuts down in its own
+   * order, and the standalone daemon interleaves discovery-record removal and the host's
+   * `onShutdown` hook between these steps.
+   */
+  disposeCallerPacks(): Promise<void>;
   /** Closes the kernel-owned sqlite handles. Idempotent. */
   closeBase(): Promise<void>;
-  /** {@link disposeFeatures} then {@link closeBase}. */
+  /** {@link disposeFeatures}, then {@link disposeCallerPacks}, then {@link closeBase}. */
   close(): Promise<void>;
 }
 
@@ -300,21 +311,32 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
     config.onAfterApiRoutes?.(app, callerDaemon, base);
     mountPhase('status', app, composed, featureDaemon);
   } catch (error) {
+    // Reverse of the order they were built: features composed against an already-constructed caller
+    // daemon, so they release first. The caller's packs are disposed here too — `createDaemon` ran
+    // their `services()` before the first feature composed, so a failure anywhere after that point
+    // leaves whatever those services opened with no owner at all.
     await disposePacks(
       composed.map((entry) => entry.pack),
       featureDaemon,
     );
+    await disposePacks(callerPacks, callerDaemon);
     await base.close();
     throw error;
   }
 
-  let disposed: Promise<void> | null = null;
+  let disposedFeatures: Promise<void> | null = null;
   const disposeFeatures = (): Promise<void> => {
-    disposed ??= disposePacks(
+    disposedFeatures ??= disposePacks(
       composed.map((entry) => entry.pack),
       featureDaemon,
     ).then(() => undefined);
-    return disposed;
+    return disposedFeatures;
+  };
+
+  let disposedCallerPacks: Promise<void> | null = null;
+  const disposeCallerPacks = (): Promise<void> => {
+    disposedCallerPacks ??= disposePacks(callerPacks, callerDaemon).then(() => undefined);
+    return disposedCallerPacks;
   };
 
   return {
@@ -322,9 +344,11 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
     daemon: callerDaemon,
     activation,
     disposeFeatures,
+    disposeCallerPacks,
     closeBase: () => base.close(),
     async close(): Promise<void> {
       await disposeFeatures();
+      await disposeCallerPacks();
       await base.close();
     },
   };

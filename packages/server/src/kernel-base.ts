@@ -100,31 +100,44 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
   const dataDir = options.storage.kind === 'sqlite' ? options.storage.dataDir : null;
   const eventsDbPath = dataDir === null ? null : join(dataDir, 'events.db');
 
-  const eventLog: ClosableEventLog =
-    eventsDbPath === null ? createInMemoryEventLog() : createSqliteEventLog(eventsDbPath);
-  // Gap 1's byte journal gets its own store, deliberately separate from `eventLog`: that log
-  // replays every entry it holds to SSE subscribers as a `RunProtocolEvent`, and a journal entry
-  // has no corresponding protocol-event kind.
-  const journalEventLog: ClosableEventLog =
-    dataDir === null ? createInMemoryEventLog() : createSqliteEventLog(join(dataDir, 'journal.db'));
+  // One acquisition block, one cleanup path — and **every** acquisition is inside it. Opening even
+  // the first event log outside the block would reintroduce exactly the leak this shape exists to
+  // prevent: `events.db` opens, `journal.db` fails (corrupt file, or a directory sitting where a
+  // database was expected), and the first handle stays open for the lifetime of a process that has
+  // no kernel. The second sqlite connection and the rehydration are grouped here for the same
+  // reason: all four can fail after handles are already open, and two try/catch blocks with
+  // near-identical cleanup is how one of them eventually drifts and starts leaking.
+  const opened: ClosableEventLog[] = [];
+  const openEventLog = (path: string | null): ClosableEventLog => {
+    const log = path === null ? createInMemoryEventLog() : createSqliteEventLog(path);
+    opened.push(log);
+    return log;
+  };
 
-  const journal = createRunByteJournal(journalEventLog);
-  const lifecycle = createRunLifecycle({ eventLog });
-
-  // One acquisition block, one cleanup path. The second sqlite connection and the rehydration are
-  // grouped deliberately: both can fail after handles are already open, and two separate try/catch
-  // blocks with near-identical cleanup is how one of them eventually drifts and starts leaking.
   let sqlite: KernelSqliteAccess | null = null;
+  let eventLog!: ClosableEventLog;
+  let journalEventLog!: ClosableEventLog;
+  let lifecycle!: RunLifecycle;
+  let journal!: ReturnType<typeof createRunByteJournal>;
   try {
+    eventLog = openEventLog(eventsDbPath);
+    // Gap 1's byte journal gets its own store, deliberately separate from `eventLog`: that log
+    // replays every entry it holds to SSE subscribers as a `RunProtocolEvent`, and a journal entry
+    // has no corresponding protocol-event kind.
+    journalEventLog = openEventLog(dataDir === null ? null : join(dataDir, 'journal.db'));
+
     if (isSqlite && eventsDbPath !== null && dataDir !== null) {
       // A *second* connection to the same `events.db` the log above owns — safe: both run in WAL
       // mode, which permits multiple concurrently open handles on one file within a single process.
       sqlite = { connection: new Database(eventsDbPath), eventsDbPath, dataDir };
     }
+
+    journal = createRunByteJournal(journalEventLog);
+    lifecycle = createRunLifecycle({ eventLog });
     await lifecycle.rehydrate();
   } catch (error) {
     sqlite?.connection.close();
-    await Promise.all([eventLog.close?.(), journalEventLog.close?.()]);
+    await Promise.all(opened.map((log) => log.close?.()));
     throw error;
   }
 

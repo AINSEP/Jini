@@ -156,6 +156,44 @@ describe('agents', () => {
     expect((await fetch(`${url}/api/agents`)).status).toBe(200);
     expect(detector).toHaveBeenCalledTimes(2);
   });
+
+  it("a slow scan failing after a newer rescan already succeeded must not evict the newer scan's cache", async () => {
+    let failSlowScan: (error: unknown) => void = () => undefined;
+    let calls = 0;
+    const detector = vi.fn(() => {
+      calls += 1;
+      if (calls === 1) {
+        return new Promise<never>((_resolve, reject) => {
+          failSlowScan = reject;
+        });
+      }
+      return Promise.resolve([]);
+    });
+
+    const { url } = await boot({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      featureOptions: { agents: { detector: detector as never } },
+    });
+
+    // Scan #1 starts and does not settle yet.
+    const slow = fetch(`${url}/api/agents`);
+    await vi.waitFor(() => expect(detector).toHaveBeenCalledTimes(1));
+
+    // Scan #2 replaces it and succeeds; its result is what the cache now holds.
+    const rescan = await fetch(`${url}/api/agents/rescan`, { method: 'POST', headers: { origin: url } });
+    expect(rescan.status).toBe(200);
+    expect(detector).toHaveBeenCalledTimes(2);
+
+    failSlowScan(new Error('the slow probe finally failed'));
+    expect((await slow).status).toBe(500);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    // The cache invalidation belongs to the scan that failed, not to whatever happens to be cached
+    // when it gets around to failing — otherwise a stale failure forces a duplicate agent probe.
+    expect((await fetch(`${url}/api/agents`)).status).toBe(200);
+    expect(detector).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('toolCatalog', () => {
