@@ -37,6 +37,16 @@
       "types": "./dist/react/chat/index.d.ts",
       "import": "./dist/react/chat/index.js",
       "default": "./dist/react/chat/index.js"
+    },
+    "./mcp-ui": {
+      "types": "./dist/react/mcp-ui/index.d.ts",
+      "import": "./dist/react/mcp-ui/index.js",
+      "default": "./dist/react/mcp-ui/index.js"
+    },
+    "./mcp-ui/surfaces": {
+      "types": "./dist/features/mcp-ui/index.d.ts",
+      "import": "./dist/features/mcp-ui/index.js",
+      "default": "./dist/features/mcp-ui/index.js"
     }
   },
   "files": [
