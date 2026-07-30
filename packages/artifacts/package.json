@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/artifacts",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Generic artifact store: manifests, publication guards, runtime-compat and stub detection. Node-only disk scanning lives behind ./node.",
   "license": "Apache-2.0",
   "repository": {

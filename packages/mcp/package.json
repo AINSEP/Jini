@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/mcp",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Model Context Protocol adapters: server config schema and IO, an MCP client, and agent-side MCP server installation.",
   "license": "Apache-2.0",
   "repository": {

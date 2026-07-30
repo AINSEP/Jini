@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/composio",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Headless Composio integration: connector catalog, auth, and tool-curation types plus the API client.",
   "license": "Apache-2.0",
   "repository": {

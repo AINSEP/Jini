@@ -1,5 +1,73 @@
 # @jini-ai/mcp
 
+## 0.3.0
+
+### Minor Changes
+
+- 4f52784: Add a `sidecar-strict` security mode and per-run MCP credential propagation.
+
+  For a daemon whose threat model is **another process running as the same OS user** rather than a
+  remote attacker, the existing `jini-local` mode is a no-op: `registerApiBearerAuthMiddleware`
+  short-circuits for any loopback peer before it reads the `Authorization` header, and a `127.0.0.1`
+  bind keeps remote hosts out while doing nothing about a co-resident process. A consumer that spawns a
+  Jini daemon holding real authority — starting agent runs, executing tools against a real database —
+  previously had to write its own middleware.
+
+  - `@jini-ai/http-kit` gains `requireStrictBearerToken`: fail-closed 503 when the named token env var
+    is unset, 401 on mismatch, **no loopback exemption and no disable flag**. Its `tokenEnvVar` is
+    required with no default, so this package never names a host's secret.
+  - `composeJiniKernel` gains `security: { mode: 'sidecar-strict', host, tokenEnvVar, exemptPaths? }`.
+    Purely additive — `host` and `jini-local` are unchanged by construction, since the modes are arms of
+    a discriminated union. The strict gate mounts ahead of the JSON body parser, so a caller it rejects
+    never has its body parsed.
+  - `@jini-ai/daemon`'s `McpJsonInjectionOptions` gains `credential?: (runId) => string | Promise<string>`
+    — a **resolver, not a string**, because injection options are built once before any run exists and a
+    boot-wide shared secret would defeat the point of scoping a credential to a run. It is delivered to
+    the child as `JINI_DAEMON_TOKEN`.
+  - `@jini-ai/mcp`'s `jini-mcp` reads that variable and attaches `Authorization` to every daemon call.
+    Optional throughout: with no credential, request headers and `.mcp.json` output are byte-identical
+    to before.
+
+  Also generalized: both existing bearer gates now compare tokens in constant time (`timingSafeEqual`)
+  and share one header-parsing helper, closing a timing side channel and removing a duplicated regex.
+
+### Patch Changes
+
+- 4f52784: Add a stable `./bin` export subpath resolving to the `jini-mcp` executable.
+
+  The package declared a `bin` entry for `dist/bin/serve.js` but an `exports` map containing only
+  `"."`, so a consumer that needed the executable's path in order to spawn it as a CLI-injected MCP
+  server could not ask for one: `require.resolve('@jini-ai/mcp/dist/bin/serve.js')` fails with
+  `ERR_PACKAGE_PATH_NOT_EXPORTED`. Consumers were resolving the root export and walking to a sibling
+  path by hand, hardcoding this package's private build layout.
+
+  `require.resolve('@jini-ai/mcp/bin')` now returns that path directly. The subpath deliberately
+  declares only a `default` condition — it is meant to be resolved to a path and handed to `spawn`,
+  not imported (`serve.ts` uses top-level await behind its `isMainModule` guard, so it is not
+  `require()`-able). Purely additive: the `"."` export is unchanged.
+
+- 8ff5653: Enforce a tool's declared `inputSchema` server-side before its handler runs.
+
+  `createMcpToolServer` wires tools through the MCP SDK's low-level `Server.setRequestHandler`, not
+  the schema-validating `McpServer.registerTool()` helper — the former never checked a real client's
+  `tools/call` arguments against the tool's own declared `inputSchema`. A wire-level test (a real SDK
+  `Client` and `Server` over `InMemoryTransport`, not the existing `FakeTransport` suite, which calls
+  handlers directly either way and so cannot see this) proved schema-violating arguments — wrong
+  type, an undeclared property under `additionalProperties: false` — reached every handler completely
+  unvalidated.
+
+  `handleToolCall` now validates `rawArgs` against `tool.inputSchema` via the MCP SDK's own
+  `@modelcontextprotocol/sdk/validation/cfworker` provider (no `eval`/codegen, matching this package's
+  Node CLI runtime) before invoking the handler, returning the same `{isError:true}` shape as an
+  unknown-tool-name or thrown-error result rather than ever calling the handler with unvalidated
+  input. Each tool's compiled validator is cached (`WeakMap` keyed by the `McpToolDef` instance, stable
+  for a server's whole lifetime) since compiling one is real work the SDK's validator does not cache
+  internally. Adds `@cfworker/json-schema` (already an optional peer of the installed SDK version) as
+  a direct dependency.
+
+  - @jini-ai/cli@0.3.0
+  - @jini-ai/platform@0.3.0
+
 ## 0.1.2
 
 ### Patch Changes

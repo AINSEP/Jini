@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat-core",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Framework-free chat vocabulary and pure parsers: event and message reducers, transcript projection, partial-JSON decoding, tool-event and todo parsing.",
   "license": "Apache-2.0",
   "repository": {

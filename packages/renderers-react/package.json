@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/renderers-react",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "React artifact-renderer registry and sandboxed srcDoc host: Markdown, Shiki highlighting, annotation canvas, new-tab previews, and a preview modal shell.",
   "license": "Apache-2.0",
   "repository": {

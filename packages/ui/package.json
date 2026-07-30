@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/ui",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Generic, product-neutral React UI primitives and feature domains. The Excalidraw and Lexical editors live behind ./sketch-editor and ./lexical-rich-text-editor.",
   "license": "Apache-2.0",
   "repository": {

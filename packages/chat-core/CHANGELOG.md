@@ -1,5 +1,12 @@
 # @jini-ai/chat-core
 
+## 0.3.0
+
+### Patch Changes
+
+- Updated dependencies [28c6d3d]
+  - @jini-ai/agentic@0.3.0
+
 ## 0.1.2
 
 ### Patch Changes

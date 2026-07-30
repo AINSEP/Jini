@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/memory",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Daemon-side memory/notes capability: a frontmatter-backed note store, a bounded extraction-attempt log, a self-verify scorecard enforcer, and a strict-JSON LLM primitive.",
   "license": "Apache-2.0",
   "repository": {

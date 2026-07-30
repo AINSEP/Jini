@@ -1,5 +1,12 @@
 # @jini-ai/cli
 
+## 0.3.0
+
+### Patch Changes
+
+- @jini-ai/core@0.3.0
+- @jini-ai/sidecar@0.3.0
+
 ## 0.1.2
 
 ### Patch Changes

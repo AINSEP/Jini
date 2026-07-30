@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/deploy",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Static-site deploy adapters (Vercel, Cloudflare Pages, Netlify, GitHub Pages) behind one port, plus deployment naming and reachability probing.",
   "license": "Apache-2.0",
   "repository": {

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/media",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Multi-provider image/video/audio generation gateway: capability registry, multi-vendor REST dispatch, policy and staging ports, and an optional SQLite task store.",
   "license": "Apache-2.0",
   "repository": {

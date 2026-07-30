@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/desktop-host",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Shell-agnostic desktop-host ports: single-instance lock, window lifecycle, protocol handling, sidecar launch, paths, and config. Electron and Tauri assemblies live behind ./electron and ./tauri.",
   "license": "Apache-2.0",
   "repository": {

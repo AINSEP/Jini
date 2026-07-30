@@ -1,5 +1,11 @@
 # @jini-ai/renderers-react
 
+## 0.3.0
+
+### Patch Changes
+
+- @jini-ai/chat-core@0.3.0
+
 ## 0.1.2
 
 ### Patch Changes

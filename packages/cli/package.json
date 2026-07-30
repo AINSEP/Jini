@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cli",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "CLI transport shell for driving a Jini daemon over HTTP: flag parsing, daemon-URL resolution, local daemon discovery, and a pluggable command registry.",
   "license": "Apache-2.0",
   "repository": {

@@ -1,5 +1,73 @@
 # @jini-ai/node-host
 
+## 0.3.0
+
+### Minor Changes
+
+- 4f52784: Stop advertising agents `AgentExecutor` cannot run.
+
+  The built-in `agents` feature scanned every runtime definition, but `AgentExecutor` rejects some of
+  them (`antigravity`, whose deferral is documented in that module). A consumer could therefore offer a
+  user an agent that failed the instant it was selected, with the mismatch visible nowhere.
+
+  - `@jini-ai/daemon` exports `isAgentExecutorSupported(def)` and `assessAgentExecutorCompatibility(def)`.
+    `run()` now consumes the latter instead of re-checking the conditions itself, so the discovery-time
+    answer and the run-time guards cannot drift apart. Error messages are unchanged.
+  - `@jini-ai/server`'s `agents` feature applies the predicate by default, and exports
+    `isExecutableDetectedAgent` for hosts that want it directly.
+
+  `antigravity`'s definition remains in `@jini-ai/agent-runtime` — the predicate is advisory, and a
+  non-`AgentExecutor` launch path can ignore it. An id with no registered def is kept rather than
+  dropped, so a host supplying its own `detector` is unaffected.
+
+  Note for anyone implementing something similar: the predicate deliberately takes the full
+  `RuntimeAgentDef`, not a projected `DetectedAgent`. That projection omits `maxPromptArgBytes`, and the
+  argv-bound defs (`aider`, `deepseek`) qualify solely through it — judging the projection would have
+  dropped two working agents while fixing one broken one.
+
+- 4f52784: Add a `sidecar-strict` security mode and per-run MCP credential propagation.
+
+  For a daemon whose threat model is **another process running as the same OS user** rather than a
+  remote attacker, the existing `jini-local` mode is a no-op: `registerApiBearerAuthMiddleware`
+  short-circuits for any loopback peer before it reads the `Authorization` header, and a `127.0.0.1`
+  bind keeps remote hosts out while doing nothing about a co-resident process. A consumer that spawns a
+  Jini daemon holding real authority — starting agent runs, executing tools against a real database —
+  previously had to write its own middleware.
+
+  - `@jini-ai/http-kit` gains `requireStrictBearerToken`: fail-closed 503 when the named token env var
+    is unset, 401 on mismatch, **no loopback exemption and no disable flag**. Its `tokenEnvVar` is
+    required with no default, so this package never names a host's secret.
+  - `composeJiniKernel` gains `security: { mode: 'sidecar-strict', host, tokenEnvVar, exemptPaths? }`.
+    Purely additive — `host` and `jini-local` are unchanged by construction, since the modes are arms of
+    a discriminated union. The strict gate mounts ahead of the JSON body parser, so a caller it rejects
+    never has its body parsed.
+  - `@jini-ai/daemon`'s `McpJsonInjectionOptions` gains `credential?: (runId) => string | Promise<string>`
+    — a **resolver, not a string**, because injection options are built once before any run exists and a
+    boot-wide shared secret would defeat the point of scoping a credential to a run. It is delivered to
+    the child as `JINI_DAEMON_TOKEN`.
+  - `@jini-ai/mcp`'s `jini-mcp` reads that variable and attaches `Authorization` to every daemon call.
+    Optional throughout: with no credential, request headers and `.mcp.json` output are byte-identical
+    to before.
+
+  Also generalized: both existing bearer gates now compare tokens in constant time (`timingSafeEqual`)
+  and share one header-parsing helper, closing a timing side channel and removing a duplicated regex.
+
+### Patch Changes
+
+- Updated dependencies [4f52784]
+- Updated dependencies [8ff5653]
+- Updated dependencies [8ff5653]
+- Updated dependencies [4f52784]
+- Updated dependencies [4f52784]
+- Updated dependencies [4f52784]
+- Updated dependencies [8ff5653]
+  - @jini-ai/daemon@0.3.0
+  - @jini-ai/agent-runtime@0.3.0
+  - @jini-ai/http-kit@0.3.0
+  - @jini-ai/core@0.3.0
+  - @jini-ai/sidecar@0.3.0
+  - @jini-ai/sqlite@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

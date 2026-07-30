@@ -1,5 +1,142 @@
 # @jini-ai/http
 
+## 0.3.0
+
+### Minor Changes
+
+- 8ff5653: Add the attachment upload capability: `POST`/`DELETE /api/attachments` plus a disk-backed store.
+
+  Composer file and image uploads were something every host had to build for itself. Getting it _working_
+  is easy; getting it right is not, and the parts that are easy to skip are the parts that matter — a
+  renderer must never learn a filesystem path, a claimed file must be provably the same file that was
+  uploaded, and the bytes must be gone when the run ends. This is that whole capability, extracted from a
+  working host implementation rather than designed fresh.
+
+  `createDiskAttachmentStore({ uploadDirectory, ... })` satisfies the `AttachmentStore` port with every
+  quota defaulted (10 files / 50 MB per message, 100 files / 200 MB per store, one-hour retention).
+  `registerAttachmentRoutes(app, { store }, adapter)` mounts the two routes, with a per-registration
+  concurrent-upload limit, a streaming byte cap, and the same-origin guard on by default.
+
+  What the store guarantees, all of it re-derived server-side and none of it taken from the client:
+
+  - the wire `path` is an opaque `attachment:<uuid>` capability, never a filesystem path — `claim()` is
+    what exchanges one for a real path, and only once per attachment;
+  - `kind` is sniffed from the leading bytes (`detectAttachmentKind`), so a renderer cannot decide whether
+    its upload reaches the agent as an image;
+  - the display name is a sanitized basename; the _stored_ name is a fresh UUID;
+  - `claim()` re-verifies `dev`/`ino`/`size` and `realpath` against what registration recorded, so neither
+    the file nor a parent directory can be swapped for a symlink in between;
+  - quota decisions happen with no `await` between the check and the commit, so concurrent uploads cannot
+    both reserve the last slot;
+  - the upload directory is emptied on construction — files from an interrupted previous process cannot be
+    authenticated, so they are not adopted.
+
+  Run-lifecycle wiring stays host-owned, matching `createRunScopedContextStore`'s precedent: a host calls
+  `store.claim(...)` in its own `onRunStarted`, threads the result into `AgentExecutor.run()`'s existing
+  `imagePaths`/`extraAllowedDirs`/`uploadRoot`, and calls `store.cleanupRun(runId)` in a `finally`. The
+  module doc carries that ~10-line pattern. There is no generic run hook to auto-wire into, and inventing
+  one here would be worse than documenting the ten lines.
+
+  Two things found while extracting, both now handled rather than inherited:
+
+  - **A body parser silently eats uploads.** The route streams the raw request, so an app-wide
+    `express.json()` — which `compose-jini-kernel` mounts for every daemon — consumes the body of any
+    upload whose content type it claims. Dropping a `.json` file was enough to trigger it, and it surfaced
+    as the useless "attachment is empty". The route now detects an already-drained stream and reports it as
+    the host misconfiguration it is.
+  - **Two redundant integrity checks that could never fire.** A `path.relative` containment test sitting
+    behind a `dirname(filePath) === batchDirectory` check added nothing (parent-directory equality is
+    strictly stronger and implies containment), and an `isSymbolicLink()` check behind `!isFile()` on an
+    `lstat` result can never be the deciding one, since `lstat` reports exactly one file type. Both were
+    removed with the reasoning recorded inline. The accepted-input set is unchanged; the integrity decision
+    itself moved into a pure, exported `isUnchangedAttachment` so each condition — including a device
+    change, which no filesystem test can stage — is directly verifiable.
+
+- 4f52784: Publish a route manifest so a reverse proxy stops hand-copying path strings.
+
+  A host proxying a Jini daemon in another process needs that daemon's route list to forward anything,
+  and with no published inventory the only way to build one was to copy path strings by hand. A
+  hand-copied list falls behind the moment a family gains a route — which has already happened in a real
+  consumer, whose proxy shipped without `GET /api/runs` and left the daemon's list endpoint 404-ing at
+  the host's own router.
+
+  `JINI_ROUTE_MANIFEST`, `routeFamilyManifest(family)`, and `manifestRoutesForFamilies(families)` expose
+  `{method, path}` per feature family as inert data, readable without mounting anything.
+
+  The manifest declares **no method or path literals** — every entry is derived from the same
+  `JsonRouteSpec` constant the family's `register*Routes` mounts, so a path change moves the manifest with
+  it. A paired test mounts each declared family's real registrar and asserts the manifest matches, so the
+  one remaining failure mode (a family gains a route nobody lists) fails a test instead of a consumer.
+
+  That test earned its keep immediately: it found that the `runs` family mounts **two** spec-less
+  streaming routes, `/api/runs/:runId/events` and `/api/runs/:runId/agui-stream`, easy to mistake for one
+  another and both needed by a proxy. `RUN_EVENTS_ROUTE_PATH` is now exported alongside the existing
+  `RUN_STREAM_ROUTE_PATH` so neither has to be restated as a literal.
+
+  Scope is honest: the manifest covers the families a sidecar consumer proxies, not all 19 the package can
+  mount. `routeFamilyManifest` returns `undefined` for an undeclared family rather than an empty array, so
+  "not described here" is never mistaken for "has no routes".
+
+- 4f52784: Add a `sidecar-strict` security mode and per-run MCP credential propagation.
+
+  For a daemon whose threat model is **another process running as the same OS user** rather than a
+  remote attacker, the existing `jini-local` mode is a no-op: `registerApiBearerAuthMiddleware`
+  short-circuits for any loopback peer before it reads the `Authorization` header, and a `127.0.0.1`
+  bind keeps remote hosts out while doing nothing about a co-resident process. A consumer that spawns a
+  Jini daemon holding real authority — starting agent runs, executing tools against a real database —
+  previously had to write its own middleware.
+
+  - `@jini-ai/http-kit` gains `requireStrictBearerToken`: fail-closed 503 when the named token env var
+    is unset, 401 on mismatch, **no loopback exemption and no disable flag**. Its `tokenEnvVar` is
+    required with no default, so this package never names a host's secret.
+  - `composeJiniKernel` gains `security: { mode: 'sidecar-strict', host, tokenEnvVar, exemptPaths? }`.
+    Purely additive — `host` and `jini-local` are unchanged by construction, since the modes are arms of
+    a discriminated union. The strict gate mounts ahead of the JSON body parser, so a caller it rejects
+    never has its body parsed.
+  - `@jini-ai/daemon`'s `McpJsonInjectionOptions` gains `credential?: (runId) => string | Promise<string>`
+    — a **resolver, not a string**, because injection options are built once before any run exists and a
+    boot-wide shared secret would defeat the point of scoping a credential to a run. It is delivered to
+    the child as `JINI_DAEMON_TOKEN`.
+  - `@jini-ai/mcp`'s `jini-mcp` reads that variable and attaches `Authorization` to every daemon call.
+    Optional throughout: with no credential, request headers and `.mcp.json` output are byte-identical
+    to before.
+
+  Also generalized: both existing bearer gates now compare tokens in constant time (`timingSafeEqual`)
+  and share one header-parsing helper, closing a timing side channel and removing a duplicated regex.
+
+- 8ff5653: `GET /api/tools/:id` answers 404 for an unknown tool id, not 400.
+
+  `toolCatalogDescribeRoute` (the route `@jini-ai/mcp`'s `describe_tool` proxies) reported a
+  well-formed request naming a nonexistent catalog entry as `VALIDATION_FAILED` / **400**, because its
+  `handle` reached for the same `validationError` helper its `parse` step uses — where 400 genuinely is
+  correct. The result was that a caller could not tell "you sent a malformed request" apart from "that
+  tool does not exist", which are the two things a status code is supposed to separate.
+
+  The three sibling route families in this package with the identical "the referenced resource isn't
+  there" case — `memory.ts`'s `memory not found`, `routines.ts`'s `routine not found`, and `media.ts`'s
+  `media task not found` — all already answered 404. This was the one family out of step, so this is a
+  behavior correction toward an existing in-package convention rather than a new one.
+
+  Now `NOT_FOUND` / **404**, with the message unchanged (`no catalog entry for tool id "<id>"`).
+  `parse` failures on this route — a missing `:id` path segment — are still 400.
+
+  **Behavior change for callers**, hence the minor bump: anything that branched on 400 to detect an
+  unknown tool id must branch on 404 instead. Client code that only distinguishes success from failure
+  is unaffected. A wire-level test now pins the observed status code for the not-found case, the
+  malformed case, and the cross-origin case, so the two cannot silently converge again.
+
+### Patch Changes
+
+- Updated dependencies [4f52784]
+- Updated dependencies [8ff5653]
+- Updated dependencies [4f52784]
+- Updated dependencies [4f52784]
+  - @jini-ai/daemon@0.3.0
+  - @jini-ai/agent-runtime@0.3.0
+  - @jini-ai/core@0.3.0
+  - @jini-ai/platform@0.3.0
+  - @jini-ai/protocol@0.3.0
+
 ## 0.2.1
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat-react",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "React bindings for a chat/artifact frontend: headless hooks, presentational components, and composition slots over @jini-ai/chat-core.",
   "license": "Apache-2.0",
   "repository": {

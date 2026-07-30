@@ -1,5 +1,7 @@
 # @jini-ai/memory
 
+## 0.3.0
+
 ## 0.1.2
 
 ### Patch Changes
