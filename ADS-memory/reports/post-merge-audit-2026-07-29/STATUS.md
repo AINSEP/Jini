@@ -17,7 +17,8 @@ BEFORE the fix, then the fix is applied and the test (plus the package's full su
 |---|---|---|---|
 | `server` | 6 | **Fixed** (6/6 real, all fixed + 2 non-blocking) | `fix/post-merge-audit-2026-07-29` |
 | `chat-core` | 2 | **Fixed** (1/2 real+fixed, 1 false-positive-on-mechanism/doc-fixed) | `fix/post-merge-audit-2026-07-29` |
-| `agentic` | 7 | Fix-agent running locally as of this writing | `fix/post-merge-audit-agentic-2026-07-29` |
+| `agentic` | 7 | Fix-agent running locally as of this writing (see risk note below) | `fix/post-merge-audit-agentic-2026-07-29` (local only, never pushed) |
+| `agentic` (cloud backup) | 7 | Queued — redundant safety net in case the local run above didn't finish, cloud routine `trig_01BQ8njKGmdrc2XESkdDGArU`, fires 2026-07-30 04:30 PDT | `fix/post-merge-audit-agentic-cloud-2026-07-30` |
 | `daemon` | 5 | Queued — cloud routine `trig_01LKsrqn1uQ4xZn3F1ZhkqUY`, fires 2026-07-30 03:00 PDT | `fix/post-merge-audit-daemon-2026-07-30` |
 | `agent-runtime` + `mcp` | 2 + 1 = 3 | Queued — combined into one cloud routine (both small), `trig_01Ji2QriSVA5Y7NBTWejnWr3`, fires 2026-07-30 03:30 PDT | `fix/post-merge-audit-agent-runtime-mcp-2026-07-30` |
 | `http-kit` | 12 | Queued — cloud routine `trig_01P3obaCLTpMqEq6aTMPaN1N`, fires 2026-07-30 04:00 PDT (largest — agent was told to prioritize by severity and report honestly if it can't finish all 12) | `fix/post-merge-audit-http-kit-2026-07-30` |
@@ -36,14 +37,21 @@ to report a finding as a false positive (with reasoning, no code change) rather 
    in the commit message: which findings were confirmed real vs. false positive, the failing-test
    output before the fix, and the passing output after. None of these branches are merged into
    `main` and none have PRs opened — that's a deliberate human checkpoint.
-2. The 3 scheduled runs (`daemon`, `agent-runtime`+`mcp`, `http-kit`) are **cloud** agents (via
-   Claude Code routines / `RemoteTrigger`, model `claude-opus-5`) — they run in Anthropic's cloud
-   infrastructure, not on this machine, so they do NOT depend on this laptop staying on. Each one
-   clones `main` fresh (as of commit `d84c09e4a`, which already has these findings files on it),
-   creates its own branch, and — unlike a local worktree — MUST push that branch to `origin` for
-   its work to be retrievable (the routine has no other way to hand back results). If a branch
-   listed above doesn't exist on `origin` in the morning, that run failed or is still in progress;
-   check https://claude.ai/code/routines for run status.
+2. The 4 scheduled runs (`daemon`, `agent-runtime`+`mcp`, `http-kit`, `agentic`-cloud-backup) are
+   **cloud** agents (via Claude Code routines / `RemoteTrigger`, model `claude-opus-5`) — they run
+   in Anthropic's cloud infrastructure, not on this machine, so they do NOT depend on this laptop
+   staying on. Each one clones `main` fresh, creates its own branch, and — unlike a local worktree —
+   MUST push that branch to `origin` for its work to be retrievable (the routine has no other way to
+   hand back results). If a branch listed above doesn't exist on `origin` in the morning, that run
+   failed or is still in progress; check https://claude.ai/code/routines for run status.
+3. **Risk note on the locally-running `agentic` fix-agent**: unlike the 4 cloud routines, it runs in
+   a local git worktree on this specific machine, so it depends on this session/laptop staying alive
+   until it finishes and is only committed (not pushed) when done. If the laptop sleeps or the
+   session ends before it completes, that work may be lost or left mid-flight with nothing to
+   recover — there's no incremental checkpoint, only a single commit at the end. The
+   `fix/post-merge-audit-agentic-cloud-2026-07-30` cloud routine above exists specifically as a
+   redundant safety net for this scenario. If BOTH the local branch and the cloud branch end up with
+   real fixes by morning, reconcile by comparing the two rather than assuming either is authoritative.
 3. The detailed technical brief each fix-agent worked from is in this same directory:
    `daemon-findings.md`, `agent-runtime-findings.md`, `http-kit-findings.md`, `mcp-findings.md`.
    Full Codex output (raw JSONL) for every dispatch, including the ones already fixed, is under
