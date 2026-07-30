@@ -67,47 +67,52 @@ function isEditableRegion(element: Element): element is HTMLElement {
   return element.isContentEditable === true;
 }
 
-/** Every `<label>` associated with `control` by whichever relationship resolves first. */
-function labelTextOf(control: Element): string | undefined {
+/** The text of every `<label>` associated with `control`, by any of the relationships that link one. */
+function labelTextsOf(control: Element): string[] {
+  const texts: string[] = [];
+  const add = (text: string | null | undefined): void => {
+    const trimmed = text?.trim();
+    if (trimmed) texts.push(trimmed);
+  };
   // Real form controls carry `.labels` — every associated <label>, both for-linked and wrapping.
   const associated = 'labels' in control
     ? Array.from((control as { labels?: NodeListOf<HTMLLabelElement> }).labels ?? [])
     : [];
-  for (const label of associated) {
-    const text = label.textContent?.trim();
-    if (text) return text;
-  }
+  for (const label of associated) add(label.textContent);
   // A contenteditable region is not a form control and has no `.labels`; resolve the same two
   // relationships by hand — an ancestor <label> (implicit wrapping) and a for-linked one (explicit).
   const wrapping = control.closest('label');
-  if (wrapping) {
-    const text = wrapping.textContent?.trim();
-    if (text) return text;
-  }
+  if (wrapping) add(wrapping.textContent);
   if (control.id) {
     for (const label of Array.from(control.ownerDocument.querySelectorAll('label'))) {
-      if ((label as HTMLLabelElement).htmlFor === control.id) {
-        const text = label.textContent?.trim();
-        if (text) return text;
-      }
+      if ((label as HTMLLabelElement).htmlFor === control.id) add(label.textContent);
     }
   }
-  return undefined;
+  return texts;
 }
 
 /**
- * The field's human-visible label, for the guard's benefit: `name`/`id` are the machine names, and
- * a CMS emitting `name="field_47"` next to a visibly-labelled "Card number" leaves every guard here
- * nothing to judge unless this is populated. Resolution order: `aria-label`, then `placeholder`,
- * then the text of an associated `<label>` (for-linked or wrapping) — whichever the driver can
- * resolve first.
+ * **Every** human-visible naming of the field, for the guard's benefit: `name`/`id` are the machine
+ * names, and a CMS emitting `name="field_47"` next to a visibly-labelled "Card number" leaves every
+ * guard here nothing to judge unless this is populated. Sources, in the order a human would read
+ * them: `aria-label`, `placeholder`, then the text of each associated `<label>` (for-linked or
+ * wrapping).
+ *
+ * All of them, not the first that resolves. Stopping at the first made the *page* the one choosing
+ * which of its own labels the guard is allowed to see, which is the opposite of what a guard is
+ * for: `<label for=f>Card number</label><input id=f name=field_47 placeholder="Enter value">` was
+ * described to the guard as "Enter value" alone, and its value read back in full.
+ *
+ * De-duplicated because one label is often reachable twice (a wrapping `<label>` is also in
+ * `.labels`), and a repeated entry is noise in every refusal built from these.
  */
-function accessibleLabelOf(control: Element): string | undefined {
-  const ariaLabel = control.getAttribute('aria-label')?.trim();
-  if (ariaLabel) return ariaLabel;
-  const placeholder = control.getAttribute('placeholder')?.trim();
-  if (placeholder) return placeholder;
-  return labelTextOf(control);
+function accessibleLabelsOf(control: Element): string[] {
+  const candidates = [
+    control.getAttribute('aria-label')?.trim(),
+    control.getAttribute('placeholder')?.trim(),
+    ...labelTextsOf(control),
+  ];
+  return [...new Set(candidates.filter((text): text is string => !!text))];
 }
 
 /** The field attributes the guards need, or `null` when the control is not a text-bearing input. */
@@ -125,7 +130,7 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
       autocomplete: control.getAttribute('autocomplete')?.toLowerCase() || undefined,
       name: control.getAttribute('name') || undefined,
       id: control.id || undefined,
-      accessibleLabel: accessibleLabelOf(control),
+      accessibleLabels: accessibleLabelsOf(control),
       readOnly: control.getAttribute('aria-readonly') === 'true',
       disabled: control.getAttribute('aria-disabled') === 'true',
     } satisfies FieldDescriptor;
@@ -138,7 +143,7 @@ function fieldDescriptorOf(control: Element): FieldDescriptor | null {
     autocomplete: control.getAttribute('autocomplete')?.toLowerCase() ?? undefined,
     name: control.name || undefined,
     id: control.id || undefined,
-    accessibleLabel: accessibleLabelOf(control),
+    accessibleLabels: accessibleLabelsOf(control),
     readOnly: control.readOnly,
     // `.disabled` reflects only this element's own attribute — not the "actually disabled" state
     // a control gets from an ancestor `<fieldset disabled>`. `:disabled` is the platform's own
@@ -192,7 +197,14 @@ function describe(element: Element, page: string | undefined): AgentElementDescr
   const role = element.getAttribute(AGENT_ROLE_ATTRIBUTE);
   /* c8 ignore next -- `Node.textContent` is typed nullable for the abstract node; on an Element it is always a string, so the `?? ''` satisfies the type and is not a reachable path. */
   const text = element.textContent ?? '';
-  const label = element.getAttribute(AGENT_LABEL_ATTRIBUTE) ?? text;
+  // Live text is a fine fallback label for an ordinary element — it is the page's own ontology,
+  // rendered openly. For an editable region it is not: a contenteditable's content is the *user's
+  // data*, so falling back to it published the contents of a rich-text field to every
+  // `find_elements` caller, with no `withState` asked for and no read guard anywhere in the way
+  // (`<div contenteditable name="password">hunter2</div>` reported `label: "hunter2"`). Such a
+  // region is named by what labels it instead, exactly as `fieldDescriptorOf` describes it.
+  const fallback = isEditableRegion(element) ? (accessibleLabelsOf(element)[0] ?? '') : text;
+  const label = element.getAttribute(AGENT_LABEL_ATTRIBUTE) ?? fallback;
   /* c8 ignore next -- only ever called on a `[data-agent-element]` match, so the attribute is present by construction. */
   const handle = element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '';
   return {
@@ -361,6 +373,10 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
         type: 'select',
         name: dropdown.name || undefined,
         id: dropdown.id || undefined,
+        // Same reason `fieldDescriptorOf` carries these: a `<select aria-label="Card number"
+        // name="f9">` states its sensitivity nowhere else, and this descriptor is built by hand
+        // rather than going through that function, so it needs the labels wired up separately.
+        accessibleLabels: accessibleLabelsOf(dropdown),
         // Same `:disabled` reasoning as `disabledOf` — a `<select>` inside a disabled `<fieldset>`
         // is not itself flagged by the `.disabled` IDL property.
         disabled: dropdown.matches(':disabled'),
@@ -372,6 +388,12 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       const text = element.textContent ?? '';
       return {
         text,
+        // A contenteditable region has no `.value`; its content IS its value, so `text` is the
+        // one channel carrying it and the executor has to gate it exactly like a value. Reported
+        // as a mechanical fact about the element, not as a judgment about the content — the
+        // decision of whether it may be shown stays in `projectElementState`, with every other
+        // secrecy rule.
+        ...(isEditableRegion(control) ? { textIsValue: true } : {}),
         // Reported raw and unconditionally; `projectElementState` applies the read guard. A
         // driver deciding here which values are secret is a driver holding policy.
         ...(value !== undefined ? { value } : {}),
@@ -481,11 +503,26 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       if (!(control instanceof HTMLSelectElement)) {
         throw new Error(`"${handle}" is not a dropdown`);
       }
+      // A disabled control is not one a user could touch, so writing to it is a way around the
+      // page's own rule and the resulting selection cannot be submitted. The per-`<option>` filter
+      // below reads as if it enforced that, but only ever looked at each option — a
+      // `<select disabled>` (and a `<select>` inside a `<fieldset disabled>`, which `:disabled`
+      // also covers and `.disabled` does not) was written to happily, and the executor then
+      // reported `targetChanged: true` because the value really had changed.
+      //
+      // Checked before the option lookup on purpose: the refusal is about the control, so it must
+      // not depend on the caller having named a real option, and the "Available: ..." message must
+      // not enumerate a disabled control's options.
+      if (control.matches(':disabled')) {
+        throw new Error(
+          `"${handle}" is disabled, so its selection cannot be changed — `
+          + 'a user cannot change it either, and its value would not be submitted',
+        );
+      }
       // Visible text first, then value: the text is what a caller saw in `find_elements`, and
       // matching value first would make an option whose value collides with another's label
       // resolve to the wrong entry.
-      // A disabled option is not selectable by the user either, so offering it to an agent would
-      // be a way around the page's own rule — and the resulting selection cannot be submitted.
+      // A disabled option is not selectable by the user either, for the same reason.
       const options = Array.from(control.options).filter((entry) => !entry.disabled);
       const match = options.find((entry) => entry.text.trim() === option)
         ?? options.find((entry) => entry.value === option);
@@ -531,14 +568,21 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     },
 
     async navigate(page) {
-      const go = pages[page];
+      // `hasOwnProperty`, not `pages[page]`: a plain object literal inherits everything
+      // `Object.prototype` contributes, so a bare lookup answered `navigate("constructor")` with
+      // the `Object` constructor — a function the host never published, which this then called,
+      // reporting a navigation that never happened. `navigate("__proto__")` was worse in a
+      // different way: it resolved a non-callable object and failed with "go is not a function"
+      // instead of the refusal this check exists to produce. `listPages` already reports only own
+      // keys (`Object.keys`), so this is what makes the two agree.
+      const published = Object.prototype.hasOwnProperty.call(pages, page);
       // The executor already checked the allowlist and sanitizes this same message before this
       // driver-level check would ever be reached through it; this is the belt on the braces. But
       // `PageDriver` is a public interface — a caller that reaches this method directly, bypassing
       // the executor entirely, hands `page` in unsanitized, so the same bound-and-strip treatment
       // applies here too rather than assuming the only caller is the one that already checked.
-      if (go === undefined) throw new Error(`"${normalizeAgentLabel(page).text}" is not a published page`);
-      go();
+      if (!published) throw new Error(`"${normalizeAgentLabel(page).text}" is not a published page`);
+      pages[page]!();
     },
   };
 }

@@ -152,3 +152,51 @@ describe('resolveDynamicValue — FunctionCall / @index system function', () => 
     expect(result).toMatchObject({ ok: false, reason: 'PATH_NOT_FOUND' });
   });
 });
+
+// Regression (2026-07-29 audit). This module's own doc claims "**Never throws** ... no code path
+// in this module can throw on bad *input data*". Two paths did.
+describe('resolveDynamicValue — the two paths that broke the never-throws contract', () => {
+  it('does not mistake a non-string "path" for a DataBinding', () => {
+    // `isFunctionCall` already required `call` to be a string; `isDataBinding` checked only that
+    // the key existed, so `{path: 7}` was routed into the binding resolver and died on
+    // `path.startsWith`. It is not a binding — it is an ordinary object literal.
+    expect(resolveDynamicValue({ path: 7 } as never, ctx())).toEqual({ ok: true, value: { path: 7 } });
+    expect(resolveDynamicValue({ path: null } as never, ctx())).toEqual({ ok: true, value: { path: null } });
+    expect(resolveDynamicValue({ path: { nested: true } } as never, ctx()))
+      .toEqual({ ok: true, value: { path: { nested: true } } });
+  });
+
+  it('reports a throwing catalog implementation as a failure instead of letting it escape', () => {
+    // `impl` is host-supplied and receives agent-authored args. An ordinary implementation
+    // (`args.name.toUpperCase()`) throws the moment an agent sends a number, and that throw used
+    // to travel all the way out through `applyAgentMessage` into the host's render.
+    const base = createLabCatalog();
+    const functions = new Map<string, FunctionSpec>(base.functions);
+    functions.set('shout', {
+      returnType: 'string',
+      callableFrom: 'rendererOrAgent',
+      impl: (args) => (args.name as string).toUpperCase(),
+    });
+    const throwingCatalog: Catalog = { ...base, functions };
+
+    const result = resolveDynamicValue({ call: 'shout', args: { name: 42 } }, ctx({ catalog: throwingCatalog }));
+    expect(result).toMatchObject({ ok: false, reason: 'FUNCTION_THREW' });
+    expect(result.ok ? '' : result.detail).toMatch(/shout/);
+    // ...and the same function still returns its value when the args are the shape it expects.
+    expect(resolveDynamicValue({ call: 'shout', args: { name: 'ada' } }, ctx({ catalog: throwingCatalog })))
+      .toEqual({ ok: true, value: 'ADA' });
+  });
+
+  it('reports a non-Error thrown by an implementation without crashing on it either', () => {
+    const base = createLabCatalog();
+    const functions = new Map<string, FunctionSpec>(base.functions);
+    functions.set('rude', {
+      returnType: 'void',
+      callableFrom: 'rendererOnly',
+      impl: () => { throw 'just a string'; },
+    });
+    const result = resolveDynamicValue({ call: 'rude' }, ctx({ catalog: { ...base, functions } }));
+    expect(result).toMatchObject({ ok: false, reason: 'FUNCTION_THREW' });
+    expect(result.ok ? '' : result.detail).toContain('just a string');
+  });
+});

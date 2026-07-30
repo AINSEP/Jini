@@ -19,15 +19,20 @@ export interface FieldDescriptor {
   readonly name?: string | undefined;
   readonly id?: string | undefined;
   /**
-   * The field's human-visible label — `aria-label`, `placeholder`, or the text of an associated
-   * `<label>`, whichever the driver can resolve.
+   * **Every** human-visible naming of the field the driver could resolve — `aria-label`,
+   * `placeholder`, and the text of each associated `<label>`.
    *
    * Carried because `name`/`id` are the *machine* names, and a form builder or CMS that emits
    * `name="field_47"` leaves the guard nothing to judge while the page still plainly reads
    * "Card number" to the user. A field whose sensitivity is stated only in its label was
    * invisible to every refusal here until this existed.
+   *
+   * Plural, and required to be exhaustive, because the singular form this replaced took whichever
+   * source resolved *first*: a page could then mask a sensitive field behind a benign one —
+   * `<label for=f>Card number</label><input id=f name=field_47 placeholder="Enter value">` reached
+   * the guard as the single label "Enter value", and its value was reported back in full.
    */
-  readonly accessibleLabel?: string | undefined;
+  readonly accessibleLabels?: readonly string[] | undefined;
   readonly readOnly?: boolean | undefined;
   readonly disabled?: boolean | undefined;
 }
@@ -143,7 +148,12 @@ export function findFieldReadRefusal(field: FieldDescriptor): FieldReadRefusal |
     || SUSPICIOUS_NAME.test(squashSeparators(field.id ?? ''))
     // `name`/`id` are the *machine* names; a form builder or CMS that emits `name="field_47"`
     // next to a visible "Card number" label left the guard nothing to judge until this existed.
-    || SUSPICIOUS_NAME.test(squashSeparators(field.accessibleLabel ?? ''))
+    //
+    // Each label is squashed and matched on its own rather than as one joined string: squashing
+    // deletes the separators, so a join would let two innocuous labels form a trigger word across
+    // their boundary ("Address" + "Snapshot" -> "addresssnapshot", which contains "ssn"). This
+    // guard is deliberately over-inclusive, but not at the cost of matching text no page wrote.
+    || (field.accessibleLabels ?? []).some((label) => SUSPICIOUS_NAME.test(squashSeparators(label)))
   ) {
     return 'suspicious-name';
   }

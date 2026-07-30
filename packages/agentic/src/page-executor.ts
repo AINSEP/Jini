@@ -139,9 +139,20 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
   // ontology for no reduction in what actually leaks.
   const refusal = raw.field !== undefined ? findFieldReadRefusal(raw.field) : null;
 
+  // The one element whose `text` is NOT page-authored chrome: an editable region, whose contents
+  // are the user's data and whose driver has no `value` to report them as. It is gated by exactly
+  // the rules `value` is gated by below, including the "arrived with nothing to check it against"
+  // one — an unverifiable secret is withheld, not trusted.
+  const withheldText = raw.textIsValue !== true
+    ? undefined
+    : raw.field === undefined
+      ? 'this element reported contents without the attributes needed to check them for secrets'
+      : refusal !== null ? describeFieldReadRefusal(refusal) : undefined;
+
   const base: AgentElementState = {
-    text: text.text,
-    textTruncated: text.truncated,
+    text: withheldText === undefined ? text.text : '',
+    textTruncated: withheldText === undefined ? text.truncated : false,
+    ...(withheldText !== undefined ? { textWithheld: withheldText } : {}),
     ...(raw.checked !== undefined && refusal === null ? { checked: raw.checked } : {}),
     ...(raw.disabled !== undefined ? { disabled: raw.disabled } : {}),
     ...(raw.visible !== undefined ? { visible: raw.visible } : {}),
@@ -174,6 +185,11 @@ export function projectElementState(raw: AgentElementRawState): AgentElementStat
  */
 function sameElementState(a: AgentElementState, b: AgentElementState): boolean {
   return a.text === b.text
+    // Compared for the same reason `valueWithheld` is: without it, an editable region whose
+    // contents are withheld reads as `text: ''` before and after, and a write into it would
+    // report `targetChanged: false` — an answer that says "nothing happened" rather than the
+    // honest "no caller may observe whether it did".
+    && a.textWithheld === b.textWithheld
     && a.value === b.value
     && a.valueWithheld === b.valueWithheld
     && a.checked === b.checked

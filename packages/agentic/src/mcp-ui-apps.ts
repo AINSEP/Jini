@@ -171,7 +171,23 @@ export const JSON_RPC_ERROR_CODES = {
 } as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  // Arrays excluded deliberately: `typeof [] === 'object'`, and an array carrying the right
+  // properties would otherwise pass as a message. An array IS meaningful JSON-RPC — it is a
+  // *batch* — but this transport does not send or accept batches, so one arriving is either a
+  // mistake or a probe, and either way is not the single message every caller here expects.
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** `params`, per §4.2, is "Array or Object" — a primitive there is not an under-specified call, it is a malformed one. */
+function hasValidParams(value: Record<string, unknown>): boolean {
+  if (!('params' in value)) return true;
+  const params = value['params'];
+  return typeof params === 'object' && params !== null;
+}
+
+/** The §5.1 error object: a Number `code` and a String `message` (plus optional `data`). */
+function isJsonRpcErrorObject(value: unknown): value is JsonRpcError {
+  return isRecord(value) && typeof value['code'] === 'number' && typeof value['message'] === 'string';
 }
 
 /**
@@ -191,15 +207,46 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * for every message shape (request, notification, or response) — a notification legitimately has
  * no `id`, but a message that HAS one must have a valid one.
  *
+ * The 2026-07-29 audit found the rest of that check was still far too generous, in three ways, all
+ * of them reachable from anything able to post at the frame:
+ *
+ * - **`params` went unread.** Any string `method` returned `true` immediately, so
+ *   `{method: 'tools/call', params: 'nope'}` reached dispatch and a handler reading
+ *   `params.capabilityId` got `undefined` rather than a refusal. §4.2 fixes the type: Array or
+ *   Object.
+ * - **The four shapes were not kept apart.** JSON-RPC 2.0 defines request, notification, success
+ *   response and error response as distinct, mutually exclusive objects. A message carrying both
+ *   `method` and `result` passed as a request; one carrying both `result` and `error` passed as a
+ *   response, which §5 forbids in as many words ("Either the result member or error member MUST be
+ *   included, but both members MUST NOT be included").
+ * - **`error` was accepted as any value at all**, `error: "boom"` included, so a host formatting
+ *   `error.message` back to a user read a property off a string.
+ *
+ * A message whose `method` is present but not a string is rejected outright rather than falling
+ * through to the response branch — reinterpreting a malformed request as a response is how one
+ * bad message becomes two wrong behaviors.
+ *
  * @param value - The raw `event.data`.
  * @returns True when the value is a well-formed JSON-RPC message.
  */
 export function isJsonRpcMessage(value: unknown): value is JsonRpcMessage {
   if (!isRecord(value) || value['jsonrpc'] !== '2.0') return false;
   if ('id' in value && typeof value['id'] !== 'number' && typeof value['id'] !== 'string') return false;
-  const hasId = 'id' in value;
-  if (typeof value['method'] === 'string') return true;
-  return hasId && ('result' in value || 'error' in value);
+
+  if ('method' in value) {
+    // Request or notification: `id` present or not, but never a response's members alongside.
+    return typeof value['method'] === 'string'
+      && hasValidParams(value)
+      && !('result' in value)
+      && !('error' in value);
+  }
+
+  // Response: correlated by `id`, carrying exactly one of `result` / `error`.
+  if (!('id' in value)) return false;
+  const hasResult = 'result' in value;
+  const hasError = 'error' in value;
+  if (hasResult === hasError) return false;
+  return hasResult || isJsonRpcErrorObject(value['error']);
 }
 
 /** Whether a validated message expects a response (as opposed to being a notification). */

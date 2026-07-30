@@ -328,7 +328,7 @@ anything. Verified directly against the npm registry and unpkg this session:
 | `src/a2ui/catalog.ts` | `Catalog`/`ComponentSpec`/`FunctionSpec` types, `isComponentAllowed`/`callableFromOf`/`isFunctionRegistered`, and `createLabCatalog()` — see "Catalog scope" below. |
 | `src/a2ui/json-pointer.ts` | RFC 6901 get/set, including A2UI's own documented deviation (`"/"` means "whole document," not literal RFC 6901). |
 | `src/a2ui/resolve.ts` | Resolves `Dynamic*` values against a data model + item scope; never throws; the `callableFrom` boundary check lives here. |
-| `src/a2ui/tree.ts` | `flattenRenderTree` — cycle/missing-child-safe depth-first walk (static `ChildList` only). |
+| `src/a2ui/tree.ts` | `flattenRenderTree` — cycle/missing-child-safe **iterative** depth-first walk (static `ChildList` only), bounded by `MAX_RENDER_NODES`. Recursion and unbounded output were both reachable denials of service from a valid, acyclic message: a deep chain overflowed the call stack, and a per-level duplicate child doubled the output at every step (24 components → 16.7M nodes). |
 | `src/a2ui/interpreter.ts` | `createA2uiInterpreter(catalog)` — the stateful per-surface component-map + data-model interpreter; see its own module doc for 4 explicit, documented design decisions made where the spec text is silent. |
 
 ## Catalog scope — 18 of 18 components, 3 (+3 lab-only) of 14 functions

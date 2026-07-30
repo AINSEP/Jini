@@ -222,6 +222,83 @@ describe('mcp-ui envelope', () => {
       expect(isJsonRpcRequest({ jsonrpc: '2.0', method: 'ping' })).toBe(false);
       expect(isJsonRpcRequest({ jsonrpc: '2.0', id: 1, result: 1 })).toBe(false);
     });
+
+    // Regression (2026-07-29 audit). The guard checked `jsonrpc`, then `id`'s type, then
+    // returned true for anything with a string `method` — without looking at `params` at all, and
+    // without ever asking whether the four JSON-RPC 2.0 shapes (request / notification / success
+    // response / error response) had been mixed together. Every case below is a message a hostile
+    // page can post at the frame, and every one of them used to be waved through into dispatch.
+    describe('shapes JSON-RPC 2.0 defines as mutually exclusive', () => {
+      it('rejects a response carrying both result and error', () => {
+        // §5: "Either the result member or error member MUST be included, but both members MUST
+        // NOT be included."
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, result: 1, error: { code: -1, message: 'x' } })).toBe(false);
+      });
+
+      it('rejects a response carrying neither result nor error', () => {
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1 })).toBe(false);
+      });
+
+      it('rejects a request that also carries response members', () => {
+        // A message is a request or a response, never both — a dispatcher handed this would
+        // execute the method AND resolve a pending call with the same id.
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', result: 5 })).toBe(false);
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', error: { code: -1, message: 'x' } })).toBe(false);
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', method: 'ui/notifications/initialized', result: 5 })).toBe(false);
+      });
+
+      it('rejects a message whose method is present but not a string', () => {
+        // Previously these fell through to the response branch and were accepted as responses,
+        // silently reinterpreting a malformed request as something else entirely.
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 42, result: 1 })).toBe(false);
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: null, result: 1 })).toBe(false);
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: { evil: true }, error: { code: -1, message: 'x' } })).toBe(false);
+      });
+    });
+
+    describe('members whose own type the spec fixes', () => {
+      it('rejects params that is not a structured value', () => {
+        // §4.2: "If present, parameters ... MUST be Array or Object." A handler reaching for
+        // `params.capabilityId` on a string gets `undefined`, not a refusal.
+        for (const params of ['nope', 42, true, null]) {
+          expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params })).toBe(false);
+        }
+      });
+
+      it('accepts params as either an object or an array, which the spec allows both of', () => {
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { a: 1 } })).toBe(true);
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: [1, 2] })).toBe(true);
+      });
+
+      it('rejects an error member that is not a well-formed error object', () => {
+        // §5.1: the error object carries a Number `code` and a String `message`.
+        for (const error of ['boom', 42, null, [], {}, { code: 'not-a-number', message: 'x' }, { code: -1 }, { code: -1, message: 7 }]) {
+          expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, error })).toBe(false);
+        }
+      });
+
+      it('still accepts a well-formed error response, including one carrying data', () => {
+        expect(isJsonRpcMessage({ jsonrpc: '2.0', id: 1, error: { code: -32601, message: 'nope' } })).toBe(true);
+        expect(isJsonRpcMessage(createJsonRpcError(1, JSON_RPC_ERROR_CODES.invalidParams, 'bad', { field: 'x' }))).toBe(true);
+      });
+
+      it('rejects an array, which is a JSON-RPC batch rather than a message', () => {
+        // `typeof [] === 'object'`, so a bare isRecord check let one through if it carried the
+        // right properties. This transport does not do batches.
+        expect(isJsonRpcMessage(Object.assign([], { jsonrpc: '2.0', method: 'tools/call' }))).toBe(false);
+      });
+    });
+
+    it('accepts everything this module itself builds', () => {
+      // The guard and the builders have to agree, or the host rejects its own wire format.
+      expect(isJsonRpcMessage(createJsonRpcRequest(1, 'ping'))).toBe(true);
+      expect(isJsonRpcMessage(createJsonRpcRequest(1, 'tools/call', { name: 'x' }))).toBe(true);
+      expect(isJsonRpcMessage(createJsonRpcNotification('ui/notifications/initialized'))).toBe(true);
+      expect(isJsonRpcMessage(createJsonRpcNotification('ui/notifications/size-changed', { width: 1 }))).toBe(true);
+      expect(isJsonRpcMessage(createJsonRpcResult(1, { ok: true }))).toBe(true);
+      expect(isJsonRpcMessage(createJsonRpcError(1, -1, 'x'))).toBe(true);
+      expect(isJsonRpcMessage(createPageActionRequest('inv-1', 'page.click', { element: 'a' }))).toBe(true);
+    });
   });
 });
 

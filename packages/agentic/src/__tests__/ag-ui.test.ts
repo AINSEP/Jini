@@ -66,4 +66,42 @@ describe('ag-ui projection', () => {
   it('encodes undefined output as null rather than dropping the field', () => {
     expect(createAgUiToolResult('m4', 'c4', { ok: true, output: undefined }).content).toBe('null');
   });
+
+  // Regression (2026-07-29 audit). `content` is declared `string`, and a capability's `output` is
+  // `unknown` — whatever a host's tool actually returned. `JSON.stringify` is not total over that
+  // domain: it throws for a BigInt or a circular structure, and returns `undefined` (not a
+  // string) for a function or a symbol. Either way the declared type was a lie, and the failure
+  // landed on the transport rather than reaching the agent as a result it could reason about.
+  describe('output JSON.stringify cannot represent', () => {
+    it('reports a BigInt as a serialization failure instead of throwing', () => {
+      const message = createAgUiToolResult('m5', 'c5', { ok: true, output: { balance: 1n } });
+      expect(typeof message.content).toBe('string');
+      expect(JSON.parse(message.content)).toMatchObject({ error: expect.stringContaining('could not be encoded') });
+    });
+
+    it('reports a circular structure the same way', () => {
+      const circular: Record<string, unknown> = { name: 'loop' };
+      circular.self = circular;
+      const message = createAgUiToolResult('m6', 'c6', { ok: true, output: circular });
+      expect(typeof message.content).toBe('string');
+      expect(JSON.parse(message.content)).toMatchObject({ error: expect.stringContaining('could not be encoded') });
+    });
+
+    it('reports a non-Error thrown out of a custom toJSON without crashing on it either', () => {
+      // `JSON.stringify` calls `toJSON()` if the value has one, and host code can throw anything
+      // from it — the reason this catch does not assume it caught an `Error`.
+      const message = createAgUiToolResult('m9', 'c9', {
+        ok: true,
+        output: { toJSON() { throw 'just a string'; } },
+      });
+      expect(JSON.parse(message.content)).toMatchObject({ error: expect.stringContaining('just a string') });
+    });
+
+    it('encodes a function or symbol output as null rather than as literal undefined', () => {
+      // `JSON.stringify(() => 1)` is `undefined`, not a string — `content` was genuinely
+      // `undefined` here despite its declared type.
+      expect(createAgUiToolResult('m7', 'c7', { ok: true, output: () => 1 }).content).toBe('null');
+      expect(createAgUiToolResult('m8', 'c8', { ok: true, output: Symbol('x') }).content).toBe('null');
+    });
+  });
 });

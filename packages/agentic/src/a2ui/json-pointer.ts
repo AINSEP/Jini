@@ -23,6 +23,33 @@ export interface PointerGetResult {
   readonly value: unknown;
 }
 
+/**
+ * Whether `record` itself carries `token` — never whether it *inherits* it.
+ *
+ * A JSON Pointer addresses a member of a JSON document, and a JSON document has no inherited
+ * members. The `token in record` form this replaced answered `true` for everything
+ * `Object.prototype` contributes, so `getAtPointer({}, "/constructor")` resolved the `Object`
+ * constructor as though the agent's data model contained it.
+ */
+function hasOwnToken(record: Record<string, unknown>, token: string): boolean {
+  return Object.prototype.hasOwnProperty.call(record, token);
+}
+
+/**
+ * Writes one own, plain data property — never through an inherited accessor.
+ *
+ * `record[token] = value` looks like it defines a key, and does for every token but one:
+ * `__proto__` is an inherited accessor on `Object.prototype`, so assigning to it *sets the
+ * object's prototype* instead. An agent sending `{"path": "/__proto__", "value": {...}}` therefore
+ * reshaped the object this function was building rather than putting a key in it. (Narrower than
+ * classic prototype pollution — the shallow-copy discipline here means only the one returned
+ * object was affected, never the global `Object.prototype` — but a pointer must address the
+ * document, so this defines the key RFC 6901 actually named.)
+ */
+function defineOwn(record: Record<string, unknown>, token: string, value: unknown): void {
+  Object.defineProperty(record, token, { value, writable: true, enumerable: true, configurable: true });
+}
+
 /** `true` for the two spellings A2UI's own spec treats as "the whole document" (see module doc). Anything else is parsed as a normal RFC 6901 pointer. */
 function isRootPointer(pointer: string): boolean {
   return pointer === '' || pointer === '/';
@@ -74,7 +101,7 @@ export function getAtPointer(doc: unknown, pointer: string): PointerGetResult {
     }
     if (current !== null && typeof current === 'object') {
       const record = current as Record<string, unknown>;
-      if (!(token in record)) return { found: false, value: undefined };
+      if (!hasOwnToken(record, token)) return { found: false, value: undefined };
       current = record[token];
       continue;
     }
@@ -132,7 +159,7 @@ export function setAtPointer(doc: unknown, pointer: string, value: unknown): unk
         delete record[lastToken];
         return record;
       }
-      record[lastToken] = value;
+      defineOwn(record, lastToken, value);
       return record;
     }
 
@@ -146,7 +173,7 @@ export function setAtPointer(doc: unknown, pointer: string, value: unknown): unk
     }
     const record = current !== null && typeof current === 'object' ? { ...(current as Record<string, unknown>) } : {};
     if (!head) return record;
-    record[head] = recurse(head in record ? record[head] : {}, rest);
+    defineOwn(record, head, recurse(hasOwnToken(record, head) ? record[head] : {}, rest));
     return record;
   }
 

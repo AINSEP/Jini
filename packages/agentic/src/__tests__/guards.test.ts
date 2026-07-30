@@ -92,17 +92,44 @@ describe('findFieldFillRefusal', () => {
     expect(findFieldFillRefusal({ type: 'text', name: 'pass​word' })).toBe('suspicious-name');
   });
 
-  it('reads sensitivity from accessibleLabel when name/id carry none at all', () => {
+  it('reads sensitivity from accessibleLabels when name/id carry none at all', () => {
     // The case an allowlist and a name/id check both miss: a form builder or CMS emitting
-    // name="field_47" next to a visible "Card number" label. Before accessibleLabel was wired
+    // name="field_47" next to a visible "Card number" label. Before accessibleLabels was wired
     // into the guard, this field was invisible to it.
     expect(findFieldFillRefusal({ type: 'text', name: 'field_47' })).toBeNull();
-    expect(findFieldFillRefusal({ type: 'text', name: 'field_47', accessibleLabel: 'Card number' }))
+    expect(findFieldFillRefusal({ type: 'text', name: 'field_47', accessibleLabels: ['Card number'] }))
       .toBe('suspicious-name');
-    expect(findFieldReadRefusal({ type: 'text', id: 'f1', accessibleLabel: 'Auth token' }))
+    expect(findFieldReadRefusal({ type: 'text', id: 'f1', accessibleLabels: ['Auth token'] }))
       .toBe('suspicious-name');
     // Separator conventions in the label are squashed identically to name/id.
-    expect(findFieldFillRefusal({ type: 'text', accessibleLabel: 'CVV Code' })).toBe('suspicious-name');
+    expect(findFieldFillRefusal({ type: 'text', accessibleLabels: ['CVV Code'] })).toBe('suspicious-name');
+  });
+
+  // Regression (2026-07-29 audit): the driver resolves a field's visible naming from several
+  // places — `aria-label`, `placeholder`, an associated `<label>` — and used to hand the guard
+  // only whichever resolved FIRST. A page could therefore mask a sensitive field behind a benign
+  // one: `<label for=f>Card number</label><input id=f name=field_47 placeholder="Enter value">`
+  // reached this guard as the single label "Enter value" and its value was reported verbatim.
+  it('judges every naming source, so a benign label cannot mask a sensitive one', () => {
+    expect(findFieldReadRefusal({
+      type: 'text',
+      name: 'field_47',
+      accessibleLabels: ['Enter value', 'Card number'],
+    })).toBe('suspicious-name');
+    expect(findFieldFillRefusal({
+      type: 'text',
+      name: 'field_47',
+      accessibleLabels: ['Enter value', 'Card number'],
+    })).toBe('suspicious-name');
+  });
+
+  it('judges each naming source on its own rather than concatenating them', () => {
+    // Squashing runs per label, not over a joined string: "Address" + "Snapshot" concatenates to
+    // "addresssnapshot", which contains "ssn". Two innocuous labels must not combine into a
+    // trigger word across their boundary.
+    expect(findFieldReadRefusal({ type: 'text', accessibleLabels: ['Address', 'Snapshot'] })).toBeNull();
+    // ...while each one is still judged in full.
+    expect(findFieldReadRefusal({ type: 'text', accessibleLabels: ['Address', 'SSN'] })).toBe('suspicious-name');
   });
 
   it('does not refuse ordinary fields that happen to contain pin/pan as a substring', () => {
@@ -112,7 +139,7 @@ describe('findFieldFillRefusal', () => {
     expect(findFieldFillRefusal({ type: 'text', name: 'shipping_address' })).toBeNull();
     expect(findFieldFillRefusal({ type: 'text', name: 'company_name' })).toBeNull();
     expect(findFieldReadRefusal({ type: 'text', id: 'shipping-address' })).toBeNull();
-    expect(findFieldReadRefusal({ type: 'text', accessibleLabel: 'Company name' })).toBeNull();
+    expect(findFieldReadRefusal({ type: 'text', accessibleLabels: ['Company name'] })).toBeNull();
   });
 
   it('catches the additional credential/payment/recovery spellings', () => {

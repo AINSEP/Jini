@@ -223,7 +223,11 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
       return [buildGenericErrorMessage(code, result.detail, { functionCallId })];
     }
     if (!wantResponse) return [];
-    return [buildFunctionResponseMessage({ functionCallId, call: callFunction.call, value: result.value })];
+    // `?? null` because `functionResponse.value` is required on the wire and JSON has no
+    // `undefined`: a `returnType: 'void'` function (the catalog has three) resolves to
+    // `undefined`, and passing that straight through built a message whose `value` vanished on
+    // serialization — one this package's own `parseRendererToAgentMessage` correctly refuses.
+    return [buildFunctionResponseMessage({ functionCallId, call: callFunction.call, value: result.value ?? null })];
   }
 
   function handleActionResponse(message: Extract<AgentToRendererMessage, { actionResponse: unknown }>): RendererToAgentMessage[] {

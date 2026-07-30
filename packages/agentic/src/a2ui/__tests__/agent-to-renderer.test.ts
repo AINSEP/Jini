@@ -34,6 +34,15 @@ describe('parseAgentToRendererMessage — valid envelopes', () => {
     expect(parseAgentToRendererMessage({ version: 'v1.0', updateDataModel: { surfaceId: 's1', path: '/a', value: 1 } }).ok).toBe(true);
   });
 
+  it('parses updateDataModel carrying each falsy value the spec allows', () => {
+    // `value` is required, but every JSON value is legal content — including the ones a naive
+    // presence check confuses with absence. `null` in particular is the spec's own delete verb.
+    for (const value of [null, false, 0, '']) {
+      expect(parseAgentToRendererMessage({ version: 'v1.0', updateDataModel: { surfaceId: 's1', path: '/a', value } }).ok)
+        .toBe(true);
+    }
+  });
+
   it('parses deleteSurface', () => {
     expect(parseAgentToRendererMessage({ version: 'v1.0', deleteSurface: { surfaceId: 's1' } }).ok).toBe(true);
   });
@@ -81,6 +90,17 @@ describe('parseAgentToRendererMessage — adversarial / malformed envelopes', ()
   it('rejects createSurface missing its required catalogId', () => {
     const result = parseAgentToRendererMessage({ version: 'v1.0', createSurface: { surfaceId: 's1' } });
     expect(result).toMatchObject({ ok: false, code: 'VALIDATION_FAILED' });
+  });
+
+  // Regression (2026-07-29 audit). `agent_to_renderer.json` lists `"required": ["surfaceId",
+  // "value"]` for this message, but the field was declared `z.unknown()` — and in Zod 3 an
+  // `unknown`-typed key is satisfied by a key that is not there at all, because `undefined`
+  // inhabits `unknown`. So the one field carrying the actual data was optional in practice.
+  it('rejects updateDataModel with no value at all, which the real schema requires', () => {
+    const result = parseAgentToRendererMessage({ version: 'v1.0', updateDataModel: { surfaceId: 's1', path: '/a' } });
+    expect(result).toMatchObject({ ok: false, code: 'VALIDATION_FAILED' });
+    // The refusal points at the missing field, not vaguely at the message.
+    expect(result.ok ? '' : result.path).toBe('/updateDataModel/value');
   });
 
   it('rejects an envelope carrying an extra, unknown top-level field alongside a valid message', () => {

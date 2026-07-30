@@ -25,12 +25,25 @@ export const ActionMessagePayloadSchema = z.object({
 });
 export type ActionMessagePayload = z.infer<typeof ActionMessagePayloadSchema>;
 
-/** `renderer_to_agent.json#/properties/functionResponse`. */
-export const FunctionResponsePayloadSchema = z.object({
-  functionCallId: CallIdSchema,
-  call: z.string(),
-  value: z.unknown(),
-});
+/**
+ * `renderer_to_agent.json#/properties/functionResponse`.
+ *
+ * `value` is required (`"required": ["functionCallId", "call", "value"]`), and — as with
+ * `updateDataModel.value`, see that schema's own note — `z.unknown()` alone does not enforce a
+ * required key in Zod 3, so a response with no `value` at all validated clean. Presence is
+ * asserted on the object instead. JSON has no `undefined`: a function returning nothing must say
+ * `null`, which is why `interpreter.ts` encodes a void return that way rather than omitting it.
+ */
+export const FunctionResponsePayloadSchema = z
+  .object({
+    functionCallId: CallIdSchema,
+    call: z.string(),
+    value: z.unknown(),
+  })
+  .refine((payload) => 'value' in payload, {
+    message: 'functionResponse requires an explicit "value" (use null for a function that returns nothing)',
+    path: ['value'],
+  });
 export type FunctionResponsePayload = z.infer<typeof FunctionResponsePayloadSchema>;
 
 /**

@@ -627,6 +627,55 @@ describe('projectElementState — what a caller may see', () => {
   it('omits checked, disabled and visible rather than inventing false for them', () => {
     expect(projectElementState({ text: 'Heading' })).toEqual({ text: 'Heading', textTruncated: false });
   });
+
+  // Regression (2026-07-29 audit): `text` was reported unconditionally, which is right for every
+  // element whose text is page-authored chrome (a checkbox's option label, a select's options)
+  // and wrong for the one kind whose text IS the user's data — a contenteditable region. A
+  // `<div contenteditable name="password">hunter2</div>` had its value withheld (it has no
+  // `.value` to report in the first place) while handing the same secret straight back as `text`.
+  describe('an editable region, whose text is its value rather than page chrome', () => {
+    it('withholds the text of a refused editable region, and says why', () => {
+      const state = projectElementState({
+        text: 'hunter2',
+        textIsValue: true,
+        field: { type: 'contenteditable', name: 'password' },
+      });
+      expect(state.text).toBe('');
+      expect(state.textTruncated).toBe(false);
+      expect(state.textWithheld).toBe('this field name indicates a secret or anti-forgery token');
+    });
+
+    it('still reports the text of an editable region nothing about which is secret', () => {
+      const state = projectElementState({
+        text: '  A short   bio  ',
+        textIsValue: true,
+        field: { type: 'contenteditable', name: 'bio' },
+      });
+      expect(state.text).toBe('A short bio');
+      expect(state.textWithheld).toBeUndefined();
+    });
+
+    it('withholds the text of an editable region that arrived with no descriptor to check', () => {
+      // Same rule `value` already follows: content that cannot be checked is withheld rather
+      // than trusted.
+      const state = projectElementState({ text: 'hunter2', textIsValue: true });
+      expect(state.text).toBe('');
+      expect(state.textWithheld)
+        .toBe('this element reported contents without the attributes needed to check them for secrets');
+    });
+
+    it('leaves the text of every other element alone, refused or not', () => {
+      // The checkbox case above proves the inverse: an option's own visible label stays readable
+      // on a refused field. Only `textIsValue` changes that.
+      const state = projectElementState({
+        text: 'I am HIV positive',
+        value: 'on',
+        field: { type: 'radio', name: 'health_disclosure_password' },
+      });
+      expect(state.text).toBe('I am HIV positive');
+      expect(state.textWithheld).toBeUndefined();
+    });
+  });
 });
 
 describe('page.find_elements — withState', () => {
