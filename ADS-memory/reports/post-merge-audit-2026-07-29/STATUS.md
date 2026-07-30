@@ -17,8 +17,8 @@ BEFORE the fix, then the fix is applied and the test (plus the package's full su
 |---|---|---|---|
 | `server` | 6 | **Fixed** (6/6 real, all fixed + 2 non-blocking) | `fix/post-merge-audit-2026-07-29` |
 | `chat-core` | 2 | **Fixed** (1/2 real+fixed, 1 false-positive-on-mechanism/doc-fixed) | `fix/post-merge-audit-2026-07-29` |
-| `agentic` | 7 | Fix-agent running locally as of this writing (see risk note below) | `fix/post-merge-audit-agentic-2026-07-29` (local only, never pushed) |
-| `agentic` (cloud backup) | 7 | Queued — redundant safety net in case the local run above didn't finish, cloud routine `trig_01BQ8njKGmdrc2XESkdDGArU`, fires 2026-07-30 04:30 PDT | `fix/post-merge-audit-agentic-cloud-2026-07-30` |
+| `agentic` | 9 (7 blocking found + 2 non-blocking; local agent found 2 *additional* real holes while verifying finding #1 and #6, see its branch's commit message) | **Fixed** (9/9 real, zero false positives — pushed to origin) | `fix/post-merge-audit-agentic-2026-07-29` |
+| ~~`agentic` (cloud backup)~~ | — | **Disabled/cancelled** (`trig_01BQ8njKGmdrc2XESkdDGArU`) — the local run above finished and was pushed before this fired, so the redundant safety net was no longer needed | ~~`fix/post-merge-audit-agentic-cloud-2026-07-30`~~ (never ran) |
 | `daemon` | 5 | Queued — cloud routine `trig_01LKsrqn1uQ4xZn3F1ZhkqUY`, fires 2026-07-30 03:00 PDT | `fix/post-merge-audit-daemon-2026-07-30` |
 | `agent-runtime` + `mcp` | 2 + 1 = 3 | Queued — combined into one cloud routine (both small), `trig_01Ji2QriSVA5Y7NBTWejnWr3`, fires 2026-07-30 03:30 PDT | `fix/post-merge-audit-agent-runtime-mcp-2026-07-30` |
 | `http-kit` | 12 | Queued — cloud routine `trig_01P3obaCLTpMqEq6aTMPaN1N`, fires 2026-07-30 04:00 PDT (largest — agent was told to prioritize by severity and report honestly if it can't finish all 12) | `fix/post-merge-audit-http-kit-2026-07-30` |
@@ -44,14 +44,16 @@ to report a finding as a false positive (with reasoning, no code change) rather 
    MUST push that branch to `origin` for its work to be retrievable (the routine has no other way to
    hand back results). If a branch listed above doesn't exist on `origin` in the morning, that run
    failed or is still in progress; check https://claude.ai/code/routines for run status.
-3. **Risk note on the locally-running `agentic` fix-agent**: unlike the 4 cloud routines, it runs in
-   a local git worktree on this specific machine, so it depends on this session/laptop staying alive
-   until it finishes and is only committed (not pushed) when done. If the laptop sleeps or the
-   session ends before it completes, that work may be lost or left mid-flight with nothing to
-   recover — there's no incremental checkpoint, only a single commit at the end. The
-   `fix/post-merge-audit-agentic-cloud-2026-07-30` cloud routine above exists specifically as a
-   redundant safety net for this scenario. If BOTH the local branch and the cloud branch end up with
-   real fixes by morning, reconcile by comparing the two rather than assuming either is authoritative.
+3. ~~Risk note on the locally-running `agentic` fix-agent~~ — resolved: it finished
+   (9/9 findings real, 765/765 tests passing, 100% coverage on `packages/agentic`) and was pushed to
+   `origin/fix/post-merge-audit-agentic-2026-07-29` before the cloud backup's 4:30 AM fire time, so
+   the backup routine was disabled rather than left to run redundantly.
+4. **Environment gotcha discovered by the `agentic` fix-agent, now patched into the 3 remaining
+   routines' prompts**: a fresh checkout has no `node_modules`/`dist`, and this repo's vitest configs
+   resolve some workspace packages (e.g. `@jini-ai/protocol`) through their `package.json` exports
+   map rather than source — so tests can fail to even *collect* until `pnpm install --frozen-lockfile
+   && pnpm -r build` has been run. Confirmed pre-existing (via `git stash` against a clean checkout),
+   not caused by any fix. If a branch's report mentions this, it's expected, not a red flag.
 3. The detailed technical brief each fix-agent worked from is in this same directory:
    `daemon-findings.md`, `agent-runtime-findings.md`, `http-kit-findings.md`, `mcp-findings.md`.
    Full Codex output (raw JSONL) for every dispatch, including the ones already fixed, is under
