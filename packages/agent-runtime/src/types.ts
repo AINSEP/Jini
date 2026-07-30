@@ -77,6 +77,20 @@ export type RuntimeContext = {
   // persists) and the caller seeds it with the full transcript.
   resumeSessionId?: string | null;
   newSessionId?: string;
+  // Absolute path to the `.mcp.json` `agent-executor.ts` is about to write for this run, set only
+  // when `mcpJsonInjection` is configured AND `def.externalMcpInjection === 'claude-mcp-json'` —
+  // i.e. only when the file is actually going to exist by spawn time. A `'claude-mcp-json'` def's
+  // `buildArgs` reads this to pass `--strict-mcp-config --mcp-config <path>` explicitly instead of
+  // relying on Claude Code's auto-discovery of `.mcp.json` from cwd, which requires an interactive
+  // trust prompt neither a headless spawn nor this daemon can ever answer — confirmed live
+  // (2026-07-30): auto-discovery left the MCP server connection stuck at `"pending"` forever, while
+  // the identical config passed explicitly via `--mcp-config` connected immediately. Passing it
+  // explicitly also implies `--strict-mcp-config`, which as a side effect closes the previously
+  // separate "spawned CLI inherits the interactive user's own unrelated MCP servers" leak, since
+  // Claude Code then uses ONLY the passed config. Absent (not just falsy) for every def other than
+  // `'claude-mcp-json'` ones and for any run where `mcpJsonInjection` was never configured, so
+  // `buildArgs` implementations that ignore unknown `RuntimeContext` fields see no behavior change.
+  mcpJsonPath?: string;
 };
 
 export type RuntimeCapabilityMap = Record<string, boolean>;

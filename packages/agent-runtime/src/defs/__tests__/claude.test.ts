@@ -164,6 +164,25 @@ describe('claudeAgentDef.buildArgs', () => {
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
     expect(() => claudeAgentDef.buildArgs('hi', [])).not.toThrow();
   });
+
+  it('adds --strict-mcp-config --mcp-config <path> when runtimeContext.mcpJsonPath is set', () => {
+    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '/tmp/run-abc/.mcp.json' });
+    expect(args).toContain('--strict-mcp-config');
+    const idx = args.indexOf('--mcp-config');
+    expect(idx).toBeGreaterThan(-1);
+    expect(args[idx + 1]).toBe('/tmp/run-abc/.mcp.json');
+  });
+
+  it('omits --strict-mcp-config and --mcp-config when mcpJsonPath is absent (default, unchanged behavior)', () => {
+    const args = claudeAgentDef.buildArgs('hi', [], [], {}, {});
+    expect(args).not.toContain('--strict-mcp-config');
+    expect(args).not.toContain('--mcp-config');
+  });
+
+  it('omits --mcp-config for an empty-string mcpJsonPath', () => {
+    const args = claudeAgentDef.buildArgs('hi', [], [], {}, { mcpJsonPath: '' });
+    expect(args).not.toContain('--mcp-config');
+  });
 });
 
 describe('claudeAgentDef.fetchModels', () => {

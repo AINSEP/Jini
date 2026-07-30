@@ -127,6 +127,23 @@ export const claudeAgentDef = {
       if (options.permissionMode !== 'restricted') {
         args.push('--permission-mode', 'bypassPermissions');
       }
+      // Explicit `--mcp-config` instead of relying on Claude Code's auto-discovery of `.mcp.json`
+      // from cwd (which this def's `externalMcpInjection: 'claude-mcp-json'` was written to lean
+      // on). Confirmed live (2026-07-30): auto-discovery requires an interactive trust prompt for
+      // an untrusted project's MCP config, which a headless daemon-spawned child has no TTY to ever
+      // answer — the MCP server connection sat at `"pending"` forever and none of its tools ever
+      // reached the model, even though the daemon-side HTTP routes it proxies were confirmed
+      // working. Passing the same config explicitly connected immediately. `--strict-mcp-config`
+      // is paired with it deliberately, not just for symmetry: it also means Claude Code loads
+      // ONLY this config, not whatever else an interactive user's own global/project `.mcp.json`
+      // or `~/.claude.json` happens to define — closing the separate "spawned CLI inherits the
+      // interactive developer's full MCP tool surface" leak this repo's own docs already flagged.
+      // `runtimeContext.mcpJsonPath` is set only when `agent-executor.ts` is actually about to
+      // write that file for this run (see its own doc) — absent otherwise, so a host that never
+      // configured `mcpJsonInjection` sees no change in behavior.
+      if (typeof runtimeContext.mcpJsonPath === 'string' && runtimeContext.mcpJsonPath) {
+        args.push('--strict-mcp-config', '--mcp-config', runtimeContext.mcpJsonPath);
+      }
       return args;
     },
     promptViaStdin: true,

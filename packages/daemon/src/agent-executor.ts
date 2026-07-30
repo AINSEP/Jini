@@ -1847,11 +1847,22 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
             if (preparedLogFile) await preparedLogFile.cleanup();
           }
         : async () => {};
+    // Same condition `writeMcpJsonForRun` uses internally to decide whether it will actually write
+    // the file below — computed here, ahead of that write, so a `'claude-mcp-json'` def's buildArgs
+    // can pass the path explicitly via `--mcp-config` rather than relying on Claude Code's
+    // auto-discovery (which needs an interactive trust prompt neither this daemon nor a headless
+    // spawn can ever answer). Safe to compute before the file exists: `writeMcpJsonForRun` runs
+    // after buildArgs but before spawn, so the path is real by the time the child process starts.
+    const mcpJsonPath: string | undefined =
+      mcpJsonInjection !== undefined && def.externalMcpInjection === 'claude-mcp-json'
+        ? join(input.cwd, '.mcp.json')
+        : undefined;
     const runtimeContext: RuntimeContext | undefined =
-      preparedPromptFile || preparedLogFile
+      preparedPromptFile || preparedLogFile || mcpJsonPath
         ? {
             ...(preparedPromptFile ? { promptFilePath: preparedPromptFile.path } : {}),
             ...(preparedLogFile ? { agentLogFilePath: preparedLogFile.path } : {}),
+            ...(mcpJsonPath ? { mcpJsonPath } : {}),
           }
         : undefined;
 

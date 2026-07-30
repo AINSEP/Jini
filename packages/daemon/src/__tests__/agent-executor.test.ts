@@ -1009,6 +1009,106 @@ describe('createAgentExecutor — real default collaborators', () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it("passes runtimeContext.mcpJsonPath to buildArgs for a 'claude-mcp-json' def when mcpJsonInjection is configured, computed BEFORE the file is written", async () => {
+    const os = await import('node:os');
+    const path = await import('node:path');
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jini-mcp-json-path-'));
+    try {
+      const eventLog = createInMemoryEventLog();
+      const lifecycle = createRunLifecycle({ eventLog });
+      let seenMcpJsonPath: string | undefined;
+      const def = createFakeDef({
+        id: 'claude',
+        externalMcpInjection: 'claude-mcp-json',
+        buildArgs: (_prompt, _imagePaths, _extra, _options, runtimeContext) => {
+          seenMcpJsonPath = runtimeContext?.mcpJsonPath;
+          return ['--flag'];
+        },
+      });
+      const child = createFakeChild(6101);
+      const fakeSpawn = (() => {
+        queueMicrotask(() => child.emit('spawn'));
+        return child as unknown as ChildProcess;
+      }) as unknown as typeof nodeSpawn;
+
+      const executor = createAgentExecutor({
+        lifecycle,
+        getAgentDef: (id: string) => (def.id === id ? def : null),
+        resolveAgentLaunch: () =>
+          ({
+            selectedPath: '/fake/claude-bin',
+            pathResolvedPath: '/fake/claude-bin',
+            configuredOverridePath: null,
+            launchPath: '/fake/claude-bin',
+            launchKind: 'selected',
+            childPathPrepend: [],
+            diagnostic: null,
+          }) as AgentLaunchResolution,
+        applyAgentLaunchEnv: (env) => env,
+        spawn: fakeSpawn,
+        listProcessSnapshots: async () => [],
+        stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
+        mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' },
+      });
+
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: tmpDir });
+
+      expect(seenMcpJsonPath).toBe(path.join(tmpDir, '.mcp.json'));
+      // Real by spawn time, even though buildArgs (which computed the path) ran before the write.
+      const written = JSON.parse(await fs.readFile(seenMcpJsonPath as string, 'utf8'));
+      expect(written.mcpServers.jini.command).toBe('/usr/bin/jini-mcp');
+    } finally {
+      await fs.rm(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves runtimeContext.mcpJsonPath absent for a def whose externalMcpInjection is not claude-mcp-json, even with mcpJsonInjection configured', async () => {
+    const eventLog = createInMemoryEventLog();
+    const lifecycle = createRunLifecycle({ eventLog });
+    let sawRuntimeContext: unknown = 'not-called';
+    const def = createFakeDef({
+      id: 'fake-agent',
+      // No externalMcpInjection at all — matches every non-claude-mcp-json def.
+      buildArgs: (_prompt, _imagePaths, _extra, _options, runtimeContext) => {
+        sawRuntimeContext = runtimeContext;
+        return ['--flag'];
+      },
+    });
+    const child = createFakeChild(6102);
+    const fakeSpawn = (() => {
+      queueMicrotask(() => child.emit('spawn'));
+      return child as unknown as ChildProcess;
+    }) as unknown as typeof nodeSpawn;
+
+    const executor = createAgentExecutor({
+      lifecycle,
+      getAgentDef: (id: string) => (def.id === id ? def : null),
+      resolveAgentLaunch: () =>
+        ({
+          selectedPath: '/fake/bin',
+          pathResolvedPath: '/fake/bin',
+          configuredOverridePath: null,
+          launchPath: '/fake/bin',
+          launchKind: 'selected',
+          childPathPrepend: [],
+          diagnostic: null,
+        }) as AgentLaunchResolution,
+      applyAgentLaunchEnv: (env) => env,
+      spawn: fakeSpawn,
+      listProcessSnapshots: async () => [],
+      stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
+      mcpJsonInjection: { command: '/usr/bin/jini-mcp', daemonUrl: 'http://127.0.0.1:4242' },
+    });
+
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/tmp' });
+
+    // Neither promptFilePath/agentLogFilePath (fake-agent has neither flag) nor mcpJsonPath apply
+    // here, so runtimeContext stays undefined entirely — unchanged from before this field existed.
+    expect(sawRuntimeContext).toBeUndefined();
+  });
 });
 
 describe('AgentExecutorError', () => {
