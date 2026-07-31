@@ -1,4 +1,4 @@
-import type { ApiProtocol, ProviderPreset } from './types.js';
+import type { AgentCliEnvFieldSpec, ApiProtocol, ProviderPreset } from './types.js';
 
 /** Fallback endpoint per protocol, used when a host supplies no preset and
  *  the operator has not typed a base URL. Origin: `DEFAULT_BASE_URL_BY_PROTOCOL`. */
@@ -20,6 +20,12 @@ export const PROTOCOL_OPTIONS: ReadonlyArray<{ id: ApiProtocol; label: string }>
 
 /** Stable id for the synthetic "Custom" preset. */
 export const CUSTOM_PRESET_ID = 'custom';
+
+/** Sentinel model-select value meaning "let me type a model id by hand".
+ *  Never a real model id (models are validated against this and rejected as
+ *  a legitimate pick — see `shouldShowCustomModelInput`). Origin:
+ *  `CUSTOM_MODEL_SENTINEL`. */
+export const CUSTOM_MODEL_SENTINEL = '__custom__';
 
 /**
  * A small, vendor-shaped starting catalog. Deliberately NOT the origin's full
@@ -110,3 +116,74 @@ export const DEFAULT_AGENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'grok-build': 'xAI coding CLI',
   reasonix: 'DeepSeek native coding CLI',
 };
+
+/**
+ * Starter catalog of operator-configurable CLI environment variables for the
+ * two agents the origin actually exposed fields for (Claude Code, Codex) —
+ * proxy base URLs, custom config/home directories, and (Codex only) a
+ * binary-path override. Origin: `AGENT_CLI_ENV_FIELDS`, with the
+ * origin's dual `labelKey`+`labelSuffix` i18n plumbing collapsed into a
+ * single plain `label` per this package's "the English string is the key"
+ * convention (see `DEFAULT_AGENT_DESCRIPTIONS`).
+ *
+ * A host with a larger/different agent roster passes its own `fields` catalog
+ * to `AgentCliEnvFields` rather than editing this one — same convention as
+ * `DEFAULT_PROVIDER_PRESETS`. Only `codex`'s `CODEX_BIN` carries
+ * `kind: 'binPath'`: the origin's path-repair affordance
+ * (`agentExecutableRepairState`) is Codex-only in practice today, even though
+ * the mechanism itself is generic to any agent a host tags this way.
+ */
+export const DEFAULT_AGENT_CLI_ENV_FIELDS: readonly AgentCliEnvFieldSpec[] = [
+  {
+    agentId: 'claude',
+    envKey: 'CLAUDE_CONFIG_DIR',
+    label: 'Config directory',
+    placeholder: '~/.claude-2',
+  },
+  {
+    agentId: 'claude',
+    envKey: 'ANTHROPIC_BASE_URL',
+    label: 'Base URL',
+    placeholder: 'https://your-proxy.example.com',
+  },
+  {
+    agentId: 'claude',
+    envKey: 'ANTHROPIC_API_KEY',
+    label: 'API key',
+    placeholder: 'Paste CLI API key',
+    secret: true,
+  },
+  {
+    agentId: 'codex',
+    envKey: 'CODEX_HOME',
+    label: 'Config directory',
+    placeholder: '~/.codex-alt',
+  },
+  {
+    agentId: 'codex',
+    envKey: 'CODEX_BIN',
+    label: 'Binary path',
+    placeholder: '/absolute/path/to/codex',
+    kind: 'binPath',
+  },
+  {
+    agentId: 'codex',
+    envKey: 'OPENAI_BASE_URL',
+    label: 'Base URL',
+    placeholder: 'https://your-proxy.example.com/v1',
+  },
+  {
+    agentId: 'codex',
+    envKey: 'CODEX_API_KEY',
+    label: 'API key (CODEX_API_KEY)',
+    placeholder: 'Paste CODEX_API_KEY',
+    secret: true,
+  },
+  {
+    agentId: 'codex',
+    envKey: 'OPENAI_API_KEY',
+    label: 'API key (OPENAI_API_KEY)',
+    placeholder: 'Paste OPENAI_API_KEY',
+    secret: true,
+  },
+];

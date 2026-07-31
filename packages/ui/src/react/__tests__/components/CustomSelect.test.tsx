@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { useState } from 'react';
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -562,6 +563,7 @@ describe('CustomSelect with hook override prop', () => {
       setActiveValue: vi.fn(),
       choose: vi.fn(),
       onButtonKeyDown: vi.fn(),
+      onMenuKeyDown: vi.fn(),
     });
 
     render(
@@ -604,6 +606,7 @@ describe('CustomSelect with hook override prop', () => {
       setActiveValue: mockSetActiveValue,
       choose: mockChoose,
       onButtonKeyDown: vi.fn(),
+      onMenuKeyDown: vi.fn(),
     });
 
     render(
@@ -629,5 +632,84 @@ describe('CustomSelect with hook override prop', () => {
 
     fireEvent.click(options[1]!);
     expect(mockChoose).toHaveBeenCalledWith('opt2');
+  });
+
+  it('renders menuHeader inside the open menu, above the options', async () => {
+    const user = userEvent.setup();
+    render(
+      <CustomSelect
+        value="a"
+        options={OPTIONS}
+        onChange={vi.fn()}
+        ariaLabel="Pick"
+        portal={false}
+        menuHeader={<input aria-label="Filter" data-testid="menu-header-input" />}
+      />,
+    );
+    // Not rendered until the menu opens — it lives inside the listbox.
+    expect(screen.queryByTestId('menu-header-input')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('combobox'));
+    const header = screen.getByTestId('menu-header-input');
+    expect(header).toBeInTheDocument();
+    expect(screen.getByRole('listbox')).toContainElement(header);
+  });
+
+  it('omitting menuHeader changes nothing about the menu contents', async () => {
+    const user = userEvent.setup();
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    await user.click(screen.getByRole('combobox'));
+    expect(screen.getByRole('listbox').firstElementChild).not.toBeNull();
+    expect(screen.getAllByRole('option')).toHaveLength(OPTIONS.length);
+  });
+
+  it('reports open/close transitions via onOpenChange', async () => {
+    const user = userEvent.setup();
+    const onOpenChange = vi.fn();
+    render(
+      <CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} onOpenChange={onOpenChange} />,
+    );
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    onOpenChange.mockClear();
+
+    await user.click(screen.getByRole('combobox'));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+
+    await user.click(screen.getByText('Beta'));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('does not error when onOpenChange is omitted and the menu opens and closes', async () => {
+    const user = userEvent.setup();
+    render(<CustomSelect value="a" options={OPTIONS} onChange={vi.fn()} ariaLabel="Pick" portal={false} />);
+    await user.click(screen.getByRole('combobox'));
+    await user.click(screen.getByText('Beta'));
+    // Reaching here without throwing is the assertion — the ref-based
+    // `onOpenChangeRef.current?.()` call must tolerate `undefined`.
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('an unmemoized onOpenChange prop does not re-fire on every render, only on real open/close transitions', async () => {
+    const user = userEvent.setup();
+    const calls: boolean[] = [];
+    function Wrapper() {
+      const [, setTick] = useState(0);
+      return (
+        <CustomSelect
+          value="a"
+          options={OPTIONS}
+          onChange={vi.fn()}
+          ariaLabel="Pick"
+          portal={false}
+          // A fresh closure every render — this is the case the ref exists to guard.
+          onOpenChange={(open) => calls.push(open)}
+          onFocus={() => setTick((n) => n + 1)}
+        />
+      );
+    }
+    render(<Wrapper />);
+    expect(calls).toEqual([false]);
+    screen.getByRole('combobox').focus();
+    await user.click(screen.getByRole('combobox'));
+    expect(calls).toEqual([false, true]);
   });
 });

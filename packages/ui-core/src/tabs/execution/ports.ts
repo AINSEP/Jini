@@ -1,4 +1,4 @@
-import type { ByokConfig, DetectedAgent } from './types.js';
+import type { AgentExecutableSource, ByokConfig, DetectedAgent } from './types.js';
 
 /**
  * The host-specific transport this tab needs. Genuinely host-owned: the origin
@@ -57,9 +57,19 @@ export interface ExecutionPort {
    * Optional; without it no Test button is rendered on the selected card.
    * `model` is the operator's current per-agent pick, so a host whose probe
    * can validate the model choice gets the chance to.
+   *
+   * `usedExecutableSource`/`detectedExecutablePath` are optional: a host
+   * whose probe can tell which binary it actually invoked reports them so
+   * the card can offer `agentExecutableRepairState`'s repair affordance;
+   * a host that can't just omits both and the affordance never renders.
    */
   testAgent?(
     agentId: string,
     model?: string | undefined,
-  ): Promise<{ ok: boolean; message?: string }>;
+  ): Promise<{
+    ok: boolean;
+    message?: string;
+    usedExecutableSource?: AgentExecutableSource;
+    detectedExecutablePath?: string;
+  }>;
 }

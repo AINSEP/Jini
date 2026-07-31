@@ -1,11 +1,13 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { useT } from '../../../../../../features/i18n/index.js';
-import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/ui-core';
+import { DEFAULT_AGENT_CLI_ENV_FIELDS, DEFAULT_PROVIDER_PRESETS } from '@jini-ai/ui-core';
 import type { ExecutionPort } from '@jini-ai/ui-core';
 import {
   groupPresets,
   isProviderConfigured,
+  nextConfigForAgentCliEnvChange,
   nextConfigForAgentModel,
+  nextConfigForAgentReasoning,
   nextConfigForAgentSelect,
   nextConfigForModeChange,
   nextConfigForPresetSelect,
@@ -13,6 +15,7 @@ import {
   selectedAgentModel,
 } from '@jini-ai/ui-core';
 import type {
+  AgentCliEnvFieldSpec,
   DetectedAgent,
   ExecutionConfig,
   ExecutionMode,
@@ -30,6 +33,11 @@ export interface ExecutionTabProps {
   /** Endpoint catalog. Defaults to this package's small starter set — a host
    *  with its own provider list passes it here rather than editing ours. */
   presets?: readonly ProviderPreset[];
+  /** Per-agent CLI env-var catalog (proxy URLs, custom config dirs, a
+   *  binary-path override). Defaults to this package's starter set for the
+   *  CLIs it already knows about — a host with a different/larger agent
+   *  roster passes its own, same convention as `presets`. */
+  cliEnvFields?: readonly AgentCliEnvFieldSpec[];
   /** Disables Local CLI with an explanatory title, for hosts that cannot run
    *  local subprocesses (e.g. a hosted deployment). */
   localCliUnavailableReason?: string;
@@ -61,6 +69,7 @@ export function ExecutionTab({
   onConfigChange,
   port,
   presets = DEFAULT_PROVIDER_PRESETS,
+  cliEnvFields = DEFAULT_AGENT_CLI_ENV_FIELDS,
   localCliUnavailableReason,
   renderAgentIcon,
   localCliScopeLabel,
@@ -158,6 +167,13 @@ export function ExecutionTab({
           onModelChange={(agentId, model) =>
             onConfigChange(nextConfigForAgentModel(config, agentId, model))
           }
+          onReasoningChange={(agentId, reasoning) =>
+            onConfigChange(nextConfigForAgentReasoning(config, agentId, reasoning))
+          }
+          onEnvChange={(agentId, envKey, value) =>
+            onConfigChange(nextConfigForAgentCliEnvChange(config, agentId, envKey, value))
+          }
+          cliEnvFields={cliEnvFields}
           onRescan={canRescan ? rescan : undefined}
           onTest={
             canTestAgent

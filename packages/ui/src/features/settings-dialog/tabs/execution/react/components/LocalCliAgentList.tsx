@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { useT } from '../../../../../../features/i18n/index.js';
 import type {
+  AgentCliEnvFieldSpec,
   AgentScanState,
   AgentTestState,
   DetectedAgent,
@@ -14,6 +15,9 @@ export interface LocalCliAgentListProps {
   scan: AgentScanState;
   onSelect: (agentId: string) => void;
   onModelChange: (agentId: string, model: string) => void;
+  onReasoningChange: (agentId: string, reasoning: string) => void;
+  onEnvChange: (agentId: string, envKey: string, value: string) => void;
+  cliEnvFields: readonly AgentCliEnvFieldSpec[];
   onRescan?: (() => void) | undefined;
   onTest?: ((agent: DetectedAgent) => void) | undefined;
   agentTest: AgentTestState;
@@ -45,6 +49,9 @@ export function LocalCliAgentList({
   scan,
   onSelect,
   onModelChange,
+  onReasoningChange,
+  onEnvChange,
+  cliEnvFields,
   onRescan,
   onTest,
   agentTest,
@@ -107,9 +114,13 @@ export function LocalCliAgentList({
               selected={config.agentId === agent.id}
               onSelect={onSelect}
               onModelChange={onModelChange}
+              onReasoningChange={onReasoningChange}
+              onEnvChange={onEnvChange}
+              cliEnvFields={cliEnvFields}
               renderIcon={renderAgentIcon}
               onTest={onTest}
               agentTest={agentTest}
+              onRescan={onRescan}
             />
           ))}
         </div>

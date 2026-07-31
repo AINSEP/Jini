@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../../i18n/index.js';
@@ -183,15 +183,72 @@ describe('ExecutionTab', () => {
       />,
     );
     await waitFor(() => expect(screen.getByTestId('jini-agent-model-agent-a')).toBeInTheDocument());
-    await userEvent.selectOptions(
-      screen.getByTestId('jini-agent-model-agent-a'),
-      'example-model-small',
-    );
+    await userEvent.click(within(screen.getByTestId('jini-agent-model-agent-a')).getByRole('combobox'));
+    await userEvent.click(screen.getByText('Example Small'));
     expect(onConfigChange).toHaveBeenLastCalledWith(
       expect.objectContaining({
         localCli: { agentId: 'agent-a', modelByAgentId: { 'agent-a': 'example-model-small' } },
       }),
     );
+  });
+
+  it('wires reasoning picks and CLI env-field edits all the way through onConfigChange', async () => {
+    const onConfigChange = vi.fn();
+    render(
+      <ExecutionTab
+        config={{ ...config({ mode: 'local-cli' }), localCli: { agentId: 'agent-a' } }}
+        onConfigChange={onConfigChange}
+        port={createFakeExecutionPort({
+          agents: [
+            {
+              id: 'agent-a',
+              label: 'Example Agent CLI',
+              installed: true,
+              models: [{ id: 'm1', label: 'Model One' }],
+              reasoningOptions: [
+                { id: 'low', label: 'Low' },
+                { id: 'high', label: 'High' },
+              ],
+            },
+          ],
+        })}
+        presets={PRESETS}
+        cliEnvFields={[{ agentId: 'agent-a', envKey: 'AGENT_A_BASE_URL', label: 'Base URL' }]}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('jini-agent-reasoning-agent-a')).toBeInTheDocument());
+
+    await userEvent.selectOptions(screen.getByTestId('jini-agent-reasoning-agent-a'), 'high');
+    expect(onConfigChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        localCli: expect.objectContaining({ reasoningByAgentId: { 'agent-a': 'high' } }),
+      }),
+    );
+
+    const envInput = screen.getByTestId('jini-agent-cli-env-agent-a-AGENT_A_BASE_URL');
+    await userEvent.type(envInput, 'x');
+    expect(onConfigChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        localCli: expect.objectContaining({ envByAgentId: { 'agent-a': { AGENT_A_BASE_URL: 'x' } } }),
+      }),
+    );
+  });
+
+  it('defaults cliEnvFields to the package starter catalog when the host supplies none', async () => {
+    render(
+      <ExecutionTab
+        config={{ ...config({ mode: 'local-cli' }), localCli: { agentId: 'claude' } }}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort({
+          agents: [{ id: 'claude', label: 'Claude Code', installed: true }],
+        })}
+        presets={PRESETS}
+      />,
+    );
+    // `claude` is in this package's DEFAULT_AGENT_CLI_ENV_FIELDS catalog —
+    // its env-fields disclosure should render without the host passing a
+    // `cliEnvFields` prop at all.
+    await waitFor(() => expect(screen.getByTestId('jini-agent-cli-env-claude')).toBeInTheDocument());
   });
 
   it('reports a per-agent test failure that could not run at all', async () => {
@@ -223,8 +280,12 @@ describe('ExecutionTab', () => {
       />,
     );
     await waitFor(() => expect(screen.getByTestId('jini-agent-model-agent-a')).toBeInTheDocument());
-    // Snapping to the first option would silently change what runs.
-    expect(screen.getByTestId('jini-agent-model-agent-a')).toHaveValue('retired-model');
+    // A value that isn't in the reported model list automatically routes to
+    // the free-text "custom model" input (see `shouldShowCustomModelInput`)
+    // rather than being silently dropped or snapped to the first option —
+    // either of which would change what runs without the operator touching
+    // anything.
+    expect(screen.getByTestId('jini-agent-model-custom-agent-a')).toHaveValue('retired-model');
   });
 
   it('reports a successful connection test through the port', async () => {

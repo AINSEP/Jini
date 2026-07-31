@@ -9,7 +9,7 @@
 // `CustomSelectOptionButton` leaf, and the dumb `CustomSelect` render.
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import type { KeyboardEvent, MutableRefObject } from 'react';
+import type { KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './Icon';
 
@@ -32,7 +32,11 @@ export interface CustomSelectProps {
   onChange: (value: string) => void;
   ariaLabel: string;
   labelledBy?: string;
-  className?: string;
+  // `| undefined` (not just `?`) so a caller under `exactOptionalPropertyTypes`
+  // can forward its OWN optional `className` prop straight through without
+  // needing a conditional-spread — see `SearchableModelSelect`, this
+  // component's first real consumer.
+  className?: string | undefined;
   triggerClassName?: string;
   menuClassName?: string;
   disabled?: boolean;
@@ -40,6 +44,15 @@ export interface CustomSelectProps {
   portal?: boolean;
   title?: string;
   onFocus?: () => void;
+  /** Extra content rendered inside the menu, above the option list — the seam
+   *  `SearchableModelSelect` uses to place a search input inside the popover
+   *  without this component needing to know search exists. `undefined`
+   *  renders nothing extra, so every existing caller is unaffected. */
+  menuHeader?: ReactNode;
+  /** Fires whenever the menu's open state changes. Optional: a plain select
+   *  has nothing to do with this; `SearchableModelSelect` uses it to focus
+   *  its search input and reset the query exactly when the menu opens. */
+  onOpenChange?: (open: boolean) => void;
   /** Custom hook override for dependency injection / testing. */
   useCustomSelect?: typeof useCustomSelect;
 }
@@ -195,6 +208,8 @@ export interface UseCustomSelectParams {
   onChange: (value: string) => void;
   portal: boolean;
   placeholder?: string | undefined;
+  /** See `CustomSelectProps.onOpenChange`. */
+  onOpenChange?: ((open: boolean) => void) | undefined;
 }
 
 export interface UseCustomSelectResult {
@@ -221,6 +236,10 @@ export interface UseCustomSelectResult {
   toggleOpen: () => void;
   /** Full keyboard handler for the trigger button. */
   onButtonKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+  /** Escape handler for the menu container — closes even when focus is inside
+   *  custom `menuHeader` content. See this function's definition for why
+   *  `onButtonKeyDown` alone is not enough. */
+  onMenuKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
 }
 
 /**
@@ -237,6 +256,7 @@ export function useCustomSelect({
   onChange,
   portal,
   placeholder,
+  onOpenChange,
 }: UseCustomSelectParams): UseCustomSelectResult {
   const reactId = useId();
   const idBase = reactId.replace(/:/g, '');
@@ -245,8 +265,17 @@ export function useCustomSelect({
   const wasOpenRef = useRef(false);
   const activeSourceValueRef = useRef(value);
   const [open, setOpen] = useState(false);
+  // Stored in a ref (not a `useEffect` dependency) so an unmemoized caller
+  // passing a fresh function identity every render never re-fires this for
+  // any reason OTHER than `open` actually changing.
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
   const [activeValue, setActiveValue] = useState(value);
   const [position, setPosition] = useState<CustomSelectMenuPosition | null>(null);
+
+  useEffect(() => {
+    onOpenChangeRef.current?.(open);
+  }, [open]);
 
   const flatOptions = useMemo(() => flattenCustomSelectOptions(options), [options]);
   const selected = flatOptions.find((option) => option.value === value);
@@ -334,6 +363,11 @@ export function useCustomSelect({
 
   const toggleOpen = () => setOpen((current) => !current);
 
+  const closeAndRefocusTrigger = () => {
+    setOpen(false);
+    buttonRef.current?.focus();
+  };
+
   const onButtonKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
@@ -356,8 +390,22 @@ export function useCustomSelect({
     if (event.key === 'Escape' && open) {
       event.preventDefault();
       event.stopPropagation();
-      setOpen(false);
+      closeAndRefocusTrigger();
     }
+  };
+
+  // Escape closes even when focus has moved into custom `menuHeader` content
+  // (e.g. `SearchableModelSelect`'s search input) — `onButtonKeyDown` alone
+  // only fires while the TRIGGER itself has focus, which no longer holds once
+  // the operator tabs or clicks into menu content that can actually receive
+  // focus (unlike the option buttons, which are `tabIndex={-1}` and never
+  // take real focus). Attached to the menu container, not the document, so it
+  // never fires for an unrelated Escape press elsewhere on the page.
+  const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    event.stopPropagation();
+    closeAndRefocusTrigger();
   };
 
   return {
@@ -375,6 +423,7 @@ export function useCustomSelect({
     setActiveValue,
     toggleOpen,
     onButtonKeyDown,
+    onMenuKeyDown,
   };
 }
 
@@ -398,6 +447,8 @@ export function CustomSelect({
   portal = true,
   title,
   onFocus,
+  menuHeader,
+  onOpenChange,
   useCustomSelect: useCustomSelectHook = useCustomSelect,
 }: CustomSelectProps) {
   const {
@@ -414,12 +465,14 @@ export function CustomSelect({
     setActiveValue,
     toggleOpen,
     onButtonKeyDown,
-  } = useCustomSelectHook({ value, options, onChange, portal, placeholder });
+    onMenuKeyDown,
+  } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
 
   const menu = (
     <div
       ref={menuRef}
       id={`${idBase}-menu`}
+      onKeyDown={onMenuKeyDown}
       className={[
         'jini-select-menu',
         portal ? 'portal' : 'inline',
@@ -438,6 +491,7 @@ export function CustomSelect({
           : undefined
       }
     >
+      {menuHeader}
       {options.map((item) => {
         if (isCustomSelectGroup(item)) {
           return (

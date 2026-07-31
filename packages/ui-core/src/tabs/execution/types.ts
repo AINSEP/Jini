@@ -127,6 +127,14 @@ export type AgentModelSource = 'live' | 'fallback';
  *  "authentication required" there would be a false claim. */
 export type AgentAuthStatus = 'ok' | 'missing' | 'unknown';
 
+/** Whether an agent's CLI accepts an operator-typed model id outside its
+ *  known `models` list. `undefined` means "allow" (most CLIs do) — a host
+ *  opts OUT with an explicit `false` for a CLI that routes model selection
+ *  through a closed catalog (no free-text `--model` flag, or a protocol that
+ *  validates the id against a live catalog and rejects unknown ones).
+ *  Origin: `RuntimeAgentDef.supportsCustomModel`. */
+export type AgentSupportsCustomModel = boolean;
+
 /**
  * A code-agent CLI found on the machine that ran detection, as reported by
  * `ExecutionPort`.
@@ -151,6 +159,16 @@ export interface DetectedAgent {
   description?: string | undefined;
   models?: readonly AgentModelOption[] | undefined;
   modelsSource?: AgentModelSource | undefined;
+  /** Reasoning-effort/mode presets this agent's model exposes (e.g.
+   *  "low"/"medium"/"high"), reusing `AgentModelOption`'s `{id, label}` shape
+   *  — the same shape `@jini-ai/agent-runtime`'s `RuntimeReasoningOption`
+   *  aliases from its model-option type, for the same reason: a reasoning
+   *  choice IS a model-catalog entry, just from a different picker. Absent or
+   *  empty means the agent has no reasoning axis to configure. */
+  reasoningOptions?: readonly AgentModelOption[] | undefined;
+  /** See `AgentSupportsCustomModel`. `undefined` allows custom input,
+   *  matching every adapter's default before this field existed. */
+  supportsCustomModel?: AgentSupportsCustomModel | undefined;
   authStatus?: AgentAuthStatus | undefined;
   /** Operator-actionable detail behind a `'missing'`/`'unknown'` status —
    *  rendered as the meta line's tooltip so the card stays compact without
@@ -159,6 +177,119 @@ export interface DetectedAgent {
   /** Short marketing-ish tags ("Official", "Lower cost"). The mechanism is
    *  generic; the vocabulary is the host's — this package ships none. */
   badges?: readonly string[] | undefined;
+  /** Why this agent is unavailable or only partially usable, as one or more
+   *  renderable "reason + fix button(s)" rows — see `AgentDiagnostic`. Absent
+   *  or empty means detection has nothing actionable to report (the common
+   *  case for a healthy, authenticated CLI). */
+  diagnostics?: readonly AgentDiagnostic[] | undefined;
+  /** Destination for an `{kind: 'openInstall'}` fix action — the CLI's
+   *  install/download page. Absent hides that action even if a diagnostic
+   *  requests it, per `AgentDiagnosticRow`'s "only render what the host can
+   *  actually do" contract. */
+  installUrl?: string | undefined;
+  /** Destination for an `{kind: 'openDocs'}` fix action — the CLI's
+   *  configuration/auth docs. Same absent-hides-the-action rule as
+   *  `installUrl`. */
+  docsUrl?: string | undefined;
+}
+
+/**
+ * Why a CLI agent is unavailable or only partially usable, in a shape a UI
+ * can render as "one-line reason + fix button(s)" instead of a silent grey
+ * card.
+ *
+ * Origin: OD's `packages/contracts/src/api/registry.ts#AgentDiagnostic` /
+ * `AgentFixIntent`, vendored into `@jini-ai/protocol`'s `agent-catalog.ts`
+ * (2026-07-29) unmodified. Mirrored here field-for-field rather than
+ * imported — this package ships zero dependencies (see this package's
+ * module doc / `package.json`), the same reasoning `DetectedAgent`'s own doc
+ * comment gives for mirroring `@jini-ai/agent-runtime`'s shape instead of
+ * depending on that Node-only package. A host on `@jini-ai/agent-runtime` /
+ * `@jini-ai/protocol` passes its `AgentDiagnostic[]` straight through
+ * unmapped, since the fields are identical.
+ */
+export interface AgentDiagnostic {
+  reason: AgentDiagnosticReason;
+  severity: AgentDiagnosticSeverity;
+  /** Short, human-readable, single-sentence explanation. */
+  message: string;
+  /** Optional longer context (e.g. the probe's stderr tail). */
+  detail?: string | undefined;
+  /** Directories PATH detection searched, surfaced verbatim for the
+   *  `'not-on-path'` case so the operator can see where detection looked
+   *  before being asked to set an explicit binary path. */
+  searchedDirs?: readonly string[] | undefined;
+  /** Ordered fix affordances the UI should offer for this diagnostic. */
+  fixActions?: readonly AgentFixIntent[] | undefined;
+}
+
+export type AgentDiagnosticReason =
+  /** The binary (and any fallback names) was not found on PATH. */
+  | 'not-on-path'
+  /** A file matched but is not executable (missing +x / wrong PATHEXT). */
+  | 'not-executable'
+  /** A wrapper/shim was found but its target is gone (exit 126/127). */
+  | 'shim-broken'
+  /** A user-set binary-path override points at a missing/invalid file. */
+  | 'configured-bin-invalid'
+  /** Installed and invocable, but the CLI is not authenticated. */
+  | 'auth-missing'
+  /** Installed, but auth status could not be verified. */
+  | 'auth-unknown';
+
+export type AgentDiagnosticSeverity = 'error' | 'warning' | 'info';
+
+/**
+ * A typed "what should the UI do to fix this" intent attached to an
+ * `AgentDiagnostic`. The UI renders one button per intent and owns the
+ * concrete handler (open a URL, re-run detection, write an env override);
+ * keeping the intent typed — rather than a pre-baked button label + URL —
+ * lets more than one surface render the same fix affordances from one
+ * source of truth.
+ */
+export type AgentFixIntent =
+  /** Open the agent's configuration/auth docs. */
+  | { kind: 'openDocs' }
+  /** Open the agent's install/download page. */
+  | { kind: 'openInstall' }
+  /** Re-run agent detection (this tab's rescan affordance). */
+  | { kind: 'rescan' }
+  /** Prompt the operator to point the host at an explicit binary by writing
+   *  `envKey` into `LocalCliConfig.envByAgentId` — used when the CLI is
+   *  installed somewhere PATH detection can't reach. */
+  | { kind: 'setEnv'; envKey: string }
+  /** Clear a previously-set binary override so detection falls back to PATH. */
+  | { kind: 'clearEnv'; envKey: string }
+  /** Launch the agent's interactive sign-in in a system terminal (used by
+   *  adapters whose OAuth flow cannot complete headlessly). */
+  | { kind: 'launchOAuth'; agentId: string };
+
+/**
+ * Catalog entry describing one operator-configurable CLI environment
+ * variable for one agent (a proxy base URL, a custom config directory, a
+ * binary-path override, …). Origin: `AGENT_CLI_ENV_FIELDS`. A host supplies
+ * its own catalog the same way it supplies `ProviderPreset`s — this package
+ * ships `DEFAULT_AGENT_CLI_ENV_FIELDS` as a starting point for the CLIs it
+ * already knows about (see `DEFAULT_AGENT_DESCRIPTIONS`), not as a fixed list.
+ */
+export interface AgentCliEnvFieldSpec {
+  agentId: string;
+  envKey: string;
+  /** Field label. This package's convention: the English string IS the i18n
+   *  key (see `PROTOCOL_OPTIONS`) — a host translates it, it does not supply
+   *  a separate key. */
+  label: string;
+  placeholder?: string | undefined;
+  /** Renders the input as `type="password"` and omits the value from any
+   *  plain-text display. */
+  secret?: boolean | undefined;
+  /** Marks this field as the agent's executable-path override — the field a
+   *  "use detected path" / "clear custom path" repair affordance (see
+   *  `agentExecutableRepairState`) should set or clear. At most one field per
+   *  `agentId` should carry this; the mechanism is generic, but this
+   *  package's own `DEFAULT_AGENT_CLI_ENV_FIELDS` only tags Codex's
+   *  `CODEX_BIN`, mirroring the origin's actual (Codex-only) behavior. */
+  kind?: 'binPath' | undefined;
 }
 
 /**
@@ -175,6 +306,16 @@ export interface LocalCliConfig {
    *  "the first one was chosen for you". */
   agentId: string | null;
   modelByAgentId?: Readonly<Record<string, string>>;
+  /** Per-agent reasoning-effort pick, keyed the same way as `modelByAgentId`
+   *  and for the same reason: switching agents and back must not hand one
+   *  agent's reasoning choice to another. */
+  reasoningByAgentId?: Readonly<Record<string, string>>;
+  /** Per-agent CLI environment overrides — proxy URLs, custom config dirs, a
+   *  binary-path override — keyed by agent id then env var name. Origin:
+   *  `AppConfig.agentCliEnv`. Mirrors that two-level shape directly rather
+   *  than flattening it, since a field's env-var name is only unique WITHIN
+   *  an agent (`CODEX_BIN` means nothing for `claude`). */
+  envByAgentId?: Readonly<Record<string, Readonly<Record<string, string>>>>;
 }
 
 /** Which required BYOK field is still blank/invalid. Drives the inline
@@ -187,14 +328,51 @@ export type ConnectionTestState =
   | { status: 'ok'; message?: string | undefined }
   | { status: 'error'; message: string };
 
+/**
+ * Which executable a Local-CLI test actually invoked. `'primary'` is the
+ * normal case (the resolved/on-PATH binary ran). The two `fallback-*`
+ * variants report that a configured binary-path override
+ * (`AgentCliEnvFieldSpec` with `kind: 'binPath'`) could not be used and
+ * detection fell back to a different binary anyway — `'fallback-invalid'`
+ * when the override path never resolved to an executable, `'fallback-failed'`
+ * when it resolved but failed to run. Both are the trigger for
+ * `agentExecutableRepairState`'s repair affordance. Origin: OD's
+ * `ConnectionTestResponse.usedExecutableSource` (`'fallback_invalid'` /
+ * `'fallback_failed'`, renamed to this package's kebab-case convention).
+ */
+export type AgentExecutableSource = 'primary' | 'fallback-invalid' | 'fallback-failed';
+
 /** Result of the per-agent Test button, surfaced under the selected card.
  *  Same idiom as `ConnectionTestState` — the two report the same kind of
- *  outcome for the two execution modes, so they deliberately share a shape. */
+ *  outcome for the two execution modes, so they deliberately share a shape.
+ *  `usedExecutableSource`/`detectedExecutablePath` are optional passthrough
+ *  from `ExecutionPort.testAgent`'s result, present only when the host's
+ *  probe can report which binary it actually ran — see
+ *  `agentExecutableRepairState`. */
 export type AgentTestState =
   | { status: 'idle' }
   | { status: 'testing'; agentId: string }
-  | { status: 'ok'; agentId: string; message?: string | undefined }
+  | {
+      status: 'ok';
+      agentId: string;
+      message?: string | undefined;
+      usedExecutableSource?: AgentExecutableSource | undefined;
+      detectedExecutablePath?: string | undefined;
+    }
   | { status: 'error'; agentId: string; message: string };
+
+/** The repair affordance a successful-but-fallback agent test unlocks: an
+ *  operator-set binary-path override didn't work, detection silently fell
+ *  back to a different binary, and the test still passed — so the operator
+ *  should be offered "use the binary that actually worked" or "clear the
+ *  override and stop overriding". `canUseDetected` is carried explicitly
+ *  (rather than always being implied `true`) so a future detection outcome
+ *  that finds a fallback path but cannot vouch for it has somewhere to say
+ *  so without a breaking shape change. */
+export interface AgentExecutableRepair {
+  detectedPath: string;
+  canUseDetected: boolean;
+}
 
 /** Result of a local-CLI rescan, surfaced as an inline status line. */
 export type AgentScanState =

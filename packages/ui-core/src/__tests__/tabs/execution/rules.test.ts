@@ -1,15 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
+  agentCliEnvValue,
+  agentDiagnosticTooltip,
+  agentExecutableRepairState,
   agentMetaLabel,
   agentModelSummary,
+  binPathEnvField,
   cleanAgentVersionLabel,
+  cliEnvFieldsForAgent,
   credentialsForPreset,
+  filterAgentModelOptions,
   groupPresets,
   isBaseUrlInvalid,
   isProviderConfigured,
   isValidApiBaseUrl,
   missingRequiredFields,
+  nextConfigForAgentCliEnvChange,
   nextConfigForAgentModel,
+  nextConfigForAgentReasoning,
   nextConfigForAgentSelect,
   nextConfigForModeChange,
   nextConfigForPresetSelect,
@@ -19,10 +27,14 @@ import {
   presetsForProtocol,
   resolveSelectedPreset,
   selectedAgentModel,
+  selectedAgentReasoning,
+  shouldShowCustomModelInput,
   showsBaseUrlField,
   sortDetectedAgents,
 } from '../../../tabs/execution/rules.js';
 import type {
+  AgentCliEnvFieldSpec,
+  AgentDiagnostic,
   ByokConfig,
   DetectedAgent,
   ExecutionConfig,
@@ -486,5 +498,251 @@ describe('nextConfigForAgentSelect / nextConfigForAgentModel', () => {
     // The originals are untouched — these are pure transitions.
     expect(base.localCli.modelByAgentId).toBeUndefined();
     expect(first.localCli.modelByAgentId).toEqual({ claude: 'm1' });
+  });
+});
+
+describe('selectedAgentReasoning / nextConfigForAgentReasoning', () => {
+  const reasoningOptions = [
+    { id: 'low', label: 'Low' },
+    { id: 'high', label: 'High' },
+  ];
+  const base: ExecutionConfig = { mode: 'local-cli', byok: byok(), localCli: { agentId: null } };
+
+  it('prefers the operator pick over the reported default', () => {
+    const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { claude: 'high' } };
+    expect(selectedAgentReasoning(config, agent({ reasoningOptions }))).toBe('high');
+  });
+
+  it('falls back to the first reported option, then to nothing', () => {
+    expect(selectedAgentReasoning({ agentId: 'claude' }, agent({ reasoningOptions }))).toBe('low');
+    expect(selectedAgentReasoning({ agentId: 'claude' }, agent())).toBe('');
+  });
+
+  it('ignores a blank pick rather than treating it as a choice', () => {
+    const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { claude: '   ' } };
+    expect(selectedAgentReasoning(config, agent({ reasoningOptions }))).toBe('low');
+  });
+
+  it('keys picks per agent so switching agents does not cross-contaminate', () => {
+    const config: LocalCliConfig = { agentId: 'claude', reasoningByAgentId: { codex: 'high' } };
+    expect(selectedAgentReasoning(config, agent({ id: 'claude', reasoningOptions }))).toBe('low');
+  });
+
+  it('records a reasoning pick per agent without clobbering the others or the model map', () => {
+    const withModel = nextConfigForAgentModel(base, 'claude', 'm1');
+    const first = nextConfigForAgentReasoning(withModel, 'claude', 'high');
+    const second = nextConfigForAgentReasoning(first, 'codex', 'low');
+    expect(second.localCli.reasoningByAgentId).toEqual({ claude: 'high', codex: 'low' });
+    expect(second.localCli.modelByAgentId).toEqual({ claude: 'm1' });
+    // The originals are untouched — these are pure transitions.
+    expect(base.localCli.reasoningByAgentId).toBeUndefined();
+    expect(first.localCli.reasoningByAgentId).toEqual({ claude: 'high' });
+  });
+});
+
+describe('shouldShowCustomModelInput', () => {
+  it('shows custom input once the operator has explicitly switched to it', () => {
+    expect(shouldShowCustomModelInput('m1', ['m1', 'm2'], true)).toBe(true);
+  });
+
+  it('shows custom input when there is no resolved value yet', () => {
+    expect(shouldShowCustomModelInput('', ['m1', 'm2'], false)).toBe(true);
+  });
+
+  it('shows custom input when the value is not one of the known models', () => {
+    expect(shouldShowCustomModelInput('retired-model', ['m1', 'm2'], false)).toBe(true);
+  });
+
+  it('hides custom input for a known value with no explicit toggle', () => {
+    expect(shouldShowCustomModelInput('m1', ['m1', 'm2'], false)).toBe(false);
+  });
+});
+
+describe('per-agent CLI env fields', () => {
+  const FIELDS: AgentCliEnvFieldSpec[] = [
+    { agentId: 'claude', envKey: 'ANTHROPIC_BASE_URL', label: 'Base URL' },
+    { agentId: 'claude', envKey: 'ANTHROPIC_API_KEY', label: 'API key', secret: true },
+    { agentId: 'codex', envKey: 'CODEX_BIN', label: 'Binary path', kind: 'binPath' },
+    { agentId: 'codex', envKey: 'OPENAI_BASE_URL', label: 'Base URL' },
+  ];
+
+  describe('cliEnvFieldsForAgent', () => {
+    it('filters the shared catalog down to one agent, preserving catalog order', () => {
+      expect(cliEnvFieldsForAgent(FIELDS, 'claude').map((f) => f.envKey)).toEqual([
+        'ANTHROPIC_BASE_URL',
+        'ANTHROPIC_API_KEY',
+      ]);
+    });
+
+    it('returns an empty list for an agent with no configurable fields', () => {
+      expect(cliEnvFieldsForAgent(FIELDS, 'unknown-agent')).toEqual([]);
+    });
+  });
+
+  describe('binPathEnvField', () => {
+    it('finds the field tagged as the binary-path override', () => {
+      expect(binPathEnvField(FIELDS, 'codex')?.envKey).toBe('CODEX_BIN');
+    });
+
+    it('returns null for an agent with no binPath-tagged field', () => {
+      expect(binPathEnvField(FIELDS, 'claude')).toBeNull();
+    });
+  });
+
+  describe('agentCliEnvValue / nextConfigForAgentCliEnvChange', () => {
+    const base: ExecutionConfig = { mode: 'local-cli', byok: byok(), localCli: { agentId: 'claude' } };
+
+    it('reads an unset field as blank', () => {
+      expect(agentCliEnvValue(base.localCli, 'claude', 'ANTHROPIC_BASE_URL')).toBe('');
+    });
+
+    it('sets a field, trimming the input', () => {
+      const next = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', '  https://proxy.example.com  ');
+      expect(agentCliEnvValue(next.localCli, 'claude', 'ANTHROPIC_BASE_URL')).toBe('https://proxy.example.com');
+      // The original is untouched — this is a pure transition.
+      expect(agentCliEnvValue(base.localCli, 'claude', 'ANTHROPIC_BASE_URL')).toBe('');
+    });
+
+    it('keeps two fields for the same agent independent', () => {
+      const withBaseUrl = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
+      const withBoth = nextConfigForAgentCliEnvChange(withBaseUrl, 'claude', 'ANTHROPIC_API_KEY', 'sk-1');
+      expect(withBoth.localCli.envByAgentId).toEqual({
+        claude: { ANTHROPIC_BASE_URL: 'https://a.example.com', ANTHROPIC_API_KEY: 'sk-1' },
+      });
+    });
+
+    it('keeps two agents independent so one CLI\'s override never bleeds into another\'s', () => {
+      const withClaude = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
+      const withBoth = nextConfigForAgentCliEnvChange(withClaude, 'codex', 'CODEX_BIN', '/usr/local/bin/codex');
+      expect(withBoth.localCli.envByAgentId).toEqual({
+        claude: { ANTHROPIC_BASE_URL: 'https://a.example.com' },
+        codex: { CODEX_BIN: '/usr/local/bin/codex' },
+      });
+    });
+
+    it('clearing the last field for an agent drops that agent from the map entirely, not just to {}', () => {
+      const withField = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
+      const cleared = nextConfigForAgentCliEnvChange(withField, 'claude', 'ANTHROPIC_BASE_URL', '');
+      expect(cleared.localCli.envByAgentId).toEqual({});
+      expect(cleared.localCli.envByAgentId?.claude).toBeUndefined();
+    });
+
+    it('clearing one field leaves a sibling field for the same agent intact', () => {
+      const withBaseUrl = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
+      const withBoth = nextConfigForAgentCliEnvChange(withBaseUrl, 'claude', 'ANTHROPIC_API_KEY', 'sk-1');
+      const clearedOne = nextConfigForAgentCliEnvChange(withBoth, 'claude', 'ANTHROPIC_API_KEY', '');
+      expect(clearedOne.localCli.envByAgentId).toEqual({ claude: { ANTHROPIC_BASE_URL: 'https://a.example.com' } });
+    });
+
+    it('a whitespace-only value clears the field rather than storing blank spaces', () => {
+      const withField = nextConfigForAgentCliEnvChange(base, 'claude', 'ANTHROPIC_BASE_URL', 'https://a.example.com');
+      const cleared = nextConfigForAgentCliEnvChange(withField, 'claude', 'ANTHROPIC_BASE_URL', '   ');
+      expect(cleared.localCli.envByAgentId).toEqual({});
+    });
+  });
+});
+
+describe('agentExecutableRepairState', () => {
+  it('offers the repair when a successful test silently fell back off an invalid override', () => {
+    expect(
+      agentExecutableRepairState({
+        ok: true,
+        usedExecutableSource: 'fallback-invalid',
+        detectedExecutablePath: '/usr/local/bin/codex',
+      }),
+    ).toEqual({ detectedPath: '/usr/local/bin/codex', canUseDetected: true });
+  });
+
+  it('offers the repair the same way for a fallback that resolved but failed to run', () => {
+    expect(
+      agentExecutableRepairState({
+        ok: true,
+        usedExecutableSource: 'fallback-failed',
+        detectedExecutablePath: '/opt/homebrew/bin/codex',
+      }),
+    ).toEqual({ detectedPath: '/opt/homebrew/bin/codex', canUseDetected: true });
+  });
+
+  it('returns null for a normal primary-binary run', () => {
+    expect(
+      agentExecutableRepairState({ ok: true, usedExecutableSource: 'primary', detectedExecutablePath: '/bin/x' }),
+    ).toBeNull();
+  });
+
+  it('returns null for a failed test regardless of executable source', () => {
+    expect(
+      agentExecutableRepairState({ ok: false, usedExecutableSource: 'fallback-invalid', detectedExecutablePath: '/bin/x' }),
+    ).toBeNull();
+  });
+
+  it('returns null when the host did not report which executable it used', () => {
+    expect(agentExecutableRepairState({ ok: true })).toBeNull();
+  });
+
+  it('returns null for a fallback with no usable detected path', () => {
+    expect(agentExecutableRepairState({ ok: true, usedExecutableSource: 'fallback-invalid' })).toBeNull();
+    expect(
+      agentExecutableRepairState({ ok: true, usedExecutableSource: 'fallback-invalid', detectedExecutablePath: '   ' }),
+    ).toBeNull();
+  });
+});
+
+describe('filterAgentModelOptions', () => {
+  const options = [
+    { id: 'claude-opus-4-5', label: 'Claude Opus 4.5' },
+    { id: 'claude-haiku-4-5', label: 'Claude Haiku 4.5' },
+    { id: 'gpt-4o', label: 'GPT-4o' },
+  ];
+
+  it('returns every option for a blank query', () => {
+    expect(filterAgentModelOptions(options, '', '')).toEqual(options);
+    expect(filterAgentModelOptions(options, '   ', '')).toEqual(options);
+  });
+
+  it('matches case-insensitively against the label', () => {
+    expect(filterAgentModelOptions(options, 'HAIKU', '').map((o) => o.id)).toEqual(['claude-haiku-4-5']);
+  });
+
+  it('matches against the raw id even when it does not appear in the label', () => {
+    expect(filterAgentModelOptions(options, 'gpt-4o', '').map((o) => o.id)).toEqual(['gpt-4o']);
+  });
+
+  it('keeps the selected option visible even when it stops matching the query', () => {
+    const filtered = filterAgentModelOptions(options, 'haiku', 'gpt-4o');
+    expect(filtered.map((o) => o.id).sort()).toEqual(['claude-haiku-4-5', 'gpt-4o']);
+  });
+
+  it('returns an empty list when nothing matches and nothing is selected', () => {
+    expect(filterAgentModelOptions(options, 'nonexistent', '')).toEqual([]);
+  });
+});
+
+describe('agentDiagnosticTooltip', () => {
+  function diagnostic(overrides: Partial<AgentDiagnostic> = {}): AgentDiagnostic {
+    return { reason: 'not-on-path', severity: 'error', message: 'Not found on PATH.', ...overrides };
+  }
+
+  it('is blank when there is nothing beyond the one-line message', () => {
+    expect(agentDiagnosticTooltip(diagnostic())).toBe('');
+  });
+
+  it('surfaces the longer detail', () => {
+    expect(agentDiagnosticTooltip(diagnostic({ detail: 'exit code 127' }))).toBe('exit code 127');
+  });
+
+  it('appends every searched directory after the detail', () => {
+    expect(
+      agentDiagnosticTooltip(
+        diagnostic({ detail: 'exit code 127', searchedDirs: ['/usr/local/bin', '/opt/homebrew/bin'] }),
+      ),
+    ).toBe('exit code 127\n/usr/local/bin\n/opt/homebrew/bin');
+  });
+
+  it('lists searched directories even with no detail line', () => {
+    expect(agentDiagnosticTooltip(diagnostic({ searchedDirs: ['/usr/local/bin'] }))).toBe('/usr/local/bin');
+  });
+
+  it('drops blank entries rather than rendering empty lines', () => {
+    expect(agentDiagnosticTooltip(diagnostic({ detail: '', searchedDirs: [] }))).toBe('');
   });
 });

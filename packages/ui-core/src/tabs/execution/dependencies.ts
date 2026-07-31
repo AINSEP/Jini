@@ -1,5 +1,5 @@
 import type { ExecutionPort } from './ports.js';
-import type { ByokConfig, DetectedAgent } from './types.js';
+import type { AgentExecutableSource, ByokConfig, DetectedAgent } from './types.js';
 
 export interface FakeExecutionPortOptions {
   agents?: readonly DetectedAgent[];
@@ -16,8 +16,15 @@ export interface FakeExecutionPortOptions {
    *  credential is non-blank", which is enough to demo both branches. */
   testResult?: { ok: boolean; message?: string };
   /** Forces the per-agent Test verdict. Defaults to "ok when the agent is
-   *  detected and installed". */
-  agentTestResult?: { ok: boolean; message?: string };
+   *  detected and installed". `usedExecutableSource`/`detectedExecutablePath`
+   *  let a caller exercise `agentExecutableRepairState`'s repair affordance
+   *  through the fake port end-to-end. */
+  agentTestResult?: {
+    ok: boolean;
+    message?: string;
+    usedExecutableSource?: AgentExecutableSource;
+    detectedExecutablePath?: string;
+  };
   /** When set, `testAgent` REJECTS with this message — the "the check could
    *  not run at all" branch, distinct from a reachable CLI reporting trouble. */
   agentTestError?: string;

@@ -148,7 +148,16 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
           if (!isCurrent()) return;
           setAgentTest(
             result.ok
-              ? { status: 'ok', agentId, message: result.message }
+              ? {
+                  status: 'ok',
+                  agentId,
+                  message: result.message,
+                  // Passed through (not derived) so `agentExecutableRepairState`
+                  // can only ever act on what the host's own probe actually
+                  // reported — see `ExecutionPort.testAgent`'s doc.
+                  usedExecutableSource: result.usedExecutableSource,
+                  detectedExecutablePath: result.detectedExecutablePath,
+                }
               : { status: 'error', agentId, message: result.message ?? 'Agent check failed' },
           );
         },

@@ -1,8 +1,19 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useT } from '../../../../../../features/i18n/index.js';
-import { DEFAULT_AGENT_DESCRIPTIONS } from '@jini-ai/ui-core';
-import { agentMetaLabel, agentModelSummary, selectedAgentModel } from '@jini-ai/ui-core';
-import type { AgentTestState, DetectedAgent, LocalCliConfig } from '@jini-ai/ui-core';
+import { DEFAULT_AGENT_DESCRIPTIONS, CUSTOM_MODEL_SENTINEL } from '@jini-ai/ui-core';
+import {
+  agentExecutableRepairState,
+  agentMetaLabel,
+  agentModelSummary,
+  binPathEnvField,
+  selectedAgentModel,
+  selectedAgentReasoning,
+  shouldShowCustomModelInput,
+} from '@jini-ai/ui-core';
+import type { AgentCliEnvFieldSpec, AgentTestState, DetectedAgent, LocalCliConfig } from '@jini-ai/ui-core';
+import { AgentCliEnvFields } from './AgentCliEnvFields.js';
+import { AgentDiagnosticRow } from './AgentDiagnosticRow.js';
+import { SearchableModelSelect } from './SearchableModelSelect.js';
 
 export interface LocalCliAgentCardProps {
   agent: DetectedAgent;
@@ -10,11 +21,21 @@ export interface LocalCliAgentCardProps {
   selected: boolean;
   onSelect: (agentId: string) => void;
   onModelChange: (agentId: string, model: string) => void;
+  onReasoningChange: (agentId: string, reasoning: string) => void;
+  onEnvChange: (agentId: string, envKey: string, value: string) => void;
+  /** Shared CLI-env catalog, filtered to this agent by `AgentCliEnvFields`
+   *  itself — see that component's doc. */
+  cliEnvFields: readonly AgentCliEnvFieldSpec[];
   /** Rendered in the card's icon slot. A host passes its own vendor marks;
    *  without one the card falls back to a monogram rather than a gap. */
   renderIcon?: ((agent: DetectedAgent) => ReactNode) | undefined;
   onTest?: ((agent: DetectedAgent) => void) | undefined;
   agentTest: AgentTestState;
+  /** Wired straight into `AgentDiagnosticRow`'s `{kind:'rescan'}` fix action —
+   *  the same rescan the list's own header button triggers. Omitted hides
+   *  that specific fix button (a diagnostic with no OTHER fix action then
+   *  renders with no buttons at all, same as the origin). */
+  onRescan?: (() => void) | undefined;
 }
 
 /**
@@ -23,15 +44,13 @@ export interface LocalCliAgentCardProps {
  * Origin: `SettingsDialog.tsx`'s `agent-card` (~4260-4600) and the
  * `renderAgentModelConfig` block it expands into when active. Ported: the
  * icon, name + vendor tagline, auth/version meta line, badges, selection, the
- * per-agent model picker with its source badge, and the Test button.
- * Deliberately left behind: the origin's managed-runtime card — its wallet
- * balance, plan badges, sign-in pill, and upgrade coachmarks are bound to that
- * product's hosted service, not to the idea of "a CLI on a machine".
- *
- * An earlier pass dropped the model picker, Test, version, and badges too, on
- * the theory that they were part of the same product-bound chrome. They are
- * not: every one of them is a property of a local CLI, and the data behind
- * them already ships in `@jini-ai/agent-runtime`'s detection payload.
+ * per-agent model picker with its source badge, the Test button, agent
+ * diagnostics with fix affordances, per-agent CLI env overrides, a reasoning
+ * picker, custom-model free text entry, a searchable model list, and the
+ * codex-style executable-path repair affordance. Deliberately left behind:
+ * the origin's managed-runtime card — its wallet balance, plan badges,
+ * sign-in pill, and upgrade coachmarks are bound to that product's hosted
+ * service, not to the idea of "a CLI on a machine".
  */
 export function LocalCliAgentCard({
   agent,
@@ -39,11 +58,25 @@ export function LocalCliAgentCard({
   selected,
   onSelect,
   onModelChange,
+  onReasoningChange,
+  onEnvChange,
+  cliEnvFields,
   renderIcon,
   onTest,
   agentTest,
+  onRescan,
 }: LocalCliAgentCardProps) {
   const t = useT();
+
+  // Whether the operator explicitly opened the free-text "Custom" entry via
+  // the model picker's own "Custom…" option — distinct from "the saved model
+  // simply isn't in the known list" (`shouldShowCustomModelInput` covers
+  // both, but only THIS one needs to be remembered as a UI-local toggle,
+  // since it is not itself persisted config: see `LocalCliConfig`, which has
+  // nowhere for "the operator is mid-typing a custom id" to live). Scoped to
+  // this card instance, so switching to a different agent and back does not
+  // leak one agent's custom-mode toggle onto another.
+  const [explicitCustomMode, setExplicitCustomMode] = useState(false);
 
   const description = agent.description ?? DEFAULT_AGENT_DESCRIPTIONS[agent.id];
   const meta = agentMetaLabel(agent, {
@@ -53,8 +86,28 @@ export function LocalCliAgentCard({
     notInstalled: t('Not installed'),
   });
   const models = agent.models ?? [];
-  const modelValue = selectedAgentModel(config, agent);
+  const hasModels = models.length > 0;
+  const reasoningOptions = agent.reasoningOptions ?? [];
+  const hasReasoning = reasoningOptions.length > 0;
+  const resolvedModel = selectedAgentModel(config, agent);
+  const rawModel = config.modelByAgentId?.[agent.id] ?? '';
   const summary = agentModelSummary(config, agent);
+  const reasoningValue = selectedAgentReasoning(config, agent);
+
+  // Adapters opt out via `supportsCustomModel: false` when their CLI has no
+  // free-text model flag, or validates the id against a live catalog and
+  // rejects unknown ones. `undefined` allows it, matching every adapter's
+  // default before this field existed.
+  const allowCustomModel = agent.supportsCustomModel !== false;
+  const knownModelIds = models.map((model) => model.id);
+  const customActive =
+    allowCustomModel && hasModels && shouldShowCustomModelInput(resolvedModel, knownModelIds, explicitCustomMode);
+  const selectValue = customActive ? CUSTOM_MODEL_SENTINEL : resolvedModel;
+  // While the custom box is open, the text field must show the operator's raw
+  // typed text (which may not resolve to anything yet) rather than the
+  // resolved-with-fallback value — otherwise every keystroke would show a
+  // stale fallback model instead of what was actually typed.
+  const customModelInputValue = explicitCustomMode ? rawModel : resolvedModel;
 
   // `modelsSource` is optional in the contract, so an absent value means the
   // host did not say where the list came from — NOT that it came from a
@@ -77,6 +130,36 @@ export function LocalCliAgentCard({
     (agentTest.status === 'ok' || agentTest.status === 'error') && agentTest.agentId === agent.id
       ? agentTest
       : null;
+
+  // The "use the binary that actually ran" / "clear the override" repair
+  // affordance — only meaningful when a successful test silently fell back
+  // off a configured override, AND this agent's catalog names which field
+  // that override lives in. See `agentExecutableRepairState`'s doc.
+  //
+  // `AgentTestState`'s 'ok' variant spells success as `status: 'ok'`, not an
+  // `ok: true` field — `agentExecutableRepairState` takes the latter (it
+  // mirrors `ExecutionPort.testAgent`'s raw resolved shape, one layer below
+  // this state union), so the two must be translated explicitly here rather
+  // than passing `result` straight through.
+  const repair =
+    result?.status === 'ok'
+      ? agentExecutableRepairState({
+          ok: true,
+          usedExecutableSource: result.usedExecutableSource,
+          detectedExecutablePath: result.detectedExecutablePath,
+        })
+      : null;
+  const repairField = repair ? binPathEnvField(cliEnvFields, agent.id) : null;
+
+  const openUrl = (url: string | undefined) => {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+  const diagnosticHandlers = {
+    onRescan,
+    onOpenInstall: agent.installUrl ? () => openUrl(agent.installUrl) : undefined,
+    onOpenDocs: agent.docsUrl ? () => openUrl(agent.docsUrl) : undefined,
+  };
 
   return (
     <div
@@ -120,6 +203,12 @@ export function LocalCliAgentCard({
                 ))}
               </span>
             ) : null}
+            {/* Pre-existing (not part of this pass's six gaps): `agentMetaLabel`
+                (packages/ui-core) always returns a non-empty `text` for every
+                branch of its own contract, so this ternary's `false` side is
+                provably unreachable through the rule as written today — kept
+                defensive rather than asserted-non-null in case that contract
+                ever changes. */}
             {meta.text ? (
               <span className="jini-agent-card-meta">
                 <span title={meta.title || undefined}>{meta.text}</span>
@@ -147,36 +236,85 @@ export function LocalCliAgentCard({
         ) : null}
       </div>
 
-      {selected && models.length > 0 ? (
+      {/* Why is this CLI unavailable, or only partially usable? Shown on
+          BOTH an installed-but-troubled card and a not-installed one — a
+          diagnostic is a property of detection, not of selection. */}
+      {(agent.diagnostics ?? []).map((diagnostic, index) => (
+        <AgentDiagnosticRow key={`${diagnostic.reason}-${index}`} diagnostic={diagnostic} handlers={diagnosticHandlers} />
+      ))}
+
+      {selected && (hasModels || hasReasoning) ? (
         <div className="jini-agent-card-config">
-          <label className="jini-field">
-            <span className="jini-field-label">
-              {t('Model')}
-              {sourceLabel ? (
-                <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
-              ) : null}
-            </span>
-            <select
-              className="jini-input jini-agent-model-select"
-              data-testid={`jini-agent-model-${agent.id}`}
-              value={modelValue}
-              onChange={(event) => onModelChange(agent.id, event.target.value)}
-            >
-              {models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.label}
-                </option>
-              ))}
-              {/* A saved pick the current list no longer offers still has to be
-                  selectable, or the <select> would silently snap to its first
-                  option and change what runs without the operator touching it. */}
-              {modelValue && !models.some((model) => model.id === modelValue) ? (
-                <option value={modelValue}>{modelValue}</option>
-              ) : null}
-            </select>
-          </label>
-          {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
+          {hasModels ? (
+            <>
+              <label className="jini-field">
+                <span className="jini-field-label">
+                  {t('Model')}
+                  {sourceLabel ? (
+                    <span className={`jini-agent-model-source ${source}`}>{sourceLabel}</span>
+                  ) : null}
+                </span>
+                <SearchableModelSelect
+                  className="jini-input jini-agent-model-select"
+                  ariaLabel={t('Model')}
+                  searchPlaceholder={t('Search models')}
+                  testId={`jini-agent-model-${agent.id}`}
+                  searchInputTestId={`jini-agent-model-search-${agent.id}`}
+                  value={selectValue}
+                  models={models}
+                  additionalOptions={allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined}
+                  onChange={(nextValue) => {
+                    if (nextValue === CUSTOM_MODEL_SENTINEL) {
+                      setExplicitCustomMode(true);
+                      onModelChange(agent.id, '');
+                    } else {
+                      setExplicitCustomMode(false);
+                      onModelChange(agent.id, nextValue);
+                    }
+                  }}
+                />
+              </label>
+              {sourceHint ? <p className="jini-field-hint">{sourceHint}</p> : null}
+            </>
+          ) : null}
+
+          {customActive ? (
+            <label className="jini-field">
+              <span className="jini-field-label">{t('Custom model id')}</span>
+              <input
+                className="jini-input"
+                type="text"
+                data-testid={`jini-agent-model-custom-${agent.id}`}
+                value={customModelInputValue}
+                placeholder={t('e.g. my-fine-tuned-model')}
+                spellCheck={false}
+                onChange={(event) => onModelChange(agent.id, event.target.value.trim())}
+              />
+            </label>
+          ) : null}
+
+          {hasReasoning ? (
+            <label className="jini-field">
+              <span className="jini-field-label">{t('Reasoning effort')}</span>
+              <select
+                className="jini-input"
+                data-testid={`jini-agent-reasoning-${agent.id}`}
+                value={reasoningValue}
+                onChange={(event) => onReasoningChange(agent.id, event.target.value)}
+              >
+                {reasoningOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
+      ) : null}
+
+      {selected ? (
+        <AgentCliEnvFields agentId={agent.id} fields={cliEnvFields} config={config} onChange={onEnvChange} />
       ) : null}
 
       {result ? (
@@ -186,6 +324,42 @@ export function LocalCliAgentCard({
         >
           {result.message ?? (result.status === 'ok' ? t('Agent is ready.') : t('Agent check failed'))}
         </p>
+      ) : null}
+
+      {repair && repairField ? (
+        <div className="jini-agent-card-path-repair">
+          <span className="jini-field-hint">
+            {t('A custom path override did not work, so this used the automatically detected binary instead.')}
+          </span>
+          <div className="jini-agent-card-path-repair-actions">
+            {/* `agentExecutableRepairState` (packages/ui-core) always sets
+                `canUseDetected: true` on every non-null result it produces
+                today — the field exists for a FUTURE detection outcome that
+                finds a fallback path but cannot vouch for it (see that
+                field's doc). The `false` branch is therefore provably
+                unreachable through this card's real data flow right now;
+                kept rather than dropped so the card stays correct the day
+                that future outcome exists, without another shape change. */}
+            {repair.canUseDetected ? (
+              <button
+                type="button"
+                className="jini-btn"
+                data-testid={`jini-agent-path-repair-use-${agent.id}`}
+                onClick={() => onEnvChange(agent.id, repairField.envKey, repair.detectedPath)}
+              >
+                {t('Use detected path')}
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="jini-btn jini-btn-ghost"
+              data-testid={`jini-agent-path-repair-clear-${agent.id}`}
+              onClick={() => onEnvChange(agent.id, repairField.envKey, '')}
+            >
+              {t('Clear custom path')}
+            </button>
+          </div>
+        </div>
       ) : null}
     </div>
   );

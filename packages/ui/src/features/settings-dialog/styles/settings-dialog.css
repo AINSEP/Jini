@@ -932,3 +932,241 @@
     animation: none;
   }
 }
+
+/* Agent diagnostics (open-design-parity gap 5) — "one-line reason + fix
+   button(s)", never a silent grey card. Severity sets only the left accent
+   and message color; layout matches `.jini-agent-card-test-result` above. */
+.jini-agent-diagnostic {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 12px 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--jini-border);
+  border-left: 3px solid var(--jini-border-strong);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-subtle);
+  font-size: 12px;
+}
+
+.jini-agent-diagnostic.is-error {
+  border-left-color: var(--jini-danger);
+}
+
+.jini-agent-diagnostic.is-error .jini-agent-diagnostic-message {
+  color: var(--jini-danger);
+}
+
+.jini-agent-diagnostic.is-warning {
+  border-left-color: var(--jini-accent);
+}
+
+.jini-agent-diagnostic-message {
+  color: var(--jini-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jini-agent-diagnostic-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+}
+
+.jini-agent-diagnostic-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--jini-text-muted);
+  background: transparent;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+  transition: color 120ms var(--jini-ease-out), border-color 120ms var(--jini-ease-out);
+}
+
+.jini-agent-diagnostic-action:hover {
+  color: var(--jini-text);
+  border-color: var(--jini-border-strong);
+}
+
+/* Per-agent CLI env overrides (gap 1) — a collapsed disclosure so the card
+   stays compact for the operators who never open it. */
+.jini-agent-cli-env {
+  margin: 0 12px 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--jini-border);
+}
+
+.jini-agent-cli-env-summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--jini-text-muted);
+}
+
+.jini-agent-cli-env-summary:hover {
+  color: var(--jini-text);
+}
+
+.jini-agent-cli-env-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.jini-agent-cli-env-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+/* Executable-path repair (gap 6) — "a configured override didn't work, use
+   the binary that actually ran instead". */
+.jini-agent-card-path-repair {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 12px 12px;
+  padding: 10px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-subtle);
+}
+
+.jini-agent-card-path-repair-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.jini-btn-ghost {
+  background: transparent;
+}
+
+/* Searchable model select (gap 4) — thin wrapper around the shared
+   `CustomSelect` primitive; the wrapper itself carries no layout beyond
+   filling its `.jini-field`. */
+.jini-searchable-select {
+  width: 100%;
+}
+
+.jini-searchable-select-search-row {
+  padding: 6px 6px 4px;
+}
+
+.jini-searchable-select-search {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* `CustomSelect` (packages/ui/src/react/components/CustomSelect.tsx) — first
+   real consumer is this tab's `SearchableModelSelect`, so its base styling
+   lands here rather than in a package-wide stylesheet that doesn't otherwise
+   exist for `react/components`. */
+.jini-select {
+  width: 100%;
+}
+
+.jini-select-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.jini-select-trigger:hover:not(:disabled) {
+  border-color: var(--jini-border-strong);
+}
+
+.jini-select-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.jini-select-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jini-select-menu {
+  z-index: 60;
+  overflow-y: auto;
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  box-shadow: 0 8px 24px color-mix(in srgb, black 18%, transparent);
+}
+
+.jini-select-menu.inline {
+  position: relative;
+  margin-top: 4px;
+  width: 100%;
+}
+
+.jini-select-menu.portal {
+  position: fixed;
+}
+
+.jini-select-group-label {
+  padding: 6px 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--jini-text-muted);
+  text-transform: uppercase;
+}
+
+.jini-select-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--jini-text);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+.jini-select-option.active {
+  background: var(--jini-bg-subtle);
+}
+
+.jini-select-option.selected {
+  font-weight: 500;
+}
+
+.jini-select-option:disabled {
+  color: var(--jini-text-muted);
+  cursor: not-allowed;
+}
+
+.jini-select-option-check {
+  display: none;
+  flex: 0 0 auto;
+  color: var(--jini-accent);
+}
+
+.jini-select-option.selected .jini-select-option-check {
+  display: inline-flex;
+}

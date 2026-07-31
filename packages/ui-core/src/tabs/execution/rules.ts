@@ -1,5 +1,10 @@
 import { CUSTOM_PRESET_ID, DEFAULT_BASE_URL_BY_PROTOCOL } from './constants.js';
 import type {
+  AgentCliEnvFieldSpec,
+  AgentDiagnostic,
+  AgentExecutableRepair,
+  AgentExecutableSource,
+  AgentModelOption,
   ByokConfig,
   ByokProviderCredentials,
   ByokRequiredField,
@@ -332,4 +337,171 @@ export function nextConfigForAgentModel(
       modelByAgentId: { ...config.localCli.modelByAgentId, [agentId]: model },
     },
   };
+}
+
+/** The reasoning-effort id an agent will actually run: the operator's
+ *  explicit per-agent pick when they made one, else the first entry of
+ *  whatever `reasoningOptions` the host reported, else nothing. Mirrors
+ *  `selectedAgentModel` exactly — a reasoning choice is a model-catalog
+ *  pick from a second, independent list. */
+export function selectedAgentReasoning(config: LocalCliConfig, agent: DetectedAgent): string {
+  const chosen = config.reasoningByAgentId?.[agent.id]?.trim();
+  if (chosen) return chosen;
+  return agent.reasoningOptions?.[0]?.id ?? '';
+}
+
+/** Recording a per-agent reasoning-effort pick. Keyed by agent id for the
+ *  same cross-contamination reason as `nextConfigForAgentModel`. */
+export function nextConfigForAgentReasoning(
+  config: ExecutionConfig,
+  agentId: string,
+  reasoning: string,
+): ExecutionConfig {
+  return {
+    ...config,
+    localCli: {
+      ...config.localCli,
+      reasoningByAgentId: { ...config.localCli.reasoningByAgentId, [agentId]: reasoning },
+    },
+  };
+}
+
+/**
+ * Whether the model picker should show its free-text "Custom" input instead
+ * of (or alongside) the searchable list. True when the operator explicitly
+ * switched to custom mode (a UI-local toggle the host tracks, since it is not
+ * itself persisted config — see `LocalCliAgentCard`), when there is nothing
+ * to show a resolved value for yet, or when the current value simply isn't
+ * one of the agent's known models (a value from an older/different catalog).
+ * Origin: `shouldShowCustomModelInput`.
+ */
+export function shouldShowCustomModelInput(
+  modelValue: string,
+  knownModelIds: readonly string[],
+  explicitCustomMode: boolean,
+): boolean {
+  return explicitCustomMode || !modelValue || !knownModelIds.includes(modelValue);
+}
+
+/** The catalog entries relevant to one agent, in catalog order. Mirrors
+ *  `presetsForProtocol`'s "filter the shared catalog down to what THIS
+ *  context needs" shape. */
+export function cliEnvFieldsForAgent(
+  fields: readonly AgentCliEnvFieldSpec[],
+  agentId: string,
+): readonly AgentCliEnvFieldSpec[] {
+  return fields.filter((field) => field.agentId === agentId);
+}
+
+/** The operator's current value for one agent's CLI env field, or `''` when
+ *  unset — the value an `<input>` should render. */
+export function agentCliEnvValue(config: LocalCliConfig, agentId: string, envKey: string): string {
+  return config.envByAgentId?.[agentId]?.[envKey] ?? '';
+}
+
+/**
+ * Setting (or, for a blank value, clearing) one agent's CLI env override.
+ * Trims the incoming value the same way `parseMaxTokens`/`isValidApiBaseUrl`
+ * treat operator input; a blank result deletes the key rather than storing
+ * an empty string, and an agent whose every field is now empty is dropped
+ * from the map entirely rather than left as `{}` — origin:
+ * `updateAgentCliEnvValue`'s identical empty-object cleanup, minus its
+ * AMR-wallet-specific `agentCliEnvIntent`/`apiKeyOverride` side channel,
+ * which is product-bound (this package tracks no such intent).
+ */
+export function nextConfigForAgentCliEnvChange(
+  config: ExecutionConfig,
+  agentId: string,
+  envKey: string,
+  rawValue: string,
+): ExecutionConfig {
+  const value = rawValue.trim();
+  const nextAgentEnv = { ...config.localCli.envByAgentId?.[agentId] };
+  if (value) {
+    nextAgentEnv[envKey] = value;
+  } else {
+    delete nextAgentEnv[envKey];
+  }
+
+  const envByAgentId = { ...config.localCli.envByAgentId };
+  if (Object.keys(nextAgentEnv).length > 0) {
+    envByAgentId[agentId] = nextAgentEnv;
+  } else {
+    delete envByAgentId[agentId];
+  }
+
+  return { ...config, localCli: { ...config.localCli, envByAgentId } };
+}
+
+/** The catalog field (if any) tagged as one agent's executable-path override
+ *  — see `AgentCliEnvFieldSpec.kind`. At most one is expected per agent; the
+ *  first match wins if a host's catalog carries more than one. */
+export function binPathEnvField(
+  fields: readonly AgentCliEnvFieldSpec[],
+  agentId: string,
+): AgentCliEnvFieldSpec | null {
+  return fields.find((field) => field.agentId === agentId && field.kind === 'binPath') ?? null;
+}
+
+/**
+ * Whether a successful agent test unlocks the "use the binary that actually
+ * ran" / "clear the override" repair affordance: only when the test
+ * REACHED a working binary (`ok: true`) by silently falling back away from a
+ * configured override that didn't work (`usedExecutableSource` is one of the
+ * two `fallback-*` values) AND the host reported which path that was.
+ * Returns `null` for a normal (`'primary'`) run, a failed test (nothing
+ * "worked" to offer), or a fallback the host didn't name a path for — a
+ * repair affordance with no destination path would be a dead-end button.
+ * Origin: `codexPathRepairState`, generalized off one hardcoded agent id —
+ * see this file's module doc and `binPathEnvField`.
+ */
+export function agentExecutableRepairState(result: {
+  ok: boolean;
+  usedExecutableSource?: AgentExecutableSource | undefined;
+  detectedExecutablePath?: string | undefined;
+}): AgentExecutableRepair | null {
+  if (!result.ok) return null;
+  if (result.usedExecutableSource !== 'fallback-invalid' && result.usedExecutableSource !== 'fallback-failed') {
+    return null;
+  }
+  const detectedPath = result.detectedExecutablePath?.trim() || '';
+  if (!detectedPath) return null;
+  return { detectedPath, canUseDetected: true };
+}
+
+/** Case-insensitive substring match against a model's id or label, mirroring
+ *  the origin's search box. Matches on both fields (not just the visible
+ *  label) so an operator can search by the raw model id too. */
+function matchesModelQuery(option: AgentModelOption, query: string): boolean {
+  const haystack = `${option.id}\n${option.label}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+/**
+ * Filters a searchable model list down to what matches the operator's typed
+ * query. The currently-selected value's own option is always kept even when
+ * it no longer matches — hiding the active selection out from under the
+ * operator while they type would look like their pick vanished. A blank
+ * query returns every option unfiltered. Origin: the `filteredOptions`
+ * `useMemo` inside `SearchableModelSelect`.
+ */
+export function filterAgentModelOptions(
+  options: readonly AgentModelOption[],
+  query: string,
+  selectedValue: string,
+): readonly AgentModelOption[] {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return options;
+  return options.filter((option) => option.id === selectedValue || matchesModelQuery(option, normalized));
+}
+
+/** The tooltip text for one `AgentDiagnostic` row: its longer `detail`
+ *  followed by every directory PATH detection searched (for the
+ *  `'not-on-path'` case), blank lines dropped. Returns `''` when there is
+ *  nothing beyond the always-visible one-line `message`. Origin: the
+ *  `tooltip` computation inside `AgentDiagnosticRow`. */
+export function agentDiagnosticTooltip(diagnostic: AgentDiagnostic): string {
+  return [diagnostic.detail, ...(diagnostic.searchedDirs ?? [])]
+    .filter((line): line is string => typeof line === 'string' && line.length > 0)
+    .join('\n');
 }
