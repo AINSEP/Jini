@@ -10,12 +10,16 @@ export {
   SUCCESS_SOUNDS,
 } from './notifications-catalog.js';
 
+export * from './tabs/about/index.js';
 export * from './tabs/appearance/index.js';
 export * from './tabs/execution/index.js';
 export * from './tabs/integrations/index.js';
 export * from './tabs/language/index.js';
+export * from './tabs/media-providers/index.js';
 export * from './tabs/notifications/index.js';
 export * from './tabs/privacy/index.js';
+export * from './tabs/project-locations/index.js';
+export * from './tabs/skills/index.js';
 
 export * from './connectors/index.js';
 export * from './source-config-list/index.js';
