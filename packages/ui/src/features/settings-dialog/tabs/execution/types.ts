@@ -132,3 +132,17 @@ export type AgentScanState =
   | { status: 'scanning' }
   | { status: 'ok'; count: number }
   | { status: 'error'; message: string };
+
+/** Result of `ExecutionPort.listModels`, surfaced as an inline hint near the
+ *  Model field. Mirrors `ConnectionTestState`/`AgentScanState`'s shape
+ *  deliberately — one idiom for "async edge result" across this tab, per
+ *  this package's error-reporting contract (§3.2: reuse an existing union
+ *  over introducing a parallel shape). A failure here must NOT collapse
+ *  into the same "no models" the field already tolerates when a host
+ *  supplies no `listModels` at all — `'error'` is a distinct, renderable
+ *  state, not an empty `'ok'`. */
+export type ModelDiscoveryState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'ok'; models: readonly string[] }
+  | { status: 'error'; message: string };

@@ -8,6 +8,7 @@ export type {
   DetectedAgent,
   ExecutionConfig,
   ExecutionMode,
+  ModelDiscoveryState,
   ProviderPreset,
   ProviderPresetKind,
 } from './types.js';

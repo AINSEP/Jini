@@ -151,6 +151,37 @@ describe('ExecutionTab', () => {
     expect(screen.getByRole('button', { name: 'Test connection' })).toBeDisabled();
   });
 
+  it('discovers models on mount and offers them as suggestions', async () => {
+    render(
+      <ExecutionTab
+        config={config()}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort({ models: ['claude-opus-4-5', 'claude-haiku-4-5'] })}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(document.querySelector('option[value="claude-opus-4-5"]')).not.toBeNull());
+    expect(document.querySelector('option[value="claude-haiku-4-5"]')).not.toBeNull();
+  });
+
+  it('surfaces a model-discovery failure as a non-blocking inline hint, and the field stays usable with the preset\'s suggestions', async () => {
+    render(
+      <ExecutionTab
+        config={config()}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort({ modelsError: 'invalid API key' })}
+        presets={PRESETS}
+      />,
+    );
+    // Surfaced (§3.3): a rendering path exists and actually renders.
+    await waitFor(() => expect(screen.getByText(/Could not load live models: invalid API key/)).toBeInTheDocument());
+    // Non-blocking (§3.2): the Model input is not disabled, and — because live
+    // discovery failed — the preset's own static suggestion is still offered.
+    const modelInput = screen.getByDisplayValue('example-model');
+    expect(modelInput).not.toBeDisabled();
+    expect(document.querySelector('option[value="example-model"]')).not.toBeNull();
+  });
+
   it('renders translated copy when mounted under an I18nProvider with a matching dictionary', () => {
     render(
       <I18nProvider

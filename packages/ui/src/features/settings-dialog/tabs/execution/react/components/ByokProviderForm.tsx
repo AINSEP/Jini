@@ -7,16 +7,18 @@ import {
   parseMaxTokens,
   showsBaseUrlField,
 } from '../../rules.js';
-import type { ByokConfig, ConnectionTestState, ProviderPreset } from '../../types.js';
+import type { ByokConfig, ConnectionTestState, ModelDiscoveryState, ProviderPreset } from '../../types.js';
 
 export interface ByokProviderFormProps {
   config: ByokConfig;
   onConfigChange: (config: ByokConfig) => void;
   /** The resolved preset, or `null` when the operator is on custom/manual. */
   preset: ProviderPreset | null;
-  /** Live-discovered model ids, when the host's port supports it. Falls back
-   *  to the preset's `preferredModels`. */
-  models?: readonly string[] | undefined;
+  /** Live model-discovery result. `'ok'` suggestions win over the preset's
+   *  static `preferredModels`; any other status (including `'error'`) falls
+   *  back to them so the field stays usable — but an `'error'` is ALSO
+   *  rendered as an inline hint (see below), never silently dropped. */
+  modelDiscovery: ModelDiscoveryState;
   connectionTest: ConnectionTestState;
   onTestConnection: () => void;
   /** Hides the "Test connection" control for hosts with no probe endpoint. */
@@ -33,7 +35,7 @@ export function ByokProviderForm({
   config,
   onConfigChange,
   preset,
-  models,
+  modelDiscovery,
   connectionTest,
   onTestConnection,
   canTestConnection = true,
@@ -43,7 +45,7 @@ export function ByokProviderForm({
 
   const missing = new Set(missingRequiredFields(config, preset));
   const baseUrlInvalid = isBaseUrlInvalid(config);
-  const suggestions = models ?? preset?.preferredModels ?? [];
+  const suggestions = modelDiscovery.status === 'ok' ? modelDiscovery.models : (preset?.preferredModels ?? []);
   const modelListId = 'jini-byok-model-options';
 
   const patch = (next: Partial<ByokConfig>) => onConfigChange({ ...config, ...next });
@@ -153,6 +155,14 @@ export function ByokProviderForm({
               <option key={model} value={model} />
             ))}
           </datalist>
+        ) : null}
+        {modelDiscovery.status === 'error' ? (
+          // Non-blocking (the field above stays editable, with the preset's static
+          // suggestions) but never silent — a discovery failure is an operator-actionable
+          // fact (bad key, wrong base URL, unreachable endpoint), not "no models exist".
+          <span className="jini-field-hint is-error" role="status">
+            {t('Could not load live models: {message}', { message: modelDiscovery.message })}
+          </span>
         ) : null}
       </label>
 

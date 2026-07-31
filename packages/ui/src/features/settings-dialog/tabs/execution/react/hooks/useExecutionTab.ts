@@ -6,6 +6,7 @@ import type {
   ByokConfig,
   ConnectionTestState,
   DetectedAgent,
+  ModelDiscoveryState,
 } from '../../types.js';
 
 export interface UseExecutionTabOptions {
@@ -19,8 +20,10 @@ export interface UseExecutionTabResult {
   agents: readonly DetectedAgent[];
   scan: AgentScanState;
   connectionTest: ConnectionTestState;
-  /** `undefined` until a `listModels`-capable port has been asked. */
-  models: readonly string[] | undefined;
+  /** Result of the most recent `loadModels` call. `{status:'idle'}` until one
+   *  runs. A `'error'` state is a real, renderable failure — distinct from
+   *  `'ok'` with an empty list — see `ModelDiscoveryState`'s doc. */
+  modelDiscovery: ModelDiscoveryState;
   rescan: () => void;
   testConnection: (config: ByokConfig) => void;
   loadModels: (config: ByokConfig) => void;
@@ -39,7 +42,7 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
   const [agents, setAgents] = useState<readonly DetectedAgent[]>([]);
   const [scan, setScan] = useState<AgentScanState>({ status: 'idle' });
   const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({ status: 'idle' });
-  const [models, setModels] = useState<readonly string[] | undefined>(undefined);
+  const [modelDiscovery, setModelDiscovery] = useState<ModelDiscoveryState>({ status: 'idle' });
 
   const alive = useRef(true);
   useEffect(() => {
@@ -107,17 +110,24 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
     (config: ByokConfig) => {
       const listModels = port.listModels;
       if (!listModels) return;
+      setModelDiscovery({ status: 'loading' });
       listModels.call(port, config).then(
         (found) => {
           if (!alive.current) return;
-          setModels(found);
+          setModelDiscovery({ status: 'ok', models: found });
         },
-        () => {
-          // Model discovery is a convenience; a failure leaves the field on
-          // its preset suggestions rather than surfacing an error the
-          // operator cannot act on.
+        (error: unknown) => {
+          // Error-reporting contract §3.2: non-blocking ≠ silent. The Model
+          // field stays usable (the component still falls back to the
+          // preset's `preferredModels` when `modelDiscovery.status !== 'ok'`)
+          // but the failure itself is a real, renderable state — auth
+          // failures, timeouts, and unreachable endpoints are all operator-
+          // actionable and must not read as "this provider has no models."
           if (!alive.current) return;
-          setModels(undefined);
+          setModelDiscovery({
+            status: 'error',
+            message: error instanceof Error ? error.message : String(error),
+          });
         },
       );
     },
@@ -128,7 +138,7 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
     agents,
     scan,
     connectionTest,
-    models,
+    modelDiscovery,
     rescan,
     testConnection,
     loadModels,

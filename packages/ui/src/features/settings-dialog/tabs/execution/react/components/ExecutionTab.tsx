@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useEffect, type CSSProperties } from 'react';
 import { useT } from '../../../../../../features/i18n/index.js';
 import { DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
 import type { ExecutionPort } from '../../ports.js';
@@ -51,12 +51,27 @@ export function ExecutionTab({
   ariaLabel,
 }: ExecutionTabProps) {
   const t = useT();
-  const { agents, scan, connectionTest, models, rescan, testConnection, canRescan } = useExecutionTab({
-    port,
-    autoDetect: autoDetect && config.mode === 'local-cli',
-  });
+  const { agents, scan, connectionTest, modelDiscovery, rescan, testConnection, loadModels, canRescan } =
+    useExecutionTab({
+      port,
+      autoDetect: autoDetect && config.mode === 'local-cli',
+    });
 
   const selectedPreset = resolveSelectedPreset(presets, config.byok);
+
+  // Re-discover models whenever the selected endpoint changes (preset pick,
+  // manual protocol switch, or a typed base URL settling on a new value).
+  // Deliberately NOT keyed on `apiKey`/`model` — refetching on every
+  // keystroke would spam the provider. An operator who pastes a new key
+  // without touching the endpoint can still force a refresh via "Test
+  // connection" below; a dedicated "Refresh models" affordance is a
+  // reasonable follow-up, not required for the field to be usable and
+  // honest about failures now.
+  useEffect(() => {
+    if (config.mode !== 'byok' || typeof port.listModels !== 'function') return;
+    loadModels(config.byok);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config.mode, port, loadModels, config.byok.protocol, config.byok.baseUrl, config.byok.providerId]);
   const { protocols, gateways } = groupPresets(presets);
   const configuredPresetIds = new Set(
     presets.filter((preset) => isProviderConfigured(config.byok, preset)).map((preset) => preset.id),
@@ -131,7 +146,7 @@ export function ExecutionTab({
             config={config.byok}
             onConfigChange={(byok) => onConfigChange({ ...config, byok })}
             preset={selectedPreset}
-            models={models}
+            modelDiscovery={modelDiscovery}
             connectionTest={connectionTest}
             onTestConnection={() => testConnection(config.byok)}
           />
