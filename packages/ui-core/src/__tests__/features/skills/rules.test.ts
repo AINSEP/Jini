@@ -6,16 +6,23 @@ import { describe, expect, it } from 'vitest';
 import {
   EMPTY_SKILL_DRAFT,
   filterSkills,
+  formatSkillFileSize,
   hasAnyCategory,
+  humanizeSkillCategory,
+  isBuiltInSkill,
+  isDeletableSkill,
   localizedSkillDescription,
   localizedSkillName,
   parseTriggers,
+  skillFileLeafName,
+  skillFileTreeIndent,
   skillFilterOptions,
   skillMatchesFilters,
   skillMatchesSearch,
   summaryToDraft,
+  validateSkillDraft,
 } from '../../../features/skills/index.js';
-import type { SkillFilters, SkillSummary } from '../../../features/skills/index.js';
+import type { SkillDraft, SkillFilters, SkillSummary } from '../../../features/skills/index.js';
 
 /**
  * These assert BEHAVIOUR, not line execution — each case is written so that a
@@ -371,5 +378,140 @@ describe('summaryToDraft', () => {
 describe('EMPTY_SKILL_DRAFT', () => {
   it('is entirely blank, so a create form starts clean', () => {
     expect(EMPTY_SKILL_DRAFT).toEqual({ name: '', description: '', triggers: '', body: '' });
+  });
+});
+
+function draft(over: Partial<SkillDraft> = {}): SkillDraft {
+  return { name: 'a name', description: '', triggers: '', body: 'a body', ...over };
+}
+
+describe('validateSkillDraft', () => {
+  it('is null when both required fields are present', () => {
+    expect(validateSkillDraft(draft())).toBeNull();
+  });
+
+  it('reports name-required when the name is blank', () => {
+    expect(validateSkillDraft(draft({ name: '' }))).toBe('name-required');
+  });
+
+  it('treats a whitespace-only name as blank', () => {
+    expect(validateSkillDraft(draft({ name: '   ' }))).toBe('name-required');
+  });
+
+  it('reports body-required when the body is blank', () => {
+    expect(validateSkillDraft(draft({ body: '' }))).toBe('body-required');
+  });
+
+  it('treats a whitespace-only body as blank', () => {
+    expect(validateSkillDraft(draft({ body: '   ' }))).toBe('body-required');
+  });
+
+  it('checks name before body, matching the origin precedence', () => {
+    // Both blank: the operator should see the name error first.
+    expect(validateSkillDraft(draft({ name: '', body: '' }))).toBe('name-required');
+  });
+});
+
+describe('humanizeSkillCategory', () => {
+  it('title-cases a kebab-case slug', () => {
+    expect(humanizeSkillCategory('image-generation')).toBe('Image Generation');
+  });
+
+  it('title-cases a single-word slug', () => {
+    expect(humanizeSkillCategory('design')).toBe('Design');
+  });
+
+  it('returns an empty slug unchanged', () => {
+    expect(humanizeSkillCategory('')).toBe('');
+  });
+
+  it('title-cases every hyphen-separated word', () => {
+    expect(humanizeSkillCategory('a-b-c')).toBe('A B C');
+  });
+
+  it('leaves an empty segment from a doubled hyphen as-is', () => {
+    // 'a--b'.split('-') => ['a', '', 'b']; the middle empty word is returned
+    // unchanged rather than crashing on charAt(0) of an empty string.
+    expect(humanizeSkillCategory('a--b')).toBe('A  B');
+  });
+});
+
+describe('skillFileLeafName', () => {
+  it('returns the last segment of a nested path', () => {
+    expect(skillFileLeafName('assets/images/logo.png')).toBe('logo.png');
+  });
+
+  it('returns the whole string when there is no separator', () => {
+    expect(skillFileLeafName('SKILL.md')).toBe('SKILL.md');
+  });
+
+  it('returns an empty string for a path ending in a separator', () => {
+    expect(skillFileLeafName('assets/images/')).toBe('');
+  });
+});
+
+describe('skillFileTreeIndent', () => {
+  it('is 0 for a top-level entry', () => {
+    expect(skillFileTreeIndent('SKILL.md')).toBe(0);
+  });
+
+  it('indents 12px per path segment', () => {
+    expect(skillFileTreeIndent('assets/logo.png')).toBe(12);
+    expect(skillFileTreeIndent('assets/images/logo.png')).toBe(24);
+  });
+
+  it('caps indentation at depth 4', () => {
+    expect(skillFileTreeIndent('a/b/c/d/e')).toBe(48);
+    expect(skillFileTreeIndent('a/b/c/d/e/f/g')).toBe(48);
+  });
+});
+
+describe('formatSkillFileSize', () => {
+  it('renders sub-kilobyte sizes in bytes', () => {
+    expect(formatSkillFileSize(500)).toBe('500 B');
+  });
+
+  it('renders kilobyte sizes to one decimal', () => {
+    expect(formatSkillFileSize(2048)).toBe('2.0 KB');
+  });
+
+  it('renders megabyte sizes to one decimal', () => {
+    expect(formatSkillFileSize(2 * 1024 * 1024)).toBe('2.0 MB');
+  });
+
+  it('treats exactly 1024 bytes as the KB boundary, not bytes', () => {
+    expect(formatSkillFileSize(1024)).toBe('1.0 KB');
+  });
+
+  it('treats exactly 1MB as the MB boundary, not KB', () => {
+    expect(formatSkillFileSize(1024 * 1024)).toBe('1.0 MB');
+  });
+});
+
+describe('isBuiltInSkill', () => {
+  it('is true for a built-in skill', () => {
+    expect(isBuiltInSkill(skill({ id: 'a', source: 'built-in' }))).toBe(true);
+  });
+
+  it('is false for a user-authored skill', () => {
+    expect(isBuiltInSkill(skill({ id: 'a', source: 'user' }))).toBe(false);
+  });
+
+  it('is true for any origin other than user, inclusive of unknown ones', () => {
+    expect(isBuiltInSkill(skill({ id: 'a', source: 'org-registry' }))).toBe(true);
+  });
+});
+
+describe('isDeletableSkill', () => {
+  it('is true only for a user-authored skill', () => {
+    expect(isDeletableSkill(skill({ id: 'a', source: 'user' }))).toBe(true);
+  });
+
+  it('is false for a built-in skill', () => {
+    expect(isDeletableSkill(skill({ id: 'a', source: 'built-in' }))).toBe(false);
+  });
+
+  it('is false for a third-party origin', () => {
+    expect(isDeletableSkill(skill({ id: 'a', source: 'org-registry' }))).toBe(false);
   });
 });

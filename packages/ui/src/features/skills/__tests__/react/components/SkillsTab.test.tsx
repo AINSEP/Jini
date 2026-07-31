@@ -77,6 +77,30 @@ describe('SkillsTab', () => {
     expect(screen.getByText('My Custom Skill')).toBeInTheDocument();
   });
 
+  it('filtering by mode (type) narrows the list', async () => {
+    const port = createFakeSkillsPort({
+      skills: [BUILT_IN, { ...USER_SKILL, mode: 'automation' }],
+    });
+    renderTab(port);
+    await screen.findByText('Summarize');
+
+    await userEvent.selectOptions(screen.getByLabelText('Type'), 'automation');
+
+    expect(screen.queryByText('Summarize')).not.toBeInTheDocument();
+    expect(screen.getByText('My Custom Skill')).toBeInTheDocument();
+  });
+
+  it('filtering by category narrows the list', async () => {
+    const port = createFakeSkillsPort({ skills: [BUILT_IN, USER_SKILL] });
+    renderTab(port);
+    await screen.findByText('Summarize');
+
+    await userEvent.selectOptions(screen.getByLabelText('Category'), 'productivity');
+
+    expect(screen.getByText('Summarize')).toBeInTheDocument();
+    expect(screen.queryByText('My Custom Skill')).not.toBeInTheDocument();
+  });
+
   it('expanding a row lazily fetches and shows its body and file tree', async () => {
     const port = createFakeSkillsPort({
       skills: [USER_SKILL],
@@ -245,6 +269,47 @@ describe('SkillsTab', () => {
     };
     renderTab(port);
     expect(await screen.findByText(/registry unreachable/)).toBeInTheDocument();
+  });
+
+  it('renders host-supplied labels instead of the built-in defaults', async () => {
+    const port = createFakeSkillsPort({ skills: [BUILT_IN, USER_SKILL] });
+    render(
+      <SkillsTab
+        port={port}
+        disabledSkillIds={new Set()}
+        onToggleEnabled={vi.fn()}
+        labels={{
+          searchPlaceholder: 'Custom search…',
+          newSkillLabel: 'Custom new skill',
+          sourceFilterLabel: 'Custom source',
+          modeFilterLabel: 'Custom type',
+          categoryFilterLabel: 'Custom category',
+          allLabel: 'Custom all',
+          noResultsLabel: 'Custom no results',
+          loadErrorLabel: 'Custom load error',
+        }}
+      />,
+    );
+    expect(await screen.findByPlaceholderText('Custom search…')).toBeInTheDocument();
+    expect(screen.getByText('Custom new skill')).toBeInTheDocument();
+    expect(screen.getByText('Custom source')).toBeInTheDocument();
+    expect(screen.getByText('Custom type')).toBeInTheDocument();
+    expect(screen.getByText('Custom category')).toBeInTheDocument();
+  });
+
+  it('shows a host-supplied "no results" message when filters exclude every skill', async () => {
+    const port = createFakeSkillsPort({ skills: [USER_SKILL] });
+    render(
+      <SkillsTab
+        port={port}
+        disabledSkillIds={new Set()}
+        onToggleEnabled={vi.fn()}
+        labels={{ noResultsLabel: 'Custom no results' }}
+      />,
+    );
+    await screen.findByText('My Custom Skill');
+    await userEvent.type(screen.getByPlaceholderText('Search skills…'), 'nonexistent-query');
+    expect(await screen.findByText('Custom no results')).toBeInTheDocument();
   });
 
   it('renders translated copy when mounted under an I18nProvider with a matching dictionary', async () => {
