@@ -151,4 +151,34 @@ describe('SettingsDialogShell', () => {
     expect(screen.getByText('Paramètres')).toBeInTheDocument();
     expect(screen.getByLabelText('Fermer')).toBeInTheDocument();
   });
+
+  describe('presentation', () => {
+    it('renders inline with no backdrop and no aria-modal when onClose is omitted', () => {
+      render(<SettingsDialogShell tabs={makeTabs()} />);
+      // The backdrop is fixed/inset-0: rendering it around an embedded panel
+      // covers the host's own navigation. That regression is what this guards.
+      expect(screen.queryByTestId('settings-dialog-backdrop')).not.toBeInTheDocument();
+      expect(screen.getByRole('region')).not.toHaveAttribute('aria-modal');
+    });
+
+    it('renders a backdrop and an aria-modal dialog when onClose is supplied', () => {
+      render(<SettingsDialogShell tabs={makeTabs()} onClose={() => {}} />);
+      expect(screen.getByTestId('settings-dialog-backdrop')).toBeInTheDocument();
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+
+    it('honors an explicit inline presentation even when onClose is supplied', () => {
+      render(<SettingsDialogShell tabs={makeTabs()} onClose={() => {}} presentation="inline" />);
+      expect(screen.queryByTestId('settings-dialog-backdrop')).not.toBeInTheDocument();
+      expect(screen.getByRole('region')).toBeInTheDocument();
+      // The close affordance still renders — an embedded panel may offer its own hide control.
+      expect(screen.getByLabelText('Close')).toBeInTheDocument();
+    });
+
+    it('honors an explicit modal presentation even when onClose is omitted', () => {
+      render(<SettingsDialogShell tabs={makeTabs()} presentation="modal" />);
+      expect(screen.getByTestId('settings-dialog-backdrop')).toBeInTheDocument();
+      expect(screen.getByRole('dialog')).toHaveAttribute('aria-modal', 'true');
+    });
+  });
 });

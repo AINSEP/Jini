@@ -1,0 +1,784 @@
+/**
+ * Default visual theme for `SettingsDialogShell` and its `tabs/*` components.
+ *
+ * The components themselves ship no CSS — they emit `jini-settings-dialog-*`
+ * and `jini-*` class names and are deliberately style-free so a host can dress
+ * them however it likes. This stylesheet is the OPT-IN default look; import it
+ * to get a finished dialog, skip it to style from scratch.
+ *
+ * Every value below resolves through a CSS custom property declared in the
+ * `:root` block. That indirection IS the override mechanism: redefine any
+ * token downstream (in a later stylesheet, or on a wrapper element) and the
+ * whole dialog re-skins without forking a single rule. Nothing here uses a
+ * hard-coded color outside that block.
+ *
+ * Dark mode follows `prefers-color-scheme` and can be forced either way with
+ * `data-theme="dark"` / `data-theme="light"` on any ancestor — which is what
+ * `AppearanceTab`'s `applyAppearanceToDocument` already stamps onto
+ * `document.documentElement`.
+ */
+
+:root {
+  --jini-bg-panel: #fdfcfa;
+  --jini-bg-subtle: #f4f5f7;
+  --jini-bg-elevated: #fffefc;
+  --jini-border: #e1e5eb;
+  --jini-border-strong: #c9d0da;
+
+  --jini-text: #1a1916;
+  --jini-text-strong: #0d0c0a;
+  --jini-text-muted: #74716b;
+  --jini-text-disabled: #b3b0a8;
+
+  --jini-accent: #c96442;
+  --jini-accent-hover: #b45a3b;
+
+  --jini-success: #1f7a3a;
+  --jini-danger: #9c2a25;
+
+  --jini-backdrop: rgba(28, 27, 26, 0.42);
+  --jini-shadow-xs: 0 1px 0 rgba(28, 27, 26, 0.04);
+  --jini-shadow-lg: 0 24px 60px rgba(28, 27, 26, 0.16), 0 8px 16px rgba(28, 27, 26, 0.07);
+
+  --jini-radius-xs: 4px;
+  --jini-radius-sm: 6px;
+  --jini-radius: 8px;
+  --jini-radius-lg: 12px;
+  --jini-radius-pill: 999px;
+
+  --jini-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --jini-modal-padding: 24px;
+  --jini-sidebar-width: 240px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --jini-bg-panel: #222120;
+    --jini-bg-subtle: #252321;
+    --jini-bg-elevated: #2a2825;
+    --jini-border: #333128;
+    --jini-border-strong: #46433c;
+
+    --jini-text: #e8e4dc;
+    --jini-text-strong: #f2ede4;
+    --jini-text-muted: #9a9690;
+    --jini-text-disabled: #4e4b46;
+
+    --jini-accent: #d97a56;
+    --jini-accent-hover: #e8896a;
+
+    --jini-success: #4caf72;
+    --jini-danger: #e06b65;
+
+    --jini-backdrop: rgba(0, 0, 0, 0.55);
+    --jini-shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.2);
+    --jini-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* Explicit theme selection always wins over the media query, in both
+   directions — a host toggle must be able to force light inside a dark OS. */
+:root[data-theme='dark'],
+[data-theme='dark'] {
+  --jini-bg-panel: #222120;
+  --jini-bg-subtle: #252321;
+  --jini-bg-elevated: #2a2825;
+  --jini-border: #333128;
+  --jini-border-strong: #46433c;
+  --jini-text: #e8e4dc;
+  --jini-text-strong: #f2ede4;
+  --jini-text-muted: #9a9690;
+  --jini-text-disabled: #4e4b46;
+  --jini-accent: #d97a56;
+  --jini-accent-hover: #e8896a;
+  --jini-success: #4caf72;
+  --jini-danger: #e06b65;
+  --jini-backdrop: rgba(0, 0, 0, 0.55);
+  --jini-shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.2);
+  --jini-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+
+:root[data-theme='light'],
+[data-theme='light'] {
+  --jini-bg-panel: #fdfcfa;
+  --jini-bg-subtle: #f4f5f7;
+  --jini-bg-elevated: #fffefc;
+  --jini-border: #e1e5eb;
+  --jini-border-strong: #c9d0da;
+  --jini-text: #1a1916;
+  --jini-text-strong: #0d0c0a;
+  --jini-text-muted: #74716b;
+  --jini-text-disabled: #b3b0a8;
+  --jini-accent: #c96442;
+  --jini-accent-hover: #b45a3b;
+  --jini-success: #1f7a3a;
+  --jini-danger: #9c2a25;
+  --jini-backdrop: rgba(28, 27, 26, 0.42);
+  --jini-shadow-xs: 0 1px 0 rgba(28, 27, 26, 0.04);
+  --jini-shadow-lg: 0 24px 60px rgba(28, 27, 26, 0.16), 0 8px 16px rgba(28, 27, 26, 0.07);
+}
+
+/* ============================================================
+   Dialog chrome
+   ============================================================ */
+
+.jini-settings-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--jini-backdrop);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.jini-settings-dialog {
+  position: relative;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(1040px, 94vw);
+  height: min(720px, 90vh);
+  background: var(--jini-bg-elevated);
+  color: var(--jini-text);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-lg);
+  box-shadow: var(--jini-shadow-lg);
+  overflow: hidden;
+}
+
+/* Page (non-modal) variant: the shell renders without `onClose`, so it should
+   sit in the flow rather than float. Hosts opt in with this class. */
+.jini-settings-dialog--inline {
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  border-radius: var(--jini-radius);
+  box-shadow: none;
+}
+
+.jini-settings-dialog--fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.jini-settings-dialog-chrome {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.jini-settings-dialog-chrome-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: var(--jini-radius-pill);
+  border: 1px solid var(--jini-border);
+  background: color-mix(in srgb, var(--jini-bg-panel) 90%, transparent);
+  color: var(--jini-text-muted);
+  cursor: pointer;
+  transition:
+    color 140ms var(--jini-ease-out),
+    border-color 140ms var(--jini-ease-out),
+    background-color 140ms var(--jini-ease-out),
+    transform 140ms var(--jini-ease-out);
+}
+
+.jini-settings-dialog-chrome-btn:hover {
+  color: var(--jini-text);
+  border-color: var(--jini-border-strong);
+  background: var(--jini-bg-panel);
+  transform: translateY(-1px);
+}
+
+.jini-settings-dialog-chrome-btn:focus-visible {
+  outline: 2px solid var(--jini-accent);
+  outline-offset: 2px;
+}
+
+.jini-settings-dialog-head {
+  padding: 24px var(--jini-modal-padding) 12px;
+}
+
+.jini-settings-dialog-kicker {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--jini-text-muted);
+}
+
+.jini-settings-dialog-head-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.jini-settings-dialog-head-line h2,
+.jini-settings-dialog-head h2 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--jini-text-strong);
+}
+
+.jini-settings-dialog-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--jini-text-muted);
+}
+
+.jini-settings-dialog-body {
+  display: grid;
+  grid-template-columns: var(--jini-sidebar-width) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.jini-settings-dialog-body.is-sidebar-collapsed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.jini-settings-dialog-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 10px;
+  background: var(--jini-bg-panel);
+  border-right: 1px solid var(--jini-border);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.jini-settings-dialog-nav-item {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: var(--jini-radius);
+  background: transparent;
+  color: var(--jini-text);
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 7px 10px;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.jini-settings-dialog-nav-item:hover {
+  background: color-mix(in srgb, var(--jini-text) 5%, transparent);
+}
+
+.jini-settings-dialog-nav-item.active,
+.jini-settings-dialog-nav-item.active:hover {
+  background: var(--jini-bg-subtle);
+  color: var(--jini-text);
+}
+
+.jini-settings-dialog-nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.75;
+}
+
+.jini-settings-dialog-nav-item svg {
+  justify-self: center;
+  opacity: 0.75;
+}
+
+.jini-settings-dialog-nav-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jini-settings-dialog-nav-text small {
+  font-size: 11px;
+  color: var(--jini-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jini-settings-dialog-nav-item strong {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  /* `anywhere` only as a last resort for a genuinely unbreakable label —
+     normal wrapping first, so a two-word label breaks at the space. */
+  overflow-wrap: break-word;
+}
+
+.jini-settings-dialog-nav-item.active strong {
+  font-weight: 600;
+}
+
+.jini-settings-dialog-content {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  padding: 16px var(--jini-modal-padding) 22px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.jini-settings-dialog-sidebar-toggle {
+  position: absolute;
+  z-index: 4;
+  top: 50%;
+  left: var(--jini-sidebar-width);
+  width: 18px;
+  height: 46px;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-pill);
+  background: var(--jini-bg-panel);
+  color: var(--jini-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 140ms var(--jini-ease-out), color 140ms var(--jini-ease-out);
+}
+
+.jini-settings-dialog:hover .jini-settings-dialog-sidebar-toggle,
+.jini-settings-dialog-sidebar-toggle:focus-visible {
+  opacity: 1;
+}
+
+/* ============================================================
+   Shared tab primitives
+   ============================================================ */
+
+.jini-settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.jini-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.jini-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jini-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--jini-text-muted);
+}
+
+.jini-field-required {
+  color: var(--jini-danger);
+}
+
+.jini-field-link {
+  margin-left: auto;
+  color: var(--jini-accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.jini-field-link:hover {
+  color: var(--jini-accent-hover);
+  text-decoration: underline;
+}
+
+.jini-field-hint {
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.jini-field-hint.is-error {
+  color: var(--jini-danger);
+}
+
+.jini-field-input-row {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jini-field-input-row > .jini-input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.jini-input {
+  width: 100%;
+  min-width: 0;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
+}
+
+.jini-input:focus {
+  outline: none;
+  border-color: var(--jini-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
+}
+
+.jini-input.is-missing {
+  border-color: color-mix(in srgb, var(--jini-danger) 55%, var(--jini-border));
+}
+
+.jini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+  transition: border-color 120ms var(--jini-ease-out), background-color 120ms var(--jini-ease-out);
+}
+
+.jini-btn:hover:not(:disabled) {
+  border-color: var(--jini-border-strong);
+}
+
+.jini-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.jini-input-affix-btn {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.jini-input-affix-btn:hover {
+  color: var(--jini-text);
+}
+
+.jini-empty-card {
+  padding: 16px;
+  border: 1px dashed var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  color: var(--jini-text-muted);
+  font-size: 12px;
+  background: var(--jini-bg-subtle);
+}
+
+/* Segmented control — shared by AppearanceTab and ExecutionTab. */
+
+.jini-seg-control {
+  display: grid;
+  grid-template-columns: repeat(var(--seg-cols, 2), minmax(0, 1fr));
+  gap: 2px;
+  padding: 3px;
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  min-height: 42px;
+  min-width: 0;
+}
+
+.jini-seg-btn {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-radius: var(--jini-radius-sm);
+  background: transparent;
+  color: var(--jini-text);
+  font: inherit;
+  cursor: pointer;
+  text-align: center;
+  min-width: 0;
+}
+
+.jini-seg-btn.active {
+  background: var(--jini-bg-panel);
+  box-shadow: var(--jini-shadow-xs);
+}
+
+.jini-seg-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.jini-seg-title {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 0 auto;
+}
+
+.jini-seg-btn.active .jini-seg-title {
+  font-weight: 600;
+}
+
+.jini-seg-meta {
+  font-size: 11px;
+  color: var(--jini-text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* `0 1 auto`, not `1 1 auto`: growing pushed the meta to the far edge of a
+     wide button and left the title stranded at the other. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+/* ============================================================
+   Execution tab
+   ============================================================ */
+
+.jini-settings-execution {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.jini-provider-chip-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.jini-provider-chip-row-label {
+  color: var(--jini-text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.jini-provider-chip-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jini-provider-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  max-width: 100%;
+  min-width: 0;
+  background: transparent;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-pill);
+  padding: 4px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--jini-text-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background 120ms var(--jini-ease-out),
+    color 120ms var(--jini-ease-out),
+    border-color 120ms var(--jini-ease-out);
+}
+
+.jini-provider-chip:hover {
+  color: var(--jini-text);
+  border-color: var(--jini-border-strong);
+}
+
+.jini-provider-chip.active {
+  background: var(--jini-accent);
+  border-color: var(--jini-accent);
+  color: #fff;
+}
+
+.jini-provider-chip-status {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--jini-radius-pill);
+  flex: 0 0 auto;
+  background: var(--jini-text-disabled);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--jini-text-disabled) 16%, transparent);
+}
+
+.jini-provider-chip-status.is-configured {
+  background: var(--jini-success);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--jini-success) 18%, transparent);
+}
+
+.jini-provider-chip.active .jini-provider-chip-status.is-configured,
+.jini-provider-chip.active .jini-provider-chip-status.is-unset {
+  box-shadow: 0 0 0 2px color-mix(in srgb, #fff 40%, transparent);
+}
+
+.jini-byok-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.jini-byok-card-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.jini-byok-test-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.jini-byok-test-status {
+  font-size: 12px;
+}
+
+.jini-byok-test-status.is-ok {
+  color: var(--jini-success);
+}
+
+.jini-byok-test-status.is-error {
+  color: var(--jini-danger);
+}
+
+/* Local CLI list */
+
+.jini-agent-group-head {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jini-text-muted);
+}
+
+.jini-agent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jini-agent-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-panel);
+}
+
+.jini-agent-row.is-missing {
+  opacity: 0.6;
+}
+
+.jini-agent-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.jini-agent-row-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jini-text);
+}
+
+.jini-agent-row-path {
+  font-size: 11px;
+  color: var(--jini-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.jini-agent-row-meta {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--jini-text-muted);
+}
+
+.jini-agent-scan-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-subtle);
+  font-size: 13px;
+}
+
+.jini-agent-scan-ring {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  border-radius: var(--jini-radius-pill);
+  border: 2px solid color-mix(in srgb, var(--jini-accent) 30%, transparent);
+  border-top-color: var(--jini-accent);
+  animation: jini-settings-spin 700ms linear infinite;
+}
+
+@keyframes jini-settings-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jini-agent-scan-ring {
+    animation: none;
+  }
+}

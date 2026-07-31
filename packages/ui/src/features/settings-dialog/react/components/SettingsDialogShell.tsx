@@ -22,6 +22,21 @@ export interface SettingsDialogShellProps<T extends SettingsDialogTab = Settings
    *  render the shell without a close affordance — e.g. embedded inline
    *  rather than as a modal overlay. */
   onClose?: () => void;
+  /**
+   * Whether to render as a floating modal (backdrop, `aria-modal`,
+   * click-outside-to-close) or inline in the host's own layout.
+   *
+   * Defaults to `'modal'` when `onClose` is supplied and `'inline'` when it is
+   * not, so the common cases need no prop. Set it explicitly for the ones that
+   * don't follow that rule — a modal whose only dismissal is Escape (`'modal'`
+   * with no `onClose`), or an embedded panel that still offers a close/hide
+   * button (`'inline'` with an `onClose`).
+   *
+   * Inline is not cosmetic: a fixed-position backdrop over an embedded panel
+   * covers the host's own navigation, and `aria-modal` on a non-modal region
+   * hides the rest of the page from assistive tech.
+   */
+  presentation?: 'modal' | 'inline';
   /** Renders the tall centered hero (kicker/title/subtitle) instead of the
    *  normal per-tab header — e.g. a first-run "Welcome" variant. */
   welcome?: boolean;
@@ -58,6 +73,7 @@ export function SettingsDialogShell<T extends SettingsDialogTab>({
   activeTabId: controlledActiveTabId,
   onActiveTabIdChange,
   onClose,
+  presentation,
   welcome = false,
   defaultSidebarCollapsed = false,
   fullscreenEnabled = true,
@@ -67,6 +83,7 @@ export function SettingsDialogShell<T extends SettingsDialogTab>({
   dialogAriaLabelledBy = 'settings-dialog-title',
   className,
 }: SettingsDialogShellProps<T>) {
+  const isModal = (presentation ?? (onClose ? 'modal' : 'inline')) === 'modal';
   const t = useT();
   const shell = useSettingsDialogShell({
     tabs,
@@ -103,19 +120,14 @@ export function SettingsDialogShell<T extends SettingsDialogTab>({
     .filter(Boolean)
     .join(' ');
 
-  return (
+  const body = (
     <div
-      className="jini-settings-dialog-backdrop"
-      onClick={onClose}
-      data-testid="settings-dialog-backdrop"
+      className={dialogClassName}
+      role={isModal ? 'dialog' : 'region'}
+      aria-modal={isModal ? true : undefined}
+      aria-labelledby={dialogAriaLabelledBy}
+      onClick={isModal ? (event) => event.stopPropagation() : undefined}
     >
-      <div
-        className={dialogClassName}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={dialogAriaLabelledBy}
-        onClick={(event) => event.stopPropagation()}
-      >
         <div className="jini-settings-dialog-chrome">
           {chromeExtra}
           {fullscreenEnabled ? (
@@ -193,8 +205,15 @@ export function SettingsDialogShell<T extends SettingsDialogTab>({
                   onClick={() => shell.setActiveTabId(tab.id)}
                   data-testid={`settings-dialog-nav-${tab.id}`}
                 >
-                  {tab.icon}
-                  <span>
+                  {/* The icon cell always renders, even when a tab has no icon.
+                      This row is a 2-column grid (icon | label); an omitted icon
+                      used to leave the label as the *first* child, dropping it
+                      into the narrow icon track and wrapping it one character
+                      per line. */}
+                  <span className="jini-settings-dialog-nav-icon" aria-hidden="true">
+                    {tab.icon}
+                  </span>
+                  <span className="jini-settings-dialog-nav-text">
                     <strong>{tab.label}</strong>
                     {tab.navHint ? <small>{tab.navHint}</small> : null}
                   </span>
@@ -207,7 +226,21 @@ export function SettingsDialogShell<T extends SettingsDialogTab>({
             {activeTab?.panel}
           </div>
         </div>
-      </div>
+    </div>
+  );
+
+  // Inline presentation returns the panel bare: no fixed-position backdrop, no
+  // `aria-modal`, no click-outside handler. Wrapping it anyway is what made an
+  // embedded shell paint a full-viewport overlay over its own host's chrome.
+  if (!isModal) return body;
+
+  return (
+    <div
+      className="jini-settings-dialog-backdrop"
+      onClick={onClose}
+      data-testid="settings-dialog-backdrop"
+    >
+      {body}
     </div>
   );
 }
