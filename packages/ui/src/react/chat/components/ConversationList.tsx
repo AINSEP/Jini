@@ -198,24 +198,33 @@ export function ConversationList({
 
   return (
     <div className="jini-conv" ref={rootRef}>
+      {/* Icon-only, and the label lives on the panel instead. An earlier version put the active
+          conversation's title in the trigger AND a "Conversations" heading in the panel, which
+          read as the same word twice and pushed the pane header out of alignment. */}
       <button
         type="button"
         className={`jini-conv-trigger${open ? ' jini-conv-trigger-open' : ''}`}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={t('Conversations')}
+        aria-label={active?.title ? `${t('Conversations')} — ${active.title}` : t('Conversations')}
+        title={active?.title ?? t('Conversations')}
         data-testid="conversation-trigger"
         onClick={() => setOpen((v) => !v)}
       >
-        <Icon name="chevron-down" size={14} />
-        <span className="jini-conv-trigger-label">{active?.title ?? t('Conversations')}</span>
-        <span className="jini-conv-trigger-count">{conversations.length}</span>
+        <Icon name="comment" size={16} />
       </button>
 
       {open ? (
         <div className="jini-conv-menu" role="menu" data-testid="conversation-menu">
           <div className="jini-conv-head">
-            <span className="jini-conv-heading">{t('Conversations')}</span>
+            <span className="jini-conv-heading">
+              {t('Conversations')}
+              {/* A separate element, not string concatenation: as one text node it rendered as
+                  "Conversations0" with nothing to space or style the number against. */}
+              <span className="jini-conv-count" data-testid="conversation-count">
+                {conversations.length}
+              </span>
+            </span>
             <button
               type="button"
               className="jini-conv-new"
@@ -227,11 +236,13 @@ export function ConversationList({
                 setOpen(false);
               }}
             >
-              {t('New')}
+              <Icon name="plus" size={12} />
+              <span>{t('New')}</span>
             </button>
           </div>
 
           <label className="jini-conv-search">
+            <Icon name="search" size={13} />
             <input
               type="search"
               value={query}

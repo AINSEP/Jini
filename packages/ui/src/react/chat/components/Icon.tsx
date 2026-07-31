@@ -17,7 +17,10 @@ export type IconName =
   | 'attach'
   | 'file'
   | 'image'
-  | 'x';
+  | 'x'
+  | 'comment'
+  | 'search'
+  | 'plus';
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName;
@@ -63,6 +66,27 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: IconProps)
       return (
         <svg {...common}>
           <path d="m6 9 6 6 6-6" />
+        </svg>
+      );
+    /** Conversation-switcher trigger — a speech bubble reads as "chat history" without a label. */
+    case 'comment':
+      return (
+        <svg {...common}>
+          <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+        </svg>
+      );
+    case 'search':
+      return (
+        <svg {...common}>
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+      );
+    case 'plus':
+      return (
+        <svg {...common}>
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
         </svg>
       );
     case 'chevron-right':

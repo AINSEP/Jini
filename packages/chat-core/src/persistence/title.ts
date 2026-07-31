@@ -15,6 +15,13 @@
  * deliberately — including the CJK path, which is not decoration: the filler and punctuation
  * rules for Chinese prompts differ enough from the Latin ones that a shared code path produced
  * visibly worse titles in both.
+ *
+ * Two intentional divergences from the original, both fixing output the original gets wrong; each
+ * is documented at its own declaration below:
+ *   1. `LEADING_LATIN_FILLER` requires the separator inside the article group. The original's form
+ *      let a bare `a` eat the first letter of the next word ("update app.tsx" → "Pp Tsx").
+ *   2. `LATIN_NEVER_TRAILING` trims function words off the end. The original's word cap lands
+ *      mid-clause on question-shaped prompts and strands them ("...Posts Do I").
  */
 
 const MAX_LATIN_WORDS = 6;
@@ -46,6 +53,28 @@ const LATIN_STOP_WORDS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Function words that are fine *inside* a title but never acceptable as its last word.
+ *
+ * These cannot go in `LATIN_STOP_WORDS`, because removing them everywhere mangles real titles —
+ * "how many posts do I have" would lose the "how many" that makes it a question, and a prompt like
+ * "make it work" would reduce to "Work". The problem is specifically the word-cap boundary: a
+ * question-shaped prompt reliably spends its six words before reaching the noun, so the title got
+ * cut mid-clause. Observed live: "how many published posts do I have?" produced
+ * "How Many Published Posts Do I" — a dangling auxiliary plus a stranded pronoun, which in a narrow
+ * dock also wrapped to leave a lone "I" on its own line.
+ *
+ * Trimming only the tail is what makes this safe: it can never shorten a title that already ended
+ * on a content word, so no existing good title changes.
+ */
+const LATIN_NEVER_TRAILING: ReadonlySet<string> = new Set([
+  'do', 'does', 'did', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+  'have', 'has', 'had', 'can', 'could', 'should', 'would', 'will', 'shall', 'may', 'might', 'must',
+  'i', 'me', 'you', 'we', 'us', 'it', 'they', 'them', 'he', 'she',
+  'that', 'this', 'these', 'those', 'but', 'or', 'if', 'then', 'than', 'as', 'at', 'by',
+  'from', 'into', 'about', 'so', 'just', 'also', 'too', 'up', 'out',
+]);
+
+/**
  * Strips the parts of a prompt that are never a good title: fenced and inline code, URLs, and
  * `@handle`/`#tag` tokens. Each of these is high-entropy and low-meaning in a six-word summary.
  */
@@ -65,15 +94,18 @@ function toTitleCase(word: string): string {
 }
 
 function trimLatinTitle(input: string): string {
-  return input
+  const words = input
     .replace(LEADING_LATIN_FILLER, '')
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
     .split(/\s+/)
     .filter(Boolean)
     .filter((word) => !LATIN_STOP_WORDS.has(word.toLowerCase()))
-    .slice(0, MAX_LATIN_WORDS)
-    .map(toTitleCase)
-    .join(' ');
+    .slice(0, MAX_LATIN_WORDS);
+  // Applied after the cap, because the cap is what strands these words in the first place.
+  while (words.length > 0 && LATIN_NEVER_TRAILING.has(words[words.length - 1]!.toLowerCase())) {
+    words.pop();
+  }
+  return words.map(toTitleCase).join(' ');
 }
 
 function trimCjkTitle(input: string): string {

@@ -12,10 +12,22 @@ import { deriveConversationTitle } from '../../persistence/title.js';
 
 describe('deriveConversationTitle', () => {
   it('strips leading filler and stop words, title-casing what is left', () => {
-    // The exact transformation observed in Open Design's own UI: "of"/"the"/"in" dropped.
+    // "of"/"the"/"in" dropped, as in Open Design's own UI. Deliberate divergence: Open Design
+    // renders this as "Do You See All Files This", because its six-word cap lands mid-phrase and
+    // strands the "This". We trim trailing function words, so the title ends on a content word.
     expect(deriveConversationTitle('Do you see all of the files in this project?')).toBe(
-      'Do You See All Files This',
+      'Do You See All Files',
     );
+  });
+
+  it('does not end a title on a stranded auxiliary or pronoun', () => {
+    // The word cap falls mid-clause on question-shaped prompts, which is how a real conversation
+    // ended up titled "How Many Published Posts Do I" in the admin switcher.
+    expect(deriveConversationTitle('how many published posts do I have?')).toBe(
+      'How Many Published Posts',
+    );
+    // Trailing-only trimming must not touch a title that already ends on a content word.
+    expect(deriveConversationTitle('Fix the login bug')).toBe('Login Bug');
   });
 
   it('drops a leading polite imperative', () => {
