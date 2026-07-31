@@ -233,3 +233,78 @@ export function summaryToDraft(skill: SkillSummary, body: string): SkillDraft {
     body,
   };
 }
+
+/** Which required field a draft is missing, or `null` when it may be
+ *  submitted. Origin: the two sequential `if (!name) {...}; if (!body)
+ *  {...}` checks inline in `submitDraft` — one pure predicate instead of two
+ *  inline early-returns, so the component only has to pick which message to
+ *  show, not decide whether to. Checked in this order (name before body) to
+ *  match the origin's precedence — an operator who left both blank sees the
+ *  name error first. */
+export function validateSkillDraft(draft: SkillDraft): 'name-required' | 'body-required' | null {
+  if (!draft.name.trim()) return 'name-required';
+  if (!draft.body.trim()) return 'body-required';
+  return null;
+}
+
+/**
+ * Kebab-case category slugs (`'image-generation'`) rendered as Title Case
+ * (`'Image Generation'`) for the filter pill / category badge. Origin:
+ * `humanizeCategory` inline in `SkillsSection.tsx`.
+ */
+export function humanizeSkillCategory(slug: string): string {
+  if (!slug) return slug;
+  return slug
+    .split('-')
+    .map((word) => (word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(' ');
+}
+
+/** The last `/`-separated segment of a skill file's path — its own file/
+ *  folder name, without the parent tree. Origin: `leafName` inline in
+ *  `SkillsSection.tsx`. Unlike `locationLabel` (project-locations), a skill
+ *  file path is always daemon-reported and forward-slash-only, so this does
+ *  not also handle `\`. */
+export function skillFileLeafName(path: string): string {
+  const idx = path.lastIndexOf('/');
+  return idx >= 0 ? path.slice(idx + 1) : path;
+}
+
+/**
+ * Indent (in px) for one row of the file-tree list, from its path depth.
+ *
+ * Each `/`-separated segment indents by 12px so a small `assets/` tree reads
+ * as a tree without building a nested list, capped at 4 levels so a deeply
+ * nested bundle does not push the file label out of the panel. Origin:
+ * `depthIndent` inline in `SkillsSection.tsx`.
+ */
+export function skillFileTreeIndent(path: string): number {
+  const depth = Math.min(4, path.split('/').length - 1);
+  return depth * 12;
+}
+
+/** A byte count as `'N B'` / `'N.N KB'` / `'N.N MB'`. Origin: `formatSize`
+ *  inline in `SkillsSection.tsx`. */
+export function formatSkillFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Whether a skill's built-in origin means editing it must go through the
+ *  "creates a user-owned override" confirmation rather than editing in
+ *  place. Origin: `isBuiltIn = skill.source !== 'user'` inline in
+ *  `SkillRow`/`SkillsSection.requestEdit` — matches the origin's own
+ *  (deliberately inclusive) test: anything that is not `'user'` counts,
+ *  including a host's own third-party origins, not only `'built-in'`
+ *  literally. */
+export function isBuiltInSkill(skill: SkillSummary): boolean {
+  return skill.source !== 'user';
+}
+
+/** Whether a skill may be deleted by the operator — only ones they imported
+ *  themselves. Origin: `canDelete = skill.source === 'user'` inline in
+ *  `SkillRow`. */
+export function isDeletableSkill(skill: SkillSummary): boolean {
+  return skill.source === 'user';
+}

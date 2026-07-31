@@ -40,3 +40,27 @@ export interface StoredProjectLocation {
   name: string;
   path: string;
 }
+
+/**
+ * Outcome of the most recent add/remove/default-change action, as the React
+ * layer's `useProjectLocationsTab` reports it. One union covering what the
+ * origin split across a `status` string and a separate `error` string —
+ * `'save-error'`/`'scan-error'` are this shape's error states, same idiom as
+ * `ConnectionTestState`/`AgentScanState` in the execution tab (§3.2 of this
+ * package's error-reporting contract: reuse the existing "async edge result"
+ * shape rather than inventing a parallel status/error pair).
+ */
+export type ProjectLocationsActionResult =
+  | { status: 'idle' }
+  /** The operator cancelled the folder picker — a normal outcome, not an
+   *  error. */
+  | { status: 'no-folder-selected' }
+  /** The picked folder is already a configured location. */
+  | { status: 'duplicate' }
+  | { status: 'saved' }
+  | { status: 'default-saved' }
+  /** `ProjectLocationsPort.scanLocations` ran and imported/found this many
+   *  existing projects under the newly-added root. */
+  | { status: 'scan-complete'; imported: number; existing: number }
+  | { status: 'save-error'; message: string }
+  | { status: 'scan-error'; message: string };

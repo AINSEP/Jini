@@ -85,3 +85,17 @@ export interface SkillFilters {
  *  computed with that option's OWN dimension excluded, so a pill always shows
  *  what picking it would yield rather than what is showing now. */
 export type SkillFilterOption = readonly [value: string, count: number];
+
+/**
+ * Why the create/edit form can't submit right now, if at all. The client-side
+ * checks (`validateSkillDraft`'s two cases) and a failed
+ * `SkillsPort.createSkill`/`updateSkill` call collapse into one shape here —
+ * same idiom as `ConnectionTestState` in the execution tab (§3.2 of this
+ * package's error-reporting contract): reuse the "async edge result" shape
+ * rather than a separate validation-error type plus a separate raw-message
+ * string.
+ */
+export type SkillDraftError =
+  | { kind: 'name-required' }
+  | { kind: 'body-required' }
+  | { kind: 'submit-failed'; message: string };

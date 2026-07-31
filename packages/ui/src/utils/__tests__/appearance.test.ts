@@ -1,45 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  ACCENT_SWATCHES,
-  DEFAULT_ACCENT_COLOR,
-  applyAppearanceToDocument,
-  normalizeAccentColor,
-  resolveAccentColor,
-} from '../appearance.js';
+import { DEFAULT_ACCENT_COLOR, applyAppearanceToDocument } from '../appearance.js';
 
-describe('normalizeAccentColor', () => {
-  it('accepts a lowercase 6-digit hex color unchanged', () => {
-    expect(normalizeAccentColor('#2563eb')).toBe('#2563eb');
-  });
-
-  it('lowercases an uppercase hex color', () => {
-    expect(normalizeAccentColor('#ABCDEF')).toBe('#abcdef');
-  });
-
-  it('rejects non-string, malformed, and short-hex values', () => {
-    expect(normalizeAccentColor(undefined)).toBeNull();
-    expect(normalizeAccentColor(123)).toBeNull();
-    expect(normalizeAccentColor('#abc')).toBeNull();
-    expect(normalizeAccentColor('not-a-color')).toBeNull();
-  });
-});
-
-describe('resolveAccentColor', () => {
-  it('falls back to the default when the input is invalid', () => {
-    expect(resolveAccentColor('nope')).toBe(DEFAULT_ACCENT_COLOR);
-  });
-
-  it('passes through a valid color', () => {
-    expect(resolveAccentColor('#ff0000')).toBe('#ff0000');
-  });
-});
-
-describe('ACCENT_SWATCHES', () => {
-  it('leads with the default accent color', () => {
-    expect(ACCENT_SWATCHES[0]).toBe(DEFAULT_ACCENT_COLOR);
-  });
-});
-
+// `normalizeAccentColor`/`resolveAccentColor`/`ACCENT_SWATCHES` (and
+// `accentVars`, this function's other, DOM-free half) are pure and covered
+// in `@jini-ai/ui-core`'s own suite
+// (packages/ui-core/src/__tests__/tabs/appearance/rules.test.ts). This file
+// only needs to cover the DOM write `applyAppearanceToDocument` layers on
+// top, plus that it still resolves an invalid accent color to the default —
+// re-exported here, not reimplemented.
 describe('applyAppearanceToDocument', () => {
   function installFakeDocumentElement() {
     const setAttribute = vi.fn();

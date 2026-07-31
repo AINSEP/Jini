@@ -10,6 +10,7 @@ import {
   buildZedSnippet,
   commandPaletteShortcut,
   homeConfigPath,
+  isMcpInstallPrerequisiteMissing,
   methodLabelForClient,
   settingsShortcut,
   snippetForClient,
@@ -153,6 +154,24 @@ describe('snippetForClient', () => {
 
   it('throws on an unknown client id', () => {
     expect(() => snippetForClient('bogus' as McpClientId, 'my-server', info)).toThrow('Unknown MCP client id: bogus');
+  });
+});
+
+describe('isMcpInstallPrerequisiteMissing', () => {
+  it('is false when both the CLI and Node.js are present', () => {
+    expect(isMcpInstallPrerequisiteMissing(info)).toBe(false);
+  });
+
+  it('is true when the CLI is missing', () => {
+    expect(isMcpInstallPrerequisiteMissing({ ...info, cliExists: false })).toBe(true);
+  });
+
+  it('is true when Node.js is missing', () => {
+    expect(isMcpInstallPrerequisiteMissing({ ...info, nodeExists: false })).toBe(true);
+  });
+
+  it('is true when both are missing', () => {
+    expect(isMcpInstallPrerequisiteMissing({ ...info, cliExists: false, nodeExists: false })).toBe(true);
   });
 });
 

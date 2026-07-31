@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../../../../../features/i18n/index.js';
 import { DEFAULT_MCP_CLIENT_ID, DEFAULT_MCP_SERVER_NAME, MCP_CLIENTS } from '@jini-ai/ui-core';
-import { methodLabelForClient, snippetForClient } from '@jini-ai/ui-core';
+import { isMcpInstallPrerequisiteMissing, methodLabelForClient, snippetForClient } from '@jini-ai/ui-core';
 import type { McpClientDescriptor, McpClientId } from '@jini-ai/ui-core';
 import type { McpIntegrationsPort } from '@jini-ai/ui-core';
 import { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
@@ -95,7 +95,7 @@ export function IntegrationsTab({
         {resolved?.deeplink && info ? (
           <div className="jini-mcp-deeplink-row">
             <a
-              className={`jini-button jini-button-primary${!info.cliExists || !info.nodeExists ? ' jini-button-disabled' : ''}`}
+              className={`jini-button jini-button-primary${isMcpInstallPrerequisiteMissing(info) ? ' jini-button-disabled' : ''}`}
               // Origin disables this button via `disabled={!info.cliExists ||
               // !info.nodeExists}` — one-click install can't work until the
               // daemon/CLI prerequisite is actually built. An `<a>` has no
@@ -103,10 +103,10 @@ export function IntegrationsTab({
               // unfocusable-as-a-link) and mark `aria-disabled` instead of
               // silently letting the click through to a config that won't
               // work.
-              href={!info.cliExists || !info.nodeExists ? undefined : resolved.deeplink}
-              aria-disabled={!info.cliExists || !info.nodeExists || undefined}
+              href={isMcpInstallPrerequisiteMissing(info) ? undefined : resolved.deeplink}
+              aria-disabled={isMcpInstallPrerequisiteMissing(info) || undefined}
               onClick={(event) => {
-                if (!info.cliExists || !info.nodeExists) event.preventDefault();
+                if (isMcpInstallPrerequisiteMissing(info)) event.preventDefault();
               }}
               rel="noopener noreferrer"
             >
@@ -122,7 +122,7 @@ export function IntegrationsTab({
           placeholder={loading ? t('Loading install paths…') : error ? t('Could not resolve install paths.') : ''}
         />
 
-        {info && (!info.cliExists || !info.nodeExists) ? (
+        {info && isMcpInstallPrerequisiteMissing(info) ? (
           <div className="jini-empty-card jini-empty-card-warning">
             <strong>{!info.cliExists ? t('Build the server first.') : t('Node.js was not found.')}</strong>{' '}
             {info.buildHint ?? t('See your host application for build instructions.')}

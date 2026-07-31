@@ -20,6 +20,7 @@ export {
   buildZedSnippet,
   commandPaletteShortcut,
   homeConfigPath,
+  isMcpInstallPrerequisiteMissing,
   methodLabelForClient,
   settingsShortcut,
   snippetForClient,

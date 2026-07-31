@@ -9,7 +9,8 @@ import {
   requestNotificationPermission,
   showCompletionNotification,
 } from '../../../../../../utils/notifications.js';
-import type { NotificationsPreferences } from '@jini-ai/ui-core';
+import type { NotificationsPreferences, TestStatus } from '@jini-ai/ui-core';
+import { testStatusLabel } from '@jini-ai/ui-core';
 
 export interface NotificationsTabLabels {
   completionSoundTitle?: string;
@@ -38,33 +39,25 @@ export interface NotificationsTabProps {
 }
 
 /**
- * Only 'sent'/'failed' — NOT the 4-value shape ('sent'/'blocked'/
- * 'unsupported'/'failed') `showCompletionNotification`'s result maps to
- * conceptually. `sendTestNotification` below only ever calls this send
- * button while `desktopEnabled && permission === 'granted'` (the JSX gate),
- * and its own `setPermission(notificationPermission())` resync re-reads
- * that same non-granted state in the same tick whenever
+ * Completion-sound toggle/picker + browser desktop-notification permission
+ * flow. Origin: `NotificationsSection` in `SettingsDialog.tsx` — GENERIC,
+ * browser-API only (`Notification`/`AudioContext` via this package's own
+ * `utils/notifications.ts`), zero product-domain coupling.
+ *
+ * The "send test notification" button (and the `TestStatus` it reports,
+ * imported from `@jini-ai/ui-core`) only ever renders while
+ * `desktopEnabled && permission === 'granted'` (the JSX gate below), and
+ * `sendTestNotification`'s own `setPermission(notificationPermission())`
+ * resync re-reads that same non-granted state in the same tick whenever
  * `showCompletionNotification` returns 'permission-denied'/'unsupported' —
  * closing the gate this status line renders behind before either result
  * could ever actually be shown. Confirmed this isn't an extraction
  * regression: the origin `NotificationsSection`/`testNotificationStatusText`
  * in `SettingsDialog.tsx` has the identical gate-plus-resync shape, so
  * 'settings.notifyDesktopBlocked'/'settings.notifyDesktopUnsupported' were
- * already dead there too. Narrowed the type instead of keeping unreachable
- * members around (see this package's coverage discipline notes — a
- * genuinely dead branch gets refactored away, not tested around).
- */
-type TestStatus = 'sent' | 'failed';
-
-function testStatusLabel(result: TestStatus, labels: { testSentLabel: string; testFailedLabel: string }): string {
-  return result === 'sent' ? labels.testSentLabel : labels.testFailedLabel;
-}
-
-/**
- * Completion-sound toggle/picker + browser desktop-notification permission
- * flow. Origin: `NotificationsSection` in `SettingsDialog.tsx` — GENERIC,
- * browser-API only (`Notification`/`AudioContext` via this package's own
- * `utils/notifications.ts`), zero product-domain coupling.
+ * already dead there too — which is why `TestStatus` itself is narrowed to
+ * 'sent'/'failed' rather than carrying unreachable members (see its own doc
+ * comment in ui-core).
  */
 export function NotificationsTab({ preferences, onChange, testNotificationTitle, testNotificationBody, labels }: NotificationsTabProps) {
   const t = useT();
@@ -109,8 +102,8 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
     });
     setPermission(notificationPermission());
     // Only 'shown' vs. everything-else is a distinction this component can
-    // ever actually show — see the `TestStatus` doc comment above for why
-    // 'permission-denied'/'unsupported' collapse into the same "failed"
+    // ever actually show — see this component's own doc comment above for
+    // why 'permission-denied'/'unsupported' collapse into the same "failed"
     // outcome here rather than getting their own dead states.
     setTestStatus(result === 'shown' ? 'sent' : 'failed');
   };

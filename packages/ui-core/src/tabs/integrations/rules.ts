@@ -82,6 +82,19 @@ export function buildCursorDeeplink(serverName: string, info: McpInstallInfo): s
 }
 
 /**
+ * Whether a real one-click install/copy-paste-and-restart flow is currently
+ * blocked because a prerequisite the daemon needs isn't in place — the
+ * built CLI, or a Node.js runtime. Origin: the `!info.cliExists ||
+ * !info.nodeExists` check duplicated across `IntegrationsSection`'s
+ * deeplink-disable, `aria-disabled`, click-guard, and warning-card
+ * conditions — collapsed to one predicate here instead of four inline
+ * copies of the same expression.
+ */
+export function isMcpInstallPrerequisiteMissing(info: McpInstallInfo): boolean {
+  return !info.cliExists || !info.nodeExists;
+}
+
+/**
  * Short install-method label per client ("CLI command" / "TOML config" /
  * "One-click install" / "JSON config") — origin: each `MCP_CLIENTS` entry's
  * `buildMethod` in `IntegrationsSection`. Every original `buildMethod`
