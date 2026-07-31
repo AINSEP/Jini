@@ -43,6 +43,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@jini-ai/chat-core": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "better-sqlite3": "^11.10.0"
   },

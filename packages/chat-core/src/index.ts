@@ -24,4 +24,11 @@ export * from './transcript.js';
  * `packages/agentic/source-map.md` and this package's own source-map.md for the extraction.
  */
 export * from './agentic/index.js';
+/**
+ * Durable chat history — the storage-neutral `ChatHistoryStore` port and the local title
+ * heuristic. Types and pure functions only, so this package stays framework-free and
+ * `runtime: universal`; the SQLite implementation lives in `@jini-ai/sqlite`'s `chat-history`
+ * module, and a host binds it to its own authentication.
+ */
+export * from './persistence/index.js';
 

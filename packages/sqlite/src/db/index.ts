@@ -48,3 +48,9 @@ export { parseJsonOrUndef, row, rows } from './core/index.js';
 export { migrate } from './schema/index.js';
 export type { ToolCatalogEntry, ToolCatalogSearchHit } from './tool-catalog/index.js';
 export { ensureToolCatalogTables, reseedToolCatalog, getToolCatalogEntry, searchToolCatalog } from './tool-catalog/index.js';
+/**
+ * Owner-scoped chat history. Not to be confused with `./conversations/index.js` above: that one
+ * is `project_id`-scoped with no owner predicate (single-user local trust model), this one binds
+ * an owner into the store so no query can read across tenants. Pick by trust model.
+ */
+export { CHAT_HISTORY_DDL, ensureChatHistoryTables, createChatHistoryStore, createChatHistoryMaintenance } from './chat-history/index.js';

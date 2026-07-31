@@ -52,6 +52,14 @@ export {
 
 export { TodoCard } from './components/TodoCard.js';
 export type { TodoCardProps } from './components/TodoCard.js';
+/**
+ * The conversation switcher — new / select / delete / search / rename-on-double-click. Storage
+ * agnostic: it takes data plus callbacks, so a host backs it with `@jini-ai/sqlite`'s
+ * `ChatHistoryStore`, an HTTP endpoint, or a plain array. Drop it into `ChatPane`'s
+ * `leadingAccessory` slot; it needs no changes to `ChatPane` itself.
+ */
+export { ConversationList } from './components/ConversationList.js';
+export type { ConversationListProps, ConversationListItem } from './components/ConversationList.js';
 export { ToolCard } from './components/ToolCard.js';
 export type { ToolCardProps } from './components/ToolCard.js';
 export { A2uiSurfaceCard } from './components/A2uiSurfaceCard.js';

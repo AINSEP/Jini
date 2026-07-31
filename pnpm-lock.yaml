@@ -506,6 +506,9 @@ importers:
 
   packages/sqlite:
     dependencies:
+      '@jini-ai/chat-core':
+        specifier: workspace:*
+        version: link:../chat-core
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../protocol
