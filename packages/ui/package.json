@@ -48,7 +48,7 @@
       "import": "./dist/features/mcp-ui/index.js",
       "default": "./dist/features/mcp-ui/index.js"
     },
-    "./settings-dialog.css": "./dist/features/settings-dialog/styles/settings-dialog.css"
+    "./settings-dialog.css": "./dist/features/settings/dialog/styles/settings-dialog.css"
   },
   "files": [
     "dist",
@@ -63,7 +63,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings-dialog/styles/settings-dialog.css dist/features/settings-dialog/styles/",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

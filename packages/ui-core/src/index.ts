@@ -10,17 +10,17 @@ export {
   SUCCESS_SOUNDS,
 } from './notifications-catalog.js';
 
-export * from './tabs/about/index.js';
-export * from './tabs/appearance/index.js';
-export * from './tabs/execution/index.js';
-export * from './tabs/integrations/index.js';
-export * from './tabs/language/index.js';
-export * from './tabs/media-providers/index.js';
-export * from './tabs/notifications/index.js';
-export * from './tabs/privacy/index.js';
-export * from './tabs/project-locations/index.js';
-export * from './tabs/skills/index.js';
+export * from './features/about/index.js';
+export * from './features/appearance/index.js';
+export * from './features/execution/index.js';
+export * from './features/integrations/index.js';
+export * from './features/language/index.js';
+export * from './features/media-providers/index.js';
+export * from './features/notifications/index.js';
+export * from './features/privacy/index.js';
+export * from './features/project-locations/index.js';
+export * from './features/skills/index.js';
 
-export * from './connectors/index.js';
-export * from './source-config-list/index.js';
-export * from './memory/index.js';
+export * from './features/connectors/index.js';
+export * from './features/source-config-list/index.js';
+export * from './features/memory/index.js';

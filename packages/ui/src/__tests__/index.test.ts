@@ -8,13 +8,18 @@ import * as assetGrid from '../features/asset-grid/index.js';
 import * as viewerShell from '../features/viewer-shell/index.js';
 import * as versionManager from '../features/version-manager/index.js';
 import * as htmlViewer from '../features/html-viewer/index.js';
-import * as settingsDialog from '../features/settings-dialog/index.js';
-import * as settingsAppearance from '../features/settings-dialog/tabs/appearance/index.js';
-import * as settingsNotifications from '../features/settings-dialog/tabs/notifications/index.js';
-import * as settingsLanguage from '../features/settings-dialog/tabs/language/index.js';
-import * as settingsInstructions from '../features/settings-dialog/tabs/instructions/index.js';
-import * as settingsPrivacy from '../features/settings-dialog/tabs/privacy/index.js';
-import * as settingsIntegrations from '../features/settings-dialog/tabs/integrations/index.js';
+import * as settingsDialog from '../features/settings/dialog/index.js';
+import * as settingsAppearance from '../features/appearance/index.js';
+import * as settingsNotifications from '../features/notifications/index.js';
+import * as settingsLanguage from '../features/language/index.js';
+import * as settingsInstructions from '../features/instructions/index.js';
+import * as settingsPrivacy from '../features/privacy/index.js';
+import * as settingsIntegrations from '../features/integrations/index.js';
+import * as settingsExecution from '../features/execution/index.js';
+import * as settingsSkills from '../features/skills/index.js';
+import * as settingsProjectLocations from '../features/project-locations/index.js';
+import * as settingsAbout from '../features/about/index.js';
+import * as settingsMediaProviders from '../features/media-providers/index.js';
 import * as memory from '../features/memory/index.js';
 import * as resourceDashboard from '../features/resource-dashboard/index.js';
 import * as sketchEditor from '../features/sketch-editor/index.js';
@@ -36,13 +41,18 @@ const featureModules: Record<string, object> = {
   'features/viewer-shell': viewerShell,
   'features/version-manager': versionManager,
   'features/html-viewer': htmlViewer,
-  'features/settings-dialog': settingsDialog,
-  'features/settings-dialog/tabs/appearance': settingsAppearance,
-  'features/settings-dialog/tabs/notifications': settingsNotifications,
-  'features/settings-dialog/tabs/language': settingsLanguage,
-  'features/settings-dialog/tabs/instructions': settingsInstructions,
-  'features/settings-dialog/tabs/privacy': settingsPrivacy,
-  'features/settings-dialog/tabs/integrations': settingsIntegrations,
+  'features/settings/dialog': settingsDialog,
+  'features/appearance': settingsAppearance,
+  'features/notifications': settingsNotifications,
+  'features/language': settingsLanguage,
+  'features/instructions': settingsInstructions,
+  'features/privacy': settingsPrivacy,
+  'features/integrations': settingsIntegrations,
+  'features/execution': settingsExecution,
+  'features/skills': settingsSkills,
+  'features/project-locations': settingsProjectLocations,
+  'features/about': settingsAbout,
+  'features/media-providers': settingsMediaProviders,
   'features/memory': memory,
   'features/resource-dashboard': resourceDashboard,
 };
