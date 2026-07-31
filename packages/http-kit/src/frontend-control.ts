@@ -1,15 +1,22 @@
 /**
  * @module frontend-control
  *
- * Assembles the three halves of agent-driven frontend control into one thing a host can hand to
- * `createLocalNodeDaemon`, so wiring it up is a config entry rather than a checklist.
+ * Assembles the three halves of agent-driven frontend control into one thing a host can wire up as
+ * a config entry rather than a checklist.
  *
  * The parts already existed and none of them composed: `@jini-ai/daemon`'s `FrontendSessionRegistry`
- * addresses a run to a surface, `@jini-ai/http-kit`'s frontend-session routes carry invocations to a
+ * addresses a run to a surface, this package's own frontend-session routes carry invocations to a
  * browser and answers back, and `createFrontendCapabilityRegistrations` projects a manifest into
  * gated tools. A host had to construct all three, keep them consistent, and remember to bind a run
  * when it started. Every one of those is a chance to get it subtly wrong, and one of them —
  * binding — is a security decision.
+ *
+ * **Moved here from `@jini-ai/server` (2026-07-31).** It never needed that package: its real
+ * dependencies are `core`, `daemon`, `express` and this module's own siblings, all of which
+ * `http-kit` already has. The only thing pinning it there was a *type-only* import of
+ * `LocalNodeHttpExtension` — so a helper any Express host could use sat behind a package that also
+ * pulls in `@jini-ai/sidecar` and `better-sqlite3`. Tovu hit exactly this and hand-reimplemented
+ * the composition instead. `@jini-ai/server` re-exports it, so existing imports keep working.
  *
  * **This facade never returns the registry**, and that is its most important property. The
  * registry's `invoke` executes a capability on a real user's screen with no policy check, no
@@ -33,14 +40,22 @@ import {
   createFrontendSessionRegistry,
   type FrontendCapabilitySpec,
 } from '@jini-ai/daemon';
-import {
-  registerFrontendSessionRoutes,
-  type RunCreateRequest,
-  type RunStartContext,
-  type RunStartHandler,
-} from '@jini-ai/http-kit';
 
-import type { LocalNodeHttpExtension } from './create-local-node-daemon.js';
+import type { AdapterContext } from './adapter.js';
+import { registerFrontendSessionRoutes } from './frontend-sessions.js';
+import type { RunCreateRequest, RunStartContext, RunStartHandler } from './runs.js';
+
+/**
+ * The context {@link FrontendControl.httpExtension} actually reads — just the adapter.
+ *
+ * Declared structurally here rather than importing `@jini-ai/server`'s `LocalNodeHttpExtension`,
+ * which is what used to keep this module in that package. A function taking this narrower context
+ * stays assignable to one taking the wider `{adapter, lifecycle, dataDir}`, so passing the result
+ * to `createLocalNodeDaemon`'s `httpExtensions` still typechecks — while a host that builds its own
+ * Express app (and so has no `dataDir` or `LocalNodeHttpExtensionContext` to hand over) can now use
+ * this facade too, instead of reimplementing it. Tovu had to do exactly that.
+ */
+export type FrontendHttpExtension = (app: Express, context: { readonly adapter: AdapterContext }) => void;
 
 export interface FrontendBindErrorContext {
   readonly runId: string;
@@ -84,8 +99,12 @@ export interface CreateFrontendControlOptions {
 }
 
 export interface FrontendControl {
-  /** Mounts the frontend-session stream and response routes. Pass in `httpExtensions`. */
-  readonly httpExtension: LocalNodeHttpExtension;
+  /**
+   * Mounts the frontend-session stream and response routes. Pass in `createLocalNodeDaemon`'s
+   * `httpExtensions`, or call it directly with `(app, { adapter })` from a host that owns its own
+   * Express app — see {@link FrontendHttpExtension}.
+   */
+  readonly httpExtension: FrontendHttpExtension;
   /** One gated tool per capability. Pass in `toolRegistrations`. */
   readonly toolRegistrations: readonly ToolRegistration[];
   /**
@@ -133,7 +152,7 @@ export function createFrontendControl(options: CreateFrontendControlOptions): Fr
     ...(options.maxOutputBytes !== undefined ? { maxOutputBytes: options.maxOutputBytes } : {}),
   });
 
-  const httpExtension: LocalNodeHttpExtension = (app: Express, context) => {
+  const httpExtension: FrontendHttpExtension = (app: Express, context) => {
     registerFrontendSessionRoutes(app, { registry }, context.adapter);
   };
 

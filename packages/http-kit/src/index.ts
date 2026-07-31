@@ -302,6 +302,14 @@ export {
   registerFrontendSessionRoutes,
 } from './frontend-sessions.js';
 
+export { createFrontendControl } from './frontend-control.js';
+export type {
+  CreateFrontendControlOptions,
+  FrontendBindErrorContext,
+  FrontendControl,
+  FrontendHttpExtension,
+} from './frontend-control.js';
+
 export type {
   TerminalActionResponse,
   TerminalCreateRequest,

@@ -65,12 +65,16 @@ export type {
 } from './kernel-base.js';
 export { createJiniKernelBase } from './kernel-base.js';
 
-export { createFrontendControl } from './frontend-control.js';
+// Re-exported, not owned: `createFrontendControl` moved to `@jini-ai/http-kit` on 2026-07-31 (see
+// that module's doc — it never needed anything this package adds, and living here kept it out of
+// reach of hosts that build their own Express app). Kept here so existing imports do not break.
+export { createFrontendControl } from '@jini-ai/http-kit';
 export type {
   CreateFrontendControlOptions,
   FrontendBindErrorContext,
   FrontendControl,
-} from './frontend-control.js';
+  FrontendHttpExtension,
+} from '@jini-ai/http-kit';
 
 export type { CloseHttpServerOptions } from './host-bootstrap.js';
 export { DEFAULT_DAEMON_BIND_HOST, closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js';
