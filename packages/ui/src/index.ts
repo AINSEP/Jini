@@ -29,6 +29,7 @@ export * from './features/settings-dialog/tabs/language/index.js';
 export * from './features/settings-dialog/tabs/instructions/index.js';
 export * from './features/settings-dialog/tabs/privacy/index.js';
 export * from './features/settings-dialog/tabs/integrations/index.js';
+export * from './features/settings-dialog/tabs/execution/index.js';
 export * from './features/list-detail-panel/index.js';
 export * from './features/schedule-picker/index.js';
 export * from './features/mention-autocomplete/index.js';

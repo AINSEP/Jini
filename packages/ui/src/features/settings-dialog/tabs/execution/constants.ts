@@ -1,0 +1,80 @@
+import type { ApiProtocol, ProviderPreset } from './types.js';
+
+/** Fallback endpoint per protocol, used when a host supplies no preset and
+ *  the operator has not typed a base URL. Origin: `DEFAULT_BASE_URL_BY_PROTOCOL`. */
+export const DEFAULT_BASE_URL_BY_PROTOCOL: Readonly<Record<ApiProtocol, string>> = {
+  anthropic: 'https://api.anthropic.com',
+  openai: 'https://api.openai.com/v1',
+  azure: '',
+  google: 'https://generativelanguage.googleapis.com',
+};
+
+/** Display order and English labels for the protocol row. Values are i18n
+ *  keys (this package's convention is "the English string is the key"). */
+export const PROTOCOL_OPTIONS: ReadonlyArray<{ id: ApiProtocol; label: string }> = [
+  { id: 'anthropic', label: 'Anthropic' },
+  { id: 'openai', label: 'OpenAI' },
+  { id: 'azure', label: 'Azure OpenAI' },
+  { id: 'google', label: 'Google Gemini' },
+];
+
+/** Stable id for the synthetic "Custom" preset. */
+export const CUSTOM_PRESET_ID = 'custom';
+
+/**
+ * A small, vendor-shaped starting catalog. Deliberately NOT the origin's full
+ * ~30-entry list: that list is hand-curated product content that goes stale,
+ * and this package's rule for tables like this (see `LanguageTab`) is that the
+ * host owns them. Pass your own `presets` to replace this wholesale.
+ */
+export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
+  {
+    id: 'anthropic',
+    title: 'Anthropic',
+    protocol: 'anthropic',
+    baseUrl: 'https://api.anthropic.com',
+    preferredModels: ['claude-sonnet-4-5', 'claude-opus-4-5', 'claude-haiku-4-5'],
+    kind: 'protocol',
+  },
+  {
+    id: 'openai',
+    title: 'OpenAI',
+    protocol: 'openai',
+    baseUrl: 'https://api.openai.com/v1',
+    preferredModels: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
+    kind: 'protocol',
+  },
+  {
+    id: 'azure-openai',
+    title: 'Azure OpenAI',
+    protocol: 'azure',
+    baseUrl: '',
+    preferredModels: [],
+    kind: 'protocol',
+  },
+  {
+    id: 'google-gemini',
+    title: 'Google Gemini',
+    protocol: 'google',
+    baseUrl: 'https://generativelanguage.googleapis.com',
+    preferredModels: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+    kind: 'protocol',
+  },
+  {
+    id: 'openrouter',
+    title: 'OpenRouter',
+    protocol: 'openai',
+    baseUrl: 'https://openrouter.ai/api/v1',
+    preferredModels: ['anthropic/claude-3.7-sonnet', 'google/gemini-2.5-pro', 'openai/gpt-4o'],
+    kind: 'gateway',
+  },
+  {
+    id: 'ollama',
+    title: 'Ollama',
+    protocol: 'openai',
+    baseUrl: 'http://localhost:11434/v1',
+    preferredModels: [],
+    kind: 'gateway',
+    requiresApiKey: false,
+  },
+];

@@ -24,6 +24,7 @@ export * from './google.js';
 export * from './aihubmix.js';
 export * from './connection-guard.js';
 export * from './model-catalog.js';
+export * from './connection-test.js';
 export * from './sse-decode.js';
 export * from './anthropic-messages.js';
 export * from './openai-chat.js';
