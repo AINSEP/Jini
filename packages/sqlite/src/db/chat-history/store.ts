@@ -216,6 +216,14 @@ export function createChatHistoryStore(
       // One `BEGIN IMMEDIATE` around read-then-write: `MAX(position) + 1` computed outside a
       // write transaction is the classic way two concurrent turns claim the same slot. The
       // `UNIQUE (conversation_id, position)` constraint is the backstop if this is ever bypassed.
+      //
+      // `owns()` above is NOT sufficient on its own, which is why the upsert below carries its own
+      // conversation predicate. `owns()` authorizes the *conversation* being written to; the upsert's
+      // conflict target is `id`, the GLOBAL primary key on messages. Without the `WHERE`, appending a
+      // message id that already exists in someone else's conversation updated THAT row — the caller
+      // legitimately owned the conversation it named, so nothing here refused it, and it then got
+      // `null` back (a 404 at the route) after the write had landed. See the
+      // "colliding id to its OWN chat" case in `__tests__/isolation.test.ts`.
       const write = db.transaction((m: ChatMessage) => {
         const existing = db
           .prepare(`SELECT position FROM ai_chat_messages WHERE id = ? AND conversation_id = ?`)
@@ -244,7 +252,8 @@ export function createChatHistoryStore(
              run_id           = excluded.run_id,
              run_status       = excluded.run_status,
              started_at       = excluded.started_at,
-             ended_at         = excluded.ended_at`,
+             ended_at         = excluded.ended_at
+           WHERE ai_chat_messages.conversation_id = excluded.conversation_id`,
         ).run({
           id: m.id,
           conversationId,

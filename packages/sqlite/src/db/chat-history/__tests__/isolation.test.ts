@@ -94,6 +94,33 @@ describe('cross-owner writes are no-ops, not errors', () => {
     expect((await alice.messages('chat-a')).map((m) => m.id)).toEqual(['m1']);
   });
 
+  it('does not overwrite another owners message when appending a colliding id to its OWN chat', async () => {
+    /*
+     * Distinct from the case above, and the one that actually got through: here the caller owns the
+     * conversation it names, so `owns()` legitimately passes. The leak was the upsert's conflict
+     * target — `ON CONFLICT(id)` is the GLOBAL primary key and the `DO UPDATE` carried no
+     * conversation predicate, so a message id belonging to someone else's chat was updated in place.
+     * The caller then received `null` (a 404 at the route) *after* the write had already landed,
+     * which is what made it invisible: the request looks rejected.
+     *
+     * Reachable without an attacker. A client bug that posts one conversation's messages under
+     * another conversation's id produces exactly this sequence — observed live in the Tovu admin
+     * before its conversation-switch race was fixed, where a stale transcript was PUT against a
+     * newly selected chat.
+     */
+    const alice = await seedAliceChat();
+    const bob = createChatHistoryStore(db, BOB);
+    await bob.create({ id: 'chat-b', title: 'Bob own' });
+
+    const written = await bob.appendMessage('chat-b', { id: 'm1', role: 'user', content: 'pwned' });
+
+    // Alice's message must be untouched, and still hers.
+    expect((await alice.messages('chat-a')).map((m) => m.content)).toEqual(['secret']);
+    // And the write must not have silently landed on Bob's side either.
+    expect(written).toBeNull();
+    expect(await bob.messages('chat-b')).toEqual([]);
+  });
+
   it('does not touch another owners chat', async () => {
     const alice = await seedAliceChat();
     const before = (await alice.get('chat-a'))!.updatedAt;
@@ -101,6 +128,39 @@ describe('cross-owner writes are no-ops, not errors', () => {
     const after = await alice.get('chat-a');
     expect(after!.updatedAt).toBe(before);
     expect(after!.expiresAt).toBeUndefined();
+  });
+});
+
+describe('append semantics', () => {
+  /*
+   * The legitimate half of the upsert, which had no coverage at all — and which the
+   * conversation-scoped `WHERE` added to `ON CONFLICT` could plausibly have broken. `PUT
+   * .../messages/:id` is idempotent by message id on purpose: a reply is written once when it
+   * settles and re-written when its `runStatus`/timings finalize, so an in-place update has to work
+   * and must not consume a second position.
+   */
+  it('updates a message in place when the same id is appended again to the same chat', async () => {
+    const alice = await seedAliceChat();
+    await alice.appendMessage('chat-a', {
+      id: 'm1',
+      role: 'user',
+      content: 'secret, revised',
+      runStatus: 'succeeded',
+    });
+
+    const messages = await alice.messages('chat-a');
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.content).toBe('secret, revised');
+    expect(messages[0]?.runStatus).toBe('succeeded');
+  });
+
+  it('keeps position stable across an in-place update', async () => {
+    const alice = await seedAliceChat();
+    await alice.appendMessage('chat-a', { id: 'm2', role: 'assistant', content: 'second' });
+    // Re-write the FIRST message; it must stay first.
+    await alice.appendMessage('chat-a', { id: 'm1', role: 'user', content: 'secret, revised' });
+
+    expect((await alice.messages('chat-a')).map((m) => m.id)).toEqual(['m1', 'm2']);
   });
 });
 
