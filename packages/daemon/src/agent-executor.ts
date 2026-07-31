@@ -117,6 +117,7 @@ import {
   type PiRpcSession,
   type PreparedAgentLogFile,
   type PreparedPromptFile,
+  type PromptAugmenter,
   type RuntimeAgentDef,
   type RuntimeContext,
   type RuntimeLockHold,
@@ -2074,6 +2075,16 @@ export interface CreateAgentExecutorOptions {
    * @default {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES}
    */
   readonly bufferedStdoutMaxBytes?: number;
+  /**
+   * Host-owned system-prompt overlay — see `prompt-augmenter.ts`'s own doc for why this seam
+   * exists (product-specific discovery/behavior instructions that don't belong in the engine).
+   * When present, `systemOverlay()` is called once per `run()` and its result (if non-null) is
+   * threaded through to `buildArgs` as `RuntimeBuildOptions.systemPromptOverlay` — a def with no
+   * append-system-prompt mechanism ignores it.
+   * @default undefined — no overlay is computed and no def sees `systemPromptOverlay`,
+   * byte-identical to pre-this-option behavior.
+   */
+  readonly promptAugmenter?: PromptAugmenter;
 }
 
 /**
@@ -2110,6 +2121,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
   const continuation = options.continuation;
   const classifyFailure = options.classifyFailure;
   const mcpJsonInjection = options.mcpJsonInjection;
+  const promptAugmenter = options.promptAugmenter;
   const bufferedStdoutMaxBytes = options.bufferedStdoutMaxBytes ?? DEFAULT_BUFFERED_STDOUT_MAX_BYTES;
 
   /**
@@ -2310,17 +2322,33 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
     // — and left the run `'running'` forever while still holding the process-global mutex and both
     // staged files, so no later run of that def could ever acquire the lock either.
+    // Computed once per `run()`, not per-token/per-event: a system-prompt overlay is a spawn-time
+    // CLI arg, not something that varies mid-run. `turnIndex` is a coarse 0/1 proxy (no exact turn
+    // counter exists on this driver) — sufficient because every `PromptAugmenter.systemOverlay()`
+    // implementation this seam has today wants the same overlay on every turn, not a first-turn-only
+    // one; a caller that needs finer-grained turn numbering can track it itself and ignore this arg.
+    const systemPromptOverlay = promptAugmenter?.systemOverlay?.({
+      agentId: def.id,
+      turnIndex: runtimeContext?.hasPriorAssistantTurn ? 1 : 0,
+    });
+
     let args: string[];
     try {
       args = def.buildArgs(
         input.prompt,
         [...(input.imagePaths ?? [])],
         input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
-        input.model !== undefined || input.reasoning !== undefined || input.permissionMode !== undefined
+        input.model !== undefined
+          || input.reasoning !== undefined
+          || input.permissionMode !== undefined
+          || (systemPromptOverlay !== undefined && systemPromptOverlay !== null)
           ? {
               ...(input.model !== undefined ? { model: input.model } : {}),
               ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
               ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+              ...(systemPromptOverlay !== undefined && systemPromptOverlay !== null
+                ? { systemPromptOverlay }
+                : {}),
             }
           : undefined,
         runtimeContext,

@@ -39,6 +39,12 @@ export type RuntimeBuildOptions = {
   // escalating to full access only via explicit env/platform conditions) and is unaffected either
   // way; see `defs/codex.ts`'s `codexNeedsDangerFullAccessSandbox`.
   permissionMode?: 'bypass' | 'restricted';
+  // Text appended to the spawned CLI's own default system prompt (never replacing it), computed
+  // by the caller's `PromptAugmenter.systemOverlay()` (see `prompt-augmenter.ts`) if one is
+  // configured. A def with no system-prompt-append mechanism ignores this field; Claude's def
+  // reads it via its own `--append-system-prompt` flag. `null`/`undefined`/empty means no overlay
+  // for this run — identical to today's behavior.
+  systemPromptOverlay?: string | null;
 };
 
 export type RuntimeContext = {

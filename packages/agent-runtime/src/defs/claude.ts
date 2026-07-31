@@ -49,6 +49,7 @@ export const claudeAgentDef = {
       '--include-partial-messages': 'partialMessages',
       '--add-dir': 'addDir',
       '--effort': 'effort',
+      '--append-system-prompt': 'appendSystemPrompt',
     },
     // `claude` has no list-models subcommand. Prefer local mmd/MMS routes
     // when present so proxy-backed Claude-compatible models appear in the
@@ -111,6 +112,17 @@ export const claudeAgentDef = {
       // builds may lack it.
       if (dirs.length > 0 && caps.addDir !== false) {
         args.push('--add-dir', ...dirs);
+      }
+      // Appended, never replaces the CLI's own default system prompt — see
+      // `RuntimeBuildOptions.systemPromptOverlay`'s doc. Same probe-gate reasoning as
+      // `--include-partial-messages`/`--effort` above: an older build rejects an unknown option
+      // with exit 1, which kills the chat rather than degrading it.
+      if (
+        caps.appendSystemPrompt !== false
+        && typeof options.systemPromptOverlay === 'string'
+        && options.systemPromptOverlay.length > 0
+      ) {
+        args.push('--append-system-prompt', options.systemPromptOverlay);
       }
       // Continue Claude's own CLI session across turns so it keeps its
       // working memory (files read, edits made, tool history) instead of
