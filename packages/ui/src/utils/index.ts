@@ -39,7 +39,7 @@ export { isMacPlatform } from './platform.js';
 
 export { smoothScrollToTop } from './smooth-scroll-to-top.js';
 
-export { randomUUID } from './uuid.js';
+export { randomUUID } from '@jini-ai/ui-core';
 
 export {
   DEFAULT_VISUAL_STABILITY_STORAGE_KEY,

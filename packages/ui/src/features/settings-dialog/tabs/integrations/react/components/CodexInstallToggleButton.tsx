@@ -1,5 +1,5 @@
 import { useT } from '../../../../../../features/i18n/index.js';
-import type { McpIntegrationsPort } from '../../ports.js';
+import type { McpIntegrationsPort } from '@jini-ai/ui-core';
 import { useCodexInstallToggle } from '../hooks/useCodexInstallToggle.js';
 
 export interface CodexInstallToggleButtonProps {

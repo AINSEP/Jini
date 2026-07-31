@@ -1,8 +1,8 @@
 import { useT } from '../../../i18n/index.js';
-import { issueForField } from '../../rules.js';
+import { issueForField } from '@jini-ai/ui-core';
 import { SourceConfigField } from './SourceConfigField.js';
 import { SourceConfigTestControl } from './SourceConfigTestControl.js';
-import type { SourceDraftValidation, SourceFieldSpec, SourceFieldValues, SourceTestResult, SourceTrustOption } from '../../types.js';
+import type { SourceDraftValidation, SourceFieldSpec, SourceFieldValues, SourceTestResult, SourceTrustOption } from '@jini-ai/ui-core';
 
 export interface SourceConfigAddFormProps {
   fieldSpecs: readonly SourceFieldSpec[];

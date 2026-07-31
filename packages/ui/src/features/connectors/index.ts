@@ -1,6 +1,3 @@
-export { ConnectorsBrowser } from './ConnectorsBrowser.js';
-export type { ConnectorsBrowserProps } from './ConnectorsBrowser.js';
-
 export type {
   Connector,
   ConnectorAction,
@@ -18,24 +15,14 @@ export type {
   ConnectorToolSafety,
   PendingConnectorAction,
   ProviderTab,
-} from './types.js';
-
+} from '@jini-ai/ui-core';
 export type {
   ConnectorAuthBridgePort,
   ConnectorAuthPendingStoragePort,
   ConnectorsDependencies,
   ConnectorsPort,
   FetchConnectorDetailOptions,
-} from './ports.js';
-
-export {
-  createBrowserConnectorAuthBridge,
-  createBrowserConnectorAuthPendingStorage,
-  createFakeConnectorsDependencies,
-  createFakeConnectorsPort,
-} from './dependencies.js';
-export type { FakeConnectorsPortOptions } from './dependencies.js';
-
+} from '@jini-ai/ui-core';
 export {
   AUTHORIZATION_CANCEL_FAILED_MESSAGE,
   CONNECTOR_AUTH_CONTINUE_LABEL,
@@ -44,10 +31,18 @@ export {
   CONNECTOR_TOOL_PREVIEW_LIMIT,
   DEFAULT_PROVIDER_TABS,
   DEFAULT_PROVIDER_TAB_ID,
-} from './constants.js';
+} from '@jini-ai/ui-core';
+export * from '@jini-ai/ui-core';
 
-export * from './rules.js';
-
+export { ConnectorsBrowser } from './ConnectorsBrowser.js';
+export type { ConnectorsBrowserProps } from './ConnectorsBrowser.js';
+export {
+  createBrowserConnectorAuthBridge,
+  createBrowserConnectorAuthPendingStorage,
+  createFakeConnectorsDependencies,
+  createFakeConnectorsPort,
+} from './dependencies.js';
+export type { FakeConnectorsPortOptions } from './dependencies.js';
 export { useConnectorCatalog } from './hooks/useConnectorCatalog.js';
 export type { ConnectorCatalogController, ConnectorCatalogOptions } from './hooks/useConnectorCatalog.js';
 export { useConnectorAuthorization } from './hooks/useConnectorAuthorization.js';
@@ -62,7 +57,6 @@ export type {
   UseWiredConnectorsBrowserParams,
   WiredConnectorsBrowserController,
 } from './hooks/useWiredConnectorsBrowser.js';
-
 export { ConnectorLogo } from './components/ConnectorLogo.js';
 export type { ConnectorLogoProps } from './components/ConnectorLogo.js';
 export { ProviderTabBar } from './components/ProviderTabBar.js';

@@ -1,4 +1,4 @@
-export type { PrivacyConsentState, TelemetryPreferences } from './types.js';
+export type { PrivacyConsentState, TelemetryPreferences } from '@jini-ai/ui-core';
 export {
   generateInstallationId,
   hasMadeConsentDecision,
@@ -7,7 +7,7 @@ export {
   nextStateForDeleteMyData,
   nextStateForShareAll,
   nextStateForTelemetryPatch,
-} from './rules.js';
+} from '@jini-ai/ui-core';
 
 export { PrivacyTab } from './react/components/PrivacyTab.js';
 export type { PrivacyTabLabels, PrivacyTabProps } from './react/components/PrivacyTab.js';

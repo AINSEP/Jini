@@ -13,22 +13,11 @@
  * implementations for those two — a host only needs to supply its own
  * `data` port.
  */
-import { isTrustedConnectorCallbackOrigin } from './rules.js';
-import type {
-  Connector,
-  ConnectorActionResult,
-  ConnectorStatusMap,
-  ConnectorAuthorizationPendingState,
-} from './types.js';
-import type {
-  ConnectorAuthBridgePort,
-  ConnectorAuthPendingStoragePort,
-  ConnectorsDependencies,
-  ConnectorsPort,
-  FetchConnectorDetailOptions,
-} from './ports.js';
-import { CONNECTOR_AUTH_PENDING_STORAGE_KEY } from './constants.js';
-import { parseConnectorAuthorizationPendingState } from './rules.js';
+import { isTrustedConnectorCallbackOrigin } from '@jini-ai/ui-core';
+import type { Connector, ConnectorActionResult, ConnectorStatusMap, ConnectorAuthorizationPendingState } from '@jini-ai/ui-core';
+import type { ConnectorAuthBridgePort, ConnectorAuthPendingStoragePort, ConnectorsDependencies, ConnectorsPort, FetchConnectorDetailOptions } from '@jini-ai/ui-core';
+import { CONNECTOR_AUTH_PENDING_STORAGE_KEY } from '@jini-ai/ui-core';
+import { parseConnectorAuthorizationPendingState } from '@jini-ai/ui-core';
 
 export interface FakeConnectorsPortOptions {
   connectors?: Connector[];

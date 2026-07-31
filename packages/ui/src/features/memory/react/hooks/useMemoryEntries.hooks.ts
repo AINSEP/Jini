@@ -17,11 +17,11 @@ import {
   type SetStateAction,
 } from 'react';
 import { copyToClipboard } from '../../../../utils/copy-to-clipboard.js';
-import { createAsyncCommitGuard } from '../../async-commit-guard.js';
+import { createAsyncCommitGuard } from '@jini-ai/ui-core';
 import { memoryEntriesPort } from '../../dependencies.js';
-import type { MemoryEntriesPort } from '../../ports.js';
-import { EMPTY_DRAFT } from '../../constants.js';
-import type { DraftEntry, FlashKind, MemoryEntrySummary, MemoryListResponse, MemoryTreeNode, MemoryType } from '../../types.js';
+import type { MemoryEntriesPort } from '@jini-ai/ui-core';
+import { EMPTY_DRAFT } from '@jini-ai/ui-core';
+import type { DraftEntry, FlashKind, MemoryEntrySummary, MemoryListResponse, MemoryTreeNode, MemoryType } from '@jini-ai/ui-core';
 
 /** Runtime coordination the entries hook receives from a host: fire a flash
  *  pill, hydrate the config flags off the shared GET, and open/close the

@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../../i18n/index.js';
-import type { PrivacyConsentState } from '../../../../../tabs/privacy/types.js';
+import type { PrivacyConsentState } from '@jini-ai/ui-core';
 import { PrivacyTab } from '../../../../../tabs/privacy/react/components/PrivacyTab.js';
 
 const NOW = 1_700_000_000_000;

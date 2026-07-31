@@ -12,10 +12,8 @@ export type {
   SourceFieldValues,
   SourceTestResult,
   SourceTrustOption,
-} from './types.js';
-
-export { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from './constants.js';
-
+} from '@jini-ai/ui-core';
+export { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from '@jini-ai/ui-core';
 export {
   emptySourceDraft,
   isActionPending,
@@ -29,12 +27,10 @@ export {
   validateSourceDraft,
   withoutPendingAction,
   withPendingAction,
-} from './rules.js';
-
-export type { SourceConfigDependencies, SourceConfigPort } from './ports.js';
-
-export { createFakeSourceConfigDependencies, createFakeSourceConfigPort } from './dependencies.js';
-export type { FakeSourceConfigPortOptions } from './dependencies.js';
+} from '@jini-ai/ui-core';
+export type { SourceConfigDependencies, SourceConfigPort } from '@jini-ai/ui-core';
+export { createFakeSourceConfigDependencies, createFakeSourceConfigPort } from '@jini-ai/ui-core';
+export type { FakeSourceConfigPortOptions } from '@jini-ai/ui-core';
 
 export { useSourceConfigList, useWiredSourceConfigList } from './react/hooks/useSourceConfigList.js';
 export type {
@@ -43,14 +39,12 @@ export type {
   UseSourceConfigListParams,
   UseWiredSourceConfigListParams,
 } from './react/hooks/useSourceConfigList.js';
-
 export { useSourceConfigAddForm, useWiredSourceConfigAddForm } from './react/hooks/useSourceConfigAddForm.js';
 export type {
   SourceConfigAddFormController,
   UseSourceConfigAddFormParams,
   UseWiredSourceConfigAddFormParams,
 } from './react/hooks/useSourceConfigAddForm.js';
-
 export { SourceConfigField } from './react/components/SourceConfigField.js';
 export type { SourceConfigFieldProps } from './react/components/SourceConfigField.js';
 export { SourceConfigTestControl } from './react/components/SourceConfigTestControl.js';

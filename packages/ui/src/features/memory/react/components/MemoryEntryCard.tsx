@@ -8,7 +8,7 @@
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { renderMarkdown } from '../render-markdown.js';
-import type { MemoryEntrySummary } from '../../types.js';
+import type { MemoryEntrySummary } from '@jini-ai/ui-core';
 
 export function MemoryEntryCard({
   entry,

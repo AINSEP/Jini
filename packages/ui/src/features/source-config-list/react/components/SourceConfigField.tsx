@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../../../i18n/index.js';
-import type { SourceFieldSpec } from '../../types.js';
+import type { SourceFieldSpec } from '@jini-ai/ui-core';
 
 export interface SourceConfigFieldProps {
   spec: SourceFieldSpec;

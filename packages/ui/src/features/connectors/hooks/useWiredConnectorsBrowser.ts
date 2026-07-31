@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { createFakeConnectorsDependencies } from '../dependencies.js';
-import type { ConnectorsDependencies } from '../ports.js';
-import type { ConnectorAuthResultEvent } from '../types.js';
+import type { ConnectorsDependencies } from '@jini-ai/ui-core';
+import type { ConnectorAuthResultEvent } from '@jini-ai/ui-core';
 import { useConnectorCatalog, type ConnectorCatalogController } from './useConnectorCatalog.js';
 import { useConnectorAuthorization, type ConnectorAuthorizationController } from './useConnectorAuthorization.js';
 import { useConnectorDetail, type ConnectorDetailController } from './useConnectorDetail.js';

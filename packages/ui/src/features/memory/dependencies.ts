@@ -25,25 +25,10 @@
  *   cluster uses — saving a connector suggestion is an ordinary memory write,
  *   not a connector-transport concern.
  */
-import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../connectors/index.js';
-import { DEFAULT_CONNECTOR_PROVIDER, MEMORY_CONNECTOR_PENDING_AUTH_STORAGE_KEY } from './constants.js';
-import type {
-  MemoryConfigPort,
-  MemoryConnectorsPort,
-  MemoryEntriesPort,
-  MemoryExtractionsPort,
-} from './ports.js';
-import type {
-  ConnectorMemorySuggestionResponse,
-  DraftEntry,
-  MemoryEntry,
-  MemoryExtractionRecord,
-  MemoryExtractionsResponse,
-  MemoryListResponse,
-  MemoryTreeListResponse,
-  MemoryTreeNode,
-  UpdateMemoryConfigRequest,
-} from './types.js';
+import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '@jini-ai/ui-core';
+import { DEFAULT_CONNECTOR_PROVIDER, MEMORY_CONNECTOR_PENDING_AUTH_STORAGE_KEY } from '@jini-ai/ui-core';
+import type { MemoryConfigPort, MemoryConnectorsPort, MemoryEntriesPort, MemoryExtractionsPort } from '@jini-ai/ui-core';
+import type { ConnectorMemorySuggestionResponse, DraftEntry, MemoryEntry, MemoryExtractionRecord, MemoryExtractionsResponse, MemoryListResponse, MemoryTreeListResponse, MemoryTreeNode, UpdateMemoryConfigRequest } from '@jini-ai/ui-core';
 
 // ─── Shared response-field validators ───────────────────────────────────────
 //

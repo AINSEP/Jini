@@ -1,15 +1,23 @@
-import { useEffect, type CSSProperties } from 'react';
+import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { useT } from '../../../../../../features/i18n/index.js';
-import { DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
-import type { ExecutionPort } from '../../ports.js';
+import { DEFAULT_PROVIDER_PRESETS } from '@jini-ai/ui-core';
+import type { ExecutionPort } from '@jini-ai/ui-core';
 import {
   groupPresets,
   isProviderConfigured,
+  nextConfigForAgentModel,
+  nextConfigForAgentSelect,
   nextConfigForModeChange,
   nextConfigForPresetSelect,
   resolveSelectedPreset,
-} from '../../rules.js';
-import type { ExecutionConfig, ExecutionMode, ProviderPreset } from '../../types.js';
+  selectedAgentModel,
+} from '@jini-ai/ui-core';
+import type {
+  DetectedAgent,
+  ExecutionConfig,
+  ExecutionMode,
+  ProviderPreset,
+} from '@jini-ai/ui-core';
 import { useExecutionTab } from '../hooks/useExecutionTab.js';
 import { ByokProviderForm } from './ByokProviderForm.js';
 import { LocalCliAgentList } from './LocalCliAgentList.js';
@@ -25,6 +33,13 @@ export interface ExecutionTabProps {
   /** Disables Local CLI with an explanatory title, for hosts that cannot run
    *  local subprocesses (e.g. a hosted deployment). */
   localCliUnavailableReason?: string;
+  /** Rendered in each agent card's icon slot — vendor marks are the host's to
+   *  supply, since this package ships no logo set. */
+  renderAgentIcon?: (agent: DetectedAgent) => ReactNode;
+  /** Where local-CLI detection actually runs, in the host's words. See
+   *  `LocalCliAgentListProps.scopeLabel` — a hosted deployment must not tell
+   *  the operator these are the CLIs "on this machine". */
+  localCliScopeLabel?: string;
   autoDetect?: boolean;
   ariaLabel?: string;
 }
@@ -47,15 +62,28 @@ export function ExecutionTab({
   port,
   presets = DEFAULT_PROVIDER_PRESETS,
   localCliUnavailableReason,
+  renderAgentIcon,
+  localCliScopeLabel,
   autoDetect = true,
   ariaLabel,
 }: ExecutionTabProps) {
   const t = useT();
-  const { agents, scan, connectionTest, modelDiscovery, rescan, testConnection, loadModels, canRescan } =
-    useExecutionTab({
-      port,
-      autoDetect: autoDetect && config.mode === 'local-cli',
-    });
+  const {
+    agents,
+    scan,
+    connectionTest,
+    modelDiscovery,
+    agentTest,
+    rescan,
+    testConnection,
+    testAgent,
+    loadModels,
+    canRescan,
+    canTestAgent,
+  } = useExecutionTab({
+    port,
+    autoDetect: autoDetect && config.mode === 'local-cli',
+  });
 
   const selectedPreset = resolveSelectedPreset(presets, config.byok);
 
@@ -121,7 +149,24 @@ export function ExecutionTab({
       </div>
 
       {config.mode === 'local-cli' ? (
-        <LocalCliAgentList agents={agents} scan={scan} onRescan={canRescan ? rescan : undefined} />
+        <LocalCliAgentList
+          agents={agents}
+          config={config.localCli}
+          scan={scan}
+          agentTest={agentTest}
+          onSelect={(agentId) => onConfigChange(nextConfigForAgentSelect(config, agentId))}
+          onModelChange={(agentId, model) =>
+            onConfigChange(nextConfigForAgentModel(config, agentId, model))
+          }
+          onRescan={canRescan ? rescan : undefined}
+          onTest={
+            canTestAgent
+              ? (agent) => testAgent(agent.id, selectedAgentModel(config.localCli, agent) || undefined)
+              : undefined
+          }
+          renderAgentIcon={renderAgentIcon}
+          scopeLabel={localCliScopeLabel}
+        />
       ) : (
         <section className="jini-settings-section jini-settings-byok">
           <ProviderChipGroup

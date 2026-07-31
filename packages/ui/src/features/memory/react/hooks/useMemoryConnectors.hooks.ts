@@ -33,20 +33,15 @@
 // (Today the hook is single-consumer per the slice's feature-local rule, so
 // this is defence-in-depth, not a live bug.)
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { applyConnectorStatuses, hasConnectorStatusChanges } from '../../../connectors/index.js';
-import type { Connector, ConnectorStatusMap } from '../../../connectors/index.js';
+import { applyConnectorStatuses, hasConnectorStatusChanges } from '@jini-ai/ui-core';
+import type { Connector, ConnectorStatusMap } from '@jini-ai/ui-core';
 import { memoryConnectorsPort } from '../../dependencies.js';
-import type { MemoryConnectorsPort } from '../../ports.js';
-import { createAsyncCommitGuard } from '../../async-commit-guard.js';
-import type { ConnectorMemoryAttempt, MemoryExtractionRecord, MemorySuggestion } from '../../types.js';
-import { DEFAULT_CONNECTOR_PROVIDER, MEMORY_CONNECTOR_APP_IDS, MEMORY_CONNECTOR_APP_LABELS } from '../../constants.js';
-import {
-  applyMemoryConnectorStatus,
-  connectorWithPendingAuthorization,
-  memoryEntryIdForConnectorSuggestion,
-  upsertMemoryConnector,
-} from '../../rules.js';
-import { describeConnectorReadIssue, describeExtractionFailure } from '../../formatters.js';
+import type { MemoryConnectorsPort } from '@jini-ai/ui-core';
+import { createAsyncCommitGuard } from '@jini-ai/ui-core';
+import type { ConnectorMemoryAttempt, MemoryExtractionRecord, MemorySuggestion } from '@jini-ai/ui-core';
+import { DEFAULT_CONNECTOR_PROVIDER, MEMORY_CONNECTOR_APP_IDS, MEMORY_CONNECTOR_APP_LABELS } from '@jini-ai/ui-core';
+import { applyMemoryConnectorStatus, connectorWithPendingAuthorization, memoryEntryIdForConnectorSuggestion, upsertMemoryConnector } from '@jini-ai/ui-core';
+import { describeConnectorReadIssue, describeExtractionFailure } from '@jini-ai/ui-core';
 
 /** Runtime coordination the connectors hook receives from a host: the
  *  entries reload (saving a suggestion mutates the memory list), the extraction

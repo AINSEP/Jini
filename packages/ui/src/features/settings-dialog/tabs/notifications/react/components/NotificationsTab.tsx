@@ -9,7 +9,7 @@ import {
   requestNotificationPermission,
   showCompletionNotification,
 } from '../../../../../../utils/notifications.js';
-import type { NotificationsPreferences } from '../../types.js';
+import type { NotificationsPreferences } from '@jini-ai/ui-core';
 
 export interface NotificationsTabLabels {
   completionSoundTitle?: string;

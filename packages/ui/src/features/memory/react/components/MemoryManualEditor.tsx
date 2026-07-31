@@ -5,9 +5,10 @@
 import { useMemo, type MutableRefObject } from 'react';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
-import { FIELD_LABEL_STYLE, STARTERS, TYPES } from '../../constants.js';
-import { memoryFlashLabels, memoryTypeLabels } from '../../formatters.js';
-import type { DraftEntry, FlashKind, MemoryType } from '../../types.js';
+import { STARTERS, TYPES } from '@jini-ai/ui-core';
+import { FIELD_LABEL_STYLE } from '../styles.js';
+import { memoryFlashLabels, memoryTypeLabels } from '@jini-ai/ui-core';
+import type { DraftEntry, FlashKind, MemoryType } from '@jini-ai/ui-core';
 
 export function MemoryManualEditor({
   editing,

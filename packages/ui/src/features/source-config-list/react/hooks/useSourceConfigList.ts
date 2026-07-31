@@ -1,15 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { DRAFT_TEST_SCOPE } from '../../constants.js';
-import {
-  isActionPending,
-  removeSourceById,
-  updateSourceById,
-  upsertSourceById,
-  withoutPendingAction,
-  withPendingAction,
-} from '../../rules.js';
-import type { SourceConfigDependencies, SourceConfigPort } from '../../ports.js';
-import type { SourceActionKind, SourceConfigItem, SourceFieldValues, SourceTestResult, SourceUpdateInput } from '../../types.js';
+import { DRAFT_TEST_SCOPE } from '@jini-ai/ui-core';
+import { isActionPending, removeSourceById, updateSourceById, upsertSourceById, withoutPendingAction, withPendingAction } from '@jini-ai/ui-core';
+import type { SourceConfigDependencies, SourceConfigPort } from '@jini-ai/ui-core';
+import type { SourceActionKind, SourceConfigItem, SourceFieldValues, SourceTestResult, SourceUpdateInput } from '@jini-ai/ui-core';
 
 export interface SourceConfigListCapabilities {
   canRefresh: boolean;

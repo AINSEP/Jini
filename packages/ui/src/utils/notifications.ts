@@ -12,28 +12,19 @@
  *     options (defaulting to generic, non-product-branded values).
  */
 
-export type SoundId = string;
+// The catalog (ids, labels, defaults) now lives in `@jini-ai/ui-core` so a
+// settings surface can name the choices without pulling in Web Audio or the
+// Notification API. Re-exported here so every existing importer of this module
+// keeps working unchanged.
+export type { SoundId, SoundOption } from '@jini-ai/ui-core';
+export {
+  DEFAULT_FAILURE_SOUND_ID,
+  DEFAULT_SUCCESS_SOUND_ID,
+  FAILURE_SOUNDS,
+  SUCCESS_SOUNDS,
+} from '@jini-ai/ui-core';
 
-export interface SoundOption {
-  id: SoundId;
-  labelKey: string;
-}
-
-export const SUCCESS_SOUNDS: SoundOption[] = [
-  { id: 'ding', labelKey: 'notifications.sound.ding' },
-  { id: 'chime', labelKey: 'notifications.sound.chime' },
-  { id: 'two-tone-up', labelKey: 'notifications.sound.twoToneUp' },
-  { id: 'pluck', labelKey: 'notifications.sound.pluck' },
-];
-
-export const FAILURE_SOUNDS: SoundOption[] = [
-  { id: 'buzz', labelKey: 'notifications.sound.buzz' },
-  { id: 'two-tone-down', labelKey: 'notifications.sound.twoToneDown' },
-  { id: 'thud', labelKey: 'notifications.sound.thud' },
-];
-
-export const DEFAULT_SUCCESS_SOUND_ID: SoundId = 'ding';
-export const DEFAULT_FAILURE_SOUND_ID: SoundId = 'buzz';
+import type { SoundId } from '@jini-ai/ui-core';
 
 type AudioCtxCtor = typeof AudioContext;
 type NotificationOptionsWithBrowserExtensions = NotificationOptions & {

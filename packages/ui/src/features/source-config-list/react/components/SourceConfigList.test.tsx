@@ -2,9 +2,9 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n/index.js';
-import { createFakeSourceConfigDependencies } from '../../dependencies.js';
+import { createFakeSourceConfigDependencies } from '@jini-ai/ui-core';
 import { SourceConfigList } from './SourceConfigList.js';
-import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '../../types.js';
+import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '@jini-ai/ui-core';
 import type { SourceConfigListController } from '../hooks/useSourceConfigList.js';
 import type { SourceConfigAddFormController } from '../hooks/useSourceConfigAddForm.js';
 

@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useSourceConfigList, useWiredSourceConfigList } from './useSourceConfigList.js';
-import type { SourceConfigPort } from '../../ports.js';
-import type { SourceConfigItem } from '../../types.js';
+import type { SourceConfigPort } from '@jini-ai/ui-core';
+import type { SourceConfigItem } from '@jini-ai/ui-core';
 
 function fakePort(overrides: Partial<SourceConfigPort<SourceConfigItem>> = {}): SourceConfigPort<SourceConfigItem> {
   return {

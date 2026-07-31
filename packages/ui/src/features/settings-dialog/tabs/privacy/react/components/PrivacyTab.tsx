@@ -7,8 +7,8 @@ import {
   nextStateForDeleteMyData,
   nextStateForShareAll,
   nextStateForTelemetryPatch,
-} from '../../rules.js';
-import type { PrivacyConsentState } from '../../types.js';
+} from '@jini-ai/ui-core';
+import type { PrivacyConsentState } from '@jini-ai/ui-core';
 
 export interface PrivacyTabLabels {
   consentKicker?: string;

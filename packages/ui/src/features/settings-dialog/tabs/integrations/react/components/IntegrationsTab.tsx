@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../../../../../features/i18n/index.js';
-import { DEFAULT_MCP_CLIENT_ID, DEFAULT_MCP_SERVER_NAME, MCP_CLIENTS } from '../../constants.js';
-import { methodLabelForClient, snippetForClient } from '../../rules.js';
-import type { McpClientDescriptor, McpClientId } from '../../types.js';
-import type { McpIntegrationsPort } from '../../ports.js';
-import { createFakeMcpIntegrationsPort } from '../../dependencies.js';
+import { DEFAULT_MCP_CLIENT_ID, DEFAULT_MCP_SERVER_NAME, MCP_CLIENTS } from '@jini-ai/ui-core';
+import { methodLabelForClient, snippetForClient } from '@jini-ai/ui-core';
+import type { McpClientDescriptor, McpClientId } from '@jini-ai/ui-core';
+import type { McpIntegrationsPort } from '@jini-ai/ui-core';
+import { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
 import { useMcpInstallInfo } from '../hooks/useMcpInstallInfo.js';
 import { ClientPicker } from './ClientPicker.js';
 import { SnippetBlock } from './SnippetBlock.js';

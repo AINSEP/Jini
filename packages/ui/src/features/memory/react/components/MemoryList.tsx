@@ -5,9 +5,9 @@
 import { useMemo, type MutableRefObject } from 'react';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
-import { TYPES } from '../../constants.js';
-import { memoryTypeLabels } from '../../formatters.js';
-import type { MemoryEntrySummary, MemoryExtractionRecord, MemoryType } from '../../types.js';
+import { TYPES } from '@jini-ai/ui-core';
+import { memoryTypeLabels } from '@jini-ai/ui-core';
+import type { MemoryEntrySummary, MemoryExtractionRecord, MemoryType } from '@jini-ai/ui-core';
 import { MemoryEntryCard } from './MemoryEntryCard.js';
 import { MemoryExtractionCard } from './MemoryExtractionCard.js';
 

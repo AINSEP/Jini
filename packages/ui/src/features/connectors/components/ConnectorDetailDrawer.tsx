@@ -1,13 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type { SyntheticEvent } from 'react';
 import { useT } from '../../i18n/index.js';
-import type { Connector, ConnectorAction, ConnectorAuthorizationPending } from '../types.js';
-import {
-  getConnectorDisplayToolCount,
-  getDisplayableConnectorAccountLabel,
-  statusLabel,
-  toolsBadgeTranslation,
-} from '../rules.js';
+import type { Connector, ConnectorAction, ConnectorAuthorizationPending } from '@jini-ai/ui-core';
+import { getConnectorDisplayToolCount, getDisplayableConnectorAccountLabel, statusLabel, toolsBadgeTranslation } from '@jini-ai/ui-core';
 import { Icon } from '../../../react/components/Icon.js';
 import { ConnectorLogo } from './ConnectorLogo.js';
 

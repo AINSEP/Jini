@@ -701,53 +701,203 @@
   color: var(--jini-text-muted);
 }
 
-.jini-agent-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.jini-agent-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-sm);
-  background: var(--jini-bg-panel);
-}
-
-.jini-agent-row.is-missing {
-  opacity: 0.6;
-}
-
-.jini-agent-row-main {
+.jini-section-head-text {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
 }
 
-.jini-agent-row-label {
+.jini-local-cli-scope {
+  margin: 0 0 4px;
+}
+
+/* Agent cards. The origin drew a responsive grid of selectable vendor cards;
+   `auto-fill` keeps it one column inside a narrow settings panel and two or
+   more when the host gives the dialog room. */
+.jini-agent-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.jini-agent-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+  transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
+}
+
+.jini-agent-card.is-missing {
+  opacity: 0.6;
+}
+
+.jini-agent-card.is-selected {
+  border-color: var(--jini-accent);
+  box-shadow: 0 0 0 1px var(--jini-accent);
+}
+
+.jini-agent-card-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+}
+
+.jini-agent-card-select {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+
+.jini-agent-card-select:disabled {
+  cursor: default;
+}
+
+.jini-agent-card-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-subtle);
+  color: var(--jini-text-muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.jini-agent-card-icon > img,
+.jini-agent-card-icon > svg {
+  width: 20px;
+  height: 20px;
+}
+
+.jini-agent-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.jini-agent-card-name {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-width: 0;
+}
+
+.jini-agent-card-title {
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--jini-text);
 }
 
-.jini-agent-row-path {
+.jini-agent-card-name-divider {
+  color: var(--jini-text-disabled);
+}
+
+.jini-agent-card-tagline {
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.jini-agent-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.jini-agent-card-badge {
+  padding: 1px 7px;
+  border-radius: var(--jini-radius-pill);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--jini-text-muted);
+}
+
+.jini-agent-card-meta {
   font-size: 11px;
   color: var(--jini-text-muted);
   overflow-wrap: anywhere;
 }
 
-.jini-agent-row-meta {
-  flex: 0 0 auto;
+.jini-agent-card-model-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   font-size: 11px;
   color: var(--jini-text-muted);
+}
+
+.jini-agent-card-model-summary > strong {
+  font-weight: 500;
+  color: var(--jini-text);
+}
+
+.jini-agent-card-test {
+  flex: 0 0 auto;
+}
+
+.jini-agent-card-test.is-loading {
+  opacity: 0.7;
+}
+
+.jini-agent-card-config {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--jini-border);
+  margin-top: 2px;
+  padding-top: 10px;
+}
+
+/* The source badge is load-bearing, not decoration: a built-in list can be
+   stale, and the operator needs to see which one they are choosing from. */
+.jini-agent-model-source {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--jini-radius-pill);
+  font-size: 10px;
+  font-weight: 500;
+  background: var(--jini-bg-subtle);
+  color: var(--jini-text-muted);
+  border: 1px solid var(--jini-border);
+}
+
+.jini-agent-model-source.live {
+  color: var(--jini-success);
+  border-color: color-mix(in srgb, var(--jini-success) 40%, transparent);
+  background: color-mix(in srgb, var(--jini-success) 10%, transparent);
+}
+
+.jini-agent-card-test-result {
+  margin: 0;
+  padding: 0 12px 12px;
+  font-size: 12px;
+}
+
+.jini-agent-card-test-result.is-ok {
+  color: var(--jini-success);
+}
+
+.jini-agent-card-test-result.is-error {
+  color: var(--jini-danger);
 }
 
 .jini-agent-scan-card {

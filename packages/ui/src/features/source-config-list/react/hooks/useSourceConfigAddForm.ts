@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
-import { emptySourceDraft, validateSourceDraft } from '../../rules.js';
-import type { SourceConfigDependencies, SourceConfigPort } from '../../ports.js';
-import type { SourceConfigItem, SourceDraftValidation, SourceFieldSpec, SourceFieldValues } from '../../types.js';
+import { emptySourceDraft, validateSourceDraft } from '@jini-ai/ui-core';
+import type { SourceConfigDependencies, SourceConfigPort } from '@jini-ai/ui-core';
+import type { SourceConfigItem, SourceDraftValidation, SourceFieldSpec, SourceFieldValues } from '@jini-ai/ui-core';
 
 export interface UseSourceConfigAddFormParams<TSource extends SourceConfigItem> {
   port: SourceConfigPort<TSource>;

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { ConnectorsPort } from '../ports.js';
-import type { Connector } from '../types.js';
-import { hasLoadedAllAdvertisedConnectorTools, mergeConnectorToolPreview } from '../rules.js';
-import { CONNECTOR_TOOL_PREVIEW_LIMIT } from '../constants.js';
+import type { ConnectorsPort } from '@jini-ai/ui-core';
+import type { Connector } from '@jini-ai/ui-core';
+import { hasLoadedAllAdvertisedConnectorTools, mergeConnectorToolPreview } from '@jini-ai/ui-core';
+import { CONNECTOR_TOOL_PREVIEW_LIMIT } from '@jini-ai/ui-core';
 
 export interface UseConnectorDetailParams {
   connectors: Connector[];

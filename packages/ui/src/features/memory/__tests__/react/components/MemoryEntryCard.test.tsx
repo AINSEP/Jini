@@ -8,7 +8,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MemoryEntryCard } from '../../../react/components/MemoryEntryCard.js';
-import type { MemoryEntrySummary } from '../../../types.js';
+import type { MemoryEntrySummary } from '@jini-ai/ui-core';
 
 function entry(over: Partial<MemoryEntrySummary> = {}): MemoryEntrySummary {
   return {

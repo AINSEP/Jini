@@ -6,8 +6,8 @@ import {
   presetRequiresApiKey,
   parseMaxTokens,
   showsBaseUrlField,
-} from '../../rules.js';
-import type { ByokConfig, ConnectionTestState, ModelDiscoveryState, ProviderPreset } from '../../types.js';
+} from '@jini-ai/ui-core';
+import type { ByokConfig, ConnectionTestState, ModelDiscoveryState, ProviderPreset } from '@jini-ai/ui-core';
 
 export interface ByokProviderFormProps {
   config: ByokConfig;

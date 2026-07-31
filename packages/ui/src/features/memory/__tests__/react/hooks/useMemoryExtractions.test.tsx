@@ -16,8 +16,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useMemoryExtractions, useWiredMemoryExtractions } from '../../../react/hooks/useMemoryExtractions.hooks.js';
 import { memoryExtractionsPort } from '../../../dependencies.js';
-import type { MemoryExtractionsPort } from '../../../ports.js';
-import type { MemoryExtractionRecord } from '../../../types.js';
+import type { MemoryExtractionsPort } from '@jini-ai/ui-core';
+import type { MemoryExtractionRecord } from '@jini-ai/ui-core';
 
 function record(
   id: string,

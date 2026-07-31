@@ -9,7 +9,7 @@
     "directory": "packages/renderers-react"
   },
   "jini": {
-    "domain": "chat",
+    "domain": "ui",
     "kind": "react-renderer",
     "runtime": "browser"
   },

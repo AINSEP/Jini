@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MemoryHowPanel } from '../../../react/components/MemoryHowPanel.js';
-import type { MemoryConfigFlagKey } from '../../../rules.js';
+import type { MemoryConfigFlagKey } from '@jini-ai/ui-core';
 
 function allFlags(value: boolean): Record<MemoryConfigFlagKey, boolean> {
   return {

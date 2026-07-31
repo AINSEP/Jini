@@ -9,8 +9,8 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MemoryConnectedPanel } from '../../../react/components/MemoryConnectedPanel.js';
-import type { Connector } from '../../../../connectors/index.js';
-import type { ConnectorMemoryAttempt, MemoryExtractionRecord, MemorySuggestion } from '../../../types.js';
+import type { Connector } from '@jini-ai/ui-core';
+import type { ConnectorMemoryAttempt, MemoryExtractionRecord, MemorySuggestion } from '@jini-ai/ui-core';
 
 function connectedConnector(id: string, over: Partial<Connector> = {}): Connector {
   return {

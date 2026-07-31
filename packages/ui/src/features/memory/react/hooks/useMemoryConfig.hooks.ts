@@ -12,11 +12,11 @@
 //     provider port and is the default a host injects, so production callers
 //     pass nothing while tests swap the whole hook.
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { createAsyncCommitGuard } from '../../async-commit-guard.js';
+import { createAsyncCommitGuard } from '@jini-ai/ui-core';
 import { memoryConfigPort } from '../../dependencies.js';
-import type { MemoryConfigPort } from '../../ports.js';
-import { enabledPatch, singleFlagPatch, type MemoryConfigFlagKey } from '../../rules.js';
-import type { MemoryListResponse } from '../../types.js';
+import type { MemoryConfigPort } from '@jini-ai/ui-core';
+import { enabledPatch, singleFlagPatch, type MemoryConfigFlagKey } from '@jini-ai/ui-core';
+import type { MemoryListResponse } from '@jini-ai/ui-core';
 
 /** One coalesced write intent: the latest desired value for a setting, plus
  *  every caller awaiting the PATCH that will carry it. */

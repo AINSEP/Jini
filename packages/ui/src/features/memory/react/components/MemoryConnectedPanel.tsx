@@ -8,11 +8,12 @@
 // concern was already dropped when the connectors canary shipped; a host
 // resolving theme-swapped logo URLs does so before handing `logoUrl` in).
 import { useMemo } from 'react';
-import { ConnectorLogo, type Connector, type ConnectorStatusMap } from '../../../connectors/index.js';
+import { type Connector, type ConnectorStatusMap } from '@jini-ai/ui-core';
+import { ConnectorLogo } from '../../../connectors/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
-import type { ConnectorMemoryAttempt, MemoryExtractionRecord, MemorySuggestion } from '../../types.js';
-import { connectorAttemptDetail, connectorAttemptTitle, formatConnectorContextBytes, memoryTypeLabels } from '../../formatters.js';
+import type { ConnectorMemoryAttempt, MemoryExtractionRecord, MemorySuggestion } from '@jini-ai/ui-core';
+import { connectorAttemptDetail, connectorAttemptTitle, formatConnectorContextBytes, memoryTypeLabels } from '@jini-ai/ui-core';
 import { MemoryExtractionCard } from './MemoryExtractionCard.js';
 
 export function MemoryConnectedPanel({

@@ -4,8 +4,8 @@
 // formatting comes from the slice formatters; state lives in the hooks.
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
-import { describeExtractionFailure, describeRecord, extractionCardMeta, extractionCardTitle } from '../../formatters.js';
-import type { MemoryExtractionRecord } from '../../types.js';
+import { describeExtractionFailure, describeRecord, extractionCardMeta, extractionCardTitle } from '@jini-ai/ui-core';
+import type { MemoryExtractionRecord } from '@jini-ai/ui-core';
 
 export function MemoryExtractionCard({
   record,

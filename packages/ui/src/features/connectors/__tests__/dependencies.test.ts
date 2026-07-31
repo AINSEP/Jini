@@ -5,7 +5,7 @@ import {
   createFakeConnectorsDependencies,
   createFakeConnectorsPort,
 } from '../dependencies.js';
-import type { Connector } from '../types.js';
+import type { Connector } from '@jini-ai/ui-core';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };

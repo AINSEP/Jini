@@ -1,17 +1,10 @@
 import { useState } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { maskFieldValue, sourceDisplayLabel } from '../../rules.js';
+import { maskFieldValue, sourceDisplayLabel } from '@jini-ai/ui-core';
 import { SourceConfigField } from './SourceConfigField.js';
 import { SourceConfigTestControl } from './SourceConfigTestControl.js';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
-import type {
-  SourceConfigItem,
-  SourceFieldSpec,
-  SourceFieldValues,
-  SourceTestResult,
-  SourceTrustOption,
-  SourceUpdateInput,
-} from '../../types.js';
+import type { SourceConfigItem, SourceFieldSpec, SourceFieldValues, SourceTestResult, SourceTrustOption, SourceUpdateInput } from '@jini-ai/ui-core';
 
 export interface SourceConfigItemCardProps<TSource extends SourceConfigItem> {
   source: TSource;

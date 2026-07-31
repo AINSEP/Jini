@@ -66,7 +66,7 @@
 // them): `rows` never contains a tombstoned id, never contains an id with a
 // pending delete, and after an authoritative clear contains only rows
 // accepted after that clear.
-import type { MemoryExtractionEvent, MemoryExtractionRecord } from '../../types.js';
+import type { MemoryExtractionEvent, MemoryExtractionRecord } from '@jini-ai/ui-core';
 
 /** Row cap mirrored from the daemon's ring buffer for live-inserted rows. */
 const MAX_ROWS = 30;

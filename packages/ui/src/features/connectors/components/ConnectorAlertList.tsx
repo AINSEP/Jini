@@ -1,5 +1,5 @@
 import { useT } from '../../i18n/index.js';
-import type { ConnectorPanelAlert } from '../types.js';
+import type { ConnectorPanelAlert } from '@jini-ai/ui-core';
 import { Icon } from '../../../react/components/Icon.js';
 
 export interface ConnectorAlertListProps {

@@ -5,7 +5,7 @@ import { I18nProvider } from '../../../i18n/index.js';
 import { SourceConfigItemCard } from './SourceConfigItemCard.js';
 import type { ComponentProps } from 'react';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
-import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '../../types.js';
+import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '@jini-ai/ui-core';
 
 const URL_FIELD: SourceFieldSpec = { key: 'url', label: 'URL', kind: 'url' };
 const KEY_FIELD: SourceFieldSpec = { key: 'apiKey', label: 'API Key', kind: 'password' };

@@ -73,6 +73,7 @@
     "@jini-ai/chat-core": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "@jini-ai/renderers-react": "workspace:*",
+    "@jini-ai/ui-core": "workspace:*",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0"
   },

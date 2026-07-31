@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { createFakeMcpIntegrationsPort } from '../../../../../tabs/integrations/dependencies.js';
+import { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
 import { useCodexInstallToggle, useWiredCodexInstallToggle } from '../../../../../tabs/integrations/react/hooks/useCodexInstallToggle.js';
 
 describe('useCodexInstallToggle', () => {

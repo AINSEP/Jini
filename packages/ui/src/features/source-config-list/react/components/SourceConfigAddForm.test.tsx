@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { validateSourceDraft } from '../../rules.js';
+import { validateSourceDraft } from '@jini-ai/ui-core';
 import { SourceConfigAddForm } from './SourceConfigAddForm.js';
 import type { ComponentProps } from 'react';
-import type { SourceFieldSpec, SourceTrustOption } from '../../types.js';
+import type { SourceFieldSpec, SourceTrustOption } from '@jini-ai/ui-core';
 
 const URL_FIELD: SourceFieldSpec = { key: 'url', label: 'URL', kind: 'url', required: true };
 const TRUST_OPTIONS: SourceTrustOption[] = [

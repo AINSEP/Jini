@@ -2,8 +2,8 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useConnectorAuthorization } from '../../hooks/useConnectorAuthorization.js';
 import { createFakeConnectorsPort } from '../../dependencies.js';
-import type { ConnectorAuthBridgePort, ConnectorAuthPendingStoragePort } from '../../ports.js';
-import type { Connector, ConnectorAuthorizationPendingState } from '../../types.js';
+import type { ConnectorAuthBridgePort, ConnectorAuthPendingStoragePort } from '@jini-ai/ui-core';
+import type { Connector, ConnectorAuthorizationPendingState } from '@jini-ai/ui-core';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };
@@ -110,10 +110,10 @@ describe('useConnectorAuthorization', () => {
 
   it('ignores a second runConnectorAction while one is already pending', async () => {
     const port = createFakeConnectorsPort({ connectors: [makeConnector()] });
-    let resolveConnect!: (value: import('../../types.js').ConnectorActionResult) => void;
+    let resolveConnect!: (value: import('@jini-ai/ui-core').ConnectorActionResult) => void;
     port.connectConnector = vi.fn(
       () =>
-        new Promise<import('../../types.js').ConnectorActionResult>((resolve) => {
+        new Promise<import('@jini-ai/ui-core').ConnectorActionResult>((resolve) => {
           resolveConnect = resolve;
         }),
     );

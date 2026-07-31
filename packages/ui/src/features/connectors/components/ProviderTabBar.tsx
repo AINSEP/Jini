@@ -1,5 +1,5 @@
 import { useT } from '../../i18n/index.js';
-import type { ProviderTab } from '../types.js';
+import type { ProviderTab } from '@jini-ai/ui-core';
 
 export interface ProviderTabBarProps {
   tabs: readonly ProviderTab[];

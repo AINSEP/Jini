@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
-import type { SettingsDialogChromeLabels, SettingsDialogTabMeta } from '../../types.js';
-import { findActiveTab } from '../../rules.js';
+import type { SettingsDialogChromeLabels, SettingsDialogTabMeta } from '@jini-ai/ui-core';
+import { findActiveTab } from '@jini-ai/ui-core';
 import { useSettingsDialogShell } from '../hooks/useSettingsDialogShell.js';
 
 /** One sidebar-nav entry + its rendered panel. Extends the pure

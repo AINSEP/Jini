@@ -2,9 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../../../i18n/index.js';
-import { createFakeExecutionPort } from '../../../../../tabs/execution/dependencies.js';
+import { createFakeExecutionPort } from '@jini-ai/ui-core';
 import { ExecutionTab } from '../../../../../tabs/execution/react/components/ExecutionTab.js';
-import type { ExecutionConfig, ProviderPreset } from '../../../../../tabs/execution/types.js';
+import type { ExecutionConfig, ProviderPreset } from '@jini-ai/ui-core';
 
 function config(overrides: Partial<ExecutionConfig> = {}): ExecutionConfig {
   return {
@@ -16,6 +16,7 @@ function config(overrides: Partial<ExecutionConfig> = {}): ExecutionConfig {
       baseUrl: 'https://api.example.com',
       model: 'example-model',
     },
+    localCli: { agentId: null },
     ...overrides,
   };
 }
@@ -107,10 +108,123 @@ describe('ExecutionTab', () => {
       />,
     );
     await waitFor(() => expect(screen.getByText('Example Agent CLI')).toBeInTheDocument());
-    const rows = screen.getAllByRole('listitem').map((row) => row.textContent ?? '');
-    expect(rows[0]).toContain('Example Agent CLI');
-    expect(rows[1]).toContain('Another Agent CLI');
+    const cards = screen
+      .getAllByTestId(/^jini-agent-card-/)
+      .map((card) => card.textContent ?? '');
+    expect(cards[0]).toContain('Example Agent CLI');
+    expect(cards[1]).toContain('Another Agent CLI');
     expect(screen.getByText('Not installed')).toBeInTheDocument();
+  });
+
+  it('renders the vendor tagline, version, and badges on an agent card', async () => {
+    render(
+      <ExecutionTab
+        config={config({ mode: 'local-cli' })}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort()}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Example Agent CLI')).toBeInTheDocument());
+    expect(screen.getByText('Example vendor CLI')).toBeInTheDocument();
+    expect(screen.getByText('1.4.0')).toBeInTheDocument();
+    expect(screen.getByText('Official')).toBeInTheDocument();
+  });
+
+  it('says authentication is required rather than reporting a version', async () => {
+    render(
+      <ExecutionTab
+        config={config({ mode: 'local-cli' })}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort({
+          agents: [
+            {
+              id: 'agent-a',
+              label: 'Example Agent CLI',
+              installed: true,
+              version: '1.4.0',
+              authStatus: 'missing',
+              authMessage: 'Run `agent-a login` first.',
+            },
+          ],
+        })}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(screen.getByText('Authentication required')).toBeInTheDocument());
+    expect(screen.queryByText('1.4.0')).not.toBeInTheDocument();
+    expect(screen.getByTitle('Run `agent-a login` first.')).toBeInTheDocument();
+  });
+
+  it('selects an agent and records a per-agent model pick', async () => {
+    const onConfigChange = vi.fn();
+    const base = config({ mode: 'local-cli' });
+    const { rerender } = render(
+      <ExecutionTab
+        config={base}
+        onConfigChange={onConfigChange}
+        port={createFakeExecutionPort()}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('jini-agent-select-agent-a')).toBeEnabled());
+    await userEvent.click(screen.getByTestId('jini-agent-select-agent-a'));
+    expect(onConfigChange).toHaveBeenCalledWith(
+      expect.objectContaining({ localCli: { agentId: 'agent-a' } }),
+    );
+
+    const selected = { ...base, localCli: { agentId: 'agent-a' } };
+    rerender(
+      <ExecutionTab
+        config={selected}
+        onConfigChange={onConfigChange}
+        port={createFakeExecutionPort()}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('jini-agent-model-agent-a')).toBeInTheDocument());
+    await userEvent.selectOptions(
+      screen.getByTestId('jini-agent-model-agent-a'),
+      'example-model-small',
+    );
+    expect(onConfigChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        localCli: { agentId: 'agent-a', modelByAgentId: { 'agent-a': 'example-model-small' } },
+      }),
+    );
+  });
+
+  it('reports a per-agent test failure that could not run at all', async () => {
+    render(
+      <ExecutionTab
+        config={{ ...config({ mode: 'local-cli' }), localCli: { agentId: 'agent-a' } }}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort({ agentTestError: 'spawn agent-a ENOENT' })}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('jini-agent-test-agent-a')).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId('jini-agent-test-agent-a'));
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('spawn agent-a ENOENT'),
+    );
+  });
+
+  it('keeps a saved model pick selectable after it leaves the reported list', async () => {
+    render(
+      <ExecutionTab
+        config={{
+          ...config({ mode: 'local-cli' }),
+          localCli: { agentId: 'agent-a', modelByAgentId: { 'agent-a': 'retired-model' } },
+        }}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort()}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('jini-agent-model-agent-a')).toBeInTheDocument());
+    // Snapping to the first option would silently change what runs.
+    expect(screen.getByTestId('jini-agent-model-agent-a')).toHaveValue('retired-model');
   });
 
   it('reports a successful connection test through the port', async () => {
@@ -199,5 +313,36 @@ describe('ExecutionTab', () => {
     expect(screen.getByText('CLI locale')).toBeInTheDocument();
     expect(screen.getByText('Clés perso')).toBeInTheDocument();
     expect(screen.getByText('Protocoles')).toBeInTheDocument();
+  });
+});
+
+describe('ExecutionTab — model provenance', () => {
+  it('makes no provenance claim when the host did not report one', async () => {
+    render(
+      <ExecutionTab
+        config={{ ...config({ mode: 'local-cli' }), localCli: { agentId: 'agent-a' } }}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort({
+          agents: [
+            {
+              id: 'agent-a',
+              label: 'Example Agent CLI',
+              installed: true,
+              // No `modelsSource` — the host simply did not say.
+              models: [{ id: 'm1', label: 'Model One' }],
+            },
+          ],
+        })}
+        presets={PRESETS}
+      />,
+    );
+    await waitFor(() => expect(screen.getByTestId('jini-agent-model-agent-a')).toBeInTheDocument());
+    // Calling an unlabelled list "Built-in list" told the operator to Rescan to
+    // fix a staleness problem they may not have.
+    expect(screen.queryByText('Built-in list')).not.toBeInTheDocument();
+    expect(screen.queryByText('Live from CLI')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Showing built-in defaults. Click Rescan to pull live models from the CLI.'),
+    ).not.toBeInTheDocument();
   });
 });
