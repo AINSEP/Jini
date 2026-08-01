@@ -75,10 +75,38 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
    *  same convention as `useProjectLocationsTab`'s refs. */
   const portRef = useRef(port);
   portRef.current = port;
+
+  /**
+   * The working set, mirrored into refs that update SYNCHRONOUSLY with each
+   * mutation rather than at the next render.
+   *
+   * These are not a render-time convenience here, they are the send-time
+   * source of truth: a queued whole-map write builds its payload from
+   * `providersRef.current` at the moment it reaches the port (see `flushNow`).
+   * Assigning them during render instead would leave a write that is issued in
+   * the same tick as an edit sending the map from BEFORE that edit. Every
+   * mutation therefore goes through `applyProviders`/`applyPending` — nothing
+   * in this hook may call `setProviders`/`setPendingProviderIds` directly.
+   */
   const providersRef = useRef(providers);
-  providersRef.current = providers;
   const pendingRef = useRef(pendingProviderIds);
-  pendingRef.current = pendingProviderIds;
+
+  const applyProviders = useCallback((next: MediaProviderMap) => {
+    providersRef.current = next;
+    setProviders(next);
+  }, []);
+
+  const applyPending = useCallback((next: ReadonlySet<string>) => {
+    pendingRef.current = next;
+    setPendingProviderIds(next);
+  }, []);
+
+  /**
+   * Provider ids mutated locally since the in-flight write took its payload.
+   * Reset at send time by `flushNow`, which then treats exactly these ids as
+   * "the server's answer does not describe this one" — see its doc comment.
+   */
+  const mutatedSinceSend = useRef<Set<string>>(new Set());
 
   const alive = useRef(true);
   useEffect(() => {
@@ -95,46 +123,110 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
   const loadTicket = useRef(0);
 
   /**
-   * The same guard for the SAVE edge, which had none.
-   *
-   * `saveChanges` and `clearProvider` both go through `persist`, the port
-   * replaces the WHOLE map, and nothing disables Clear while a save is in
-   * flight — so an ordinary Save-then-Clear double-click issues two overlapping
-   * whole-map writes. If the earlier save (whose map still contained the
-   * provider) resolves last, its `setProviders(saved)` puts the just-cleared
-   * credential back on screen and marks it pending again. Only the newest
-   * persist may write state.
-   */
-  const persistTicket = useRef(0);
-
-  /**
-   * `'superseded'` is deliberately distinct from `'failed'`, not folded into it.
+   * `'abandoned'` is deliberately distinct from `'failed'`, not folded into it.
    * `clearProvider` rolls its optimistic delete back when a save does not
-   * succeed — but rolling back a save that was merely OVERTAKEN would restore
-   * the pre-clear map and resurrect exactly the credential this fix is about.
-   * A superseded save is not a failure and must produce no state change at all.
+   * succeed — but a write whose component unmounted mid-flight has no state
+   * left to roll back, and treating it as a failure would touch a dead tree.
+   * An abandoned write must produce no state change at all.
    */
   type PersistOutcome =
-    | { readonly status: 'saved'; readonly map: MediaProviderMap }
+    | { readonly status: 'saved' }
     | { readonly status: 'failed' }
-    | { readonly status: 'superseded' };
+    | { readonly status: 'abandoned' };
 
-  const persist = useCallback(async (next: MediaProviderMap): Promise<PersistOutcome> => {
-    const ticket = ++persistTicket.current;
-    setSave({ status: 'saving' });
+  /**
+   * Issues ONE whole-map write and reconciles the server's answer.
+   *
+   * The payload is read from `providersRef` HERE, not passed in by the caller,
+   * because this function may run long after the caller asked for it (see
+   * `persist`'s serialization). Building it at send time is what makes waiting
+   * safe: a queued write always carries the live working set, never the
+   * snapshot that was current when it was requested.
+   *
+   * On success the server's copy is authoritative for everything this request
+   * sent — but NOT for a provider the operator touched while it was in flight.
+   * That entry was never in `sent`, so taking the server's value for it would
+   * eat the edit, and for a clear would put the credential back on screen. Those
+   * ids (`mutatedSinceSend`) keep local truth, including local deletion.
+   */
+  const flushNow = useCallback(async (): Promise<PersistOutcome> => {
+    const sent = providersRef.current;
+    mutatedSinceSend.current = new Set();
     try {
-      const saved = await portRef.current.saveMediaProviders(next);
-      if (!alive.current || persistTicket.current !== ticket) return { status: 'superseded' };
-      setProviders(saved);
-      setPendingProviderIds(new Set());
+      const saved = await portRef.current.saveMediaProviders(sent);
+      if (!alive.current) return { status: 'abandoned' };
+      const touched = mutatedSinceSend.current;
+      const next: MediaProviderMap = { ...saved };
+      for (const providerId of touched) {
+        const local = providersRef.current[providerId];
+        if (local === undefined) delete next[providerId];
+        else next[providerId] = local;
+      }
+      applyProviders(next);
+      // Everything this write sent is now persisted; only edits made during
+      // the flight are still unflushed.
+      applyPending(new Set([...pendingRef.current].filter((providerId) => touched.has(providerId))));
       setSave({ status: 'saved' });
-      return { status: 'saved', map: saved };
+      return { status: 'saved' };
     } catch (error: unknown) {
-      if (!alive.current || persistTicket.current !== ticket) return { status: 'superseded' };
+      if (!alive.current) return { status: 'abandoned' };
       setSave({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
       return { status: 'failed' };
     }
-  }, []);
+  }, [applyProviders, applyPending]);
+
+  /** True while a write is at the port. */
+  const writing = useRef(false);
+  /** The single coalesced follow-up write requested during that one. */
+  const queued = useRef<{ readonly promise: Promise<PersistOutcome>; readonly settle: (outcome: PersistOutcome) => void } | null>(null);
+
+  /**
+   * The whole-map contract makes concurrent writes unorderable, so this hook
+   * issues at most ONE at a time.
+   *
+   * `saveMediaProviders` replaces the ENTIRE map and carries no
+   * expected-revision (`ports.ts`), so when two writes overlap the daemon keeps
+   * whichever it happens to handle LAST — not whichever the operator issued
+   * last. A response-side ticket cannot fix that: it only decides which
+   * RESPONSE may write UI state, while the losing REQUEST has already rewritten
+   * the server. Save-then-Clear could therefore show a cleared credential,
+   * report success, and leave the credential intact on the daemon.
+   *
+   * Serializing removes the precondition instead of guarding the symptom — with
+   * one write in flight, request order IS commit order. A second request
+   * arriving while one is already queued coalesces into it rather than adding a
+   * third round trip, because both would send the same send-time map anyway.
+   */
+  const persist = useCallback((): Promise<PersistOutcome> => {
+    setSave({ status: 'saving' });
+
+    if (writing.current) {
+      if (queued.current === null) {
+        let settle!: (outcome: PersistOutcome) => void;
+        const promise = new Promise<PersistOutcome>((resolve) => {
+          settle = resolve;
+        });
+        queued.current = { promise, settle };
+      }
+      return queued.current.promise;
+    }
+
+    writing.current = true;
+    return (async () => {
+      try {
+        let outcome = await flushNow();
+        while (queued.current !== null) {
+          const waiter = queued.current;
+          queued.current = null;
+          outcome = await flushNow();
+          waiter.settle(outcome);
+        }
+        return outcome;
+      } finally {
+        writing.current = false;
+      }
+    })();
+  }, [flushNow]);
 
   const fetchAndReconcile = useCallback(
     (migrateOnFirstUpload: boolean) => {
@@ -153,14 +245,14 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
         const merged = mergeDaemonProviders(localBeforeMerge, daemonResult, {
           preserveLocalProviderIds: pendingRef.current,
         });
-        setProviders(merged);
+        applyProviders(merged);
         setLoad({ status: 'ok' });
         if (migrateOnFirstUpload && shouldSyncLocalProvidersToDaemon(localBeforeMerge, daemonResult)) {
-          void persist(merged);
+          void persist();
         }
       });
     },
-    [persist],
+    [persist, applyProviders],
   );
 
   useEffect(() => {
@@ -174,8 +266,9 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
     fetchAndReconcile(false);
   }, [fetchAndReconcile]);
 
-  const updateProvider = useCallback((providerId: string, patch: MediaProviderEditPatch) => {
-    setProviders((current) => {
+  const updateProvider = useCallback(
+    (providerId: string, patch: MediaProviderEditPatch) => {
+      const current = providersRef.current;
       const nextEntry: MediaProviderCredentials = { ...(current[providerId] ?? {}), ...patch };
       const nextMap = { ...current };
       if (isEntryEmpty(nextEntry)) {
@@ -183,32 +276,43 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
       } else {
         nextMap[providerId] = nextEntry;
       }
-      return nextMap;
-    });
-    setPendingProviderIds((current) => (current.has(providerId) ? current : new Set(current).add(providerId)));
-  }, []);
+      applyProviders(nextMap);
+      const currentPending = pendingRef.current;
+      if (!currentPending.has(providerId)) applyPending(new Set(currentPending).add(providerId));
+      mutatedSinceSend.current.add(providerId);
+    },
+    [applyProviders, applyPending],
+  );
 
   const clearProvider = useCallback(
     (providerId: string) => {
       void (async () => {
-        const previousProviders = providersRef.current;
-        const next = { ...previousProviders };
+        const previousEntry = providersRef.current[providerId];
+        const next = { ...providersRef.current };
         delete next[providerId];
-        setProviders(next);
-        const outcome = await persist(next);
+        applyProviders(next);
+        mutatedSinceSend.current.add(providerId);
+        const outcome = await persist();
         // A FAILED save rolls the optimistic clear back so the operator does
         // not lose a credential the daemon never actually dropped — same
-        // rollback shape as `useProjectLocationsTab.removeDraft`. A SUPERSEDED
-        // one must not: a newer persist already owns the state, and restoring
-        // this call's pre-clear snapshot would put the cleared credential back.
-        if (outcome.status === 'failed' && alive.current) setProviders(previousProviders);
+        // rollback shape as `useProjectLocationsTab.removeDraft`.
+        if (outcome.status !== 'failed' || !alive.current) return;
+        if (previousEntry === undefined) return;
+        // Restore ONLY this provider, into whatever the map is NOW. Restoring
+        // the whole pre-clear snapshot (as this used to) would silently discard
+        // an edit made to a DIFFERENT provider while the save was in flight —
+        // the same whole-map-replacement mistake the port makes, repeated
+        // locally. And if the operator has since re-entered this provider by
+        // hand, their value wins over the rollback.
+        if (providersRef.current[providerId] !== undefined) return;
+        applyProviders({ ...providersRef.current, [providerId]: previousEntry });
       })();
     },
-    [persist],
+    [persist, applyProviders],
   );
 
   const saveChanges = useCallback(() => {
-    void persist(providersRef.current);
+    void persist();
   }, [persist]);
 
   return {

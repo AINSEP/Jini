@@ -33,6 +33,20 @@ export interface MediaProvidersPort {
    * REJECTS on failure — unlike `ExecutionPort.testConnection`, there is no
    * "reached but declined" outcome worth modelling as a value here; a save
    * either persists or it doesn't.
+   *
+   * **Callers MUST NOT overlap two of these.** Whole-map replacement carries
+   * no expected-revision, so the implementation has nothing to reject a stale
+   * write with: when two are in flight the surviving state is whichever the
+   * host happens to handle LAST, which need not be the one issued last. A
+   * caller that guards only its own RESPONSE handling still loses — the
+   * superseded REQUEST has already rewritten the host. Serialize instead, and
+   * build each payload when it is sent rather than when it is queued
+   * (`useMediaProvidersTab`'s `persist`/`flushNow` is the reference).
+   *
+   * Adding an expected-revision parameter would let the host reject staleness
+   * outright, but this port is host-implemented, so that is a breaking change
+   * and deliberately not taken; caller-side serialization closes the same race
+   * without one.
    */
   saveMediaProviders(providers: MediaProviderMap): Promise<MediaProviderMap>;
 }
