@@ -39,6 +39,7 @@ export * from './features/schedule-picker/index.js';
 export * from './features/mention-autocomplete/index.js';
 export * from './features/memory/index.js';
 export * from './features/source-config-list/index.js';
+export * from './features/external-mcp/index.js';
 export * from './features/resource-dashboard/index.js';
 export * from './features/iframe-pool/index.js';
 export * from './features/command-palette/index.js';

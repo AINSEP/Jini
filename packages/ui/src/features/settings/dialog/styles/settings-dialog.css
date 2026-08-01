@@ -35,14 +35,22 @@
 
   --jini-success: #1f7a3a;
   --jini-danger: #9c2a25;
+  --jini-warning: #b26200;
 
   --jini-backdrop: rgba(28, 27, 26, 0.42);
   --jini-shadow-xs: 0 1px 0 rgba(28, 27, 26, 0.04);
+  --jini-shadow-md: 0 6px 24px rgba(28, 27, 26, 0.07), 0 2px 6px rgba(28, 27, 26, 0.04);
   --jini-shadow-lg: 0 24px 60px rgba(28, 27, 26, 0.16), 0 8px 16px rgba(28, 27, 26, 0.07);
 
   --jini-radius-xs: 4px;
   --jini-radius-sm: 6px;
   --jini-radius: 8px;
+  /* Ported alongside OD's real Connectors/Skills CSS (2026-07-31) — OD's
+     `.skills-row`/`.ds-picker-popover` reach for a 10px radius distinct
+     from both `--radius` (8px, generic cards) and `--radius-lg` (12px,
+     modals/gate cards); rather than round that down to an existing step
+     and lose the distinction OD's own scale makes, this token was added. */
+  --jini-radius-md: 10px;
   --jini-radius-lg: 12px;
   --jini-radius-pill: 999px;
 
@@ -69,9 +77,11 @@
 
     --jini-success: #4caf72;
     --jini-danger: #e06b65;
+    --jini-warning: #e09a40;
 
     --jini-backdrop: rgba(0, 0, 0, 0.55);
     --jini-shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.2);
+    --jini-shadow-md: 0 6px 24px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25);
     --jini-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3);
   }
 }
@@ -93,8 +103,10 @@
   --jini-accent-hover: #e8896a;
   --jini-success: #4caf72;
   --jini-danger: #e06b65;
+  --jini-warning: #e09a40;
   --jini-backdrop: rgba(0, 0, 0, 0.55);
   --jini-shadow-xs: 0 1px 0 rgba(0, 0, 0, 0.2);
+  --jini-shadow-md: 0 6px 24px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.25);
   --jini-shadow-lg: 0 24px 60px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.3);
 }
 
@@ -113,8 +125,10 @@
   --jini-accent-hover: #b45a3b;
   --jini-success: #1f7a3a;
   --jini-danger: #9c2a25;
+  --jini-warning: #b26200;
   --jini-backdrop: rgba(28, 27, 26, 0.42);
   --jini-shadow-xs: 0 1px 0 rgba(28, 27, 26, 0.04);
+  --jini-shadow-md: 0 6px 24px rgba(28, 27, 26, 0.07), 0 2px 6px rgba(28, 27, 26, 0.04);
   --jini-shadow-lg: 0 24px 60px rgba(28, 27, 26, 0.16), 0 8px 16px rgba(28, 27, 26, 0.07);
 }
 
@@ -1814,1240 +1828,924 @@ a.jini-button {
   background: color-mix(in srgb, var(--jini-text-strong) 75%, transparent);
 }
 
+PLACEHOLDER_WILL_NOT_BE_USED
+
 /* ============================================================
-   Connectors tab (ConnectorsBrowser + ConnectorCard/Grid/Gate/
-   Drawer, ProviderTabBar, ConnectorSearchBar, ConnectorAlertList)
+   Memory + External MCP OD-parity pass (2026-07-31)
    ============================================================
-   `grep -c connector` against this file returned 0 before this pass — every
-   `connector-*`/`connectors-*` class, plus the bare `ghost`/`primary`/
-   `icon-only` action-button classes this feature also uses, rendered as
-   unstyled browser defaults. In Tovu's actual mounted state (locked,
-   catalog genuinely empty — no Composio key, `unlocked={false}`), the
-   concrete symptom was a floating unstyled "All" chip, a barely-boxed
-   search input, and then nothing at all below it: `gate` wasn't being
-   supplied, so `ConnectorGrid` rendered zero cards and no overlay.
-   Reference: `od-settings-connectors.png` (locked/empty state — the spec
-   for the gate card below) and `od-integrations-connectors.png` (same
-   panel, page context, confirms the same layout). */
+   Everything below is new. Before this pass, `memory-*`/`library-*`/
+   `settings-section*` (used by `MemoryList`/`MemoryHowPanel`/
+   `MemoryHooksPanel`, `features/memory`) and `source-config-list-*`/
+   `source-config-*` (used by `SourceConfigList`'s presentational pieces,
+   `features/source-config-list`) had ZERO rules anywhere in this file —
+   both features were functional but had literally never been styled by any
+   host. Reference screenshots: `od-settings-memory.png`,
+   `od-settings-memory-howitworks.png`, `od-settings-external-mcp.png`,
+   `od-settings-external-mcp-customform.png`. Tovu mounts the two new
+   composed components this section styles — `MemorySettingsPanel`
+   (`features/memory`) and `ExternalMcpTab` (new `features/external-mcp`) —
+   inert-wrapped in `SettingsUi.tsx`, same pattern as Media providers/
+   Connectors/Skills. */
 
-/* `.connectors-heading` is `ConnectorsBrowser`'s own internal "Connectors" /
-   "Connect third-party tools and services." — it duplicates the host
-   dialog's own tab title + subtitle verbatim (confirmed live: Tovu was
-   rendering both, stacked). Neither OD reference screenshot shows this
-   heading inside the panel at all, so OD's own page evidently suppresses
-   it the same way. `connectors-panel-embedded` is a modifier class the
-   component already emits for exactly this "mounted inside a host's own
-   chrome" case — hiding through it needs no JSX change. */
-.connectors-panel-embedded .connectors-heading {
-  display: none;
-}
-
-.connectors-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.tab-panel-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.connectors-heading h2 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.connectors-heading p {
-  margin: 2px 0 0;
-  font-size: 13px;
-  color: var(--jini-text-muted);
-}
-
-.toolbar-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-left: auto;
-}
-
-/* With `.connectors-heading` hidden (see above), an embedded host's toolbar
-   has nothing on the left to balance against — `margin-left: auto` on
-   `.toolbar-right` was leaving it stranded against the right edge with the
-   search field still sized to its own content, a narrow box floating over
-   empty space. Both OD references show the search field spanning the full
-   row width instead, so let it grow to fill the row once there's no
-   heading fighting it for space. A host that keeps the heading (embedded
-   or not) is unaffected — this only fires when the heading is gone. */
-.connectors-panel-embedded .toolbar-right {
-  flex: 1 1 auto;
-  margin-left: 0;
-}
-
-/* Provider tabs — `DEFAULT_PROVIDER_TABS` ships a single "All" tab so the
-   feature "renders something sensible out of the box" (its own doc
-   comment). A lone tab conveys nothing, and neither OD reference shows a
-   tab row at all for the single-provider case, so it's hidden rather than
-   styled as a one-chip row. A host that supplies 2+ real provider tabs
-   still gets the chip treatment below. */
-.connectors-provider-tabs:has(> button:only-child) {
-  display: none;
-}
-
-.connectors-provider-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.connectors-provider-tab {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 12px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--jini-text-muted);
-  background: transparent;
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-pill);
-  cursor: pointer;
-  transition:
-    color 120ms var(--jini-ease-out),
-    border-color 120ms var(--jini-ease-out),
-    background-color 120ms var(--jini-ease-out);
-}
-
-.connectors-provider-tab:hover {
-  color: var(--jini-text);
-  border-color: var(--jini-border-strong);
-}
-
-.connectors-provider-tab.is-active {
-  background: var(--jini-accent);
-  border-color: var(--jini-accent);
-  color: #fff;
-}
-
-/* Search — `ConnectorSearchBar` renders a bare icon span + `<input
-   type="search">` with no wrapper styling at all. Reference: both OD
-   screenshots' rounded, icon-prefixed "Search connectors..." field. */
-.toolbar-search.connectors-search {
+/* ---- Generic checkbox toggle switch ---------------------------------
+   `toggle-switch`/`toggle-switch-sm`/`toggle-slider`: a real
+   `<input type="checkbox">` plus a sibling `<span class="toggle-slider">`,
+   styled via `:checked + .toggle-slider` — a different shape from
+   `.jini-toggle-row`'s button-plus-class-toggle above. Used by
+   `MemoryHooksPanel`'s four per-row toggles and `MemorySettingsPanel`'s
+   master switch; had no rules anywhere (every hook toggle rendered as a
+   bare unstyled checkbox before this). */
+.toggle-switch {
   position: relative;
-  display: flex;
-  align-items: center;
-  flex: 1 1 260px;
-  min-width: 180px;
-}
-
-.connectors-search .search-icon {
-  position: absolute;
-  left: 10px;
   display: inline-flex;
-  color: var(--jini-text-muted);
-  pointer-events: none;
+  align-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
 }
 
-.connectors-search input {
-  width: 100%;
-  padding: 8px 30px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--jini-text);
-  background: var(--jini-bg-panel);
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-sm);
-  transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
+.toggle-switch input {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
-.connectors-search input:focus {
-  outline: none;
-  border-color: var(--jini-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
-}
-
-.connectors-search input:disabled {
-  opacity: 0.6;
+.toggle-switch input:disabled {
   cursor: not-allowed;
 }
 
-.connectors-search .toolbar-search-clear {
-  position: absolute;
-  right: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  color: var(--jini-text-muted);
-  background: transparent;
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.connectors-search .toolbar-search-clear:hover {
-  color: var(--jini-text);
-  background: var(--jini-bg-subtle);
-}
-
-/* Per-connector background auth-failure banners. */
-.connector-panel-alerts {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.connector-panel-alert {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
-  border-left: 3px solid var(--jini-danger);
-  border-radius: var(--jini-radius-sm);
-  background: color-mix(in srgb, var(--jini-danger) 6%, var(--jini-bg-subtle));
-  font-size: 12px;
-}
-
-.connector-panel-alert-copy {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--jini-text);
-}
-
-.connector-panel-alert-copy strong {
-  color: var(--jini-danger);
-}
-
-.connector-panel-alert-action {
-  flex: 0 0 auto;
-}
-
-/* Grid + locked-gate composition. `.is-masked` is the "real connectors
-   render, faded, behind the gate card" treatment visible in
-   `od-settings-connectors.png` (the row of half-visible card titles below
-   its empty-card). Tovu's own catalog is genuinely empty while locked — no
-   fabricated cards, per `dependencies.ts`'s fake double — so this host
-   shows the gate over blank space rather than a faded preview; a host with
-   a real catalog gets the full effect this rule is built for. */
-.connector-grid-wrap {
-  position: relative;
-  min-height: 160px;
-}
-
-.connector-grid-wrap.is-masked .connector-grid {
-  filter: blur(2px);
-  opacity: 0.45;
-  pointer-events: none;
-  user-select: none;
-}
-
-.connector-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 10px;
-}
-
-/* Search-no-results state (`hasNoResults`) — distinct from the locked
-   gate below: a plain centered message + a "Clear search" ghost action,
-   no card. */
-.tab-empty.connectors-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 32px 16px;
-  text-align: center;
-}
-
-.connectors-empty-title {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.connectors-empty-body {
-  margin: 0;
-  font-size: 12px;
-  color: var(--jini-text-muted);
-}
-
-.connectors-empty-action {
-  margin-top: 4px;
-}
-
-/* Locked gate card — the centerpiece of `od-settings-connectors.png`. */
-.connector-gate {
+.toggle-slider {
   position: absolute;
   inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 16px;
+  background: var(--jini-border-strong);
+  border-radius: var(--jini-radius-pill);
+  pointer-events: none;
+  transition: background-color 120ms var(--jini-ease-out);
 }
 
-.connector-gate-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  width: min(100%, 360px);
-  padding: 32px 28px;
-  text-align: center;
-  color: inherit;
-  text-decoration: none;
-  background: var(--jini-bg-elevated);
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-lg);
-  box-shadow: 0 4px 16px color-mix(in srgb, black 6%, transparent);
-  transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
-}
-
-.connector-gate-card:hover {
-  border-color: var(--jini-border-strong);
-  box-shadow: 0 8px 24px color-mix(in srgb, black 8%, transparent);
-}
-
-.connector-gate-icon {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 8px;
-  color: var(--jini-text-muted);
-  background: var(--jini-bg-subtle);
+.toggle-slider::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-}
-
-.connector-gate-title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.connector-gate-body {
-  margin: 0;
-  max-width: 280px;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--jini-text-muted);
-}
-
-.connector-gate-cta {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-top: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.connector-gate-card:hover .connector-gate-cta {
-  text-decoration: underline;
-}
-
-/* ---- Connector cards ---- */
-
-.connector-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius);
-  background: var(--jini-bg-panel);
-  cursor: pointer;
-  transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
-}
-
-.connector-card:hover {
-  border-color: var(--jini-border-strong);
+  background: #fff;
   box-shadow: var(--jini-shadow-xs);
-}
-
-.connector-card.is-locked {
-  cursor: not-allowed;
-  opacity: 0.7;
-}
-
-.connector-card-top {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-}
-
-.connector-card-head {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.connector-card-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.connector-card-title-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.connector-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.connector-meta-category {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  color: var(--jini-text-muted);
-}
-
-.connector-tools-badge {
-  display: inline-flex;
-  padding: 1px 7px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--jini-text-muted);
-  background: var(--jini-bg-subtle);
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-pill);
-  white-space: nowrap;
-}
-
-.connector-card-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-}
-
-.connector-status-dot {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--jini-text-disabled);
-}
-
-.connector-status-dot.status-connected {
-  background: var(--jini-success);
-}
-
-.connector-status-dot.status-pending {
-  background: var(--jini-accent);
-}
-
-.connector-status-pill {
-  display: inline-flex;
-  padding: 1px 8px;
-  font-size: 10px;
-  font-weight: 600;
-  border-radius: var(--jini-radius-pill);
-  background: var(--jini-bg-subtle);
-  color: var(--jini-text-muted);
-  border: 1px solid var(--jini-border);
-}
-
-.connector-status-pill.status-error {
-  color: var(--jini-danger);
-  border-color: color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
-  background: color-mix(in srgb, var(--jini-danger) 8%, var(--jini-bg-subtle));
-}
-
-.connector-authorization-hint {
-  margin: 0;
-  font-size: 11px;
-  color: var(--jini-text-muted);
-}
-
-.connector-authorization-error {
-  color: var(--jini-danger);
-}
-
-.connector-authorization-link {
-  align-self: flex-start;
-  padding: 0;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--jini-accent);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.connector-authorization-link:hover {
-  color: var(--jini-accent-hover);
-  text-decoration: underline;
-}
-
-/* Icon-only + bare `ghost`/`primary` action buttons — shared across the
-   card, the drawer, and (`primary`) the drawer footer's connect button;
-   none of these three carried any rule anywhere in this file. */
-.icon-only {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  color: var(--jini-text-muted);
-  background: transparent;
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-sm);
-  cursor: pointer;
-  transition:
-    color 120ms var(--jini-ease-out),
-    border-color 120ms var(--jini-ease-out),
-    background-color 120ms var(--jini-ease-out);
-}
-
-.icon-only:hover:not(:disabled) {
-  color: var(--jini-text);
-  border-color: var(--jini-border-strong);
-}
-
-.icon-only:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.icon-only.is-connect {
-  color: var(--jini-accent);
-  border-color: color-mix(in srgb, var(--jini-accent) 35%, var(--jini-border));
-}
-
-.icon-only.is-connect:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--jini-accent) 8%, transparent);
-}
-
-.icon-only.is-loading {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.ghost {
-  color: var(--jini-text-muted);
-  background: transparent;
-  border-color: transparent;
-}
-
-.ghost:hover:not(:disabled) {
-  color: var(--jini-text);
-  background: var(--jini-bg-subtle);
-}
-
-.primary {
-  color: #fff;
-  background: var(--jini-accent);
-  border-color: var(--jini-accent);
-}
-
-.primary:hover:not(:disabled) {
-  background: var(--jini-accent-hover);
-  border-color: var(--jini-accent-hover);
-}
-
-/* Connector logo / initials fallback. */
-.connector-logo {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  overflow: hidden;
-  border-radius: var(--jini-radius-sm);
-  background: var(--jini-bg-subtle);
-}
-
-.connector-logo.size-sm {
-  width: 28px;
-  height: 28px;
-}
-
-.connector-logo.size-lg {
-  width: 40px;
-  height: 40px;
-  border-radius: var(--jini-radius);
-}
-
-.connector-logo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.connector-logo-fallback {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--jini-text-muted);
-}
-
-.connector-logo.size-lg .connector-logo-fallback {
-  font-size: 15px;
-}
-
-.connector-logo:not(.is-fallback) .connector-logo-fallback {
-  display: none;
-}
-
-/* Palette hash (`fallbackLogoPaletteIndex`, 0-5) picks the fallback tile's
-   tint — six hues around the app's own accent so a run of initials tiles
-   doesn't repeat the same color. */
-.connector-logo.is-fallback[data-palette='0'] {
-  background: color-mix(in srgb, var(--jini-accent) 18%, var(--jini-bg-subtle));
-}
-
-.connector-logo.is-fallback[data-palette='1'] {
-  background: color-mix(in srgb, #4f7cac 18%, var(--jini-bg-subtle));
-}
-
-.connector-logo.is-fallback[data-palette='2'] {
-  background: color-mix(in srgb, var(--jini-success) 18%, var(--jini-bg-subtle));
-}
-
-.connector-logo.is-fallback[data-palette='3'] {
-  background: color-mix(in srgb, #9163b6 18%, var(--jini-bg-subtle));
-}
-
-.connector-logo.is-fallback[data-palette='4'] {
-  background: color-mix(in srgb, #c9a53a 18%, var(--jini-bg-subtle));
-}
-
-.connector-logo.is-fallback[data-palette='5'] {
-  background: color-mix(in srgb, #4fa3ac 18%, var(--jini-bg-subtle));
-}
-
-/* ---- Detail drawer ---- */
-
-.connector-drawer-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 70;
-  display: flex;
-  justify-content: flex-end;
-  background: var(--jini-backdrop);
-}
-
-.connector-drawer {
-  display: flex;
-  flex-direction: column;
-  width: min(420px, 100%);
-  height: 100%;
-  background: var(--jini-bg-elevated);
-  border-left: 1px solid var(--jini-border);
-  box-shadow: var(--jini-shadow-lg);
-  overflow: hidden;
-}
-
-.connector-drawer-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 18px;
-  border-bottom: 1px solid var(--jini-border);
-}
-
-.connector-drawer-titles {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.connector-drawer-eyebrow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--jini-text-muted);
-}
-
-.connector-meta-dot {
-  color: var(--jini-text-disabled);
-}
-
-.connector-drawer-titles h2 {
-  margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-  overflow-wrap: anywhere;
-}
-
-.connector-drawer-status {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.connector-drawer-status .connector-status-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.connector-drawer-tool-count-chip {
-  display: inline-flex;
-  padding: 1px 8px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--jini-text-muted);
-  background: var(--jini-bg-subtle);
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-pill);
-}
-
-.connector-drawer-close {
-  flex: 0 0 auto;
-}
-
-.connector-drawer-body {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  padding: 18px;
-  overflow-y: auto;
-}
-
-.connector-drawer-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.connector-drawer-section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.connector-drawer-section-title {
-  margin: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--jini-text-muted);
-}
-
-.connector-drawer-count {
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: normal;
-}
-
-.connector-drawer-description {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--jini-text);
-}
-
-.connector-authorization-block {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: var(--jini-radius-sm);
-  background: var(--jini-bg-subtle);
-}
-
-.connector-drawer-inline-action {
-  flex: 0 0 auto;
-}
-
-.connector-drawer-details {
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 10px;
-}
-
-.connector-drawer-details > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.connector-drawer-details dt {
-  font-size: 11px;
-  color: var(--jini-text-muted);
-}
-
-.connector-drawer-details dd {
-  margin: 0;
-  font-size: 13px;
-  color: var(--jini-text);
-  overflow-wrap: anywhere;
-}
-
-.connector-drawer-details-error dd {
-  color: var(--jini-danger);
-}
-
-.connector-drawer-empty {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--jini-text-muted);
-}
-
-.connector-drawer-tools {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.connector-drawer-tool {
-  padding: 10px 12px;
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-sm);
-  background: var(--jini-bg-panel);
-}
-
-.connector-drawer-tool-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.connector-drawer-tool-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.connector-drawer-tool-badge {
-  flex: 0 0 auto;
-  padding: 1px 7px;
-  font-size: 10px;
-  font-weight: 500;
-  border-radius: var(--jini-radius-pill);
-  background: var(--jini-bg-subtle);
-  color: var(--jini-text-muted);
-  border: 1px solid var(--jini-border);
-}
-
-.connector-drawer-tool-badge.side-write,
-.connector-drawer-tool-badge.side-destructive {
-  color: var(--jini-danger);
-  border-color: color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
-  background: color-mix(in srgb, var(--jini-danger) 8%, var(--jini-bg-subtle));
-}
-
-.connector-drawer-tool-desc {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--jini-text-muted);
-}
-
-.connector-drawer-tool-name {
-  display: inline-block;
-  margin-top: 6px;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 11px;
-  color: var(--jini-text-muted);
-}
-
-.connector-drawer-load-more {
-  align-self: center;
-}
-
-.connector-drawer-foot {
-  display: flex;
-  gap: 8px;
-  padding: 14px 18px;
-  border-top: 1px solid var(--jini-border);
-}
-
-.connector-drawer-foot .primary {
-  flex: 1 1 auto;
-  justify-content: center;
-}
-
-/* ============================================================
-   Skills tab (SkillsTab / SkillRow / SkillDraftForm)
-   ============================================================
-   ~30 `jini-skills-*` classes had no rules: the toolbar's search+"New
-   skill" row didn't stretch the search field to fill the row, the
-   Source/Type filter selects rendered as bare inline `<label><span>text
-   </span><select>` pairs (label and select sharing one line, rather than
-   OD's label-above-select stack), and every row/detail/draft-form class
-   below the toolbar was unstyled. Reference: `od-integrations-skills.png`
-   — the only OD screenshot available for this tab shows just the toolbar
-   + empty-results state (no populated row was captured), so the
-   row/detail/draft-form rules below extend this stylesheet's own
-   established vocabulary rather than a pixel reference — called out
-   again at the specific rule below where it matters most (the enable
-   toggle). */
-
-.jini-skills-toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.jini-skills-toolbar-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.jini-skills-search {
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 8px 12px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--jini-text);
-  background: var(--jini-bg-panel);
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-sm);
-  transition: border-color 120ms var(--jini-ease-out), box-shadow 120ms var(--jini-ease-out);
-}
-
-.jini-skills-search:focus {
-  outline: none;
-  border-color: var(--jini-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
-}
-
-.jini-skills-filter-selects {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-
-.jini-skills-filter-select {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--jini-text-muted);
-}
-
-.jini-skills-filter-select select {
-  min-width: 140px;
-  padding: 7px 10px;
-  font: inherit;
-  font-size: 13px;
-  color: var(--jini-text);
-  background: var(--jini-bg-panel);
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-sm);
-  cursor: pointer;
-}
-
-.jini-skills-filter-select select:focus {
-  outline: none;
-  border-color: var(--jini-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
-}
-
-.jini-skills-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.jini-skills-row {
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius);
-  background: var(--jini-bg-panel);
-  transition: border-color 120ms var(--jini-ease-out);
-}
-
-.jini-skills-row-disabled {
-  opacity: 0.6;
-}
-
-.jini-skills-row-expanded {
-  border-color: var(--jini-border-strong);
-}
-
-.jini-skills-row-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 6px 4px 12px;
-}
-
-.jini-skills-row-summary-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1 1 auto;
-  min-width: 0;
-  padding: 10px 0;
-  font: inherit;
-  text-align: left;
-  color: var(--jini-text-muted);
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.jini-skills-row-summary-btn > svg:first-child {
-  flex: 0 0 auto;
-  color: var(--jini-text-muted);
-}
-
-.jini-skills-row-summary-btn > svg:last-child {
-  flex: 0 0 auto;
-  color: var(--jini-text-muted);
   transition: transform 120ms var(--jini-ease-out);
 }
 
-.jini-skills-row-expanded .jini-skills-row-summary-btn > svg:last-child {
-  transform: rotate(180deg);
+.toggle-switch input:checked + .toggle-slider {
+  background: var(--jini-accent);
 }
 
-.jini-skills-row-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1 1 auto;
+.toggle-switch input:checked + .toggle-slider::after {
+  transform: translateX(16px);
 }
 
-.jini-skills-row-summary-line {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+.toggle-switch input:disabled + .toggle-slider {
+  opacity: 0.55;
 }
 
-.jini-skills-row-summary-line strong {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--jini-text-strong);
-}
-
-.jini-skills-row-summary-mode,
-.jini-skills-row-summary-category,
-.jini-skills-row-summary-source {
-  display: inline-flex;
-  padding: 1px 7px;
-  font-size: 10px;
-  font-weight: 500;
-  color: var(--jini-text-muted);
-  background: var(--jini-bg-subtle);
-  border: 1px solid var(--jini-border);
-  border-radius: var(--jini-radius-pill);
-}
-
-.jini-skills-row-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-}
-
-.jini-skills-delete-confirm {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.jini-button-danger {
-  color: #fff;
-  background: var(--jini-danger);
-  border-color: var(--jini-danger);
-}
-
-.jini-button-danger:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--jini-danger) 85%, black);
-  border-color: color-mix(in srgb, var(--jini-danger) 85%, black);
-}
-
-/* `SkillRow`'s enable toggle reuses `.jini-toggle-row` — a big, bordered,
-   full-width row built for Privacy's standalone toggle list — as a
-   wrapper around one bare `<input type="checkbox">` inside a compact
-   per-row action strip. Scoped back down to an inline control sized for
-   that context here, rather than changing the shared class every other
-   `.jini-toggle-row` consumer depends on. No OD reference exists for a
-   populated skill row (see the section comment above), so this is a
-   plain, sized, accent-colored checkbox rather than an attempted pixel
-   match to something nobody has a screenshot of. */
-.jini-skills-row-enable.jini-toggle-row {
-  display: inline-flex;
-  width: auto;
-  padding: 0;
-  margin-left: 2px;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.jini-skills-row-enable input[type='checkbox'] {
-  width: 32px;
+/* `MemoryHooksPanel`'s per-row size — smaller track/knob than the master
+   switch in `MemorySettingsPanel`'s header. */
+.toggle-switch-sm {
+  width: 30px;
   height: 18px;
-  accent-color: var(--jini-accent);
-  cursor: pointer;
 }
 
-.jini-skills-row-detail {
+.toggle-switch-sm .toggle-slider::after {
+  width: 14px;
+  height: 14px;
+}
+
+.toggle-switch-sm input:checked + .toggle-slider::after {
+  transform: translateX(12px);
+}
+
+/* ---- Memory tab head card (`MemorySettingsPanel`) --------------------- */
+
+.memory-settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 4px 16px 16px;
-  border-top: 1px solid var(--jini-border);
+  gap: 16px;
+  margin-top: 14px;
 }
 
-.jini-skills-row-detail h5 {
-  margin: 0 0 6px;
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--jini-text-muted);
-}
-
-.jini-skills-body-preview {
-  margin: 0;
-  max-height: 220px;
-  padding: 10px 12px;
-  overflow: auto;
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--jini-text);
-  background: var(--jini-bg-subtle);
-  border-radius: var(--jini-radius-sm);
-  white-space: pre-wrap;
-}
-
-.jini-skills-file-tree {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.jini-skills-file-entry {
+.memory-panel-head-card {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--jini-text);
-}
-
-.jini-skills-file-entry svg {
-  flex: 0 0 auto;
-  color: var(--jini-text-muted);
-}
-
-.jini-skills-draft-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.jini-skills-draft {
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
   padding: 16px;
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius);
   background: var(--jini-bg-panel);
 }
 
-.jini-skills-draft h4 {
-  margin: 0;
+.memory-panel-head-copy h4 {
+  margin: 0 0 4px;
   font-size: 14px;
   font-weight: 600;
   color: var(--jini-text-strong);
 }
 
-/* `SkillDraftForm`'s own `.jini-settings-field` labels wrap a bare
-   `<input>`/`<textarea>` — this shared class already has a base rule
-   (Notifications tab) but never one for its actual form controls, since
-   Notifications only ever nests a `.jini-seg-control` inside it. Also
-   fixes `PrivacyTab`'s read-only Anonymous ID `<input>`, the only other
-   `.jini-settings-field > input` in the codebase — same gap, same fix. */
-.jini-settings-field input,
-.jini-settings-field textarea {
+.memory-panel-head-copy .hint {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.memory-panel-head-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+/* Narrower than `.jini-seg-control`'s other hosts (Execution mode/
+   Appearance stretch to fill their own full-width row) — Memory's two
+   segments share their header row with three more controls, so the pill
+   sizes to its own two short labels instead of stretching. */
+.memory-panel-seg {
+  width: auto;
+  min-width: 0;
+  min-height: 34px;
+}
+
+.memory-panel-seg .jini-seg-btn {
+  padding: 6px 12px;
+}
+
+.memory-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Tovu's own global `button { padding: 0.5rem 0.95rem }` reset otherwise
+     wins here (this rule never declared a `padding` of its own, so the
+     cascade fills it in from that less-specific element selector) — 15.2px
+     of horizontal padding on each side left a 34px button almost no room for
+     its 14px icon, squashing the `<svg>` to ~1.6px wide. Explicit `padding:
+     0` plus centering via flex is this button's own sizing model. */
+  padding: 0;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.memory-icon-btn svg {
+  flex-shrink: 0;
+}
+
+.memory-icon-btn:hover:not(:disabled) {
+  color: var(--jini-text);
+  border-color: var(--jini-border-strong);
+}
+
+.memory-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* ---- Saved-memory card (`MemoryList`) --------------------------------- */
+
+.settings-section-card,
+.memory-records-section {
+  padding: 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.memory-management-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.memory-subsection-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.memory-subsection-head h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.memory-subsection-head .hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.memory-management-counts {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.memory-source-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-pill);
+  white-space: nowrap;
+}
+
+.library-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.library-filters {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-pill);
+  cursor: pointer;
+}
+
+/* Neutral highlight, not a filled accent pill — `od-settings-memory.png`'s
+   "All 0" (the only pill ever visible while every type count is 0) is a
+   plain bordered pill with dark text, not coral-filled. */
+.filter-pill.active {
+  color: var(--jini-text-strong);
+  font-weight: 600;
+  border-color: var(--jini-border-strong);
+}
+
+.filter-pill-count {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+.memory-management-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.library-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.library-empty {
+  padding: 20px 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-subtle);
+}
+
+.library-empty-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.library-empty-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.library-empty-hint code {
+  padding: 1px 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-xs);
+}
+
+/* ---- "How it works" card (`MemoryHowPanel` + `MemoryHooksPanel`) ------ */
+
+.memory-how-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.memory-auto-flow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.memory-auto-flow strong {
+  color: var(--jini-text-strong);
+}
+
+.memory-how-copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--jini-text);
+}
+
+.memory-hooks-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-subtle);
+}
+
+.memory-hooks-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.memory-hooks-panel-head-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  color: var(--jini-accent);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+}
+
+.memory-hooks-panel-title {
+  margin: 0 0 2px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.memory-hooks-panel-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.memory-hooks-panel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.memory-hooks-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 4px;
+  border-top: 1px solid var(--jini-border);
+}
+
+.memory-hooks-panel-list .memory-hooks-panel-row:first-child {
+  border-top: none;
+}
+
+.memory-hooks-panel-row-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  flex: 0 0 auto;
+  color: var(--jini-text-muted);
+}
+
+.memory-hooks-panel-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.memory-hooks-panel-row-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jini-text);
+}
+
+.memory-hooks-panel-row-desc {
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.memory-hooks-panel-toggle {
+  flex: 0 0 auto;
+}
+
+/* ---- `source-config-list` primitive (External MCP's list/add-form) --- */
+
+.source-config-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.source-config-list-head h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.source-config-list-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.source-config-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.source-config-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-config-field-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--jini-text-muted);
+}
+
+.source-config-field-required {
+  color: var(--jini-danger);
+}
+
+.source-config-field input,
+.source-config-field select,
+.source-config-field textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;
   font: inherit;
   font-size: 13px;
-  line-height: 1.5;
   color: var(--jini-text);
   background: var(--jini-bg-panel);
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
 }
 
-.jini-settings-field textarea {
+.source-config-field textarea {
+  min-height: 64px;
   resize: vertical;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
 }
 
-.jini-settings-field input:focus,
-.jini-settings-field textarea:focus {
+.source-config-field input:focus,
+.source-config-field select:focus,
+.source-config-field textarea:focus {
   outline: none;
   border-color: var(--jini-accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
 }
 
-.jini-settings-field input:read-only {
+.source-config-field-row {
+  display: flex;
+  gap: 6px;
+}
+
+.source-config-field-row input {
+  flex: 1 1 auto;
+}
+
+.source-config-field-toggle {
+  flex: 0 0 auto;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 12px;
   color: var(--jini-text-muted);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.source-config-field-error {
+  font-size: 11px;
+  color: var(--jini-danger);
+}
+
+.source-config-add-form-error {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--jini-danger);
+  background: color-mix(in srgb, var(--jini-danger) 6%, var(--jini-bg-subtle));
+  border: 1px solid color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
+  border-radius: var(--jini-radius-sm);
+}
+
+.source-config-add-form-submit {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--jini-accent);
+  border: 1px solid var(--jini-accent);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.source-config-add-form-submit:hover:not(:disabled) {
+  background: var(--jini-accent-hover);
+  border-color: var(--jini-accent-hover);
+}
+
+.source-config-add-form-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.source-config-test-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.source-config-test-control-status {
+  font-size: 12px;
+}
+
+.source-config-test-status.is-running,
+.source-config-test-status.is-success {
+  color: var(--jini-success);
+}
+
+.source-config-test-status.is-error {
+  color: var(--jini-danger);
+}
+
+.source-config-test-button {
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.source-config-test-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.source-config-list-error,
+.source-config-list-loading {
+  padding: 12px 14px;
+  font-size: 12px;
+  border-radius: var(--jini-radius-sm);
+}
+
+.source-config-list-error {
+  color: var(--jini-danger);
+  background: color-mix(in srgb, var(--jini-danger) 6%, var(--jini-bg-subtle));
+  border: 1px solid color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
+}
+
+.source-config-list-loading {
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+}
+
+.source-config-list-empty {
+  padding: 16px;
+  border: 1px dashed var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  color: var(--jini-text-muted);
+  font-size: 12px;
   background: var(--jini-bg-subtle);
 }
 
-/* `.jini-hint-error` — used by `SkillDraftForm`, `MediaProvidersTab`,
-   `ProjectLocationsTab`, and `CodexInstallToggleButton` — had no rule at
-   all anywhere in this file (only the differently-named
-   `.jini-field-hint.is-error` existed). One-line fix, in scope here
-   because `SkillDraftForm`'s validation errors are this tab's own. */
-.jini-hint-error {
+.source-config-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.source-config-item-card {
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-panel);
+}
+
+.source-config-item-card-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.source-config-item-card-enabled-toggle {
+  flex: 0 0 auto;
+}
+
+.source-config-item-card-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--jini-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.source-config-item-card-label {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-config-item-card-trust-badge {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--jini-text-muted);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-pill);
+  white-space: nowrap;
+}
+
+.source-config-item-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.source-config-item-card-actions button,
+.source-config-item-card-actions select {
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.source-config-item-card-remove {
   color: var(--jini-danger);
+}
+
+.source-config-item-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--jini-border);
+}
+
+.source-config-item-card-edit-toggle {
+  display: flex;
+  gap: 6px;
+  padding-top: 10px;
+}
+
+.source-config-item-card-edit-toggle button {
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.source-config-item-card-edit-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source-config-item-card-fields {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 6px 12px;
+  margin: 10px 0 0;
+}
+
+/* Each field is a `<div class="source-config-item-card-field">` wrapping one
+   `<dt>`/`<dd>` pair (`SourceConfigItemCard.tsx`) — `display: contents` lets
+   that wrapper disappear from layout so its `dt`/`dd` land directly in the
+   parent `<dl>`'s two-column grid instead of each pair collapsing onto one
+   grid cell. */
+.source-config-item-card-field {
+  display: contents;
+}
+
+.source-config-item-card-field dt {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--jini-text-muted);
+}
+
+.source-config-item-card-field dd {
+  margin: 0;
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--jini-text);
+  word-break: break-all;
+}
+
+/* ---- `ExternalMcpTab` chrome (header/banner/empty/footer) ------------ */
+
+.external-mcp-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.external-mcp-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.external-mcp-head h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.external-mcp-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--jini-text-muted);
+}
+
+.external-mcp-add-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--jini-accent);
+  border: 1px solid var(--jini-accent);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.external-mcp-add-button:hover {
+  background: var(--jini-accent-hover);
+  border-color: var(--jini-accent-hover);
+}
+
+.external-mcp-banner {
+  padding: 12px 14px;
+  font-size: 13px;
+  color: var(--jini-danger);
+  background: color-mix(in srgb, var(--jini-danger) 6%, var(--jini-bg-subtle));
+  border: 1px solid color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
+  border-radius: var(--jini-radius-sm);
+}
+
+.external-mcp-empty {
+  padding: 20px 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  background: var(--jini-bg-subtle);
+}
+
+.external-mcp-empty-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.external-mcp-empty-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.external-mcp-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.external-mcp-save-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--jini-accent);
+  border-radius: var(--jini-radius-pill);
+}
+
+.external-mcp-stored-at {
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.external-mcp-stored-at code {
+  padding: 1px 6px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  color: var(--jini-text);
+  background: var(--jini-bg-subtle);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-xs);
 }

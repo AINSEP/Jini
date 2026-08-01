@@ -126,3 +126,5 @@ export { MemoryList } from './react/components/MemoryList.js';
 export { MemoryAdvancedModal } from './react/components/MemoryAdvancedModal.js';
 export { MemoryManualEditor } from './react/components/MemoryManualEditor.js';
 export { MemoryConnectedPanel } from './react/components/MemoryConnectedPanel.js';
+export { MemorySettingsPanel } from './react/components/MemorySettingsPanel.js';
+export type { MemorySettingsPanelProps } from './react/components/MemorySettingsPanel.js';
