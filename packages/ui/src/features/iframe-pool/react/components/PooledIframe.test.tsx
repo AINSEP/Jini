@@ -82,3 +82,46 @@ describe('PooledIframe (client render)', () => {
   });
 });
 
+describe('PooledIframe — security attributes across pool reuse', () => {
+  it('drops a sandbox applied by a previous mount when the frame is reused under the same cacheKey', () => {
+    // The element is owned by the pool and deliberately survives unmount, but
+    // the applied-attribute record used to be a `useRef` on the COMPONENT. A
+    // remount therefore got a fresh empty record, the removal loop in
+    // `syncIframeProps` iterated nothing, and the old `sandbox`/`allow` stayed
+    // on the element while it was reused for different content.
+    //
+    // ONE provider across all three renders — a second `render()` would build a
+    // second pool and hand out a fresh element, which is not the scenario.
+    const { container, rerender } = render(
+      <IframeKeepAliveProvider>
+        <PooledIframe cacheKey="reused" src="https://a.example" sandbox="allow-scripts" allow="camera" />
+      </IframeKeepAliveProvider>,
+    );
+    expect(container.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
+
+    // Unmount just the child; the pool parks the element rather than dropping it.
+    rerender(<IframeKeepAliveProvider>{null}</IframeKeepAliveProvider>);
+    // Remount under the SAME cacheKey for different content, without the
+    // security attributes.
+    rerender(
+      <IframeKeepAliveProvider>
+        <PooledIframe cacheKey="reused" src="https://b.example" />
+      </IframeKeepAliveProvider>,
+    );
+
+    const frame = container.querySelector('iframe');
+    expect(frame?.getAttribute('src')).toBe('https://b.example');
+    expect(frame?.getAttribute('sandbox')).toBeNull();
+    expect(frame?.getAttribute('allow')).toBeNull();
+  });
+
+  it('still removes a stale attribute within a single mount', () => {
+    const { container, rerender } = render(
+      <PooledIframe cacheKey="same-mount" src="about:blank" sandbox="allow-scripts" />,
+    );
+    expect(container.querySelector('iframe')?.getAttribute('sandbox')).toBe('allow-scripts');
+    rerender(<PooledIframe cacheKey="same-mount" src="about:blank" />);
+    expect(container.querySelector('iframe')?.getAttribute('sandbox')).toBeNull();
+  });
+});
+
