@@ -35,7 +35,18 @@ export interface SourceConfigListController<TSource extends SourceConfigItem> {
    * {@link DRAFT_TEST_SCOPE} instead of a real item id.
    */
   test: (id: string | undefined, draft?: SourceFieldValues) => Promise<void>;
-  /** Patches an existing source's `label`/`enabled`/`fields` (see `ports.ts`'s `updateSource` doc comment). No-op when the port has no `updateSource`. */
+  /**
+   * Patches an existing source's `label`/`enabled`/`fields` (see `ports.ts`'s
+   * `updateSource` doc comment). No-op when the port has no `updateSource`.
+   *
+   * **Passes `patch` through unvalidated, deliberately** — this hook is given a
+   * `port` and no `fieldSpecs`, so it has nothing to validate against. The
+   * shipped edit UI (`SourceConfigItemCard`) runs `validateSourceDraft` before
+   * calling this, the same check the add form runs; a host driving this method
+   * directly owns that check itself, exactly as `validateSourceDraft`'s own doc
+   * says for `addSource`. Stated here because the gap used to be silent: the
+   * edit path ran no validation at any layer.
+   */
   update: (id: string, patch: SourceUpdateInput) => Promise<void>;
 }
 

@@ -266,6 +266,72 @@ describe('SourceConfigItemCard', () => {
       expect(screen.queryByText('https://discarded.example')).toBeNull();
     });
 
+    it('refuses to save an edit that fails the same validation the add form runs', async () => {
+      // The audit finding: `validateSourceDraft`'s only non-test call site was
+      // the ADD form, so the edit path pushed raw component state straight
+      // through `port.updateSource`. A source created through a validated form
+      // could then be edited into a shape that form would have rejected.
+      const source: SourceConfigItem = { id: 's1', fields: { url: 'https://a.example' } };
+      const onUpdate = vi.fn();
+      render(<SourceConfigItemCard {...baseProps({ source, fieldSpecs: [{ ...URL_FIELD, required: true }], onUpdate })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'https://a.example' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+      const urlInput = screen.getByLabelText('URL', { exact: false });
+      await userEvent.clear(urlInput);
+      await userEvent.type(urlInput, 'http://169.254.169.254/latest/meta-data/');
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(onUpdate).not.toHaveBeenCalled();
+      // Still in edit mode, with the reason shown rather than a silent no-op.
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+      expect(screen.getByRole('alert').textContent).toMatch(/valid http/i);
+    });
+
+    it('refuses to save an edit that blanks a required field', async () => {
+      const source: SourceConfigItem = { id: 's1', fields: { url: 'https://a.example' } };
+      const onUpdate = vi.fn();
+      render(<SourceConfigItemCard {...baseProps({ source, fieldSpecs: [{ ...URL_FIELD, required: true }], onUpdate })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'https://a.example' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+      await userEvent.clear(screen.getByLabelText('URL', { exact: false }));
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(onUpdate).not.toHaveBeenCalled();
+      expect(screen.getByRole('alert').textContent).toMatch(/required/i);
+    });
+
+    it('shows no validation error until the operator actually tries to save', async () => {
+      const source: SourceConfigItem = { id: 's1', fields: { url: 'https://a.example' } };
+      render(<SourceConfigItemCard {...baseProps({ source, fieldSpecs: [{ ...URL_FIELD, required: true }] })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'https://a.example' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+      await userEvent.clear(screen.getByLabelText('URL', { exact: false }));
+
+      // Mid-edit an empty field is not yet a mistake — matching the add form's
+      // `submitAttempted` behavior.
+      expect(screen.queryByRole('alert')).toBeNull();
+    });
+
+    it('saves once the operator corrects the invalid value', async () => {
+      const source: SourceConfigItem = { id: 's1', fields: { url: 'https://a.example' } };
+      const onUpdate = vi.fn();
+      render(<SourceConfigItemCard {...baseProps({ source, fieldSpecs: [{ ...URL_FIELD, required: true }], onUpdate })} />);
+      await userEvent.click(screen.getByRole('button', { name: 'https://a.example' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
+
+      const urlInput = screen.getByLabelText('URL', { exact: false });
+      await userEvent.clear(urlInput);
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+      expect(onUpdate).not.toHaveBeenCalled();
+
+      await userEvent.type(urlInput, 'https://b.example');
+      await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+      expect(onUpdate).toHaveBeenCalledWith({ label: '', fields: { url: 'https://b.example' } });
+      expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    });
+
     it('disables Save/Cancel while updating', async () => {
       const source: SourceConfigItem = { id: 's1', fields: { url: 'https://a.example' } };
       const { rerender } = render(<SourceConfigItemCard {...baseProps({ source })} />);

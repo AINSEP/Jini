@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { maskFieldValue, sourceDisplayLabel } from '@jini-ai/ui-core';
+import { issueForField, maskFieldValue, sourceDisplayLabel, validateSourceDraft } from '@jini-ai/ui-core';
 import { SourceConfigField } from './SourceConfigField.js';
 import { SourceConfigTestControl } from './SourceConfigTestControl.js';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
@@ -60,19 +60,34 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
   const [editing, setEditing] = useState(false);
   const [editLabel, setEditLabel] = useState('');
   const [editFields, setEditFields] = useState<SourceFieldValues>({});
+  /** Errors stay hidden until the operator actually tries to save, matching the add form's `submitAttempted`. */
+  const [saveAttempted, setSaveAttempted] = useState(false);
   const label = sourceDisplayLabel(source, fieldSpecs);
   const trustOption = trustOptions?.find((option) => option.value === source.trust);
   const editableTrustOptions = capabilities.canSetTrust && trustOptions && trustOptions.length > 0 ? trustOptions : null;
   const anyActionPending = removing || refreshing || settingTrust || updating;
 
+  // The SAME validation the add form runs (`useSourceConfigAddForm`). The edit
+  // path used to run none at all — not even the required-field check — so a
+  // source added through a validated form could be edited into a state the form
+  // would have refused to create, straight through `port.updateSource`.
+  const editValidation = validateSourceDraft(fieldSpecs, editFields);
+
   const startEditing = () => {
     setEditLabel(source.label ?? '');
     setEditFields({ ...source.fields });
+    setSaveAttempted(false);
     setEditing(true);
   };
-  const cancelEditing = () => setEditing(false);
+  const cancelEditing = () => {
+    setSaveAttempted(false);
+    setEditing(false);
+  };
   const saveEditing = () => {
+    setSaveAttempted(true);
+    if (!editValidation.ok) return;
     onUpdate({ label: editLabel, fields: editFields });
+    setSaveAttempted(false);
     setEditing(false);
   };
 
@@ -138,7 +153,11 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
             <div className="source-config-item-card-edit-toggle">
               {editing ? (
                 <>
-                  <button type="button" onClick={saveEditing} disabled={updating}>
+                  <button
+                    type="button"
+                    onClick={saveEditing}
+                    disabled={updating || (saveAttempted && !editValidation.ok)}
+                  >
                     {t('Save')}
                   </button>
                   <button type="button" onClick={cancelEditing} disabled={updating}>
@@ -164,15 +183,21 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
                   onChange={(event) => setEditLabel(event.target.value)}
                 />
               </label>
-              {fieldSpecs.map((spec) => (
-                <SourceConfigField
-                  key={spec.key}
-                  spec={spec}
-                  value={editFields[spec.key] ?? ''}
-                  idPrefix={`source-config-item-card-${source.id}-field`}
-                  onChange={(value) => setEditFields((current) => ({ ...current, [spec.key]: value }))}
-                />
-              ))}
+              {fieldSpecs.map((spec) => {
+                // Same `{label}`-template wrapping the add form uses — `rules.ts`
+                // stays hook-free and returns i18n templates, not sentences.
+                const issue = saveAttempted ? issueForField(editValidation, spec.key) : undefined;
+                return (
+                  <SourceConfigField
+                    key={spec.key}
+                    spec={spec}
+                    value={editFields[spec.key] ?? ''}
+                    idPrefix={`source-config-item-card-${source.id}-field`}
+                    {...(issue ? { error: t(issue.message, { label: t(spec.label) }) } : {})}
+                    onChange={(value) => setEditFields((current) => ({ ...current, [spec.key]: value }))}
+                  />
+                );
+              })}
             </div>
           ) : (
             <dl className="source-config-item-card-fields">
