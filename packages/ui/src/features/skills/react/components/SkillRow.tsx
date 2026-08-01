@@ -172,8 +172,17 @@ export function SkillRow({
               ) : null}
             </>
           )}
-          <label className="jini-toggle-row jini-skills-row-enable" title={enableToggleLabel}>
+          {/* `toggle-switch`/`toggle-switch-sm` + a `.toggle-slider` sibling is
+              OD's real switch chrome (`viewer/memory.css`), ported wholesale
+              during the 2026-07-31 OD-parity pass — see settings-dialog.css's
+              own comment on `.toggle-switch`. This previously wrapped the
+              checkbox in `.jini-toggle-row` (built for Privacy's full-width
+              standalone toggle rows) with no slider span at all, so the CSS
+              track+thumb (`input:checked + .toggle-slider`) had no element to
+              attach to and could never render regardless of styling. */}
+          <label className="toggle-switch toggle-switch-sm jini-skills-row-enable" title={enableToggleLabel}>
             <input type="checkbox" checked={enabled} onChange={(event) => onToggleEnabled(event.target.checked)} aria-label={enableToggleLabel} />
+            <span className="toggle-slider" />
           </label>
         </div>
       </div>
