@@ -350,7 +350,15 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
       if (isSmokeOkReply(text)) {
         result = { ok: true, kind: 'success', latencyMs, model, status: response.status, detail: 'valid completion' };
       } else {
-        const sample = truncateSample(text);
+        // Redacted for exactly the reason the `!response.ok` branch above
+        // redacts. The transport succeeded here (HTTP 2xx) but the smoke reply
+        // did not match, so this is still a failure path echoing arbitrary
+        // provider text straight back into the admin UI — and a misbehaving or
+        // hostile endpoint that reflects the request's own `Authorization`
+        // header puts the operator's key in `detail` verbatim. Two independent
+        // audits reproduced that, each from a different call boundary; the
+        // redaction was simply missing on this one branch.
+        const sample = redactSecrets(truncateSample(text), [input.apiKey]);
         result = {
           ok: false,
           kind: 'unknown',

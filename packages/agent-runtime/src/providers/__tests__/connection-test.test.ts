@@ -85,6 +85,26 @@ describe('testProviderConnection', () => {
     expect(result.detail).toMatch(/Hello there!/);
   });
 
+  it('redacts the api key from the detail on a 2xx-but-wrong-smoke-reply too, not just on error statuses', async () => {
+    // The gap two independent audits reproduced. The `!response.ok` branch
+    // redacted; this one did not — so an endpoint that echoes the request's own
+    // Authorization header back in a 200 completion put the operator's key
+    // verbatim into `detail`, which the admin UI renders.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({ content: [{ type: 'text', text: 'your key was: sk-ant-test' }] }),
+      }),
+    );
+    const result = await testProviderConnection(baseInput({}));
+    expect(result.ok).toBe(false);
+    expect(result.detail).not.toContain('sk-ant-test');
+    expect(result.detail).toContain('[REDACTED]');
+  });
+
   it('classifies a 401 as auth_failed and redacts the api key from the detail', async () => {
     vi.stubGlobal(
       'fetch',
