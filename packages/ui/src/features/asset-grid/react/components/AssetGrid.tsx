@@ -86,6 +86,8 @@ export function AssetGrid<TAsset extends AssetGridItem>({
   const [search, setSearch] = useState('');
   const [viewMode, setViewMode] = useState<AssetGridViewMode>(initialViewMode);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  /** Message from a delete the host rejected. Rendered inline — see `runDelete`. */
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search, searchDebounceMs);
   const filtersActive = !!(kind || source || debouncedSearch.trim());
 
@@ -121,22 +123,57 @@ export function AssetGrid<TAsset extends AssetGridItem>({
     if (selectedIds.size) setConfirmDeleteOpen(true);
   }, [selectedIds]);
 
+  /**
+   * Drops rows from the grid only once the host has actually deleted them.
+   *
+   * Two distinct defects here, each reported independently and each reproduced:
+   *
+   * - **No handler.** `onDelete*` is optional and the API says a host may omit
+   *   it — but `await undefined` resolves happily, so the rows were filtered out
+   *   of local state anyway. The assets appeared to delete and reappeared on the
+   *   next load: the UI lying about state, with nothing persisted.
+   * - **Rejected handler.** No `catch`, and the caller discards the promise with
+   *   `void`, so a failed delete became an unhandled rejection with no toast, no
+   *   inline error, and no visual change of any kind.
+   *
+   * The error is surfaced rather than swallowed. `resource-dashboard` in this
+   * same package already threads an `actionError` through for exactly this
+   * situation, so this follows the established pattern rather than inventing one.
+   */
+  const runDelete = useCallback(
+    async (deleteFn: ((ids: readonly string[]) => unknown) | null, ids: readonly string[], drop: () => void) => {
+      // No handler means the host cannot persist this — do not pretend it did.
+      if (!deleteFn) return;
+      setDeleteError(null);
+      try {
+        await deleteFn(ids);
+      } catch (error: unknown) {
+        setDeleteError(error instanceof Error ? error.message : String(error));
+        return;
+      }
+      drop();
+    },
+    [],
+  );
+
   const confirmDelete = useCallback(async () => {
     setConfirmDeleteOpen(false);
     const ids = [...selectedIds];
     if (!ids.length) return;
-    await onDeleteSelected?.(ids);
-    const idSet = new Set(ids);
-    setAssets((prev) => prev.filter((a) => !idSet.has(a.id)));
-    setSelectedIds(new Set());
-  }, [selectedIds, onDeleteSelected, setAssets, setSelectedIds]);
+    await runDelete(onDeleteSelected ? (batch) => onDeleteSelected([...batch]) : null, ids, () => {
+      const idSet = new Set(ids);
+      setAssets((prev) => prev.filter((a) => !idSet.has(a.id)));
+      setSelectedIds(new Set());
+    });
+  }, [selectedIds, onDeleteSelected, setAssets, setSelectedIds, runDelete]);
 
   const handleDeleteAsset = useCallback(
     async (id: string) => {
-      await onDeleteAsset?.(id);
-      setAssets((prev) => prev.filter((a) => a.id !== id));
+      await runDelete(onDeleteAsset ? (batch) => onDeleteAsset(batch[0]!) : null, [id], () => {
+        setAssets((prev) => prev.filter((a) => a.id !== id));
+      });
     },
-    [onDeleteAsset, setAssets],
+    [onDeleteAsset, setAssets, runDelete],
   );
 
   const handlePreview = useCallback(
@@ -251,6 +288,12 @@ export function AssetGrid<TAsset extends AssetGridItem>({
       )}
 
       <SelectionBand band={band} />
+
+      {deleteError ? (
+        <p className="jini-hint jini-hint-error" role="alert">
+          {deleteError}
+        </p>
+      ) : null}
 
       {confirmDeleteOpen ? (
         <DeleteConfirmDialog

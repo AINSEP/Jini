@@ -380,3 +380,52 @@ describe('AssetGrid hook override 4-pattern test suite', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Refresh' }));
   });
 });
+
+describe('AssetGrid — delete only removes what the host actually deleted', () => {
+  it('does NOT drop rows when the host supplies no delete handler', async () => {
+    // `onDeleteSelected` is optional and the API says a host may omit it — but
+    // `await undefined` resolves, so the rows used to disappear with nothing
+    // persisted and reappear on the next load.
+    renderGrid();
+    await waitFor(() => expect(screen.getByText('Sunset photo')).toBeInTheDocument());
+    await userEvent.click(screen.getAllByRole('button', { name: 'Select asset' })[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete 1' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete 1' }));
+
+    expect(screen.getByText('Sunset photo')).toBeInTheDocument();
+  });
+
+  it('keeps the row and surfaces the reason when the host rejects', async () => {
+    const onDeleteSelected = vi.fn().mockRejectedValue(new Error('network down'));
+    renderGrid({ onDeleteSelected });
+    await waitFor(() => expect(screen.getByText('Sunset photo')).toBeInTheDocument());
+    await userEvent.click(screen.getAllByRole('button', { name: 'Select asset' })[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete 1' }));
+    const dialog = await screen.findByRole('alertdialog');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete 1' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('network down'));
+    expect(screen.getByText('Sunset photo')).toBeInTheDocument();
+  });
+
+  it('clears a previous delete error once a later delete succeeds', async () => {
+    const onDeleteSelected = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('network down'))
+      .mockResolvedValueOnce(undefined);
+    renderGrid({ onDeleteSelected });
+    await waitFor(() => expect(screen.getByText('Sunset photo')).toBeInTheDocument());
+
+    await userEvent.click(screen.getAllByRole('button', { name: 'Select asset' })[0]!);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete 1' }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete 1' }));
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Delete 1' }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Delete 1' }));
+
+    await waitFor(() => expect(screen.queryByText('Sunset photo')).not.toBeInTheDocument());
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+});
