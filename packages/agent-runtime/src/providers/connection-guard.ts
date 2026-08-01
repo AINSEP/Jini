@@ -125,11 +125,32 @@ export function isBlockedExternalApiHostname(hostname: string): boolean {
   return Boolean(mapped && isBlockedIpv4(mapped));
 }
 
-/** Synchronous base-URL check: scheme allow-list + literal-hostname block-list. Does not resolve DNS — see {@link validateBaseUrlResolved}. */
+/**
+ * Synchronous base-URL check: scheme allow-list + literal-hostname block-list.
+ * Does not resolve DNS — see {@link validateBaseUrlResolved}.
+ *
+ * **Trims before parsing, and must keep doing so.** `ui-core`'s
+ * `isAllowedEndpointUrl` is a deliberate browser-safe copy of this function and
+ * trims its input; this one did not. WHATWG URL parsing strips leading/trailing
+ * ASCII space itself, so the two agreed on `" https://x "` and diverged only on
+ * whitespace `String.prototype.trim` removes but the URL parser does not — NBSP,
+ * BOM, thin space and friends. A URL pasted from a rich-text source therefore
+ * passed the UI and was refused at connection time.
+ * `endpoint-policy.parity.test.ts` now holds the two in agreement mechanically.
+ *
+ * Trimming cannot weaken the block-list. Checked across every whitespace
+ * character `trim` strips, against blocked/loopback/public hosts in all three
+ * padding positions: an untrimmed parse either fails outright or yields a
+ * hostname IDENTICAL to the trimmed one. It never yields a DIFFERENT host, which
+ * is the only shape that would let the block-list inspect one string while the
+ * network used another.
+ */
 export function validateBaseUrl(baseUrl: string): BaseUrlValidationResult {
   let parsed: URL;
   try {
-    parsed = new URL(String(baseUrl).replace(/\/+$/, ''));
+    // Trim BEFORE stripping trailing slashes: in `"https://x/ "` the trailing
+    // character is the space, so the slash strip alone would never reach it.
+    parsed = new URL(String(baseUrl).trim().replace(/\/+$/, ''));
   } catch {
     return { error: 'Invalid baseUrl' };
   }

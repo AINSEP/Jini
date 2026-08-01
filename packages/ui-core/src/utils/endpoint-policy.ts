@@ -26,6 +26,14 @@
  * between them is a request the UI accepted and the runtime then refused, or
  * worse, the reverse.
  *
+ * That instruction is now enforced rather than merely written down:
+ * `__tests__/utils/endpoint-policy.parity.test.ts` runs both implementations
+ * over the cross-product of address forms and whitespace padding and fails on
+ * any disagreement. It exists because the sentence above was not enough — the
+ * two drifted on Unicode whitespace (this side trimmed, the other did not), and
+ * a hand-written 46-URL audit corpus rated them identical because it happened
+ * not to contain a padded case. A corpus only proves the axis it samples.
+ *
  * ## What this is for
  *
  * These fields are BYOK-style base URLs: operator-supplied, persisted, and

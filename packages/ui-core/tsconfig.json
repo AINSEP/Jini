@@ -4,5 +4,16 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    // The endpoint-policy parity test deliberately imports `agent-runtime`'s
+    // `connection-guard.ts` by relative path, which lies outside this package's
+    // `rootDir` and so cannot be part of this build. Vitest still runs it, and
+    // reaching the other side's SOURCE is the whole point: importing the built
+    // package instead would let the test pass against a stale `dist`, which is
+    // useless in a check whose only job is to notice drift. Excluded here
+    // rather than relaxing `rootDir`, which would change what this package
+    // emits, or adding a dependency edge from a Node package to a UI one.
+    "src/__tests__/utils/endpoint-policy.parity.test.ts"
+  ]
 }
