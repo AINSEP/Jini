@@ -410,7 +410,13 @@
   text-decoration: underline;
 }
 
-.jini-field-hint {
+/* `.jini-hint` is the same helper-text role under a different name — used by
+   Notifications, Privacy, and the MCP server tab instead of this class. Same
+   rule, both selectors: this is a naming drift from an earlier pass that
+   updated those components without updating this stylesheet, not two
+   different kinds of hint text. */
+.jini-field-hint,
+.jini-hint {
   font-size: 12px;
   color: var(--jini-text-muted);
 }
@@ -454,7 +460,14 @@
   border-color: color-mix(in srgb, var(--jini-danger) 55%, var(--jini-border));
 }
 
-.jini-btn {
+/* `.jini-button` is the same naming drift as `.jini-hint` above — Privacy's
+   "Delete my data" and the MCP server tab's snippet-copy/one-click-install
+   controls use this family instead of `.jini-btn`. `<a>` is included
+   alongside `<button>` because the MCP server tab's "One-click install"
+   deep link renders as an anchor styled as a button, not a real button. */
+.jini-btn,
+.jini-button,
+a.jini-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -468,16 +481,43 @@
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
   cursor: pointer;
+  text-decoration: none;
   transition: border-color 120ms var(--jini-ease-out), background-color 120ms var(--jini-ease-out);
 }
 
-.jini-btn:hover:not(:disabled) {
+.jini-btn:hover:not(:disabled),
+.jini-button:hover:not(:disabled) {
   border-color: var(--jini-border-strong);
 }
 
-.jini-btn:disabled {
+.jini-btn:disabled,
+.jini-button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+/* No existing `.jini-btn-primary` to alias — nothing in this stylesheet had
+   a filled/accent button treatment before the MCP server tab's "One-click
+   install" needed one, so this is a genuinely new definition, not a rename
+   fix. `jini-button-disabled` mirrors it: the deep link has no native
+   `disabled` (it drops `href` instead — see `IntegrationsTab.tsx`), so the
+   component sets this class in the same case a real `disabled` attribute
+   would apply. */
+.jini-button-primary {
+  color: #fff;
+  background: var(--jini-accent);
+  border-color: var(--jini-accent);
+}
+
+.jini-button-primary:hover {
+  background: var(--jini-accent-hover);
+  border-color: var(--jini-accent-hover);
+}
+
+.jini-button-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .jini-input-affix-btn {
@@ -503,6 +543,19 @@
   color: var(--jini-text-muted);
   font-size: 12px;
   background: var(--jini-bg-subtle);
+}
+
+/* Color modifiers for the MCP server tab's daemon-error and
+   prerequisite-missing states (`IntegrationsTab.tsx`). */
+.jini-empty-card-error {
+  border-color: color-mix(in srgb, var(--jini-danger) 45%, var(--jini-border));
+  color: var(--jini-danger);
+  background: color-mix(in srgb, var(--jini-danger) 6%, var(--jini-bg-subtle));
+}
+
+.jini-empty-card-warning {
+  border-color: color-mix(in srgb, var(--jini-accent) 45%, var(--jini-border));
+  background: color-mix(in srgb, var(--jini-accent) 6%, var(--jini-bg-subtle));
 }
 
 /* Segmented control — shared by AppearanceTab and ExecutionTab. */
@@ -1045,7 +1098,8 @@
   gap: 8px;
 }
 
-.jini-btn-ghost {
+.jini-btn-ghost,
+.jini-button-ghost {
   background: transparent;
 }
 
@@ -1169,4 +1223,577 @@
 
 .jini-select-option.selected .jini-select-option-check {
   display: inline-flex;
+}
+
+/* ============================================================
+   Instructions tab
+   ============================================================
+   `InstructionsTab.tsx` renders `jini-settings-section-card` /
+   `jini-field-block` / `jini-instructions-card` / `jini-block-head` /
+   `jini-instructions-input` / `jini-custom-instructions-input` — none of
+   which existed here, so the tab fell back to unstyled browser defaults: no
+   card, and a ~2-row, monospace-looking default `<textarea>`. Reference:
+   `od-settings-instructions.png` — one bordered card holding the title,
+   description and textarea, the textarea spanning the card at several rows
+   tall. */
+
+.jini-settings-section-card {
+  padding: 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.jini-field-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jini-block-head h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.jini-instructions-input,
+.jini-custom-instructions-input {
+  width: 100%;
+  min-height: 96px;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  resize: vertical;
+}
+
+.jini-instructions-input:focus,
+.jini-custom-instructions-input:focus {
+  outline: none;
+  border-color: var(--jini-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--jini-accent) 18%, transparent);
+}
+
+/* ============================================================
+   Notifications tab
+   ============================================================
+   `NotificationsTab.tsx`'s `jini-settings-notify-card` /
+   `jini-settings-notify-card-header` had no rules, so the title and its
+   On/Off pill (a `.jini-seg-control` with `--seg-cols: 1`) stacked instead
+   of sharing a row, and the pill stretched to the panel's full width instead
+   of sizing to its own label. Reference: `od-settings-notifications.png` —
+   title and pill share one row inside a bordered card, description below
+   both, still inside the same card. */
+
+.jini-settings-subsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jini-settings-notify-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.jini-settings-notify-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.jini-settings-notify-card-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+/* A flex item's default main-axis size is its content size, which is what
+   keeps the header's `.jini-seg-control` pill-sized instead of stretching —
+   no explicit width needed once the header above is a flex row. */
+
+.jini-settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jini-settings-field > label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--jini-text-muted);
+}
+
+/* ============================================================
+   Privacy tab
+   ============================================================
+   `PrivacyTab.tsx`'s disclosure list was a bare `<dl>`/`<dt>`/`<dd>` (browser
+   default `<dd>` indent leaking through), its consent buttons
+   (`jini-privacy-consent-action*`) were unstyled text, and its toggle
+   switches (`jini-toggle-row*`) had NO rules anywhere in this file — not
+   even a partial match; `grep -i "toggle|switch"` against the file returned
+   nothing before this. Reference: `od-settings-privacy.png` — the two
+   disclosure items read as plain title+description pairs, the two consent
+   buttons sit side by side with the primary one filled, and the granular
+   toggles are real switches once a consent decision exists
+   (`hasMadeConsentDecision`). */
+
+.jini-settings-privacy-disclosure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.jini-settings-privacy-disclosure > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jini-settings-privacy-disclosure dt {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.jini-settings-privacy-disclosure dd {
+  margin: 0;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.jini-privacy-consent-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.jini-privacy-consent-action {
+  flex: 1 1 0;
+  padding: 9px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border-strong);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.jini-privacy-consent-action:hover {
+  border-color: var(--jini-text-muted);
+}
+
+.jini-privacy-consent-action--primary {
+  color: #fff;
+  background: var(--jini-accent);
+  border-color: var(--jini-accent);
+}
+
+.jini-privacy-consent-action--primary:hover,
+.jini-privacy-consent-action--primary.is-active {
+  background: var(--jini-accent-hover);
+  border-color: var(--jini-accent-hover);
+}
+
+.jini-settings-privacy-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jini-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 14px;
+  font: inherit;
+  text-align: left;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  cursor: pointer;
+}
+
+.jini-toggle-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jini-toggle-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
+.jini-toggle-row-hint {
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.jini-toggle-row-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 20px;
+  border-radius: var(--jini-radius-pill);
+  background: var(--jini-border-strong);
+  transition: background-color 120ms var(--jini-ease-out);
+}
+
+.jini-toggle-row-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--jini-shadow-xs);
+  transition: transform 120ms var(--jini-ease-out);
+}
+
+.jini-toggle-row.on .jini-toggle-row-switch {
+  background: var(--jini-accent);
+}
+
+.jini-toggle-row.on .jini-toggle-row-switch::after {
+  transform: translateX(16px);
+}
+
+/* ============================================================
+   Appearance tab — accent swatches
+   ============================================================
+   `AppearanceTab.tsx`'s theme segmented control already worked (it reuses
+   the shared `.jini-seg-control` primitive), but `jini-accent-swatches` /
+   `jini-accent-swatch` / `jini-accent-swatch-picker` had no size, shape, or
+   selected-state rules — each swatch is a bare `<button style="background:
+   <color>">` with no explicit dimensions. Reference: `od-settings-
+   appearance.png` — a row of small circular swatches, the selected one
+   ringed, plus a same-sized native color-picker swatch at the end. */
+
+.jini-accent-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.jini-accent-swatch {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 0 1px var(--jini-border) inset;
+}
+
+.jini-accent-swatch.active {
+  box-shadow: 0 0 0 2px var(--jini-bg-panel), 0 0 0 4px var(--jini-text-strong);
+}
+
+.jini-accent-swatch-picker {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--jini-border);
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--jini-bg-panel);
+}
+
+.jini-accent-swatch-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.jini-accent-swatch-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.jini-accent-swatch-picker::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+/* ============================================================
+   Language tab
+   ============================================================
+   `LanguageTab.tsx`'s `jini-settings-language-tile-title` and
+   `jini-settings-language-tile-code` spans had no layout separating them —
+   two adjacent inline text nodes with no line break, so "English" + "en"
+   rendered as the single word "Englishen". Reference: `od-settings-
+   language.png` — a grid of bordered tiles, each locale's name above its
+   code. */
+
+.jini-settings-language-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.jini-settings-language-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  font: inherit;
+  text-align: left;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  cursor: pointer;
+}
+
+.jini-settings-language-tile:hover {
+  border-color: var(--jini-border-strong);
+}
+
+.jini-settings-language-tile.active {
+  border-color: var(--jini-accent);
+  background: color-mix(in srgb, var(--jini-accent) 8%, var(--jini-bg-panel));
+  color: var(--jini-accent);
+}
+
+.jini-settings-language-tile-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.jini-settings-language-tile-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.jini-settings-language-tile-code {
+  font-size: 11px;
+  color: var(--jini-text-muted);
+}
+
+.jini-settings-language-tile.active .jini-settings-language-tile-code {
+  color: inherit;
+}
+
+/* ============================================================
+   MCP server tab (IntegrationsTab, ClientPicker, SnippetBlock)
+   ============================================================
+   `jini-mcp-*` and `jini-picker-*` had no rules at all. The concrete symptom
+   was `ClientPicker.tsx`'s `jini-picker-title` and `jini-picker-sub` — two
+   adjacent inline spans with nothing to put them on separate lines, so
+   "Claude Code" + "CLI command" rendered as the single string "Claude
+   CodeCLI command". Reference: `od-settings-mcp-server.png` — an
+   uppercase-kicker capabilities card, a bordered client-picker dropdown
+   whose name and method sub-label sit on their own lines, and a dark code
+   block with the Copy button overlaid on it rather than below as its own
+   row. */
+
+.jini-mcp-capabilities-card {
+  padding: 14px 16px;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  background: var(--jini-bg-panel);
+}
+
+.jini-mcp-capabilities-label {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--jini-text-muted);
+}
+
+.jini-mcp-capabilities-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--jini-text);
+}
+
+.jini-mcp-setup-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.jini-mcp-instruction {
+  margin: 0;
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.jini-mcp-restart-note {
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.jini-mcp-deeplink-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.jini-picker {
+  position: relative;
+}
+
+.jini-picker-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 14px;
+  font: inherit;
+  text-align: left;
+  color: var(--jini-text);
+  background: var(--jini-bg-panel);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  cursor: pointer;
+}
+
+.jini-picker-trigger:hover,
+.jini-picker-trigger.open {
+  border-color: var(--jini-border-strong);
+}
+
+.jini-picker-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.jini-picker-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.jini-picker-sub {
+  font-size: 12px;
+  color: var(--jini-text-muted);
+}
+
+.jini-picker-chevron {
+  flex: 0 0 auto;
+  color: var(--jini-text-muted);
+  transition: transform 120ms var(--jini-ease-out);
+}
+
+.jini-picker-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  padding: 6px;
+  background: var(--jini-bg-elevated);
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius);
+  box-shadow: var(--jini-shadow-lg);
+}
+
+.jini-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.jini-picker-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  font: inherit;
+  text-align: left;
+  color: var(--jini-text);
+  background: transparent;
+  border: none;
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.jini-picker-item:hover {
+  background: var(--jini-bg-subtle);
+}
+
+.jini-picker-item.active {
+  background: color-mix(in srgb, var(--jini-accent) 10%, transparent);
+  color: var(--jini-accent);
+}
+
+.jini-picker-item-title {
+  font-size: 13px;
+}
+
+.jini-picker-item-sub {
+  font-size: 11px;
+  color: var(--jini-text-muted);
+}
+
+.jini-snippet-block {
+  position: relative;
+}
+
+.jini-snippet-pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow-x: auto;
+  background: var(--jini-text-strong);
+  border-radius: var(--jini-radius);
+}
+
+.jini-snippet-code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--jini-bg-panel);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.jini-snippet-copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: var(--jini-bg-panel);
+  background: color-mix(in srgb, var(--jini-text-strong) 60%, transparent);
+  border-color: transparent;
+}
+
+.jini-snippet-copy-btn:hover {
+  background: color-mix(in srgb, var(--jini-text-strong) 75%, transparent);
 }
