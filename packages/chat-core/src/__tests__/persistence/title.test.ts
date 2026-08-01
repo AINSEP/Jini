@@ -20,6 +20,16 @@ describe('deriveConversationTitle', () => {
     );
   });
 
+  it('caps the length, because a six-WORD cap is not a length cap', () => {
+    // A pasted blob is one enormous token, so it passed the word cap untouched and became the title
+    // verbatim — then got stored and re-rendered on every conversation-list read.
+    const blob = 'A'.repeat(500_000);
+    const title = deriveConversationTitle(blob);
+    expect(title.length).toBeLessThanOrEqual(80);
+    // Still a usable title rather than empty.
+    expect(title.length).toBeGreaterThan(0);
+  });
+
   it('does not end a title on a stranded auxiliary or pronoun', () => {
     // The word cap falls mid-clause on question-shaped prompts, which is how a real conversation
     // ended up titled "How Many Published Posts Do I" in the admin switcher.

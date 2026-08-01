@@ -58,6 +58,34 @@ function toConversation(row: DbRow): ChatConversation {
   };
 }
 
+/**
+ * KNOWN GAP — `resumable` and `lastRunEventId` are dropped, deliberately, and adding columns is
+ * NOT the fix.
+ *
+ * `ChatMessage` declares both (`@jini-ai/chat-core`'s `messages.ts`): `resumable` marks a failed run
+ * recoverable by resuming the agent's existing session rather than restarting it, and
+ * `lastRunEventId` is the cursor to resume from. Neither the projection below, nor `appendMessage`'s
+ * insert, nor `CHAT_HISTORY_DDL` carries them, so a message round-tripped through this store comes
+ * back with both `undefined` and a failed run cannot be resumed at its cursor. It fails silently —
+ * `toMessage` omits absent keys rather than throwing, so the caller gets a well-formed `ChatMessage`.
+ *
+ * Why the obvious fix is wrong. Both fields describe a RUN, and the daemon owns run state
+ * (`@jini-ai/daemon`'s `run-lifecycle.ts` is what decides `resumable` from the terminal event). The
+ * component writing through this store today is the host's BROWSER, which knows only what its chat
+ * pane handed it. Adding the columns would ask the component that does not own the data to persist
+ * it — the values would be as trustworthy as whatever the client happened to send. The ordering that
+ * actually works is: associate a run with a conversation id first, then let the daemon persist
+ * run-linked state as it streams, and only then add storage for it, at which point there is a
+ * consumer to validate the shape against.
+ *
+ * Two further facts worth having before touching this. First, this is the multi-tenant store; its
+ * sibling `db/messages/messages.ts` DOES carry `last_run_event_id`, so the two message stores in
+ * this package genuinely disagree and neither is evidence about the other. Second,
+ * `CHAT_HISTORY_DDL` is copied verbatim into Tovu's `0023_ai_chat_history.sql` and guarded by a
+ * structural parity test there; that migration is already applied, so any column added here also
+ * needs a follow-up `ALTER TABLE` on the host side and a parity test taught to compare the pair
+ * against this constant.
+ */
 function toMessage(row: DbRow): ChatMessage {
   return {
     id: row.id,

@@ -52,7 +52,40 @@ export interface I18nProviderProps<D extends TranslationDict = TranslationDict> 
    *  dictionary lookup when a key is missing from the active locale.
    *  Defaults to `'en'`. */
   fallbackLocale?: Locale;
-  /** Skips detection and pins the initial locale. */
+  /**
+   * Skips detection and pins the initial locale.
+   *
+   * **Read exactly once, at mount.** It seeds a `useState` lazy initializer below, so this provider
+   * is UNCONTROLLED: passing a different `initialLocale` on a later render changes nothing. After
+   * mount, `useI18n().setLocale` is the only thing that moves the locale.
+   *
+   * That matters for any host whose locale lives OUTSIDE React — a settings ledger, a server push, a
+   * change made in a second browser tab. Such a host owns the real source of truth, and a value it
+   * re-reads will not reach this provider on its own; without a bridge, a locale change takes effect
+   * only on the next full remount, which in practice means a page reload.
+   *
+   * The bridge is small, and hosts should expect to write it rather than look for a `locale` prop:
+   *
+   * ```tsx
+   * function LocaleSync({ locale }: { locale: Locale }) {
+   *   const { locale: active, setLocale } = useI18n();
+   *   useEffect(() => {
+   *     if (active !== locale) setLocale(locale);
+   *   }, [locale, active, setLocale]);
+   *   return null; // renders nothing; exists only to keep the two in sync
+   * }
+   * ```
+   *
+   * Mount it inside the provider, fed by whatever the host persists. Tovu does exactly this
+   * (`apps/admin/src/sections/SettingsUi.tsx`'s `SettingsLocaleSync`), which is what lets a locale
+   * changed by its admin assistant — or pushed from its server to an already-open tab — re-render
+   * the dialog in place instead of waiting for a reload.
+   *
+   * A controlled `locale` prop would remove the shim, and is worth adding if a second host hits the
+   * same wall. It is not offered today because `setLocale` also writes through {@link
+   * I18nProviderProps.persistence}, so a controlled mode has to answer who owns the stored value —
+   * the prop or the port — and that belongs in a deliberate API change rather than an inferred one.
+   */
   initialLocale?: Locale;
   /** Locale codes to render right-to-left. Defaults to a small built-in
    *  set of commonly RTL languages ({@link DEFAULT_RTL_LOCALES}). */

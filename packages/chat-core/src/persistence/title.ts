@@ -26,6 +26,15 @@
 
 const MAX_LATIN_WORDS = 6;
 const MAX_CJK_LENGTH = 18;
+/**
+ * Hard character ceiling, because a word cap is not a length cap.
+ *
+ * Six "words" says nothing about their size: a pasted base64 blob or minified bundle is a single
+ * enormous token, so it survived the word cap intact and became the title verbatim. That title is
+ * then stored, listed, and re-rendered on every conversation-list read — megabytes of it. Applied to
+ * the finished title so both the Latin and CJK paths are covered.
+ */
+const MAX_TITLE_CHARS = 80;
 
 const CJK_PATTERN = /[㐀-鿿]/;
 
@@ -129,5 +138,8 @@ export function deriveConversationTitle(prompt: string): string {
   if (!cleaned) return '';
   const firstClause = cleaned.split(/[\n\r。！？!?]/)[0]?.trim() ?? cleaned;
   if (!firstClause) return '';
-  return CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause);
+  const title = CJK_PATTERN.test(firstClause) ? trimCjkTitle(firstClause) : trimLatinTitle(firstClause);
+  // Truncated without an ellipsis: this is a working title, not prose, and a `…` would end up stored
+  // and shown as if the author wrote it.
+  return title.length > MAX_TITLE_CHARS ? title.slice(0, MAX_TITLE_CHARS).trimEnd() : title;
 }

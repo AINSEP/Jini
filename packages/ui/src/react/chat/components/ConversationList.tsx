@@ -114,6 +114,18 @@ export function ConversationList({
   // A timer that fires after unmount would call `setOpen` on a dead component.
   useEffect(() => cancelPendingSelect, [cancelPendingSelect]);
 
+  /*
+   * Closing the switcher also abandons a click that has not yet resolved into a selection.
+   *
+   * The grace window exists so a double-click can become a rename rather than a selection, which
+   * means a single click stays pending for 220ms. Press Escape (or click outside) inside that window
+   * and the menu closes while the timer survives, so the row is selected anyway — and if the pending
+   * click was on Delete, it selects an id that no longer exists.
+   */
+  useEffect(() => {
+    if (!open) cancelPendingSelect();
+  }, [open, cancelPendingSelect]);
+
   // Close on outside click / Escape. Registered only while open so a closed switcher costs
   // nothing on every document event.
   useEffect(() => {
