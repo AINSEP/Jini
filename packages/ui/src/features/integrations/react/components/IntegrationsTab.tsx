@@ -47,8 +47,15 @@ export function IntegrationsTab({
   const [clientId, setClientId] = useState<McpClientId>(initialClientId);
   const { info, error, loading } = useMcpInstallInfo(resolvedPort);
 
-  const resolved = info ? snippetForClient(clientId, serverName, info) : null;
+  // Resolve the client ONCE, then generate from THAT — rather than displaying a
+  // fallback while generating from the raw stored id. `initialClientId` defaults
+  // to a constant a host with a restricted `clients` list need not include, and
+  // `clientId` also survives a later change to `clients`. So the picker showed
+  // `clients[0]` — say "Codex" — with its one-click button, while the page
+  // generated `claude mcp add-json …` and told the operator to run it, for a
+  // client the host had deliberately excluded.
   const client = clients.find((c) => c.id === clientId) ?? clients[0];
+  const resolved = info && client ? snippetForClient(client.id, serverName, info) : null;
 
   // Origin gates every `buildMethod(info)` call on `info` being loaded
   // (`info ? client.buildMethod(info) : ''` for the trigger subtitle, same

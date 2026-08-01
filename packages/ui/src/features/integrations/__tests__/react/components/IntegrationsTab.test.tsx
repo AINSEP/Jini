@@ -83,6 +83,20 @@ describe('IntegrationsTab', () => {
     expect(await screen.findByRole('button', { name: 'One-click install' })).toBeInTheDocument();
   });
 
+  it('generates the snippet for the client it actually SHOWS, not the excluded stored id', async () => {
+    // The half the fallback test above did not pin. The picker fell back to
+    // `clients[0]` for display while `snippetForClient` still used the raw
+    // stored `clientId` — so the page showed Codex and its one-click button
+    // while printing `claude mcp add-json …` and telling the operator to run it,
+    // for a client this host had deliberately excluded.
+    const port = createFakeMcpIntegrationsPort();
+    const clientsWithoutClaude = MCP_CLIENTS.filter((c) => c.id !== 'claude');
+    render(<IntegrationsTab serverName="acme-mcp" port={port} clients={clientsWithoutClaude} />);
+    await waitFor(() => expect(screen.getByText(/acme-mcp/)).toBeInTheDocument());
+
+    expect(document.body.textContent).not.toMatch(/claude mcp add-json/);
+  });
+
   it('disables the one-click deeplink install button when the CLI/Node prerequisite is missing', async () => {
     const port = createFakeMcpIntegrationsPort({
       info: {
