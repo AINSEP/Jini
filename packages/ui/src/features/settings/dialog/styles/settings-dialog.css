@@ -1351,6 +1351,22 @@ a.jini-button {
    toggles are real switches once a consent decision exists
    (`hasMadeConsentDecision`). */
 
+/* `PrivacyTab.tsx` puts its two `jini-section-head` headings ("Help improve
+   this product", "Installation ID") in a bare `<h4>` with no className of
+   its own, unlike e.g. `LocalCliAgentList.tsx`'s "Your CLIs" heading, which
+   carries its own `jini-agent-group-head` (already reset). Without this, the
+   browser's ~1.33em default `<h4>` block margin fights `.jini-section-head`'s
+   own `gap`. Scoped to `.jini-settings-privacy` specifically — `.jini-
+   section-head` is a shared primitive several other tabs also use, each with
+   its own heading markup, so a blanket reset here isn't this tab's call to
+   make. */
+.jini-settings-privacy .jini-section-head h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--jini-text-strong);
+}
+
 .jini-settings-privacy-disclosure {
   margin: 0;
   display: flex;
