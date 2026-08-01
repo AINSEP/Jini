@@ -105,6 +105,25 @@ describe('testProviderConnection', () => {
     expect(result.detail).toContain('[REDACTED]');
   });
 
+  it('redacts BEFORE truncating, so a key past the sample cutoff cannot leak as a prefix', async () => {
+    // Found by an audit of the first version of this fix, which redacted the
+    // ALREADY-truncated sample. Truncation cutting through the key left a
+    // fragment that no longer matched the exact-secret redactor, so a prefix of
+    // the key survived into the detail.
+    const filler = 'x'.repeat(110);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () =>
+          JSON.stringify({ content: [{ type: 'text', text: `${filler} sk-ant-test` }] }),
+      }),
+    );
+    const result = await testProviderConnection(baseInput({}));
+    expect(result.detail).not.toMatch(/sk-ant/);
+  });
+
   it('classifies a 401 as auth_failed and redacts the api key from the detail', async () => {
     vi.stubGlobal(
       'fetch',

@@ -358,7 +358,7 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
         // header puts the operator's key in `detail` verbatim. Two independent
         // audits reproduced that, each from a different call boundary; the
         // redaction was simply missing on this one branch.
-        const sample = redactSecrets(truncateSample(text), [input.apiKey]);
+        const sample = truncateSample(redactSecrets(text, [input.apiKey]));
         result = {
           ok: false,
           kind: 'unknown',
