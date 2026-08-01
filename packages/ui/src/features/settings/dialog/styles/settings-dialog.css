@@ -260,8 +260,31 @@
   min-height: 0;
 }
 
-.jini-settings-dialog-body.is-sidebar-collapsed {
+/* Collapsed sidebar.
+ *
+ * This used to be written as `.jini-settings-dialog-body.is-sidebar-collapsed`,
+ * a selector nothing ever matched: `SettingsDialogShell` puts
+ * `jini-settings-dialog-sidebar-collapsed` on the DIALOG ROOT, not
+ * `is-sidebar-collapsed` on the body. The toggle therefore flipped its state
+ * and its `aria-pressed`, and repainted nothing — the chevron looked broken
+ * because visually it did nothing at all. */
+.jini-settings-dialog-sidebar-collapsed .jini-settings-dialog-body {
   grid-template-columns: 0 minmax(0, 1fr);
+}
+
+.jini-settings-dialog-sidebar-collapsed .jini-settings-dialog-sidebar {
+  /* A zero-width grid track does NOT hide the nav on its own: the aside keeps
+     its own padding and its buttons keep their intrinsic width, so the labels
+     would spill across the panel instead of disappearing. The element is
+     already `aria-hidden` when collapsed, so removing it from the visual box
+     tree too keeps the two in agreement. */
+  display: none;
+}
+
+.jini-settings-dialog-sidebar-collapsed .jini-settings-dialog-sidebar-toggle {
+  /* Follows the sidebar's (now zero-width) trailing edge, so the control that
+     expands it again is still on screen. */
+  left: 0;
 }
 
 .jini-settings-dialog-sidebar {
@@ -830,6 +853,41 @@ a.jini-button {
 
 .jini-agent-card-select:disabled {
   cursor: default;
+}
+
+/* The whole card is the click target, not just the text at the top of it.
+ *
+ * `.jini-agent-grid` is a grid, so selecting one CLI stretches every card in
+ * that row to match the expanded one — while `-select` keeps its natural
+ * content height. The space the row-mate's expansion added was therefore
+ * inert: clicking the lower two-thirds of a stretched-but-unselected card did
+ * nothing, which reads as a broken card rather than as "aim higher".
+ *
+ * `:last-child` is load-bearing. A card renders its diagnostics, model config,
+ * test result and path-repair actions as SIBLINGS after `-main`, and those
+ * blocks contain their own buttons; growing `-main` unconditionally would push
+ * them to the card's bottom edge, and a full-card overlay would swallow their
+ * clicks outright. `-main:last-child` is true exactly when nothing rendered
+ * after it — the unselected, no-diagnostics case this bug is about.
+ *
+ * `:not(.is-selected)` guards the padding move specifically: a SELECTED card
+ * can render its Test button inside `-main`, and zeroing the padding there
+ * would shove that button flush against the card edge. */
+.jini-agent-card:not(.is-selected) .jini-agent-card-main:last-child {
+  flex: 1 1 auto;
+  /* Handed to the button below — left here it would ring the card in 12px of
+     unclickable margin, a smaller version of the same bug. */
+  padding: 0;
+}
+
+.jini-agent-card:not(.is-selected) .jini-agent-card-main:last-child > .jini-agent-card-select {
+  /* The row is `align-items: flex-start` so the Test button never stretches;
+     this opts the select button alone into filling the card. Its own
+     `align-items: flex-start` keeps icon and text at the top — only the hit
+     area grows. */
+  align-self: stretch;
+  /* Exactly the padding `-main` gave up, so nothing moves on screen. */
+  padding: 12px;
 }
 
 .jini-agent-card-icon {
