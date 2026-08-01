@@ -225,3 +225,33 @@ describe('sourceDisplayLabel', () => {
     expect(label.endsWith('wxyz')).toBe(true);
   });
 });
+
+describe('maskFieldValue — secret-textarea (MCP env block)', () => {
+  it('masks each value while keeping the variable name visible', () => {
+    const masked = maskFieldValue('secret-textarea', 'GITHUB_TOKEN=ghp_liveSecret123\nDEBUG=true');
+    expect(masked).toContain('GITHUB_TOKEN=');
+    expect(masked).toContain('DEBUG=');
+    // The point of keeping names: an operator must still see WHICH vars are set.
+    expect(masked).not.toContain('ghp_liveSecret123');
+    expect(masked).not.toContain('true');
+  });
+
+  it('fails closed on a line with no `=` rather than passing it through', () => {
+    const masked = maskFieldValue('secret-textarea', 'just-a-bare-secret');
+    expect(masked).not.toContain('just-a-bare-secret');
+  });
+
+  it('leaves blank lines alone and preserves line structure', () => {
+    const masked = maskFieldValue('secret-textarea', 'A=1\n\nB=2');
+    expect(masked.split('\n')).toHaveLength(3);
+    expect(masked.split('\n')[1]).toBe('');
+  });
+
+  it('still passes plain textarea through unchanged', () => {
+    expect(maskFieldValue('textarea', 'GITHUB_TOKEN=ghp_x')).toBe('GITHUB_TOKEN=ghp_x');
+  });
+
+  it('still masks a whole password value', () => {
+    expect(maskFieldValue('password', 'sk-ant-1234567890wxyz')).toMatch(/^•+wxyz$/);
+  });
+});

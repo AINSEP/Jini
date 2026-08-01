@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
+import { maskFieldValue } from '@jini-ai/ui-core';
 import type { SourceFieldSpec } from '@jini-ai/ui-core';
 
 export interface SourceConfigFieldProps {
@@ -31,6 +32,15 @@ export interface SourceConfigFieldProps {
 export function SourceConfigField({ spec, value, error, disabled = false, idPrefix = 'source-config-field', onChange }: SourceConfigFieldProps) {
   const t = useT();
   const [revealed, setRevealed] = useState(false);
+
+  // Re-hide as soon as the field empties. The add form clears its values after a
+  // successful submit but keeps this component mounted, so a `revealed` left on
+  // from the previous entry meant the NEXT credential was typed into a visible
+  // `type="text"` input — a plain shoulder-surfing exposure in the ordinary
+  // add-several-sources flow, with nothing on screen to suggest it.
+  useEffect(() => {
+    if (!value) setRevealed(false);
+  }, [value]);
   const inputId = `${idPrefix}-${spec.key}`;
   const errorId = error ? `${inputId}-error` : undefined;
   const placeholder = spec.placeholder ? t(spec.placeholder) : undefined;
@@ -63,16 +73,33 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
             </option>
           ))}
         </select>
-      ) : spec.kind === 'textarea' ? (
-        <textarea
-          id={inputId}
-          value={value}
-          placeholder={placeholder}
-          disabled={disabled}
-          aria-invalid={Boolean(error) || undefined}
-          aria-describedby={errorId}
-          onChange={(event) => onChange(event.target.value)}
-        />
+      ) : spec.kind === 'textarea' || spec.kind === 'secret-textarea' ? (
+        <span className="source-config-field-row">
+          <textarea
+            id={inputId}
+            value={spec.kind === 'secret-textarea' && !revealed ? maskFieldValue(spec.kind, value) : value}
+            placeholder={placeholder}
+            // A masked textarea must not be typed into — the visible text is not
+            // the real value, so an edit would commit the mask characters.
+            // Revealing is the way in, exactly like the password field.
+            readOnly={spec.kind === 'secret-textarea' && !revealed}
+            disabled={disabled}
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={errorId}
+            onChange={(event) => onChange(event.target.value)}
+          />
+          {spec.kind === 'secret-textarea' ? (
+            <button
+              type="button"
+              className="source-config-field-toggle"
+              disabled={disabled}
+              onClick={() => setRevealed((current) => !current)}
+              title={revealed ? t('Hide') : t('Show')}
+            >
+              {revealed ? t('Hide') : t('Show')}
+            </button>
+          ) : null}
+        </span>
       ) : spec.kind === 'password' ? (
         <span className="source-config-field-row">
           <input

@@ -14,8 +14,19 @@
  * render all of them.
  */
 
-/** Which UI control a field renders as. */
-export type SourceFieldKind = 'text' | 'url' | 'password' | 'select' | 'textarea';
+/**
+ * Which UI control a field renders as.
+ *
+ * `secret-textarea` is a multi-line field whose CONTENT is secret-bearing but
+ * whose structure is not — the motivating case is an MCP server's
+ * `KEY=VALUE`-per-line environment block, where the variable NAMES are exactly
+ * what an operator needs to see and the VALUES are exactly what must not leak.
+ * Neither existing kind expressed that: `password` masks the whole blob
+ * (including the names) and collapses a textarea to one line, while plain
+ * `textarea` claims nothing is sensitive and rendered live tokens verbatim in
+ * the read-only card. See {@link maskFieldValue}.
+ */
+export type SourceFieldKind = 'text' | 'url' | 'password' | 'select' | 'textarea' | 'secret-textarea';
 
 export interface SourceFieldOption {
   value: string;

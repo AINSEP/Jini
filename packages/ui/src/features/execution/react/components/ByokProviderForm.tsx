@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
 import {
   isBaseUrlInvalid,
@@ -42,6 +42,17 @@ export function ByokProviderForm({
 }: ByokProviderFormProps) {
   const t = useT();
   const [revealKey, setRevealKey] = useState(false);
+
+  // Re-hide whenever the card switches to a different provider. `revealKey` is
+  // local state and this component is not keyed by provider, so without this it
+  // survives the switch: reveal provider A's key, pick provider B, and B's own
+  // saved key renders as `type="text"` without anyone asking for it. The
+  // credentials themselves ARE correctly per-provider (`nextConfigForPresetSelect`
+  // snapshots them into `savedByProviderId`); only this disclosure toggle
+  // escaped that isolation.
+  useEffect(() => {
+    setRevealKey(false);
+  }, [config.providerId]);
 
   const missing = new Set(missingRequiredFields(config, preset));
   const baseUrlInvalid = isBaseUrlInvalid(config);

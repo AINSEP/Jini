@@ -22,5 +22,10 @@ export const MCP_SOURCE_FIELD_SPECS: readonly SourceFieldSpec[] = [
   },
   { key: 'command', label: 'Command', kind: 'text', placeholder: 'e.g. npx, node, /path/to/binary' },
   { key: 'args', label: 'Args', kind: 'text', placeholder: 'space-separated' },
-  { key: 'env', label: 'Env (KEY=VALUE)', kind: 'textarea', placeholder: 'GITHUB_TOKEN=ghp_…' },
+  // `secret-textarea`, not `textarea`: this block routinely holds live tokens —
+  // its own placeholder says so — and a plain textarea rendered them verbatim in
+  // the expandable server card, because `maskFieldValue` masked only `password`.
+  // The secret kind masks each line's VALUE while keeping its NAME visible, so
+  // an operator can still see which variables are set.
+  { key: 'env', label: 'Env (KEY=VALUE)', kind: 'secret-textarea', placeholder: 'GITHUB_TOKEN=ghp_…' },
 ];

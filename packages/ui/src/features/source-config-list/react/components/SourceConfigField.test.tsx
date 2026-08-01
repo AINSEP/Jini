@@ -141,4 +141,46 @@ describe('SourceConfigField', () => {
       expect(screen.getByDisplayValue('Anthropique')).toBeInTheDocument();
     });
   });
+
+  describe('credential disclosure', () => {
+    it('re-hides a revealed password once the field empties, so the NEXT credential is not typed in the clear', async () => {
+      // The add form clears its values after a successful submit but keeps this
+      // component mounted. A `revealed` left on from the previous entry meant the
+      // next key was typed into a visible `type="text"` input.
+      const spec: SourceFieldSpec = { key: 'apiKey', label: 'API Key', kind: 'password' };
+      const { rerender } = render(<SourceConfigField spec={spec} value="sk-first" onChange={vi.fn()} />);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+      expect(screen.getByLabelText('API Key', { exact: false })).toHaveAttribute('type', 'text');
+
+      // Successful submit: the form resets values, this component stays mounted.
+      rerender(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
+
+      expect(screen.getByLabelText('API Key', { exact: false })).toHaveAttribute('type', 'password');
+    });
+
+    it('masks each env VALUE but keeps its NAME visible, and reveals on demand', async () => {
+      const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
+      render(<SourceConfigField spec={spec} value={'GITHUB_TOKEN=ghp_liveSecret\nDEBUG=true'} onChange={vi.fn()} />);
+
+      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      expect(box.value).toContain('GITHUB_TOKEN=');
+      expect(box.value).not.toContain('ghp_liveSecret');
+      // Masked text is not the real value, so it must not be editable.
+      expect(box).toHaveAttribute('readonly');
+
+      await userEvent.click(screen.getByRole('button', { name: 'Show' }));
+      expect((screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement).value).toContain('ghp_liveSecret');
+    });
+
+    it('leaves a plain textarea unmasked and editable', async () => {
+      const onChange = vi.fn();
+      const spec: SourceFieldSpec = { key: 'args', label: 'Args', kind: 'textarea' };
+      render(<SourceConfigField spec={spec} value="--verbose" onChange={onChange} />);
+      const box = screen.getByLabelText('Args', { exact: false }) as HTMLTextAreaElement;
+      expect(box.value).toBe('--verbose');
+      expect(box).not.toHaveAttribute('readonly');
+    });
+  });
+
 });

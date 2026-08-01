@@ -140,18 +140,48 @@ export function updateSourceById<TSource extends SourceConfigItem>(
   return list.map((source) => (source.id === id ? { ...source, ...patch } : source));
 }
 
-/**
- * Masks a field value for list/summary display. `password`-kind fields show
- * only their trailing {@link MASKED_VALUE_VISIBLE_SUFFIX_LENGTH} characters
- * behind a run of mask characters (never fewer than
- * {@link MASKED_VALUE_MIN_MASK_LENGTH}, so a very short secret doesn't leak
- * its own length); every other kind passes through unchanged.
- */
-export function maskFieldValue(kind: SourceFieldSpec['kind'], value: string): string {
-  if (kind !== 'password' || !value) return value;
+/** One secret masked to its trailing {@link MASKED_VALUE_VISIBLE_SUFFIX_LENGTH} characters, behind
+ *  never fewer than {@link MASKED_VALUE_MIN_MASK_LENGTH} mask characters so a short secret does not
+ *  leak its own length. */
+function maskSecret(value: string): string {
   const visible = value.length > MASKED_VALUE_VISIBLE_SUFFIX_LENGTH ? value.slice(-MASKED_VALUE_VISIBLE_SUFFIX_LENGTH) : '';
   const maskLength = Math.max(MASKED_VALUE_MIN_MASK_LENGTH, value.length - visible.length);
   return MASK_CHAR.repeat(maskLength) + visible;
+}
+
+/**
+ * Masks a field value for list/summary display.
+ *
+ * - `password` — the whole value is the secret, so the whole value is masked.
+ * - `secret-textarea` — `KEY=VALUE` per line: the KEY is kept (an operator needs
+ *   to see WHICH variables are set) and only the VALUE is masked. A line with no
+ *   `=` is treated as entirely secret rather than passed through, so a malformed
+ *   or reformatted block fails closed.
+ * - everything else passes through unchanged.
+ *
+ * The `secret-textarea` branch exists because an MCP server's `env` block was
+ * declared a plain `textarea` and therefore rendered `GITHUB_TOKEN=ghp_live…`
+ * verbatim in the always-expandable source card — on a field whose own
+ * placeholder advertises that it holds exactly that.
+ */
+export function maskFieldValue(kind: SourceFieldSpec['kind'], value: string): string {
+  if (!value) return value;
+  if (kind === 'password') return maskSecret(value);
+  if (kind === 'secret-textarea') {
+    return value
+      .split('\n')
+      .map((line) => {
+        const trimmed = line.trim();
+        if (!trimmed) return line;
+        const eq = line.indexOf('=');
+        // No `=` means this is not the KEY=VALUE shape the mask relies on, so
+        // there is no safe "name" half to keep — mask the entire line.
+        if (eq <= 0) return maskSecret(line);
+        return `${line.slice(0, eq + 1)}${maskSecret(line.slice(eq + 1))}`;
+      })
+      .join('\n');
+  }
+  return value;
 }
 
 /**
