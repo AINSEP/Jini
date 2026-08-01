@@ -308,7 +308,7 @@ describe('useSkillsTab — submitDraft', () => {
     result.current.submitDraft(); // ignored: a save is already in flight
     expect(createSpy).toHaveBeenCalledTimes(1);
 
-    create.resolve({ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant' });
+    create.resolve({ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant', triggers: [] });
     await waitFor(() => expect(result.current.draftSaving).toBe(false));
   });
 
@@ -326,7 +326,7 @@ describe('useSkillsTab — submitDraft', () => {
     const beforeUnmount = result.current;
 
     unmount();
-    create.resolve({ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant' });
+    create.resolve({ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant', triggers: [] });
     await create.promise;
 
     expect(result.current).toBe(beforeUnmount);
@@ -339,7 +339,7 @@ describe('useSkillsTab — submitDraft', () => {
       listSkills: () => (listCalls++ === 0 ? Promise.resolve([]) : refresh.promise),
       fetchSkillDetail: () => Promise.reject(new Error('n/a')),
       fetchSkillFiles: () => Promise.resolve([]),
-      createSkill: () => Promise.resolve({ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant' }),
+      createSkill: () => Promise.resolve({ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant', triggers: [] }),
       updateSkill: () => Promise.reject(new Error('n/a')),
       deleteSkill: () => Promise.reject(new Error('n/a')),
     };
@@ -356,7 +356,7 @@ describe('useSkillsTab — submitDraft', () => {
     const beforeUnmount = result.current;
 
     unmount();
-    refresh.resolve([{ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant' }]);
+    refresh.resolve([{ ...VALID_DRAFT, id: 'fake-1', source: 'user', mode: 'assistant', triggers: [] }]);
     await refresh.promise;
 
     expect(result.current).toBe(beforeUnmount);
