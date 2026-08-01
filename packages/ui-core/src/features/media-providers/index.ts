@@ -9,9 +9,11 @@ export type {
 export {
   hasAnyConfiguredProvider,
   hasRecoverableFields,
+  invalidBaseUrlProviderIds,
   isEntryEmpty,
   isEntryPresent,
   isMarkerOnlyEntry,
+  isProviderBaseUrlInvalid,
   maskedKeyLabel,
   mergeDaemonProviders,
   resolveProviderBaseUrl,

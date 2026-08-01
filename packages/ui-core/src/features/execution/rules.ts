@@ -1,3 +1,4 @@
+import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
 import { CUSTOM_PRESET_ID, DEFAULT_BASE_URL_BY_PROTOCOL } from './constants.js';
 import type {
   AgentCliEnvFieldSpec,
@@ -21,19 +22,22 @@ import type {
  * `privacy` and `integrations` tabs use.
  */
 
-/** Accepts only absolute http(s) URLs. Origin: `isValidApiBaseUrl`. A blank
- *  string is *not* valid here; callers decide whether blank is allowed (it is,
- *  for fixed-origin gateways, which resolve their own endpoint). */
+/**
+ * Accepts only absolute http(s) URLs pointing somewhere a credentialed request
+ * may go. Origin: `isValidApiBaseUrl`. A blank string is *not* valid here;
+ * callers decide whether blank is allowed (it is, for fixed-origin gateways,
+ * which resolve their own endpoint).
+ *
+ * This used to check the scheme and nothing else, which accepted
+ * `http://169.254.169.254/` and every RFC1918 address — an operator-supplied
+ * endpoint that this tab then pairs with a real API key and persists. The
+ * host policy now lives in one shared module; see `utils/endpoint-policy.ts`
+ * for why it is a browser-safe copy of `@jini-ai/agent-runtime`'s guard rather
+ * than an import of it, and for the DNS-aware layer that complements it at
+ * connection time.
+ */
 export function isValidApiBaseUrl(raw: string): boolean {
-  const trimmed = raw.trim();
-  if (!trimmed) return false;
-  let parsed: URL;
-  try {
-    parsed = new URL(trimmed);
-  } catch {
-    return false;
-  }
-  return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  return isAllowedEndpointUrl(raw);
 }
 
 /** The synthetic "Custom" preset, so the picker always has a manual escape

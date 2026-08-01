@@ -1,6 +1,11 @@
 export type { SettingsDialogChromeLabels, SettingsDialogTabMeta } from './types.js';
 export { findActiveTab, resolveInitialActiveTabId } from './rules.js';
 export { randomUUID } from './utils/uuid.js';
+export {
+  isAllowedEndpointUrl,
+  isBlockedEndpointHost,
+  isLoopbackEndpointHost,
+} from './utils/endpoint-policy.js';
 export type { IconName } from './icon-name.js';
 export type { SoundId, SoundOption } from './notifications-catalog.js';
 export {

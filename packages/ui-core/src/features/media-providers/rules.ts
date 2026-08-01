@@ -1,3 +1,4 @@
+import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
 import type { MediaProviderCredentials, MediaProviderMap } from './types.js';
 
 /**
@@ -126,6 +127,11 @@ export function shouldSyncLocalProvidersToDaemon(
 /**
  * The base URL to use for a provider: whatever the operator typed, else the
  * catalog's default, else empty.
+ *
+ * Deliberately still returns whatever was typed, valid or not — callers render
+ * this value back into the field, and silently substituting the default under
+ * an operator mid-edit would look like their input was eaten. Acceptability is
+ * {@link isProviderBaseUrlInvalid}'s question, asked separately.
  */
 export function resolveProviderBaseUrl(
   entry: MediaProviderCredentials | null | undefined,
@@ -134,6 +140,29 @@ export function resolveProviderBaseUrl(
   const typed = entry?.baseUrl?.trim();
   if (typed) return typed;
   return defaultBaseUrl?.trim() ?? '';
+}
+
+/**
+ * True when the operator typed a base URL this tab will not send credentials
+ * to — distinct from "hasn't typed anything yet", which is not an error state
+ * (the catalog default takes over). Mirrors the execution tab's
+ * `isBaseUrlInvalid` exactly, against the same shared policy.
+ *
+ * This tab had NO url validation at all, which made it strictly worse than the
+ * execution tab's old scheme-only check on a field of the same kind: operator
+ * supplied, persisted, and paired with a real API key that is then sent to
+ * whatever it names. See `utils/endpoint-policy.ts`.
+ */
+export function isProviderBaseUrlInvalid(entry: MediaProviderCredentials | null | undefined): boolean {
+  const typed = entry?.baseUrl?.trim();
+  if (!typed) return false;
+  return !isAllowedEndpointUrl(typed);
+}
+
+/** Every provider id in the map whose typed base URL is unacceptable — the save gate's input. */
+export function invalidBaseUrlProviderIds(providers: MediaProviderMap | null | undefined): readonly string[] {
+  if (!providers) return [];
+  return Object.keys(providers).filter((id) => isProviderBaseUrlInvalid(providers[id]));
 }
 
 /**

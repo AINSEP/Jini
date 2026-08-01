@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import {
+  invalidBaseUrlProviderIds,
   isEntryPresent,
   isMarkerOnlyEntry,
+  isProviderBaseUrlInvalid,
   maskedKeyLabel,
   resolveProviderBaseUrl,
   sortProvidersByConfigured,
@@ -26,6 +28,8 @@ export interface MediaProvidersTabLabels {
   baseUrlPlaceholder?: string;
   /** i18n template with a `{url}` placeholder. */
   baseUrlDefaultHintTemplate?: string;
+  /** Shown under a base URL that is not an absolute http(s) endpoint, or that points into private address space. */
+  baseUrlInvalidLabel?: string;
   modelLabel?: string;
   modelPlaceholder?: string;
   /** i18n template with a `{mask}` placeholder. Always rendered WITH a mask —
@@ -79,6 +83,9 @@ export function MediaProvidersTab({ port, catalog, initialProviders, labels }: M
   const baseUrlLabel = labels?.baseUrlLabel ?? t('Base URL');
   const baseUrlPlaceholder = labels?.baseUrlPlaceholder ?? t('https://api.example.com');
   const baseUrlDefaultHintTemplate = labels?.baseUrlDefaultHintTemplate ?? t('Uses {url} by default.');
+  const baseUrlInvalidLabel =
+    labels?.baseUrlInvalidLabel ??
+    t('Enter an absolute http:// or https:// URL that is not a private or internal address.');
   const modelLabel = labels?.modelLabel ?? t('Model');
   const modelPlaceholder = labels?.modelPlaceholder ?? t('Default model');
   const savedWithMaskTemplate = labels?.savedWithMaskTemplate ?? t('Saved ({mask})');
@@ -103,6 +110,9 @@ export function MediaProvidersTab({ port, catalog, initialProviders, labels }: M
 
   const orderedCatalog = sortProvidersByConfigured(catalog, providers);
   const hasPendingChanges = pendingProviderIds.size > 0;
+  // Save writes every provider at once, so ONE unacceptable endpoint blocks the
+  // whole button rather than being silently persisted alongside the good ones.
+  const blockedByInvalidBaseUrl = invalidBaseUrlProviderIds(providers).length > 0;
 
   return (
     <section className="jini-settings-section jini-settings-media-providers">
@@ -142,6 +152,7 @@ export function MediaProvidersTab({ port, catalog, initialProviders, labels }: M
           const keyVisible = visibleApiKeys.has(option.id);
           const rawBaseUrl = entry.baseUrl ?? '';
           const effectiveBaseUrl = resolveProviderBaseUrl(entry, option.defaultBaseUrl);
+          const baseUrlInvalid = isProviderBaseUrlInvalid(entry);
           const modelListId = `jini-media-provider-models-${option.id}`;
 
           return (
@@ -191,9 +202,14 @@ export function MediaProvidersTab({ port, catalog, initialProviders, labels }: M
                   placeholder={option.defaultBaseUrl || baseUrlPlaceholder}
                   aria-label={`${option.label} ${baseUrlLabel}`}
                   value={rawBaseUrl}
+                  aria-invalid={baseUrlInvalid || undefined}
                   onChange={(event) => updateProvider(option.id, { baseUrl: event.target.value })}
                 />
-                {!rawBaseUrl.trim() && effectiveBaseUrl ? (
+                {baseUrlInvalid ? (
+                  <span className="jini-field-hint jini-hint-error" role="alert">
+                    {baseUrlInvalidLabel}
+                  </span>
+                ) : !rawBaseUrl.trim() && effectiveBaseUrl ? (
                   <span className="jini-field-hint">{t(baseUrlDefaultHintTemplate, { url: effectiveBaseUrl })}</span>
                 ) : null}
               </label>
@@ -238,7 +254,7 @@ export function MediaProvidersTab({ port, catalog, initialProviders, labels }: M
           type="button"
           className="jini-button"
           onClick={saveChanges}
-          disabled={save.status === 'saving' || !hasPendingChanges}
+          disabled={save.status === 'saving' || !hasPendingChanges || blockedByInvalidBaseUrl}
         >
           {save.status === 'saving' ? savingLabel : saveChangesLabel}
         </button>

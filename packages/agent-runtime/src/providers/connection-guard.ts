@@ -16,6 +16,19 @@
  * or RFC1918/link-local/CGNAT/metadata-service addresses, and strip bearer
  * tokens / API-key headers / `?key=` query values out of free-form text
  * before it is logged or surfaced to a caller.
+ *
+ * ## Paired with `@jini-ai/ui-core`'s `utils/endpoint-policy.ts`
+ *
+ * That module carries a browser-safe copy of the SYNCHRONOUS half below —
+ * `isLoopbackApiHost`/`isBlockedExternalApiHostname`/`validateBaseUrl` — so the
+ * settings tabs can reject a bad endpoint as the operator types it. It is a
+ * copy rather than an import because `ui-core` ships zero dependencies by
+ * design and this package is Node-only (`validateBaseUrlResolved` needs
+ * `node:dns`); see that file's header for the full reasoning.
+ *
+ * **If the block-list here changes, change it there too.** A divergence means
+ * the UI accepts an endpoint this guard then refuses — or, in the direction
+ * that actually matters, the UI accepts one this guard would have refused.
  */
 
 export interface BaseUrlValidationResult {

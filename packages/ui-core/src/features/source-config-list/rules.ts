@@ -2,6 +2,7 @@
  * Pure logic for the generic source-config-list primitive. No React, no
  * transport, no DOM — see `packages/ui/source-map.md` for full provenance.
  */
+import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
 import { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from './constants.js';
 import type {
   SourceActionKind,
@@ -19,13 +20,12 @@ export function emptySourceDraft(fieldSpecs: readonly SourceFieldSpec[]): Source
   return draft;
 }
 
+/** Same endpoint policy the execution and media-provider tabs apply — a
+ *  `url`-kind source field is an operator-supplied endpoint like any other, and
+ *  a scheme-only check accepted private address space. See
+ *  `utils/endpoint-policy.ts`. */
 function isValidHttpUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
-  } catch {
-    return false;
-  }
+  return isAllowedEndpointUrl(value);
 }
 
 /**
@@ -37,6 +37,15 @@ function isValidHttpUrl(value: string): boolean {
  * Google key-format detection) is deliberately NOT ported here — see
  * `source-map.md`'s dropped-behavior list; a host that needs it supplies its
  * own extra validation before calling `addSource`.
+ *
+ * **Applies to the EDIT path as well as the add path.** That was once true only
+ * by accident of nobody editing: the sole call site was the add form, and
+ * `updateSource` reached the port with raw component state, so a source could
+ * be edited into a shape this function would have rejected at creation.
+ * `SourceConfigItemCard` now runs it before saving an edit. A host driving
+ * `port.updateSource` itself owns the same check — the sentence above about
+ * `addSource` was never meant to license an unvalidated `updateSource`, it
+ * simply never mentioned it.
  *
  * `message` is an i18n-ready TEMPLATE (`'{label} is required.'`), not a
  * pre-baked English sentence — this module stays hook-free per the i18n
