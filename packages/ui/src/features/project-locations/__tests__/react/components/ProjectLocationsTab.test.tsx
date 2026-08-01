@@ -9,6 +9,17 @@ import { ProjectLocationsTab } from '../../../react/components/ProjectLocationsT
 const BUILT_IN: ProjectLocation = { id: 'default', name: 'Default', path: '/home/op/projects', builtIn: true };
 const EXTERNAL: ProjectLocation = { id: 'loc-1', name: 'work', path: '/home/op/work', builtIn: false };
 
+/** A promise plus its resolve/reject, for tests that need to render the
+ *  in-flight state of an async action (e.g. a draft that has not been
+ *  saved yet, and so has no id). */
+function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 describe('ProjectLocationsTab', () => {
   it('renders the built-in location and every configured external one', async () => {
     const port = createFakeProjectLocationsPort({ locations: [BUILT_IN, EXTERNAL] });
@@ -146,5 +157,88 @@ describe('ProjectLocationsTab', () => {
       </I18nProvider>,
     );
     expect(await screen.findByText('Emplacements du projet')).toBeInTheDocument();
+  });
+
+  it('renders host-supplied labels instead of the built-in defaults', async () => {
+    const port = createFakeProjectLocationsPort({ locations: [BUILT_IN, EXTERNAL] });
+    render(
+      <ProjectLocationsTab
+        port={port}
+        labels={{
+          title: 'Custom title',
+          description: 'Custom description',
+          builtInLabel: 'Custom built-in',
+          defaultBadge: 'Custom default',
+          makeDefaultLabel: 'Custom make default',
+          deleteLabel: 'Custom delete',
+          addFolderLabel: 'Custom add folder',
+          rowHint: 'Custom row hint',
+          noFolderSelectedLabel: 'Custom no folder',
+          duplicateLabel: 'Custom duplicate',
+          savedLabel: 'Custom saved',
+          defaultSavedLabel: 'Custom default saved',
+          saveErrorLabel: 'Custom save error',
+          scanErrorLabel: 'Custom scan error',
+          scanCompleteTemplate: 'Custom {imported}/{existing}',
+        }}
+      />,
+    );
+    expect(await screen.findByText('Custom title')).toBeInTheDocument();
+    expect(screen.getByText('Custom description')).toBeInTheDocument();
+    expect(screen.getByText('Custom built-in')).toBeInTheDocument();
+    // No defaultLocationId prop — the built-in root is the effective default.
+    expect(screen.getByText('Custom default')).toBeInTheDocument();
+    expect(screen.getByText('Custom make default')).toBeInTheDocument();
+    expect(screen.getAllByText('Custom delete').length).toBeGreaterThan(0);
+    expect(screen.getByText('Custom add folder')).toBeInTheDocument();
+    expect(screen.getAllByText('Custom row hint').length).toBeGreaterThan(0);
+  });
+
+  it('clicking the built-in row default radio calls onDefaultLocationIdChange with its id', async () => {
+    const port = createFakeProjectLocationsPort({ locations: [BUILT_IN, EXTERNAL] });
+    const onChange = vi.fn();
+    render(<ProjectLocationsTab port={port} defaultLocationId="loc-1" onDefaultLocationIdChange={onChange} />);
+    await screen.findByText('/home/op/work');
+    const builtInRadio = screen.getAllByRole('radio')[0]!;
+
+    await userEvent.click(builtInRadio);
+
+    expect(onChange).toHaveBeenCalledWith('default');
+  });
+
+  it('does not render a default radio for a freshly-added draft that has not been saved yet', async () => {
+    const save = deferred<readonly ProjectLocation[]>();
+    const port: ProjectLocationsPort = {
+      fetchLocations: () => Promise.resolve([BUILT_IN]),
+      openFolderDialog: () => Promise.resolve('/home/op/new-project'),
+      saveLocations: () => save.promise,
+    };
+    render(<ProjectLocationsTab port={port} />);
+    await screen.findByText('/home/op/projects');
+
+    await userEvent.click(screen.getByRole('button', { name: /Add folder/ }));
+
+    // The optimistic draft renders immediately, with no id yet.
+    await screen.findByText('/home/op/new-project');
+    expect(screen.getAllByRole('radio')).toHaveLength(1); // only the built-in row's
+
+    save.resolve([BUILT_IN, { id: 'loc-1', name: 'new-project', path: '/home/op/new-project' }]);
+    await waitFor(() => expect(screen.getAllByRole('radio')).toHaveLength(2));
+  });
+
+  it('shows a scan-error alert when the post-add scan rejects', async () => {
+    const port: ProjectLocationsPort = {
+      fetchLocations: () => Promise.resolve([BUILT_IN]),
+      openFolderDialog: () => Promise.resolve('/home/op/new-project'),
+      saveLocations: (drafts: readonly ProjectLocationDraft[]) =>
+        Promise.resolve([BUILT_IN, ...drafts.map((d, i) => ({ id: `new-${i}`, name: 'new-project', path: d.path }))]),
+      scanLocations: () => Promise.reject(new Error('scan crashed')),
+    };
+    render(<ProjectLocationsTab port={port} />);
+    await screen.findByText('/home/op/projects');
+
+    await userEvent.click(screen.getByRole('button', { name: /Add folder/ }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not scan the new folder for existing projects.');
   });
 });
