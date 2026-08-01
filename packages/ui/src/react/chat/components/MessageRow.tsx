@@ -14,17 +14,28 @@
  * first" ordering, which this task's sources don't cover). This is
  * therefore a fresh, reasonable v1 composition of the already-ported leaves,
  * not a byte-for-byte port — text and question-forms interleave in original
- * order (via `splitOnQuestionForms`), but tool cards currently render as one
- * block after the text rather than fully interleaved at their original
- * position in the event stream (`AssistantMessage.tsx`'s real interleaving
- * logic — `deriveFileOps`/`stripTodoToolGroups`/etc. — is a TODO follow-up
- * once that god-component gets its own extraction task).
+ * order (via `splitOnQuestionForms`).
+ *
+ * Tool cards now interleave too (`../message-blocks.js`), which they did not in
+ * v1. That original deferral fused the text on either side of a tool call into
+ * one run — a message read as `"I'll look for a tool that changes the
+ * language.Done — the language is now English."`, two thoughts from before and
+ * after the call joined mid-sentence, with every card pooled at the bottom.
+ * `AssistantMessage.tsx`'s richer derivations (`deriveFileOps`/
+ * `stripTodoToolGroups`/etc.) remain a TODO for that god-component's own
+ * extraction task; plain ordering did not need to wait for them.
+ *
+ * `interleaveMessageBlocks` returns `null` when it cannot prove the
+ * reconstruction is lossless, and this component then renders exactly the flat
+ * layout it always did. Both paths are live, so the fallback is not dead code —
+ * see that module's header for the conditions.
  */
-import type { ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage } from '@jini-ai/chat-core';
 import { splitOnQuestionForms, stripArtifact } from '@jini-ai/chat-core';
-import { useToolTimeline } from '../hooks/useToolTimeline.js';
+import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
+import { interleaveMessageBlocks } from '../message-blocks.js';
 import { useT } from '../hooks/context.js';
 import { getExtEventRenderer } from '../ext-event-renderer-registry.js';
 import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
@@ -114,6 +125,45 @@ export function MessageRow({
   const segments = splitOnQuestionForms(visibleContent);
   const usageEvent = message.events?.filter((ev): ev is UsageEvent => ev.kind === 'usage').pop();
 
+  // Interleaving is skipped outright when an artifact was stripped. `stripArtifact` operates on the
+  // whole string and trims, so the surviving text no longer lines up with the per-run offsets the
+  // event walk produces, and an artifact block could legitimately span a tool call. Rather than
+  // reason about partial overlaps, an artifact-bearing message keeps the flat layout — those
+  // messages are dominated by the artifact panel anyway, so the ordering matters least there.
+  const blocks =
+    visibleContent === message.content ? interleaveMessageBlocks<ToolTimelineRow>(message.events, message.content, timeline.rows) : null;
+
+  const renderToolCard = (row: ToolTimelineRow) => (
+    <ToolCard
+      key={row.id}
+      use={row.use}
+      result={row.result}
+      runStreaming={runStreaming}
+      runSucceeded={runSucceeded}
+      {...(projectFileNames !== undefined ? { projectFileNames } : {})}
+      {...(onRequestOpenFile !== undefined ? { onRequestOpenFile } : {})}
+    />
+  );
+
+  const renderTextSegments = (text: string, keyPrefix: string): ReactNode =>
+    splitOnQuestionForms(text).map((segment, i) =>
+      segment.kind === 'text' ? (
+        segment.text.trim() ? (
+          <div className="jini-message-content" key={`${keyPrefix}-${i}`}>
+            <Markdown>{segment.text}</Markdown>
+          </div>
+        ) : null
+      ) : (
+        <QuestionForm
+          key={`${keyPrefix}-${i}`}
+          form={segment.form}
+          interactive={questionFormInteractive}
+          {...(questionFormSubmittedAnswers !== undefined ? { submittedAnswers: questionFormSubmittedAnswers } : {})}
+          {...(onQuestionFormSubmit !== undefined ? { onSubmit: onQuestionFormSubmit } : {})}
+        />
+      ),
+    );
+
   return (
     <div
       className="jini-message jini-message-assistant"
@@ -124,30 +174,40 @@ export function MessageRow({
       data-agent-label="A reply from the assistant"
     >
       {message.agentName ? <div className="jini-message-agent">{message.agentName}</div> : null}
-      {segments.map((segment, i) =>
-        segment.kind === 'text' ? (
-          segment.text.trim() ? (
-            <div className="jini-message-content" key={i}>
-              <Markdown>{segment.text}</Markdown>
-            </div>
-          ) : null
-        ) : (
-          <QuestionForm
-            key={i}
-            form={segment.form}
-            interactive={questionFormInteractive}
-            {...(questionFormSubmittedAnswers !== undefined ? { submittedAnswers: questionFormSubmittedAnswers } : {})}
-            {...(onQuestionFormSubmit !== undefined ? { onSubmit: onQuestionFormSubmit } : {})}
-          />
-        ),
-      )}
-      {timeline.rows.length > 0 ? (
-        <div className="jini-message-tools">
-          {timeline.rows.map((row) => (
-            <ToolCard key={row.id} use={row.use} result={row.result} runStreaming={runStreaming} runSucceeded={runSucceeded} {...(projectFileNames !== undefined ? { projectFileNames } : {})} {...(onRequestOpenFile !== undefined ? { onRequestOpenFile } : {})} />
-          ))}
-        </div>
-      ) : null}
+      {blocks
+        ? blocks.map((block) =>
+            block.kind === 'text' ? (
+              <React.Fragment key={block.key}>{renderTextSegments(block.text, block.key)}</React.Fragment>
+            ) : (
+              <div className="jini-message-tools" key={block.key}>
+                {block.rows.map(renderToolCard)}
+              </div>
+            ),
+          )
+        : (
+          <>
+            {segments.map((segment, i) =>
+              segment.kind === 'text' ? (
+                segment.text.trim() ? (
+                  <div className="jini-message-content" key={i}>
+                    <Markdown>{segment.text}</Markdown>
+                  </div>
+                ) : null
+              ) : (
+                <QuestionForm
+                  key={i}
+                  form={segment.form}
+                  interactive={questionFormInteractive}
+                  {...(questionFormSubmittedAnswers !== undefined ? { submittedAnswers: questionFormSubmittedAnswers } : {})}
+                  {...(onQuestionFormSubmit !== undefined ? { onSubmit: onQuestionFormSubmit } : {})}
+                />
+              ),
+            )}
+            {timeline.rows.length > 0 ? (
+              <div className="jini-message-tools">{timeline.rows.map(renderToolCard)}</div>
+            ) : null}
+          </>
+        )}
       {extGroups.length > 0 ? (
         <div className="jini-message-ext-events">
           {extGroups.map((group) => {
