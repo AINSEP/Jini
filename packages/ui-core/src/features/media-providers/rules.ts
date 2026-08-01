@@ -187,18 +187,30 @@ export function sortProvidersByConfigured<T extends { id: string; label: string 
   });
 }
 
+/** How many trailing characters of a key may ever be shown. Matches
+ *  `source-config-list`'s `MASKED_VALUE_VISIBLE_SUFFIX_LENGTH` — the two mask
+ *  the same class of secret and must not disagree about how much of it leaks. */
+const KEY_TAIL_MAX_LENGTH = 4;
+
 /**
  * How a configured key should be displayed.
  *
  * Never returns the key itself. A locally-typed key is masked down to its own
  * tail so it reads the same as a server-reported one, which keeps the UI from
  * looking different depending on where the value happens to live.
+ *
+ * **`apiKeyTail` is clamped rather than trusted.** It arrives from the daemon,
+ * and `types.ts` describes it as "the last few characters" in prose only — there
+ * was nothing enforcing that. A daemon bug (or a compromised one) returning the
+ * WHOLE key in that field would have rendered the whole key behind a `••••`
+ * prefix that makes it look masked. Clamping here means the display cannot leak
+ * more than it promises no matter what the server sends.
  */
 export function maskedKeyLabel(entry: MediaProviderCredentials | null | undefined): string | null {
   const tail = entry?.apiKeyTail?.trim();
-  if (tail) return `••••${tail}`;
+  if (tail) return `••••${tail.slice(-KEY_TAIL_MAX_LENGTH)}`;
   const local = entry?.apiKey?.trim();
-  if (local) return `••••${local.slice(-4)}`;
+  if (local) return `••••${local.slice(-KEY_TAIL_MAX_LENGTH)}`;
   if (entry?.apiKeyConfigured) return '••••';
   return null;
 }

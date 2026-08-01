@@ -276,3 +276,65 @@ describe('useMediaProvidersTab — reload', () => {
     expect(result.current.providers).toEqual({ a: { apiKeyConfigured: true } });
   });
 });
+
+describe('useMediaProvidersTab — overlapping whole-map saves', () => {
+  /** A port whose saves are released manually, so two can be in flight at once. */
+  function gatedPort(): { port: MediaProvidersPort; release: (index: number, value: MediaProviderMap) => void; calls: MediaProviderMap[] } {
+    const calls: MediaProviderMap[] = [];
+    const resolvers: Array<(value: MediaProviderMap) => void> = [];
+    const port: MediaProvidersPort = {
+      fetchMediaProviders: async () => ({ a: { apiKeyConfigured: true, apiKeyTail: '1234' } }),
+      saveMediaProviders: async (next) => {
+        calls.push(next);
+        return new Promise<MediaProviderMap>((resolve) => resolvers.push(resolve));
+      },
+    };
+    return { port, release: (index, value) => resolvers[index]!(value), calls };
+  }
+
+  it('does not resurrect a cleared credential when an earlier save resolves last', async () => {
+    // Save-then-Clear is an ordinary double-click: nothing disables Clear while
+    // a save is in flight, and the port replaces the WHOLE map. Without a ticket
+    // on the save edge, the first save's response (whose map still contains `a`)
+    // lands last and puts the cleared credential back.
+    const { port, release, calls } = gatedPort();
+    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+
+    result.current.saveChanges();
+    await waitFor(() => expect(calls).toHaveLength(1));
+    result.current.clearProvider('a');
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1]).toEqual({});
+
+    // The CLEAR resolves first, then the earlier SAVE resolves with the stale map.
+    release(1, {});
+    await waitFor(() => expect(result.current.providers).toEqual({}));
+    release(0, { a: { apiKeyConfigured: true, apiKeyTail: '1234' } });
+
+    await waitFor(() => expect(result.current.save.status).not.toBe('saving'));
+    expect(result.current.providers).toEqual({});
+    expect(result.current.hasAnyConfigured).toBe(false);
+  });
+
+  it('a superseded save does not roll a clear back either', async () => {
+    // The second-order trap: `clearProvider` rolls its optimistic delete back
+    // when a save does not succeed. Treating "overtaken" as "failed" would
+    // restore the pre-clear map and resurrect the credential by another route.
+    const { port, release, calls } = gatedPort();
+    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+
+    result.current.clearProvider('a');
+    await waitFor(() => expect(calls).toHaveLength(1));
+    result.current.saveChanges();
+    await waitFor(() => expect(calls).toHaveLength(2));
+
+    release(1, {});
+    await waitFor(() => expect(result.current.save.status).toBe('saved'));
+    release(0, {});
+
+    await waitFor(() => expect(result.current.providers).toEqual({}));
+    expect(result.current.providers).toEqual({});
+  });
+});

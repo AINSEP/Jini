@@ -308,3 +308,29 @@ describe('maskedKeyLabel', () => {
     expect(maskedKeyLabel({ apiKeyConfigured: false })).toBe(null);
   });
 });
+
+describe('maskedKeyLabel — clamps a server-supplied tail', () => {
+  it('never renders more than the last 4 characters, even if the daemon sends the whole key', () => {
+    // `apiKeyTail` is documented as "the last few characters" in prose only.
+    // A daemon returning the full key would otherwise display the full key
+    // behind a `••••` prefix that makes it look masked.
+    const label = maskedKeyLabel({ apiKeyTail: 'sk-ant-api03-FULLSECRETVALUE-wxyz' });
+    expect(label).toBe('••••wxyz');
+    expect(label).not.toContain('FULLSECRETVALUE');
+  });
+
+  it('still shows a well-behaved short tail unchanged', () => {
+    expect(maskedKeyLabel({ apiKeyTail: 'wxyz' })).toBe('••••wxyz');
+    expect(maskedKeyLabel({ apiKeyTail: 'xyz' })).toBe('••••xyz');
+  });
+
+  it('clamps a locally-typed key the same way', () => {
+    expect(maskedKeyLabel({ apiKey: 'sk-ant-1234567890wxyz' })).toBe('••••wxyz');
+  });
+
+  it('still reports a marker-only entry and an empty entry unchanged', () => {
+    expect(maskedKeyLabel({ apiKeyConfigured: true })).toBe('••••');
+    expect(maskedKeyLabel({})).toBeNull();
+    expect(maskedKeyLabel(null)).toBeNull();
+  });
+});

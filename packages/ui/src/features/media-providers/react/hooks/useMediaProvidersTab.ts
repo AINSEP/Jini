@@ -94,19 +94,45 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
    *  state (same guard as `useExecutionTab`'s detection ticket). */
   const loadTicket = useRef(0);
 
-  const persist = useCallback(async (next: MediaProviderMap): Promise<MediaProviderMap | null> => {
+  /**
+   * The same guard for the SAVE edge, which had none.
+   *
+   * `saveChanges` and `clearProvider` both go through `persist`, the port
+   * replaces the WHOLE map, and nothing disables Clear while a save is in
+   * flight — so an ordinary Save-then-Clear double-click issues two overlapping
+   * whole-map writes. If the earlier save (whose map still contained the
+   * provider) resolves last, its `setProviders(saved)` puts the just-cleared
+   * credential back on screen and marks it pending again. Only the newest
+   * persist may write state.
+   */
+  const persistTicket = useRef(0);
+
+  /**
+   * `'superseded'` is deliberately distinct from `'failed'`, not folded into it.
+   * `clearProvider` rolls its optimistic delete back when a save does not
+   * succeed — but rolling back a save that was merely OVERTAKEN would restore
+   * the pre-clear map and resurrect exactly the credential this fix is about.
+   * A superseded save is not a failure and must produce no state change at all.
+   */
+  type PersistOutcome =
+    | { readonly status: 'saved'; readonly map: MediaProviderMap }
+    | { readonly status: 'failed' }
+    | { readonly status: 'superseded' };
+
+  const persist = useCallback(async (next: MediaProviderMap): Promise<PersistOutcome> => {
+    const ticket = ++persistTicket.current;
     setSave({ status: 'saving' });
     try {
       const saved = await portRef.current.saveMediaProviders(next);
-      if (!alive.current) return null;
+      if (!alive.current || persistTicket.current !== ticket) return { status: 'superseded' };
       setProviders(saved);
       setPendingProviderIds(new Set());
       setSave({ status: 'saved' });
-      return saved;
+      return { status: 'saved', map: saved };
     } catch (error: unknown) {
-      if (!alive.current) return null;
+      if (!alive.current || persistTicket.current !== ticket) return { status: 'superseded' };
       setSave({ status: 'save-error', message: error instanceof Error ? error.message : String(error) });
-      return null;
+      return { status: 'failed' };
     }
   }, []);
 
@@ -169,11 +195,13 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
         const next = { ...previousProviders };
         delete next[providerId];
         setProviders(next);
-        const saved = await persist(next);
-        // A failed save rolls the optimistic clear back so the operator does
+        const outcome = await persist(next);
+        // A FAILED save rolls the optimistic clear back so the operator does
         // not lose a credential the daemon never actually dropped — same
-        // rollback shape as `useProjectLocationsTab.removeDraft`.
-        if (!saved && alive.current) setProviders(previousProviders);
+        // rollback shape as `useProjectLocationsTab.removeDraft`. A SUPERSEDED
+        // one must not: a newer persist already owns the state, and restoring
+        // this call's pre-clear snapshot would put the cleared credential back.
+        if (outcome.status === 'failed' && alive.current) setProviders(previousProviders);
       })();
     },
     [persist],
