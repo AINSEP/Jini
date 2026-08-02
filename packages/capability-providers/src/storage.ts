@@ -2,7 +2,7 @@
  * `StorageProvider` — a swappable blob-storage port (file uploads, generated
  * assets). Speculative port-design exploration (see `source-map.md`) — no OD
  * source; the shape is the object-storage capability Zana's `app-chassis`
- * (`packages/storage`) and Tovu-Runner's ports layer both name explicitly.
+ * (`packages/storage`) and a fleet orchestrator's ports layer both name explicitly.
  *
  * This file defines the port's stable interface/type surface and nothing else —
  * it has no imports at all, so a consumer implementing `StorageProvider`

@@ -114,7 +114,7 @@ export interface AdminRecoveryDeepLinkResult {
  *
  * ## Adapter obligation: `token` is opaque, and a host may have to compose it
  *
- * Deliberately one opaque `token`, not the reference host's raw field pair. Tovu's wire protocol
+ * Deliberately one opaque `token`, not the reference host's raw field pair. Its wire protocol
  * confirms a restore with `{planId, planHash}` — two fields — and its plan step returns them
  * separately. Exposing that pair here would contradict `GatedPlanResult.token`'s own contract
  * ("opaque; panels must not parse or construct these"): a panel assembling `planId` + `planHash`
@@ -125,7 +125,7 @@ export interface AdminRecoveryDeepLinkResult {
  * host whose protocol already uses a single token does nothing. This is the same division of labour
  * as `settings.ts`'s `value`, where the adapter owns any JSON encoding the wire format needs.
  *
- * Whoever writes Tovu's adapter: this is a real responsibility with no compiler support. Getting it
+ * Whoever writes the reference implementation's adapter: this is a real responsibility with no compiler support. Getting it
  * wrong surfaces as a confirm that is rejected server-side for a plan the operator can see on
  * screen — so encode both halves, and fail loudly on a token you cannot decode rather than sending
  * a partial one.

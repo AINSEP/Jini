@@ -1,11 +1,11 @@
 /**
  * @file `AdminWorkspacePort` — the tenant/site the admin is currently operating on.
  *
- * ## This port models tenancy generically; Tovu's own client does not
+ * ## This port models tenancy generically; the reference implementation's own client does not
  *
- * Tovu's `api.ts` hard-codes `export const WORKSPACE_ID = "workspace-local";` at line 1 and bakes
- * that constant into every route it builds (`/workspaces/${WORKSPACE_ID}/...`) — today's Tovu is a
- * single-workspace-per-instance product, and its client reflects that. This port deliberately does
+ * The reference implementation's API client hard-codes a single workspace id constant and bakes
+ * that constant into every route it builds (`/workspaces/${WORKSPACE_ID}/...`) — it is a
+ * single-workspace-per-instance product today, and its client reflects that. This port deliberately does
  * not carry a workspace id as a parameter on any method here: each method operates on "the
  * workspace the current client/transport is scoped to". A genuinely multi-workspace host resolves
  * *which* workspace that is at the transport/route-group-factory layer (a later, per-host slice —
@@ -14,12 +14,13 @@
  * method here would be designing for a host shape (multi-workspace-per-client) that does not yet
  * exist anywhere in the corpus this port was derived from.
  *
- * ## `deleteWorkspace` exists on the contract; Tovu's reference implementation always refuses it
+ * ## `deleteWorkspace` exists on the contract; the reference implementation always refuses it
  *
- * Tovu's `DELETE /workspaces/:id` route (SPEC-044 REQ-05/INV-03) is real and reachable, but its
+ * The reference implementation's `DELETE /workspaces/:id` route is real and reachable, but its
  * write-path unconditionally rejects with a `LAST_WORKSPACE`-class conflict when deleting would
  * leave zero workspaces — which, in a single-workspace-per-instance deployment, is every call. The
- * method stays on this port because the guard is a product policy of *today's* Tovu, not a
+ * method stays on this port because the guard is a product policy of *today's* reference
+ * deployment, not a
  * statement that workspace deletion is meaningless in general; a host that supports genuinely
  * disposable workspaces needs this method to work. A panel built against this port should not
  * assume `deleteWorkspace` succeeds just because the call is well-formed and authorized.

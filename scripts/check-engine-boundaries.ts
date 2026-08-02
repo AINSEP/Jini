@@ -54,6 +54,20 @@ const PRODUCT_IDENTITY_STRINGS = [
   'opendesign.app',
   'od://',
 ];
+/**
+ * Checked against **raw** file text, comments included — unlike `PRODUCT_IDENTITY_STRINGS`, which
+ * is deliberately comment-stripped so historical provenance citations stay legal.
+ *
+ * That exemption is right for Open Design (a predecessor this engine was extracted from, worth
+ * citing in a module doc) and wrong for Tovu (a live product built *on* this engine, which must not
+ * appear in it at all — 2026-08-02, user directive). Every leak this was added for was in a doc
+ * comment, so a comment-stripped check would have reported clean while 33 files still named it.
+ *
+ * Substring match; 'Tovu' also covers 'Tovu-Runner'. Note this reaches only `.ts`/`.tsx` files —
+ * `listSourceFiles` skips Markdown, so CHANGELOGs and provenance docs need a separate sweep and a
+ * clean `guard` run is necessary but not sufficient.
+ */
+const PRODUCT_IDENTITY_STRINGS_IN_COMMENTS_TOO = ['Tovu'];
 /** Matched separately (word-boundary) to avoid false positives on identifiers like `MOD_FOO`. */
 const OD_PREFIX_RE = /\bOD_[A-Z0-9_]*/;
 
@@ -331,7 +345,15 @@ export async function checkEngineBoundaries(
     const ownPackage = packageNameOf(file);
     // Comment-stripped so module-doc provenance citations (e.g. "the OD_DATA_DIR env var name
     // ... was removed") don't get flagged as a live violation — see stripComments's doc.
-    const content = stripComments(readFileSync(absFile, 'utf8'));
+    const rawContent = readFileSync(absFile, 'utf8');
+    const content = stripComments(rawContent);
+
+    // R5: product-identity strings that must not appear even in comments.
+    for (const needle of PRODUCT_IDENTITY_STRINGS_IN_COMMENTS_TOO) {
+      if (rawContent.includes(needle)) {
+        violations.push({ rule: 'R5-neutrality', file, reason: `product-identity string "${needle}" (comments included)` });
+      }
+    }
 
     // R5: product-identity strings.
     for (const needle of PRODUCT_IDENTITY_STRINGS) {

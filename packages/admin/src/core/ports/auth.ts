@@ -2,7 +2,7 @@
  * @file `AdminAuthPort` — the operator session lifecycle: sign in, sign out, and "who am I".
  *
  * Deliberately the smallest port in the set (3 methods) and deliberately separate from
- * `AdminIdentityPort`. Tovu's own `api.ts` keeps two different "user" shapes for exactly this
+ * `AdminIdentityPort`. The reference implementation's own API client keeps two different "user" shapes for exactly this
  * split: a minimal `{ id, username }` returned by `login`/`me`, and a much richer
  * `AdminIdentityUser` (principal id, status, role/policy ids, ...) returned by the identity CRUD
  * routes. That is not an oversight to unify — a session only ever needs to answer "who is this and

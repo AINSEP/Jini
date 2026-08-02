@@ -2,13 +2,13 @@
  * @file `AdminMembersPort` — end users who signed up on the site, as distinct from operators.
  *
  * Members are not principals in the `AdminIdentityPort` sense: they cannot sign in to this admin
- * surface, they have no roles or policies, and Tovu keeps them in a wholly separate route group.
+ * surface, they have no roles or policies, and the reference implementation keeps them in a wholly separate route group.
  * See `identity.ts`'s file header for the fuller "why two ports" rationale.
  *
  * ## No `enableMember` on the contract
  *
  * Unlike `AdminIdentityPort`'s `disableUser`/`enableUser` pair, this port has disable only.
- * Tovu's `members/` route group (`src/server/routes/admin/members/`) has `list`, `get-by-id`,
+ * The reference implementation's members route group has `list`, `get-by-id`,
  * `disable`, and `request-magic-link` — no re-enable route exists. Adding `enableMember` here would
  * put a method on the contract the reference implementation cannot satisfy. If a host needs it,
  * that is new route-level work, not a client-side gap.
@@ -24,8 +24,8 @@ export interface AdminMember {
   readonly emailVerifiedAt?: string;
   readonly createdAt: string;
   readonly updatedAt: string;
-  /** Optimistic-concurrency version. Not currently required by `disableMember` — Tovu's route
-   *  takes only an id — but carried on the read shape for parity with the other versioned
+  /** Optimistic-concurrency version. Not currently required by `disableMember` — the reference
+   *  implementation's route takes only an id — but carried on the read shape for parity with the other versioned
    *  entities in this package, and in case a future disable route adds the guard. */
   readonly version: number;
 }

@@ -15,8 +15,9 @@
  * dependencies are `core`, `daemon`, `express` and this module's own siblings, all of which
  * `http-kit` already has. The only thing pinning it there was a *type-only* import of
  * `LocalNodeHttpExtension` — so a helper any Express host could use sat behind a package that also
- * pulls in `@jini-ai/sidecar` and `better-sqlite3`. Tovu hit exactly this and hand-reimplemented
- * the composition instead. `@jini-ai/server` re-exports it, so existing imports keep working.
+ * pulls in `@jini-ai/sidecar` and `better-sqlite3`. The reference implementation hit exactly this
+ * and hand-reimplemented the composition instead. `@jini-ai/server` re-exports it, so existing
+ * imports keep working.
  *
  * **This facade never returns the registry**, and that is its most important property. The
  * registry's `invoke` executes a capability on a real user's screen with no policy check, no
@@ -53,7 +54,8 @@ import type { RunCreateRequest, RunStartContext, RunStartHandler } from './runs.
  * stays assignable to one taking the wider `{adapter, lifecycle, dataDir}`, so passing the result
  * to `createLocalNodeDaemon`'s `httpExtensions` still typechecks — while a host that builds its own
  * Express app (and so has no `dataDir` or `LocalNodeHttpExtensionContext` to hand over) can now use
- * this facade too, instead of reimplementing it. Tovu had to do exactly that.
+ * this facade too, instead of reimplementing it. The reference implementation had to do exactly
+ * that.
  */
 export type FrontendHttpExtension = (app: Express, context: { readonly adapter: AdapterContext }) => void;
 

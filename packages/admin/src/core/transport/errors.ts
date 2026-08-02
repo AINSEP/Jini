@@ -1,7 +1,7 @@
 /**
  * @file The error contract every admin route group throws, host-supplied or Jini-shipped.
  *
- * Ported from Tovu's `apps/admin/src/lib/api.ts` (`ApiError`, `describeApiError`), which is the
+ * Ported from the reference implementation's `lib/api.ts` (`ApiError`, `describeApiError`), which is the
  * only implementation of this shape that has been through real operator use. Two decisions from
  * that file are carried across deliberately, because both were arrived at by an audit and both
  * look like oversights if you only read the code:
@@ -11,7 +11,8 @@
  *    parsed body means that never requires an `AdminApiError` subclass per route.
  *
  * 2. **There is deliberately NO shared `code` -> message table.** The same `code` means
- *    genuinely different things in different domains — in Tovu, `RESOURCE_CONFLICT` is "still
+ *    genuinely different things in different domains — in the reference implementation,
+ *    `RESOURCE_CONFLICT` is "still
  *    referenced elsewhere" on Roles, "that slug is already taken" on Workspace, and "that
  *    username is already in use" on Users. Three correct operator-facing sentences for one code.
  *    A shared table could only pick one, which is a regression dressed as consolidation. So

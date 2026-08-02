@@ -1,7 +1,7 @@
 /**
  * @file `window`-bound navigation. DOM, but no React.
  *
- * Ported from Tovu's `lib/router.ts`. Separated from `core/routing` because that module must stay
+ * Ported from the reference implementation's `lib/router.ts`. Separated from `core/routing` because that module must stay
  * universal — a Vue consumer, an SSR pass, or a test asserting route rules should not need a DOM.
  * Everything here genuinely touches `window`; everything that does not stayed in core.
  *

@@ -54,7 +54,7 @@ describe('resolvePanels', () => {
 
 describe('buildNav', () => {
   it('omits a panel with no nav entry, without dropping it from routing', () => {
-    // `settings-raw` in Tovu is exactly this: reachable by URL, deliberately not in the sidebar.
+    // `settings-raw` in the reference implementation is exactly this: reachable by URL, deliberately not in the sidebar.
     const panels = [p('dashboard', { nav: { label: 'Overview' } }), p('settings-raw')];
     const nav = buildNav(panels);
     expect(nav.flatMap((g) => g.items).map((i) => i.id)).toEqual(['dashboard']);
@@ -135,7 +135,7 @@ describe('buildAgentPageMap', () => {
   });
 
   it('publishes a param-free detail route as its own destination', () => {
-    // Tovu's real case: `widget-regions -> /widgets/regions`.
+    // The reference implementation's real case: `widget-regions -> /widgets/regions`.
     const panels = [
       p('widgets', {
         agentReachable: true,

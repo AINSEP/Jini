@@ -3,7 +3,7 @@
  *
  * ## Why this is in core rather than in the panels that use it
  *
- * Tovu independently grew this same three-step shape in three unrelated places — database
+ * The reference implementation independently grew this same three-step shape in three unrelated places — database
  * forward-migration (`planMigrateForward`/`confirmMigrateForward`/`executeMigrateForward`),
  * point-in-time restore (`planRestore`/`confirmRestore`/`executeRestore`), and taxonomy term
  * merge (`planMergeTerm`/`confirmMergeTerm`/`executeMergeTerm`) — sharing `GatedPlanResult<T>`
@@ -25,9 +25,10 @@
  *
  * ## Warning: this protocol promises reversibility it cannot itself deliver
  *
- * A hard-won rule from Tovu's admin UX audit: **never promise an undo the product cannot
- * deliver.** A `reversible: true` plan means the *backend* claims a revert path exists — it does
- * not mean the admin has a reachable UI for it. Tovu's post/page delete is a genuine server-side
+ * A hard-won rule from the reference implementation's admin UX audit: **never promise an undo the
+ * product cannot deliver.** A `reversible: true` plan means the *backend* claims a revert path
+ * exists — it does not mean the admin has a reachable UI for it. The reference implementation's
+ * post/page delete is a genuine server-side
  * soft delete with no restore path reachable from the admin. A panel rendering "you can undo
  * this" off this flag alone would be lying to the operator. Check that the revert is reachable,
  * not merely that it exists.

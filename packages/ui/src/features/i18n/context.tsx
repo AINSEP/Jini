@@ -76,10 +76,10 @@ export interface I18nProviderProps<D extends TranslationDict = TranslationDict> 
    * }
    * ```
    *
-   * Mount it inside the provider, fed by whatever the host persists. Tovu does exactly this
-   * (`apps/admin/src/sections/SettingsUi.tsx`'s `SettingsLocaleSync`), which is what lets a locale
-   * changed by its admin assistant — or pushed from its server to an already-open tab — re-render
-   * the dialog in place instead of waiting for a reload.
+   * Mount it inside the provider, fed by whatever the host persists. The reference implementation
+   * does exactly this, which is what lets a locale changed by its admin assistant — or pushed from
+   * its server to an already-open tab — re-render the dialog in place instead of waiting for a
+   * reload.
    *
    * A controlled `locale` prop would remove the shim, and is worth adding if a second host hits the
    * same wall. It is not offered today because `setLocale` also writes through {@link

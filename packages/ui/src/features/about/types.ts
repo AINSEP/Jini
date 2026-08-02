@@ -3,7 +3,7 @@
  * already-pure `deriveAboutUpdateControl` (line 249).
  *
  * GENERIC despite looking desktop-specific. Jini is a reusable engine, not
- * Tovu's private dependency — any desktop app built on it needs a version
+ * any single product's private dependency — any desktop app built on it needs a version
  * panel and an auto-update state machine, and this is that state machine with
  * nothing product-bound left in it. A server host simply reports
  * `environment: 'web'` and gets the single "updates not supported here"

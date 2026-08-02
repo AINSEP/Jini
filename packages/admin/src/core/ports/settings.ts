@@ -8,7 +8,7 @@
  * (least specific) has a value set, falling back to a compiled-in default when none do — that
  * resolution is exactly what `getSettingsEffective` returns per key via `SettingResolvedValue`'s
  * `sourceLayer`. There is deliberately no "list raw values across every layer" or "list every
- * registered definition" method on this contract: Tovu's own reference implementation does not
+ * registered definition" method on this contract: the reference implementation does not
  * have those routes server-side either (only the 5 operations below shipped), so a panel that needs
  * to distinguish "the user override" from "everything else" composes two `getSettingsEffective`
  * calls — one with `principalId` set, one without — and diffs them. That is an application-level

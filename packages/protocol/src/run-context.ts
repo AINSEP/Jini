@@ -8,8 +8,8 @@ import type { JsonValue } from './common.js';
  * `foundry/docs/jini-port/extraction-plan.md`'s vocabulary firewall), but it left every host that
  * *is* driving a chat-shaped agent to invent its own `contextRef` encoding from scratch — two
  * independent consumers (this repo's own `examples/reference-web` playground, and an external
- * adopter, Tovu) solved the identical "how do I get a prompt into contextRef" problem two
- * different ways (see `tovu-learnings.md` §4). This module is a shared, optional encoding any
+ * adopter) solved the identical "how do I get a prompt into contextRef" problem two
+ * different ways. This module is a shared, optional encoding any
  * host may use instead of reinventing it — using it is never required, `contextRef` remains an
  * opaque string as far as `RunLifecycle`/`RunCreateRequest` themselves are concerned.
  */

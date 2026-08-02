@@ -4,12 +4,12 @@
  * ## Media has a genuine hard delete; identity and members do not
  *
  * `AdminIdentityPort` deliberately has no `deleteUser` (disable is the audited primitive — see
- * that file's header), and `AdminMembersPort` has no delete at all. Media is different: Tovu's
- * media route group implements a real two-rung deletion ladder (`trashMedia` soft-deletes,
+ * that file's header), and `AdminMembersPort` has no delete at all. Media is different: the
+ * reference implementation's media route group implements a real two-rung deletion ladder (`trashMedia` soft-deletes,
  * `deleteMedia` hard-purges the row and the underlying blob) because the audit-trail argument for
  * principals does not apply to binary assets the same way, and unbounded blob storage is a real
  * operational cost a purely-soft-delete model would leave unaddressed. `deleteMedia` is gated by a
- * narrower permission than `trashMedia` in Tovu's reference implementation (a `.force`-suffixed
+ * narrower permission than `trashMedia` in the reference implementation (a `.force`-suffixed
  * permission), and the backend rejects a purge attempt on an asset that has not been trashed first
  * — a host should surface that rejection rather than let a caller purge directly. Once
  * `deleteMedia` succeeds it is genuinely irreversible; do not render it with "undo" affordances.

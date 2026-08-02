@@ -104,7 +104,7 @@ describe('cross-owner writes are no-ops, not errors', () => {
      * which is what made it invisible: the request looks rejected.
      *
      * Reachable without an attacker. A client bug that posts one conversation's messages under
-     * another conversation's id produces exactly this sequence — observed live in the Tovu admin
+     * another conversation's id produces exactly this sequence — observed live in a real admin UI
      * before its conversation-switch race was fixed, where a stale transcript was PUT against a
      * newly selected chat.
      */

@@ -1,21 +1,23 @@
 /**
- * @file `AdminExtensionsPort` — installed extensions (Tovu calls them "plugins") and their
+ * @file `AdminExtensionsPort` — installed extensions (the reference implementation calls them
+ * "plugins") and their
  * enabled/disabled state.
  *
  * ## Why the port is "Extensions" but the DTO and methods say "Plugin"
  *
  * The port interface is named generically because not every host will call this mechanism
  * "plugins" — some call the same concept "add-ons" or "extensions" in their own product copy.
- * The DTO (`AdminPlugin`) and method names (`listPlugins`/`setPluginEnabled`) keep Tovu's own
- * vocabulary rather than being renamed to match, because "plugin" is itself already a generic,
- * industry-standard term (not Tovu-specific jargon the way `workspace-local` or `/api/admin/v1`
- * are) and because the calling code this port replaces already uses these exact names — renaming
+ * The DTO (`AdminPlugin`) and method names (`listPlugins`/`setPluginEnabled`) keep the reference
+ * implementation's own vocabulary rather than being renamed to match, because "plugin" is itself
+ * already a generic, industry-standard term (not product-specific jargon the way `workspace-local`
+ * or `/api/admin/v1` are) and because the calling code this port replaces already uses these exact
+ * names — renaming
  * both the port and its members would be a bigger, noisier diff for no behavioral gain. A host
  * that genuinely prefers "extension" throughout is free to alias at the call site.
  *
  * ## `changeSetId` is an opaque audit handle, not a claim every host has "change sets"
  *
- * `setExtensionEnabled`'s response carries a `changeSetId` because Tovu's reference implementation
+ * `setExtensionEnabled`'s response carries a `changeSetId` because the reference implementation
  * versions every mutating admin action through a change-set/revert subsystem. This port keeps the
  * field — real callers may want to link to an audit trail — but treats it as an opaque string a
  * host can use however its own audit mechanism works, not a promise that "change set" is a concept

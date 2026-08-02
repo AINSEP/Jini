@@ -3,7 +3,7 @@
  *
  * ## What changed from the ported original
  *
- * Tovu's `parseRoute` (`apps/admin/src/App.tsx:138`) is a ~30-line if-chain with one branch per
+ * The reference implementation's `parseRoute` is a ~30-line if-chain with one branch per
  * detail route — `/posts/:id`, `/menus/new`, `/widgets/regions/:key`,
  * `/collections/:key/:entryId`, and so on. It works, and its fall-through-to-dashboard behaviour
  * is deliberate. But it means a panel cannot own a URL without an edit to the router, which is
@@ -18,8 +18,8 @@
  *   rather than accepting any single segment is what keeps `/typo` from rendering an empty shell.
  * - **Trailing slashes are insignificant** — segments are split and empties dropped, so
  *   `/settings/` and `/settings` are the same screen.
- * - **Query is parsed but never part of matching.** Tovu's widget-editor route reads
- *   `?type=` for its initial state; that is panel state, not routing.
+ * - **Query is parsed but never part of matching.** The reference implementation's widget-editor
+ *   route reads `?type=` for its initial state; that is panel state, not routing.
  */
 
 import type { AdminPanel } from '../manifest/types.js';
@@ -46,7 +46,7 @@ export function adminHref(routePath: string, base: string = DEFAULT_ADMIN_BASE):
  * A bare `/admin` (no trailing slash) and `/admin/` both mean the dashboard, so the base is
  * removed by prefix rather than by assuming a trailing separator.
  *
- * Unlike Tovu's version this takes `pathname` as a required argument instead of defaulting to
+ * Unlike the reference implementation's version this takes `pathname` as a required argument instead of defaulting to
  * `window.location.pathname` — that default is what made the original untestable without a DOM,
  * and it belongs in the browser layer, not here.
  */

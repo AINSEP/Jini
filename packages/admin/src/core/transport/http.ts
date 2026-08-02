@@ -1,7 +1,7 @@
 /**
  * @file The default HTTP `AdminTransport`, and the client assembler.
  *
- * Ported from Tovu's `apps/admin/src/lib/api.ts` `request()` (lines 726-742), with the two
+ * Ported from the reference implementation's `lib/api.ts` `request()`, with the two
  * hard-coded values it closed over — the base URL and the same-origin cookie policy — lifted into
  * options. Nothing else about the request/response handling changed; the error-body parsing in
  * particular is deliberately identical, including the `.catch(() => ({}))` on a body that is not
@@ -26,16 +26,17 @@ export interface HttpTransportOptions {
   /**
    * Prefix for every path (`/api/admin/v1`). No trailing slash — paths always start with `/`.
    *
-   * Unlike Tovu's module-level `const BASE`, this is per-transport so one process can talk to
-   * more than one admin API. Tovu-Runner manages many site instances; a single shared base is the
-   * thing that would have to be unpicked first.
+   * Unlike the reference implementation's module-level `const BASE`, this is per-transport so one
+   * process can talk to more than one admin API. A fleet orchestrator managing many site instances
+   * in one process is exactly the case where a single shared base is the thing that would have to
+   * be unpicked first.
    */
   readonly baseUrl: string;
 
   /**
    * Injected `fetch`, defaulting to the global. Present so a test can supply a stub without
-   * `vi.stubGlobal`, which is what forced Tovu's own hook tests to assert URLs and HTTP methods
-   * when what they meant to describe was behaviour (`apps/admin/INFO.md`, "Hooks").
+   * `vi.stubGlobal`, which is what forced the reference implementation's own hook tests to assert
+   * URLs and HTTP methods when what they meant to describe was behaviour.
    */
   readonly fetch?: AdminFetch;
 
@@ -46,7 +47,8 @@ export interface HttpTransportOptions {
   readonly headers?: Readonly<Record<string, string>>;
 
   /**
-   * Defaults to `same-origin`, matching the cookie-session admin Tovu ships. A token-authenticated
+   * Defaults to `same-origin`, matching the cookie-session admin the reference implementation
+   * ships. A token-authenticated
    * host sets `omit` and supplies an `Authorization` header instead.
    */
   readonly credentials?: RequestCredentials;
@@ -68,7 +70,7 @@ export function createHttpTransport(options: HttpTransportOptions): AdminTranspo
         credentials,
         ...init,
         // Spread last so a per-call header overrides both the JSON default and the transport's
-        // own. Tovu's original spread `...init` last, which meant a call passing `headers` lost
+        // own. The reference implementation's original spread `...init` last, which meant a call passing `headers` lost
         // the `Content-Type` default rather than merging with it.
         headers: {
           'Content-Type': 'application/json',

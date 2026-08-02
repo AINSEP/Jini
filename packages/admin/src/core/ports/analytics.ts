@@ -2,8 +2,8 @@
  * @file `AdminAnalyticsPort` — a rolling window of recent traffic hits, for a live-ish activity
  * view rather than aggregate reporting.
  *
- * Deliberately the thinnest port in the set (one method, no mutation, no pagination cursor). Tovu's
- * reference route returns a bounded recent-hits list, not a queryable analytics store — there is no
+ * Deliberately the thinnest port in the set (one method, no mutation, no pagination cursor). The
+ * reference implementation's route returns a bounded recent-hits list, not a queryable analytics store — there is no
  * date-range filter, no aggregation, and no historical query on the contract because the reference
  * implementation has none of those either. A host that needs real analytics reporting (rollups,
  * date ranges, funnels, ...) needs a different, dedicated port; stretching this one to cover that

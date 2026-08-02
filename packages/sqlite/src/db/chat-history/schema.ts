@@ -8,7 +8,8 @@
  *
  * Deliberately NOT wired into `schema/migrate.ts`, following `tool-catalog.ts`'s precedent and
  * for its stated reason: `migrate()` opens and owns `<dataDir>/app.sqlite`, so anything it
- * creates lands in *this package's* database. A host with its own database (Tovu's `content.db`)
+ * creates lands in *this package's* database. A host with its own database (the reference
+ * implementation's `content.db`)
  * must not have a second migrator writing DDL into it behind its backup and snapshot tooling.
  * Such a host copies {@link CHAT_HISTORY_DDL} into its own numbered migration and never calls
  * `ensureChatHistoryTables`; a host with no migration system of its own calls the function.

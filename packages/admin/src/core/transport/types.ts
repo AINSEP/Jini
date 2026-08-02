@@ -3,7 +3,7 @@
  *
  * ## Why this exists
  *
- * Tovu's `apps/admin/src/lib/api.ts` is 1,548 lines and 134 methods in one flat object literal,
+ * The reference implementation's `lib/api.ts` is 1,548 lines and 134 methods in one flat object literal,
  * every one of them closing over a module-private `request()` and a module-private
  * `BASE = "/api/admin/v1"`. That shape has two costs: the whole object is one unit (you cannot
  * take the 67 generic methods without the 67 CMS-domain ones), and there is no way for a host to
@@ -18,12 +18,12 @@
  * const client = createAdminClient(transport, {
  *   identity: createIdentityRoutes,          // shipped by @jini-ai/admin
  *   media:    createMediaRoutes,             // shipped by @jini-ai/admin
- *   posts:    createTovuPostRoutes,          // Tovu's own, same signature
- *   widgets:  createTovuWidgetRoutes,        // Tovu's own
+ *   posts:    createHostPostRoutes,          // the host's own, same signature
+ *   widgets:  createHostWidgetRoutes,        // the host's own
  * });
  *
  * await client.identity.listUsers();   // Jini's
- * await client.posts.list();           // Tovu's
+ * await client.posts.list();           // the host's
  * ```
  *
  * Both halves share one auth policy, one error class, one place to add retries or tracing. A host
@@ -34,8 +34,8 @@
  * ## Why `AdminTransport` is an interface and not just a function
  *
  * A bare `request<T>(path, init)` function would have been enough for HTTP. It is an interface so
- * a host can supply a non-HTTP implementation without any route group knowing: Tovu-Runner drives
- * many site instances in-process and can hand over a direct-dispatch transport that never opens a
+ * a host can supply a non-HTTP implementation without any route group knowing: a fleet orchestrator
+ * drives many site instances in-process and can hand over a direct-dispatch transport that never opens a
  * socket, and tests can supply a fake that returns fixtures. Both are the same seam, which is the
  * point.
  */

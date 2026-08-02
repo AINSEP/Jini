@@ -47,7 +47,8 @@ export interface AdminNavGroup {
 }
 
 /** A sidebar row. `href` is a **route path** (`/settings`), never a URL — the shell applies the
- *  base. Conflating the two is what produced Tovu's `/admin/#/section/settings` URLs. */
+ *  base. Conflating the two is what produced the reference implementation's
+ *  `/admin/#/section/settings` URLs. */
 export interface AdminNavItem extends AdminNavEntry {
   readonly id: string;
   readonly href: string;
@@ -107,8 +108,8 @@ export function panelHref(panelId: string): string {
  * The agent-navigable page ids: panel id -> route path.
  *
  * Derived from `agentReachable`, which defaults false — so this is an allowlist populated only by
- * deliberate opt-in, exactly as Tovu's hand-maintained `agent-pages.ts` was. Detail routes are
- * never included; see `AdminPanel.agentReachable`.
+ * deliberate opt-in, exactly as the reference implementation's hand-maintained page-map module
+ * was. Detail routes are never included; see `AdminPanel.agentReachable`.
  *
  * Note the ordering dependency: callers must pass the **resolved** panel set, not the raw one, or
  * an agent could navigate to a panel whose capability is not wired.
@@ -119,7 +120,8 @@ export function buildAgentPageMap<T>(panels: readonly AdminPanel<T>[]): Readonly
     if (panel.agentReachable === true) map[panel.id] = panelHref(panel.id);
 
     // A param-free detail route carrying an `agentPageId` is a destination in its own right —
-    // Tovu publishes `widget-regions -> /widgets/regions` exactly this way. A route WITH params
+    // the reference implementation publishes `widget-regions -> /widgets/regions` exactly this
+    // way. A route WITH params
     // is skipped: an agent has no id to supply, so publishing it would hand out a path that
     // cannot be navigated. See `AdminRoutePattern.agentPageId`.
     (panel.routes ?? []).forEach((route) => {

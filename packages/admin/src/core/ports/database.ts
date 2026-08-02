@@ -12,7 +12,7 @@
  *
  * ## `migrateForward` satisfies `GatedOperation`; see `recovery.ts` for the triad that doesn't
  *
- * Tovu's `planMigrateForward` takes no input and `executeMigrateForward` takes only the
+ * The reference implementation's `planMigrateForward` takes no input and `executeMigrateForward` takes only the
  * confirmation token — no operation-specific extra fields on any of the three calls. That means
  * this triad is a clean, direct instance of `../gated/types.js`'s `GatedOperation`, unlike
  * Recovery's restore ceremony (see that file's header for why restore is different). A

@@ -4,7 +4,7 @@
  *
  * ## `moderateComment`/`purgeComment` resolve to `void`
  *
- * Tovu's reference moderation routes answer `204 No Content` on success — there is no updated
+ * The reference implementation's moderation routes answer `204 No Content` on success — there is no updated
  * comment in the response body to return. A panel must re-fetch (or optimistically patch its own
  * local copy of) `listCommentsQueue` to see the new state; do not assume this port hands back the
  * post-moderation row. On a version conflict, expect a conflict-class rejection whose error body

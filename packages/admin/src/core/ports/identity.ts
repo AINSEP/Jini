@@ -3,11 +3,11 @@
  *
  * The first port extracted, and the pattern-setter for the other eleven. Chosen first because it
  * is the largest coherent generic group in the corpus (17 of `api.ts`'s 134 methods), it carries
- * no CMS vocabulary, and Tovu's implementation is already CRUD-complete.
+ * no CMS vocabulary, and the reference implementation is already CRUD-complete.
  *
  * ## Two things deliberately NOT in this port
  *
- * **Deleting a user.** Tovu has no route for it (`src/server/routes/admin/users/` has create,
+ * **Deleting a user.** The reference implementation has no route for it (its admin user routes cover create,
  * disable, enable, update, reset-password, and grant operations, nothing else), and disable is
  * the correct primitive for an audited system — a deleted principal orphans its audit trail.
  * Adding `deleteUser` here would put a method on the contract that the reference implementation
@@ -21,7 +21,7 @@
  * ## `members` is a different port
  *
  * Operator users (who administer the site) and members (end users who signed up) are distinct
- * populations with distinct lifecycles — Tovu keeps them in separate route groups and so does
+ * populations with distinct lifecycles — the reference implementation keeps them in separate route groups and so does
  * this. `AdminMembersPort` is separate.
  */
 

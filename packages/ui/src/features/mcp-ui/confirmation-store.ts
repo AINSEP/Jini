@@ -2,8 +2,8 @@
  * @module features/mcp-ui/confirmation-store
  *
  * A short-lived, single-use, binding-checked token store — the server half of the MCP-UI two-step
- * confirmation pattern. Generalized from Tovu's `src/assistant/pending-confirmations.ts`, which was
- * already domain-agnostic in intent but hardcoded one binding shape (tool/workspace/principal/
+ * confirmation pattern. Generalized from the reference implementation's `pending-confirmations.ts`,
+ * which was already domain-agnostic in intent but hardcoded one binding shape (tool/workspace/principal/
  * entity/entityVersion); here the binding is whatever record the caller mints with.
  *
  * ## Why a token rather than a boolean "requires confirmation" flag
@@ -17,9 +17,9 @@
  * or in an error message, the whole arrangement collapses into theater; keeping it out of those
  * places is the caller's obligation, and one this module cannot enforce for it.
  *
- * ## Deliberate divergence from Tovu's version: no hashing at rest, by default
+ * ## Deliberate divergence from the reference implementation's version: no hashing at rest, by default
  *
- * Tovu stores `sha256(token)` so a heap dump yields nothing redeemable. That is defense in depth on
+ * The reference implementation stores `sha256(token)` so a heap dump yields nothing redeemable. That is defense in depth on
  * top of the real properties (random, single-use, TTL-bounded, binding-checked), and it costs a
  * `node:crypto` import — which this package, a browser-runtime package, cannot take. The two
  * isomorphic alternatives are both worse than the trade made here: `crypto.subtle.digest` is async

@@ -1,7 +1,7 @@
 /**
  * @file Client-side permission-affordance helper.
  *
- * Ported verbatim in behaviour from Tovu's `apps/admin/src/lib/permissions.ts`. The bug that file
+ * Ported verbatim in behaviour from the reference implementation's `lib/permissions.ts`. The bug that file
  * exists to prevent is worth restating, because it is not obvious and it cost a real lockout:
  *
  * A host's "effective permissions" list is typically flattened to bare permission strings, and an

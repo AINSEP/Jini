@@ -12,8 +12,9 @@
  * ``ui://${string}`` URI scheme and the wider MIME union reproduced in
  * {@link UIResourceMimeType}.
  *
- * Ported from Tovu's `src/assistant/mcp-ui.ts`, minus that file's hand-rolled copy of the JSON-RPC
- * envelope and its `UIActionResult` union: Tovu declared those because its tsconfig's
+ * Ported from the reference implementation's `mcp-ui.ts`, minus that file's hand-rolled copy of the
+ * JSON-RPC envelope and its `UIActionResult` union: the reference implementation declared those
+ * because its tsconfig's
  * `moduleResolution: "Node"` cannot read a modern package's `exports` map, and this package has no
  * such constraint — the envelope comes from `protocol.ts`'s re-exports instead. See
  * `surfaces/bridge.ts` for why the legacy `{type:'tool', payload}` action shape is not emitted.

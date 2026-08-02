@@ -3,7 +3,7 @@
  * record id, not a query language). Speculative port-design exploration
  * (see `source-map.md`) — no OD source; the capability
  * `foundry/docs/jini-port/recon/r5b-consumers-matrix.md` §3.3 names as the one Zana
- * (Supabase→db+auth+storage+realtime) and Tovu-Runner (ports+sqlite/memory)
+ * (Supabase→db+auth+storage+realtime) and a fleet orchestrator (ports+sqlite/memory)
  * both built explicitly.
  *
  * This file defines the port's stable interface/type surface and nothing else —

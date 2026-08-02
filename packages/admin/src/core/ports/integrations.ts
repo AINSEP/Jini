@@ -2,14 +2,14 @@
  * @file `AdminIntegrationsPort` — outbound webhook subscriptions and their delivery history.
  *
  * "Integrations" here specifically means outbound webhooks (a subscription that fires HTTP calls
- * to a target URL when a topic occurs), not a broader per-provider connector concept — Tovu's
+ * to a target URL when a topic occurs), not a broader per-provider connector concept — the
  * reference implementation has exactly one integration mechanism. A host that later adds other
  * integration kinds (inbound, OAuth-connected third parties, ...) would need a wider port; this
  * one should not be stretched to cover those by convention alone.
  *
  * ## `deleteIntegrationSubscription` is a soft delete
  *
- * Unlike `AdminMediaPort.deleteMedia` (a genuine hard purge), Tovu's subscription "delete" sets
+ * Unlike `AdminMediaPort.deleteMedia` (a genuine hard purge), the reference implementation's subscription "delete" sets
  * `status: "disabled"` and stamps a disabled timestamp for audit durability — the row is never
  * removed, and the response echoes the now-disabled subscription rather than a bare
  * acknowledgement. Do not render this action as irreversible in a panel; it is closer in spirit to

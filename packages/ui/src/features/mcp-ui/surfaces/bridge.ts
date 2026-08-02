@@ -18,8 +18,8 @@
  * ## Which action shape this emits, and what it deliberately does not
  *
  * The community `@mcp-ui/client` SDK accepts a legacy, non-JSON-RPC action —
- * `{ type: 'tool', payload: { toolName, params } }` — and Tovu's
- * `src/features/post/delete-confirmation-ui.ts` emits exactly that. This bridge emits the JSON-RPC
+ * `{ type: 'tool', payload: { toolName, params } }` — and the reference implementation's
+ * `delete-confirmation-ui.ts` emits exactly that. This bridge emits the JSON-RPC
  * `tools/call` request from {@link MCP_UI_VIEW_METHODS} instead, and emits **only** that.
  *
  * That is a real divergence from the brief this module was built to, and it is deliberate: the two

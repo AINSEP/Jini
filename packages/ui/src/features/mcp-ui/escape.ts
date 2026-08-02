@@ -4,8 +4,8 @@
  * The two escapes every generated MCP-UI surface needs, and the reason they are a module rather
  * than a one-liner at each call site: a surface's HTML is assembled by string concatenation (there
  * is no DOM, no JSX, and no template engine on the builder side), so every caller-supplied value
- * crossing into that string is an injection site. Ported from Tovu's
- * `src/assistant/mcp-ui.ts` — the implementations were already correct there; only the location and
+ * crossing into that string is an injection site. Ported from the reference implementation's
+ * `mcp-ui.ts` — the implementations were already correct there; only the location and
  * the doc are new.
  */
 

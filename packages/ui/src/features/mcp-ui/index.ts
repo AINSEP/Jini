@@ -14,9 +14,9 @@
  * Published as `@jini-ai/ui/mcp-ui/surfaces` rather than only through the React entry point, because
  * the natural consumer of the builders is a **server** — an MCP tool handler returning a
  * confirmation dialog has no use for a React Host and should not have to resolve `react` to import
- * a string builder. (Tovu, a separate product outside this monorepo, is exactly that consumer: it
- * hand-rolled `createUIResource`/`escapeHtml`/`escapeJsString` and a delete-confirmation template
- * because it had nothing to import.)
+ * a string builder. (The reference implementation, a separate product outside this monorepo, is
+ * exactly that consumer: it hand-rolled `createUIResource`/`escapeHtml`/`escapeJsString` and a
+ * delete-confirmation template because it had nothing to import.)
  */
 export * from './confirmation-store.js';
 export * from './early-message-buffer.js';

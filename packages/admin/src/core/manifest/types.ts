@@ -7,18 +7,19 @@
  *
  * ## The three-file problem this replaces
  *
- * Tovu defines a section in three places — `App.tsx`'s `SECTIONS` map (routing allowlist +
- * render dispatch), `nav.ts` (sidebar label/icon/group/order), and `agent-pages.ts` (which pages
- * an AI agent may navigate to). `apps/admin/INFO.md` is emphatic that this is deliberate, and it
- * is right about *why*:
+ * The reference implementation defines a section in three places — `App.tsx`'s `SECTIONS` map
+ * (routing allowlist + render dispatch), `nav.ts` (sidebar label/icon/group/order), and
+ * `agent-pages.ts` (which pages an AI agent may navigate to). Its own internal docs are emphatic
+ * that this is deliberate, and they are right about *why*:
  *
  * > "Do not derive this from `App.tsx`'s `SECTIONS` map. Doing so would make every new admin
  * > screen agent-reachable simply by existing, which is the opposite of an allowlist."
  *
  * That reasoning survives here intact. What changes is only that the three facts live in one
  * declaration instead of three files that must be kept in sync by hand — with `nav` optional
- * (so a panel can be routable without a sidebar row, which Tovu's `appearance` and `settings-raw`
- * both rely on) and `agentReachable` an explicit opt-in that defaults to false.
+ * (so a panel can be routable without a sidebar row, which the reference implementation's
+ * `appearance` and `settings-raw` panels both rely on) and `agentReachable` an explicit opt-in
+ * that defaults to false.
  *
  * The security property is strictly better than the three-file version: a panel author who forgets
  * to think about agent reachability gets `false`, and an AI generating a panel manifest cannot
@@ -30,7 +31,7 @@
 /**
  * A detail-route pattern owned by a panel.
  *
- * Tovu's `parseRoute` hard-codes every detail route as a branch in one 30-line if-chain
+ * The reference implementation's `parseRoute` hard-codes every detail route as a branch in one 30-line if-chain
  * (`/posts/:id`, `/menus/new`, `/widgets/regions/:key`, `/collections/:key/:entryId`, ...), so a
  * panel cannot add a route without editing the router. Declaring patterns on the panel inverts
  * that: the matcher is generic and the panel owns its own URL space.
@@ -64,8 +65,8 @@ export interface AdminRoutePattern {
    * Omitted (the default) means the route reports its panel's id and publishes nothing — which is
    * right for the common case: `/posts/abc` reports `posts`, the nearest id an agent can act on.
    *
-   * This exists because collapsing the two questions is a documented past bug. Tovu's
-   * `App.tsx:203-217`: the sidebar wants a nav row to light up, an agent wants an id it can pass
+   * This exists because collapsing the two questions is a documented past bug in the reference
+   * implementation's `App.tsx`: the sidebar wants a nav row to light up, an agent wants an id it can pass
    * back to `page.navigate`, and widget regions is where they genuinely diverge — the sidebar has
    * no regions row so it highlights `widgets`, while the agent must be told `widget-regions`.
    * Sharing one function meant `page.navigate("widget-regions")` landed correctly and then
@@ -79,7 +80,7 @@ export interface AdminRoutePattern {
 export interface AdminNavEntry {
   readonly label: string;
   /** Inner SVG markup for an 18x18 stroked icon (`viewBox="0 0 18 18"`, `stroke="currentColor"`),
-   *  matching the convention already used across Tovu's `nav.ts`. Optional so a panel can be
+   *  matching the convention already used across the reference implementation's `nav.ts`. Optional so a panel can be
    *  listed before anyone has drawn it an icon. */
   readonly icon?: string;
   /** Group heading. Panels sharing a value are rendered together; omitted means the ungrouped
@@ -101,8 +102,8 @@ export interface AdminNavEntry {
 export interface AdminPanel<TRender = unknown> {
   /**
    * Stable identifier, and the first URL segment (`users` -> `/users`). Also the value the shell
-   * reports as the current page, so it must be the vocabulary a human would guess — Tovu's
-   * `agent-pages.ts` notes that a separate agent-facing naming scheme would mean an agent reading
+   * reports as the current page, so it must be the vocabulary a human would guess — the reference
+   * implementation's `agent-pages.ts` notes that a separate agent-facing naming scheme would mean an agent reading
    * the page could not act on it without a translation table.
    */
   readonly id: string;
@@ -121,7 +122,8 @@ export interface AdminPanel<TRender = unknown> {
    *
    * Detail routes are never agent-reachable regardless of this flag: they need an id the agent
    * has to look up first, and the tool for that is a content catalog, not a navigation allowlist
-   * that would have to enumerate every row in the database (Tovu `agent-pages.ts:22-26`).
+   * that would have to enumerate every row in the database (the reference implementation's
+   * `agent-pages.ts` hits exactly this case).
    */
   readonly agentReachable?: boolean;
 
@@ -141,8 +143,9 @@ export interface AdminPanel<TRender = unknown> {
   /**
    * Permission strings the operator must hold for this panel to appear.
    *
-   * **Affordance only, never an authorization boundary** — carried over verbatim from Tovu's
-   * `lib/permissions.ts`, whose header is unusually clear about this and worth repeating: a bug
+   * **Affordance only, never an authorization boundary** — carried over verbatim from the
+   * reference implementation's `lib/permissions.ts`, whose header is unusually clear about this
+   * and worth repeating: a bug
    * here "can only show or hide a control; it cannot grant or block the underlying operation,
    * because every mutation and tool call is independently re-checked server-side". Do not let a
    * passing check here stand in for server-side authorization.

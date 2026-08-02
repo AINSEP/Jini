@@ -81,7 +81,8 @@ function toConversation(row: DbRow): ChatConversation {
  * Two further facts worth having before touching this. First, this is the multi-tenant store; its
  * sibling `db/messages/messages.ts` DOES carry `last_run_event_id`, so the two message stores in
  * this package genuinely disagree and neither is evidence about the other. Second,
- * `CHAT_HISTORY_DDL` is copied verbatim into Tovu's `0023_ai_chat_history.sql` and guarded by a
+ * `CHAT_HISTORY_DDL` is copied verbatim into the reference implementation's
+ * `0023_ai_chat_history.sql` and guarded by a
  * structural parity test there; that migration is already applied, so any column added here also
  * needs a follow-up `ALTER TABLE` on the host side and a parity test taught to compare the pair
  * against this constant.

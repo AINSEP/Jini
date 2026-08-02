@@ -4,7 +4,7 @@
  * Companion to `settings-dialog.en.ts` -- see that file's doc comment for
  * the enumeration method and scope. Key set matches it exactly (enforced by
  * `__tests__/dictionaries.test.ts`), covering every literal `t()` key needed
- * by every tab Tovu mounts in its admin settings panel.
+ * by every tab the reference implementation mounts in its admin settings panel.
  *
  * A handful of entries are intentionally left untranslated: vendor/product
  * names (`Claude Code`, `Codex`, `Cursor`, `VS Code`, `Antigravity`, `Zed`,

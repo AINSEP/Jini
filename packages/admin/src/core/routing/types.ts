@@ -3,7 +3,7 @@
  *
  * ## Route paths vs URLs — the distinction this module exists to keep straight
  *
- * Carried over from Tovu's `lib/router.ts`, where collapsing these two is documented as the exact
+ * Carried over from the reference implementation's `lib/router.ts`, where collapsing these two is documented as the exact
  * mistake that produced `/admin/#/section/settings` URLs:
  *
  * - a **route path** is base-agnostic and is what the matcher consumes: `/`, `/settings`,
@@ -20,7 +20,7 @@ export interface AdminRoute {
    * The matched panel's id, or `null` when nothing matched.
    *
    * `null` is not an error state the shell must handle specially — the documented behaviour, kept
-   * from Tovu, is that an unrecognized path falls through to the dashboard rather than rendering
+   * from the reference implementation, is that an unrecognized path falls through to the dashboard rather than rendering
    * an empty placeholder for a typo.
    */
   readonly panelId: string | null;

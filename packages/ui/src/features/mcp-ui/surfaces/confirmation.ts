@@ -4,8 +4,8 @@
  * The confirmation dialog: a title, a description, the facts the human is being asked to agree
  * about, and two buttons — one of which calls a tool.
  *
- * Generalized from Tovu's `src/features/post/delete-confirmation-ui.ts`, which is the same dialog
- * hardcoded to one domain (its noun is "post" or "page", its fields are title/slug/kind/status/id,
+ * Generalized from the reference implementation's `delete-confirmation-ui.ts`, which is the same
+ * dialog hardcoded to one domain (its noun is "post" or "page", its fields are title/slug/kind/status/id,
  * and its tool id is a module constant). Everything domain-shaped there is a parameter here: the
  * facts are a `{label, value}` list, the destructive framing is a flag, and both buttons name their
  * own tool and params.
@@ -22,7 +22,8 @@
  *
  * A cancel that only closes the dialog leaves a live, unredeemed token behind until it expires.
  * Giving `cancel` its own tool call (with the same token and a `decision: "cancel"` param, the shape
- * Tovu uses) lets the server burn it immediately, so "cancel" genuinely closes the window rather
+ * the reference implementation uses) lets the server burn it immediately, so "cancel" genuinely
+ * closes the window rather
  * than deferring it by the TTL. It stays optional because a non-destructive confirmation has nothing
  * to burn.
  */

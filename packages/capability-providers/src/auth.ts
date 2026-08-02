@@ -1,6 +1,6 @@
 /**
  * `AuthProvider` — a swappable identity/session port. Speculative
- * port-design exploration (see `source-map.md`): Zana and Tovu-Runner each
+ * port-design exploration (see `source-map.md`): Zana and a fleet orchestrator each
  * independently built an explicit capability-provider layer with auth as one
  * of the swappable capabilities (Supabase/sqlite-backed) — this is the
  * engine-level shape that convergence points at, not a lift from either.
