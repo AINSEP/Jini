@@ -12,8 +12,8 @@ import {
   readBoundedUtf8File,
   toStructurallyBoundedJsonValue,
   type JsonStructureLimits,
-} from '../../src/bounded-data.js';
-import { protectConnectorOutput } from '../../src/output-protection.js';
+} from '../bounded-data.js';
+import { protectConnectorOutput } from '../output-protection.js';
 
 const temporaryDirectories: string[] = [];
 const tinyLimits: JsonStructureLimits = {

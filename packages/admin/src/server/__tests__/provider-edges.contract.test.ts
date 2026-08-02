@@ -13,8 +13,8 @@ import {
   type ComposioConfigStore,
   type ComposioCredentialMaterial,
   type ConnectorCatalogDefinition,
-} from '../../src/index.js';
-import { writePersistedComposioCatalogCache } from '../../src/composio.js';
+} from '../index.js';
+import { writePersistedComposioCatalogCache } from '../composio.js';
 
 interface MutableConfigStore extends ComposioConfigStore {
   setApiKey(apiKey: string): void;
@@ -112,7 +112,7 @@ describe('ComposioConnectorProvider edge contracts', () => {
     const requests: Array<{ url: URL; init?: RequestInit }> = [];
     const fetchFn = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = new URL(String(input));
-      requests.push({ url, init });
+      requests.push({ url, ...(init === undefined ? {} : { init }) });
       if (url.pathname === '/api/v3.1/auth_configs' && init?.method === 'GET') {
         authConfigReads += 1;
         if (authConfigReads === 1) await authConfigsGate;
@@ -729,10 +729,7 @@ describe('ComposioConnectorProvider edge contracts', () => {
       details: { providerStatus: null },
     });
 
-    const missingToolkitDefinition = {
-      ...definition,
-      providerConnectorId: undefined,
-    };
+    const { providerConnectorId: _definitionProviderConnectorId, ...missingToolkitDefinition } = definition;
     await expect(missingStatus.execute(
       missingToolkitDefinition,
       tool,

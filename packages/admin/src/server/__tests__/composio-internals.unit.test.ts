@@ -27,14 +27,15 @@ import {
   normalizeToolName,
   readPersistedComposioCatalogCache,
   writePersistedComposioCatalogCache,
+  type ComposioCurationOverlay,
   type PersistedComposioCatalogCache,
-} from '../../src/composio.js';
+} from '../composio.js';
 import {
   ConnectorServiceError,
   defineConnectorTool,
   type ConnectorCatalogDefinition,
   type ConnectorCatalogToolDefinition,
-} from '../../src/index.js';
+} from '../index.js';
 
 const temporaryDirectories: string[] = [];
 
@@ -87,7 +88,11 @@ describe('Composio internal normalization contracts', () => {
     const sparseLive: ConnectorCatalogToolDefinition = {
       name: staticTool.name,
       title: staticTool.title,
-      safety: { sideEffect: 'read', approval: 'auto' },
+      safety: {
+        sideEffect: 'read',
+        approval: 'auto',
+        reason: 'Tool metadata consistently indicates explicit read-only behavior.',
+      },
       refreshEligible: true,
       requiredScopes: [],
     };
@@ -122,7 +127,7 @@ describe('Composio internal normalization contracts', () => {
       inputSchemaUnsupportedReason: 'live unsupported reason',
     });
 
-    const noCurationStatic = { ...staticTool, curation: undefined };
+    const { curation: _staticCuration, ...noCurationStatic } = staticTool;
     expect(mergeToolDefinition(noCurationStatic, sparseLive).curation).toBeUndefined();
   });
 
@@ -130,7 +135,11 @@ describe('Composio internal normalization contracts', () => {
     const minimalTool: ConnectorCatalogToolDefinition = {
       name: 'minimal.read',
       title: 'Read',
-      safety: { sideEffect: 'read', approval: 'auto' },
+      safety: {
+        sideEffect: 'read',
+        approval: 'auto',
+        reason: 'Tool metadata consistently indicates explicit read-only behavior.',
+      },
       refreshEligible: false,
       requiredScopes: [],
     };
@@ -454,11 +463,11 @@ describe('Composio internal provider-wire contracts', () => {
     expect(applyComposioToolCuration(base, 'notion', undefined, {})).toBe(base);
     expect(applyComposioToolCuration(base, 'notion', 'OTHER', {})).toBe(base);
 
-    const overlay = {
+    const overlay: ComposioCurationOverlay = {
       notion: {
         notion_search_notion_page: { useCases: ['Find a page'], reason: 'Curated search' },
       },
-    } as const;
+    };
     expect(applyComposioToolCuration(base, 'notion', 'NOTION_SEARCH_NOTION_PAGE', overlay)).toMatchObject({
       curation: { useCases: ['Find a page'], reason: 'Curated search' },
       safety: { sideEffect: 'read', approval: 'auto' },

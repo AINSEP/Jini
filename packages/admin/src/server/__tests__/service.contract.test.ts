@@ -15,10 +15,11 @@ import {
   type ComposioConfigStore,
   type ComposioCredentialMaterial,
   type ConnectorCatalogDefinition,
+  type ConnectorCredentialRecord,
   type ConnectorExecuteRequest,
   type ConnectorExecutionContext,
   type JsonObject,
-} from '../../src/index.js';
+} from '../index.js';
 
 function createConfigStore(): ComposioConfigStore {
   return {
@@ -334,8 +335,8 @@ describe('ComposioConnectorService', () => {
     expect(unsupportedHarness.executeRequests).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['cyclic', () => {
+  it.each<[string, () => unknown]>([
+    ['cyclic', (): Record<string, unknown> => {
       const cyclic: Record<string, unknown> = { query: 'jini' };
       cyclic.self = cyclic;
       return cyclic;
@@ -353,7 +354,7 @@ describe('ComposioConnectorService', () => {
     })],
     ['null root', () => null],
     ['array root', () => []],
-  ] as const)('rejects %s execute input before provider account or tool requests', async (_label, createInput) => {
+  ])('rejects %s execute input before provider account or tool requests', async (_label, createInput) => {
     const definition = createReadDefinition({
       type: 'object',
       additionalProperties: true,
@@ -1060,12 +1061,18 @@ describe('ComposioConnectorService', () => {
     let now = 0;
     const harness = createService({ preconnected: false, now: () => now });
     const credentialStore = new InMemoryConnectorCredentialStore();
+    // `accountLabel` is intentionally omitted: this simulates a persisted credential record with
+    // no account label, which the interface's `accountLabel: string` does not represent (nothing
+    // in this in-memory store enforces it the way `FileConnectorCredentialStore` does on load —
+    // see `service.ts`'s `typeof raw.accountLabel !== 'string'` guard). The cast is deliberate,
+    // not a fixture gap: the assertion below (`currentAccountLabel: null`) is what this shape is
+    // here to exercise.
     credentialStore.set({
       schemaVersion: 1,
       connectorId: 'github',
       credentials: createCredential('github', 'GITHUB'),
       updatedAt: '2026-07-23T00:00:00.000Z',
-    });
+    } as unknown as ConnectorCredentialRecord);
     const status = new ConnectorStatusService({
       credentialStore,
       now: () => now,
@@ -1093,10 +1100,9 @@ describe('ComposioConnectorService', () => {
       details: { currentAccountLabel: null },
     });
 
-    const response = await service.execute({
-      ...request,
-      expectedAccountLabel: undefined,
-    }, {
+    const { expectedAccountLabel: _requestExpectedAccountLabel, ...requestWithoutExpectedAccountLabel } = request;
+
+    const response = await service.execute(requestWithoutExpectedAccountLabel, {
       scopeId: 'workspace_1',
       sessionId: 'session_1',
     });
@@ -1104,18 +1110,12 @@ describe('ComposioConnectorService', () => {
 
     for (let index = 0; index < 60; index += 1) {
       if (index > 0 && index % CONNECTOR_RUN_RATE_LIMIT_CALLS === 0) now += 60_001;
-      await service.execute({
-        ...request,
-        expectedAccountLabel: undefined,
-      }, {
+      await service.execute(requestWithoutExpectedAccountLabel, {
         scopeId: 'workspace_no_session_total',
       });
     }
     now += 60_001;
-    await expect(service.execute({
-      ...request,
-      expectedAccountLabel: undefined,
-    }, {
+    await expect(service.execute(requestWithoutExpectedAccountLabel, {
       scopeId: 'workspace_no_session_total',
     })).rejects.toMatchObject({
       details: { sessionId: null },
@@ -1206,7 +1206,7 @@ describe('ComposioConnectorService', () => {
       details: { approvalPolicy: 'confirm' },
     });
 
-    const noMinimum = { ...github, minimumApproval: undefined };
+    const { minimumApproval: _githubMinimumApproval, ...noMinimum } = github;
     vi.mocked(harness.provider.getHydratedDefinition).mockResolvedValue(noMinimum);
     await expect(harness.service.execute({
       connectorId: github.id,

@@ -8,7 +8,7 @@ import {
   getStaticComposioCatalogDefinitions,
   DOCUMENTED_COMPOSIO_TOOLKITS,
   FEATURED_COMPOSIO_CATALOG,
-} from '../../src/index.js';
+} from '../index.js';
 
 describe('Composio catalog contracts', () => {
   it('classifies destructive, write, read, and ambiguous tools conservatively', () => {
@@ -113,11 +113,11 @@ describe('Composio catalog contracts', () => {
       refreshEligible: false,
       inputSchemaUnsupportedReason: 'connector input schema is missing',
     });
+    const { minimumApproval: _definitionMinimumApproval, ...definitionWithoutMinimumApproval } = definition;
     const curatedDetail = connectorDefinitionToDetail({
-      ...definition,
+      ...definitionWithoutMinimumApproval,
       tools: [schemaLess],
       allowedToolNames: [],
-      minimumApproval: undefined,
     });
     expect(curatedDetail.tools[0]?.curation).toEqual({
       useCases: ['research'],

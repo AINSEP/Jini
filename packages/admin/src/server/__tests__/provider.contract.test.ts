@@ -11,7 +11,7 @@ import {
   type ComposioConfig,
   type ComposioConfigStore,
   type PublicComposioConfig,
-} from '../../src/index.js';
+} from '../index.js';
 
 interface RecordedRequest {
   url: URL;

@@ -6,7 +6,7 @@ import {
   assertConnectorInputMatchesSchema,
   getConnectorSchemaSupportError,
   type ConnectorJsonSchema,
-} from '../../src/json-schema.js';
+} from '../json-schema.js';
 
 function expectValid(value: JsonValue, schema: ConnectorJsonSchema): void {
   expect(() => assertConnectorInputMatchesSchema(value, schema)).not.toThrow();
@@ -108,7 +108,7 @@ describe('connector JSON Schema enforcement', () => {
     }, 'rejected');
   });
 
-  it.each([
+  it.each<[string, ConnectorJsonSchema]>([
     ['not', {
       not: {
         type: 'array',
@@ -133,7 +133,7 @@ describe('connector JSON Schema enforcement', () => {
         {},
       ],
     }],
-  ] as const)('fails closed when %s evaluation exhausts the shared node budget', (_keyword, schema) => {
+  ])('fails closed when %s evaluation exhausts the shared node budget', (_keyword, schema) => {
     const input = Array.from({ length: 7_000 }, () => [1, 2]);
 
     expectInvalid(

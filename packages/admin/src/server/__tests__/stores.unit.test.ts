@@ -9,8 +9,8 @@ import {
   FileConnectorCredentialStore,
   InMemoryConnectorCredentialStore,
   type ConnectorCredentialRecord,
-} from '../../src/index.js';
-import { withExclusiveFileLock } from '../../src/file-lock.js';
+} from '../index.js';
+import { withExclusiveFileLock } from '../file-lock.js';
 
 const temporaryDirectories: string[] = [];
 
