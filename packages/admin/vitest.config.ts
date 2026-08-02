@@ -20,7 +20,7 @@ export default defineConfig({
         // no exclusions. That bar is scoped to this glob rather than promoted to a package-wide
         // default: `./core` and `./browser` were never held to it, and folding composio in is not
         // the occasion to either loosen its bar or impose it retroactively on siblings that never
-        // carried it. See `src/server/source-map.md`'s Verification section.
+        // carried it. See `src/server/composio/source-map.md`'s Verification section.
         'src/server/**': {
           statements: 100,
           branches: 100,
