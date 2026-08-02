@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { SkillDraft } from '@jini-ai/ui-core';
+import type { SkillDraft } from '../../../types.js';
 import { SkillDraftForm, type SkillDraftFormProps } from '../../../react/components/SkillDraftForm.js';
 
 const EMPTY_DRAFT: SkillDraft = { name: '', description: '', triggers: '', body: '' };

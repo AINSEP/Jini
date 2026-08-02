@@ -1,10 +1,11 @@
 import type { SVGProps } from 'react';
 
-// The union itself lives in `@jini-ai/ui-core` (it is data, and framework-free
-// modules there name icons too). Re-exported here so every existing importer
-// of this module keeps resolving.
-export type { IconName } from '@jini-ai/ui-core';
-import type { IconName } from '@jini-ai/ui-core';
+// The union itself lives at this package's root (`icon-name.ts`) — it is
+// data, and framework-free modules elsewhere in this package name icons
+// too. Re-exported here so every existing importer of this module keeps
+// resolving.
+import type { IconName } from '../../icon-name.js';
+export type { IconName } from '../../icon-name.js';
 
 interface Props extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName;

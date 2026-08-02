@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useSourceConfigAddForm, useWiredSourceConfigAddForm } from './useSourceConfigAddForm.js';
-import type { SourceConfigPort } from '@jini-ai/ui-core';
-import type { SourceConfigItem, SourceFieldSpec } from '@jini-ai/ui-core';
+import type { SourceConfigPort } from '../../ports.js';
+import type { SourceConfigItem, SourceFieldSpec } from '../../types.js';
 
 const URL_FIELD: SourceFieldSpec = { key: 'url', label: 'URL', kind: 'url', required: true };
 

@@ -1,3 +1,28 @@
+export {
+  MASK_CHAR,
+  MASKED_VALUE_MIN_MASK_LENGTH,
+  MASKED_VALUE_VISIBLE_SUFFIX_LENGTH,
+} from './constants.js';
+export {
+  createFakeSourceConfigDependencies,
+  createFakeSourceConfigPort,
+  type FakeSourceConfigPortOptions,
+} from './dependencies.js';
+export type { SourceConfigDependencies, SourceConfigPort } from './ports.js';
+export {
+  emptySourceDraft,
+  isActionPending,
+  issueForField,
+  maskFieldValue,
+  pendingActionKey,
+  removeSourceById,
+  sourceDisplayLabel,
+  updateSourceById,
+  upsertSourceById,
+  validateSourceDraft,
+  withoutPendingAction,
+  withPendingAction,
+} from './rules.js';
 export type {
   AddSourceInput,
   AddSourceResult,
@@ -12,25 +37,7 @@ export type {
   SourceFieldValues,
   SourceTestResult,
   SourceTrustOption,
-} from '@jini-ai/ui-core';
-export { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from '@jini-ai/ui-core';
-export {
-  emptySourceDraft,
-  isActionPending,
-  issueForField,
-  maskFieldValue,
-  pendingActionKey,
-  removeSourceById,
-  sourceDisplayLabel,
-  updateSourceById,
-  upsertSourceById,
-  validateSourceDraft,
-  withoutPendingAction,
-  withPendingAction,
-} from '@jini-ai/ui-core';
-export type { SourceConfigDependencies, SourceConfigPort } from '@jini-ai/ui-core';
-export { createFakeSourceConfigDependencies, createFakeSourceConfigPort } from '@jini-ai/ui-core';
-export type { FakeSourceConfigPortOptions } from '@jini-ai/ui-core';
+} from './types.js';
 
 export { useSourceConfigList, useWiredSourceConfigList } from './react/hooks/useSourceConfigList.js';
 export type {

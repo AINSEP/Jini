@@ -8,7 +8,7 @@ import { createRef, type MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MemoryList } from '../../../react/components/MemoryList.js';
-import type { MemoryEntrySummary, MemoryExtractionRecord } from '@jini-ai/ui-core';
+import type { MemoryEntrySummary, MemoryExtractionRecord } from '../../../types.js';
 
 function entry(over: Partial<MemoryEntrySummary> = {}): MemoryEntrySummary {
   return { id: 'e1', name: 'n', description: 'd', type: 'feedback', ...over };

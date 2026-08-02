@@ -2,9 +2,9 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
-import { createFakeExecutionPort } from '@jini-ai/ui-core';
+import { createFakeExecutionPort } from '../../../dependencies.js';
+import type { ExecutionConfig, ProviderPreset } from '../../../types.js';
 import { ExecutionTab } from '../../../react/components/ExecutionTab.js';
-import type { ExecutionConfig, ProviderPreset } from '@jini-ai/ui-core';
 
 function config(overrides: Partial<ExecutionConfig> = {}): ExecutionConfig {
   return {

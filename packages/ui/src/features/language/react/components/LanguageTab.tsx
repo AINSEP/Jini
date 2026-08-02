@@ -1,6 +1,6 @@
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
-import type { LocaleOption } from '@jini-ai/ui-core';
+import type { LocaleOption } from '../../types.js';
 
 export interface LanguageTabProps {
   locales: readonly LocaleOption[];

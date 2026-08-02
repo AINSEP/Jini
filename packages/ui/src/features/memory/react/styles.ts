@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react';
 /**
  * Inline style for the memory editor's field labels.
  *
- * Lives on the React side rather than in `@jini-ai/ui-core`'s memory constants:
+ * Lives on the React side rather than in this feature's `constants.ts`:
  * a `CSSProperties` object is presentation, and it is the one thing in that
  * module that could not cross into a framework-free package. Everything else
  * there is plain data.

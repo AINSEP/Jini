@@ -4,7 +4,7 @@
 // injects `fireFlash` into the hooks that fire it (entries, connectors) as an
 // arg, keeping those hooks decoupled from this one.
 import { useCallback, useEffect, useState } from 'react';
-import type { FlashKind } from '@jini-ai/ui-core';
+import type { FlashKind } from '../../types.js';
 
 export interface MemoryFlashController {
   /** The active pill, or null when nothing is showing. */

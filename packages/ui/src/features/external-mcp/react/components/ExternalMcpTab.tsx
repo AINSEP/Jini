@@ -17,8 +17,9 @@
 // `source-config-list`'s own source-map notes). A host wanting either
 // composes it locally; this file doesn't fabricate them.
 import { useState } from 'react';
-import { DRAFT_TEST_SCOPE } from '@jini-ai/ui-core';
-import type { SourceConfigDependencies, SourceConfigItem, SourceFieldSpec } from '@jini-ai/ui-core';
+import { DRAFT_TEST_SCOPE } from '../../../source-config-list/constants.js';
+import type { SourceConfigDependencies } from '../../../source-config-list/ports.js';
+import type { SourceConfigItem, SourceFieldSpec } from '../../../source-config-list/types.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { SourceConfigAddForm } from '../../../source-config-list/react/components/SourceConfigAddForm.js';

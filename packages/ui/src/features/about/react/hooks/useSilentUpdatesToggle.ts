@@ -1,7 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
-import { createAsyncCommitGuard } from '@jini-ai/ui-core';
-import { beginSilentUpdatesWrite, resolveSilentUpdatesWriteFailure, resolveSilentUpdatesWriteSuccess } from '@jini-ai/ui-core';
-import type { SilentUpdatesState } from '@jini-ai/ui-core';
+import {
+  beginSilentUpdatesWrite,
+  resolveSilentUpdatesWriteFailure,
+  resolveSilentUpdatesWriteSuccess,
+} from '../../rules.js';
+import type { SilentUpdatesState } from '../../types.js';
+import { createAsyncCommitGuard } from '../../../memory/async-commit-guard.js';
 
 export interface UseSilentUpdatesToggleOptions {
   /** Seed value — the host's confirmed setting when this tab mounts. Only
@@ -33,16 +37,17 @@ export interface UseSilentUpdatesToggleResult {
  * rollback to the pre-write value.
  *
  * The token/staleness half of that mechanism is `createAsyncCommitGuard`
- * (already in `@jini-ai/ui-core`, built for exactly this shape of problem —
- * see its own doc comment) rather than a second token counter grown here.
- * `begin()` is called once per toggle click; because it is monotonic, it
- * both claims a revision for this attempt AND retroactively invalidates
- * every earlier attempt's revision, so an earlier attempt's settle arriving
- * after a later one started is dropped by the `isCurrent` check below —
- * regardless of settle order. The value/busy transition itself is
- * `beginSilentUpdatesWrite`/`resolveSilentUpdatesWriteSuccess`/
- * `resolveSilentUpdatesWriteFailure` (ui-core, pure, no ordering opinion of
- * their own — ordering is entirely this hook's job).
+ * (already in `features/memory/async-commit-guard.ts`, built for exactly
+ * this shape of problem — see its own doc comment) rather than a second
+ * token counter grown here. `begin()` is called once per toggle click;
+ * because it is monotonic, it both claims a revision for this attempt AND
+ * retroactively invalidates every earlier attempt's revision, so an earlier
+ * attempt's settle arriving after a later one started is dropped by the
+ * `isCurrent` check below — regardless of settle order. The value/busy
+ * transition itself is `beginSilentUpdatesWrite`/
+ * `resolveSilentUpdatesWriteSuccess`/`resolveSilentUpdatesWriteFailure`
+ * (this feature's own `rules.ts`, pure, no ordering opinion of their own —
+ * ordering is entirely this hook's job).
  *
  * @complexity O(1) per toggle call.
  */

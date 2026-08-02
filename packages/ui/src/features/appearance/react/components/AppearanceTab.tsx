@@ -9,8 +9,8 @@ import {
   normalizeAccentColor,
   resolveAccentColor,
 } from '../../../../utils/appearance.js';
-import { THEME_OPTIONS } from '@jini-ai/ui-core';
-import type { SettingsThemeChoice } from '@jini-ai/ui-core';
+import { THEME_OPTIONS } from '../../constants.js';
+import type { SettingsThemeChoice } from '../../types.js';
 
 export interface AppearanceTabProps {
   theme: SettingsThemeChoice;

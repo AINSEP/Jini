@@ -11,7 +11,7 @@
 // harder-to-diagnose act()/timing failure at the hook level.
 import { describe, expect, it, vi } from 'vitest';
 import { createExtractionHistoryStore, mergeSameAttempt, phaseProgress } from '../../../react/hooks/useMemoryExtractions.store.js';
-import type { MemoryExtractionRecord } from '@jini-ai/ui-core';
+import type { MemoryExtractionRecord } from '../../../types.js';
 
 function record(id: string, over: Partial<MemoryExtractionRecord> = {}): MemoryExtractionRecord {
   return {

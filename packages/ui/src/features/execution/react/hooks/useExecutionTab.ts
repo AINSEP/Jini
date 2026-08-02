@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ExecutionPort } from '@jini-ai/ui-core';
-import { sortDetectedAgents } from '@jini-ai/ui-core';
+import type { ExecutionPort } from '../../ports.js';
+import { sortDetectedAgents } from '../../rules.js';
 import type {
   AgentScanState,
   AgentTestState,
@@ -8,7 +8,7 @@ import type {
   ConnectionTestState,
   DetectedAgent,
   ModelDiscoveryState,
-} from '@jini-ai/ui-core';
+} from '../../types.js';
 
 export interface UseExecutionTabOptions {
   port: ExecutionPort;

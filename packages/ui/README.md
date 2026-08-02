@@ -67,6 +67,96 @@ separate deliberately — see the chat-core/chat-react split discussion in
   i18n/observability/utils porting task (2026-07-16); see
   `packages/ui/source-map.md`.
 
+## `./core` — the framework-free half, importable without React
+
+**`@jini-ai/ui/core` is not a separate concern, just a separate entry point.** It re-exports
+exactly the files described above as "zero React import" (`types.ts`, `constants.ts`, `rules.ts`,
+`ports.ts`, `dependencies.ts`) across every feature listed in the table below — the same files
+that already live at each feature's top level, right next to that feature's `react/` folder. There
+is no separate source tree to keep in sync; `./core` (`src/core.ts`) is a curated barrel over files
+that already exist.
+
+This used to be a genuinely separate package, `@jini-ai/ui-core`, until it became clear it never
+earned that: it was always the framework-free half of *this* package's features, and its own name
+— "core of the UI package" — gave no hint that it was one half of a per-feature split. Folded back
+in here 2026-08-01, once that confusion cost real time (including for the person who built it).
+`packages/ui/source-map.md` has the dated entry.
+
+### Feature map
+
+Every feature below was extracted from Open Design's `SettingsDialog.tsx` (~8,538 lines). That
+shared origin is why the set looks arbitrary: it is not a designed taxonomy, it is *whatever that
+one dialog contained*, split tab by tab. Worth knowing before you go looking for a general
+principle that is not there.
+
+| Feature | What it models | Has ports? |
+|---|---|---|
+| `about` | version/build info panel | |
+| `appearance` | theme segmented control, density | |
+| `connectors` | OAuth integration marketplace | ✓ |
+| `execution` | local agent detection, BYOK config, model listing | ✓ |
+| `integrations` | multi-client MCP integration management | ✓ |
+| `language` | locale selection | |
+| `media-providers` | media/asset provider config | ✓ |
+| `memory` | memory slice wire + view-model types, commit guard | ✓ |
+| `notifications` | completion sounds, browser notification flow | |
+| `privacy` | telemetry/data-sharing toggles | |
+| `project-locations` | project folder registration — **belongs to Tovu-Runner; do not mount in Tovu's admin** | ✓ |
+| `skills` | skill catalog + detail | ✓ |
+| `source-config-list` | generic "add a source by URL/key, set trust, test/refresh" list | ✓ |
+
+Plus, at the package root and inside `features/settings/dialog/` and `features/notifications/`:
+
+- `features/settings/dialog/{types,rules}.ts` — the **settings-dialog shell** itself:
+  `SettingsDialogTabMeta`, `resolveInitialActiveTabId`, `findActiveTab`. A tab registry with
+  active-item resolution.
+- `features/notifications/notifications-catalog.ts` — sound ids and defaults (distinct from
+  `features/notifications/{types,constants,rules}.ts`, the notifications *tab's* own state).
+- `icon-name.ts` (package root), `utils/uuid.ts`, `utils/endpoint-policy.ts`.
+
+### Boundary: `./core` vs the rest of `ui` vs `admin`
+
+Three concerns, easy to confuse, so state them plainly:
+
+| Surface | Holds | Rule of thumb |
+|---|---|---|
+| `@jini-ai/ui/core` | framework-free half of this package's features | importable with zero React/DOM; never mounts UI by itself |
+| `@jini-ai/ui` (root) | generic, product-neutral UI: primitives (`asset-grid`, `command-palette`, `list-detail-panel`) **and** the React half of everything under `./core` | a thing a *non-admin* product would also want |
+| `@jini-ai/admin` | the admin application surface: panel registry, routing, transport, admin panels | only meaningful inside an admin |
+
+Known wrinkle, recorded rather than silently tolerated: this package holds both genuine primitives
+*and* ~13 settings-screen features, which is a real conflation. They are not moved to `admin`
+because they also back Open Design's SettingsDialog reproduction, so they are not admin-exclusive.
+If a future consumer needs them without an admin, that is the moment to revisit.
+
+### Before building an admin panel
+
+`@jini-ai/admin` panels must check `./core` first. Several features here already model domains an
+admin panel would otherwise re-derive — `execution`, `integrations`, `connectors`,
+`media-providers`, `notifications`, `appearance`.
+
+This has already gone wrong once: Tovu's `apps/admin/src/lib/api.ts` defines
+`AdminExecutionDetectedAgent` with the comment *"Mirrors `@jini-ai/ui`'s `ExecutionTab`
+`DetectedAgent` shape"* — a hand-maintained copy of `features/execution/types.ts`'s
+`DetectedAgent` that has **already drifted** (Tovu added `authStatus`/`authMessage`; this side has
+`description` and reasoning-effort presets). Tovu also re-derived `detectExecutionAgents` /
+`testExecutionConnection` / `listExecutionModels` / `testExecutionAgent`, which is exactly the
+`ExecutionPort` already defined in `features/execution/ports.ts`.
+
+Reuse the port. Do not create a third definition.
+
+### Testing the `./core` surface
+
+`src/__tests__/features/**`, `src/__tests__/utils/**`, and `src/__tests__/rules.test.ts` are this
+package's own centralized home for `./core`'s tests (inherited unchanged from `@jini-ai/ui-core`'s
+own `src/__tests__/` tree, rather than the co-located `features/<domain>/__tests__/` convention
+the rest of this package uses — kept centralized specifically so `vitest.config.ts`'s
+`environmentMatchGlobs` can route the whole tree to a DOM-less `node` environment by directory glob
+instead of a per-file pragma). Nothing there touches the DOM, and a DOM-dependent test landing in
+that tree would mean React logic crept back into the framework-free half — which is the one thing
+this boundary exists to prevent. Let such a test fail loudly, same as when this was its own
+package.
+
 ## Status
 
 Real content has landed in several parallel passes — see

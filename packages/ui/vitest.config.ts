@@ -7,6 +7,25 @@ export default defineConfig({
     // utils/dom-subscriptions, utils/zip) opt back into Node per-file via a
     // `// @vitest-environment node` pragma — see packages/ui/source-map.md.
     environment: 'jsdom',
+    // `src/__tests__/features/**`, `src/__tests__/utils/**`, and
+    // `src/__tests__/rules.test.ts` are the former `@jini-ai/ui-core`
+    // package's own test tree, folded in here unchanged (2026-08-01) along
+    // with the framework-free source it covers (now reachable at
+    // `./core`). Routed to `node` by GLOB rather than per-file pragma, on
+    // purpose: `@jini-ai/ui-core` enforced its no-DOM boundary by having no
+    // `jsdom` environment to fall back to at all, so a DOM-dependent test
+    // landing there failed loudly. A per-file pragma only protects files
+    // that remember to carry it; a new test added to this tree tomorrow
+    // gets `node` automatically and keeps failing loudly if it reaches for
+    // `window`, same as before the fold-in. Does not cover
+    // `src/__tests__/index.test.ts` (the package's own pre-existing root
+    // barrel test) — that one imports feature barrels that re-export React
+    // components, so it needs jsdom same as always.
+    environmentMatchGlobs: [
+      ['src/__tests__/features/**', 'node'],
+      ['src/__tests__/utils/**', 'node'],
+      ['src/__tests__/rules.test.ts', 'node'],
+    ],
     setupFiles: ['./vitest.setup.ts'],
     server: {
       // @excalidraw/excalidraw's dev build ships extensionless deep imports

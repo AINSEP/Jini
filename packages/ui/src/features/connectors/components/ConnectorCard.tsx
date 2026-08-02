@@ -1,7 +1,7 @@
 import type { KeyboardEvent as ReactKeyboardEvent, SyntheticEvent } from 'react';
 import { useT } from '../../i18n/index.js';
-import type { Connector, ConnectorAction, ConnectorAuthorizationPending } from '@jini-ai/ui-core';
-import { getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '@jini-ai/ui-core';
+import { getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '../rules.js';
+import type { Connector, ConnectorAction, ConnectorAuthorizationPending } from '../types.js';
 import { Icon } from '../../../react/components/Icon.js';
 import { ConnectorLogo } from './ConnectorLogo.js';
 

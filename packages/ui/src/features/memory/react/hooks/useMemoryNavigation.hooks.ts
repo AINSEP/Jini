@@ -9,7 +9,7 @@
 // `renderHook` to assert the tab/modal transitions in isolation.
 import { useCallback, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
-import type { MemoryTab } from '@jini-ai/ui-core';
+import type { MemoryTab } from '../../types.js';
 
 /** The two top-level views: the saved-memory list vs the "how it works" panel. */
 export type MemoryTopTab = 'memories' | 'how';

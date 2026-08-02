@@ -1,6 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ProjectLocation, ProjectLocationDraft, ProjectLocationsActionResult, ProjectLocationsPort } from '@jini-ai/ui-core';
-import { DEFAULT_LOCATION_ID, externalLocations, isDuplicatePath, resolveDefaultLocationId, saveableDrafts } from '@jini-ai/ui-core';
+import type { ProjectLocationsPort } from '../../ports.js';
+import {
+  DEFAULT_LOCATION_ID,
+  externalLocations,
+  isDuplicatePath,
+  resolveDefaultLocationId,
+  saveableDrafts,
+} from '../../rules.js';
+import type {
+  ProjectLocation,
+  ProjectLocationDraft,
+  ProjectLocationsActionResult,
+} from '../../types.js';
 
 export interface UseProjectLocationsTabOptions {
   port: ProjectLocationsPort;

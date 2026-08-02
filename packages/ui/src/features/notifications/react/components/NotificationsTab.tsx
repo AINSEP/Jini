@@ -9,8 +9,8 @@ import {
   requestNotificationPermission,
   showCompletionNotification,
 } from '../../../../utils/notifications.js';
-import type { NotificationsPreferences, TestStatus } from '@jini-ai/ui-core';
-import { testStatusLabel } from '@jini-ai/ui-core';
+import { type TestStatus, testStatusLabel } from '../../rules.js';
+import type { NotificationsPreferences } from '../../types.js';
 
 export interface NotificationsTabLabels {
   completionSoundTitle?: string;
@@ -45,7 +45,7 @@ export interface NotificationsTabProps {
  * `utils/notifications.ts`), zero product-domain coupling.
  *
  * The "send test notification" button (and the `TestStatus` it reports,
- * imported from `@jini-ai/ui-core`) only ever renders while
+ * imported from this feature's own `rules.ts`) only ever renders while
  * `desktopEnabled && permission === 'granted'` (the JSX gate below), and
  * `sendTestNotification`'s own `setPermission(notificationPermission())`
  * resync re-reads that same non-granted state in the same tick whenever
@@ -57,7 +57,7 @@ export interface NotificationsTabProps {
  * 'settings.notifyDesktopBlocked'/'settings.notifyDesktopUnsupported' were
  * already dead there too — which is why `TestStatus` itself is narrowed to
  * 'sent'/'failed' rather than carrying unreachable members (see its own doc
- * comment in ui-core).
+ * comment in this feature's `rules.ts`).
  */
 export function NotificationsTab({ preferences, onChange, testNotificationTitle, testNotificationBody, labels }: NotificationsTabProps) {
   const t = useT();

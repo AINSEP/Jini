@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { ProjectLocation, ProjectLocationsPort } from '@jini-ai/ui-core';
+import type { ProjectLocationsPort } from '../../../ports.js';
+import type { ProjectLocation } from '../../../types.js';
 import { useProjectLocationsTab } from '../../../react/hooks/useProjectLocationsTab.js';
 
 const BUILT_IN: ProjectLocation = { id: 'default', name: 'Default', path: '/home/op/projects', builtIn: true };

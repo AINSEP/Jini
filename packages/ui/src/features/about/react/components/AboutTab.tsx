@@ -1,16 +1,17 @@
 import { useMemo, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { deriveAboutUpdateControl, isAboutUpdateActionDisabled } from '@jini-ai/ui-core';
-import type { AboutUpdatePrimaryAction, AppVersionInfo, UpdaterModel } from '@jini-ai/ui-core';
+import { deriveAboutUpdateControl, isAboutUpdateActionDisabled } from '../../rules.js';
+import type { AboutUpdatePrimaryAction, AppVersionInfo, UpdaterModel } from '../../types.js';
 import { useSilentUpdatesToggle } from '../hooks/useSilentUpdatesToggle.js';
 
 /**
- * Superset of ui-core's `AppVersionInfo` with plain desktop-build facts that
- * carry no branching logic of their own — `channel`/`platform`/`arch` are
- * rendered verbatim and never inspected, so they don't belong in ui-core's
- * pure state machine (see `deriveAboutUpdateControl`, which only reads
- * `version`/`packaged`). All three are optional: a host with nothing to
- * report for one just omits that row.
+ * Superset of this feature's own `AppVersionInfo` (`../../types.js`) with
+ * plain desktop-build facts that carry no branching logic of their own —
+ * `channel`/`platform`/`arch` are rendered verbatim and never inspected, so
+ * they don't belong in that type's pure state machine (see
+ * `deriveAboutUpdateControl`, which only reads `version`/`packaged`). All
+ * three are optional: a host with nothing to report for one just omits that
+ * row.
  */
 export interface AboutAppVersionInfo extends AppVersionInfo {
   channel?: string;
@@ -69,14 +70,14 @@ export interface AboutTabProps {
  * App version + auto-update panel, plus the "allow silent updates"
  * preference. Origin: the `activeSection === 'about'` block in
  * `SettingsDialog.tsx` (~5509-5644) — everything up through the silent-
- * updates toggle (see `packages/ui-core/src/tabs/about/` for what "already
+ * updates toggle (see this feature's `types.ts`/`rules.ts` for what "already
  * ported" means here). Diagnostics export and the onboarding-reset button
  * that OD's dialog stacks below this are separate, single-callback concerns
  * with no state machine of their own — left for whoever mounts this tab to
  * compose in (diagnostics export already exists generically as
  * `ExportDiagnosticsButton`).
  *
- * Update-control derivation is ui-core's `deriveAboutUpdateControl`/
+ * Update-control derivation is this feature's own `deriveAboutUpdateControl`/
  * `isAboutUpdateActionDisabled`; the silent-updates toggle's optimistic-
  * write/rollback/race-safety is `useSilentUpdatesToggle`. This component
  * only renders their results and owns the one thing that's genuinely

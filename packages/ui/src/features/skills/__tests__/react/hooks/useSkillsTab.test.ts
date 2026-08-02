@@ -1,7 +1,9 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createFakeSkillsPort, EMPTY_SKILL_DRAFT } from '@jini-ai/ui-core';
-import type { SkillDetail, SkillFileEntry, SkillSummary, SkillsPort } from '@jini-ai/ui-core';
+import { createFakeSkillsPort } from '../../../dependencies.js';
+import type { SkillsPort } from '../../../ports.js';
+import { EMPTY_SKILL_DRAFT } from '../../../rules.js';
+import type { SkillDetail, SkillFileEntry, SkillSummary } from '../../../types.js';
 import { useSkillsTab } from '../../../react/hooks/useSkillsTab.js';
 
 const USER_SKILL: SkillDetail = {

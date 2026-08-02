@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
+import type { MediaProvidersPort } from '../../ports.js';
 import {
   invalidBaseUrlProviderIds,
   isEntryPresent,
@@ -9,8 +10,8 @@ import {
   maskedKeyLabel,
   resolveProviderBaseUrl,
   sortProvidersByConfigured,
-} from '@jini-ai/ui-core';
-import type { MediaProviderMap, MediaProviderOption, MediaProvidersPort } from '@jini-ai/ui-core';
+} from '../../rules.js';
+import type { MediaProviderMap, MediaProviderOption } from '../../types.js';
 import { useMediaProvidersTab } from '../hooks/useMediaProvidersTab.js';
 
 export interface MediaProvidersTabLabels {
@@ -47,7 +48,8 @@ export interface MediaProvidersTabLabels {
 export interface MediaProvidersTabProps {
   port: MediaProvidersPort;
   /** The host's own provider catalog — see `MediaProviderOption`'s doc for
-   *  why this ships empty from `ui-core` rather than a baked-in vendor list. */
+   *  why this ships empty from this feature's `types.ts` rather than a
+   *  baked-in vendor list. */
   catalog: readonly MediaProviderOption[];
   /** Host-persisted local edits from before this tab mounted. See
    *  `useMediaProvidersTab`'s doc for how this feeds the first-load merge. */

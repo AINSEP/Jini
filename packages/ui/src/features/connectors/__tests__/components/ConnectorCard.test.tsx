@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ConnectorCard } from '../../components/ConnectorCard.js';
-import type { Connector } from '@jini-ai/ui-core';
+import type { Connector } from '../../types.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };

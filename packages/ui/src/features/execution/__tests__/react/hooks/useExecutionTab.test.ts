@@ -1,8 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { createFakeExecutionPort } from '@jini-ai/ui-core';
+import { createFakeExecutionPort } from '../../../dependencies.js';
+import type { ByokConfig } from '../../../types.js';
 import { useExecutionTab } from '../../../react/hooks/useExecutionTab.js';
-import type { ByokConfig } from '@jini-ai/ui-core';
 
 /**
  * @file Error-reporting contract coverage (`ADS-memory/governance/contracts/error-reporting.md`)

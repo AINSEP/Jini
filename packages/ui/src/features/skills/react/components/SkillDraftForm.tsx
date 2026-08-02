@@ -1,4 +1,4 @@
-import type { SkillDraft, SkillDraftError } from '@jini-ai/ui-core';
+import type { SkillDraft, SkillDraftError } from '../../types.js';
 import { useT } from '../../../i18n/index.js';
 
 export interface SkillDraftFormLabels {

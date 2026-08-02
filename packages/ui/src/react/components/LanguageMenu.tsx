@@ -8,10 +8,11 @@ import {
 } from 'react';
 import { Icon } from './Icon';
 
-// Shape lives in `@jini-ai/ui-core` (plain data, shared with the settings
-// Language tab); re-exported so existing importers of this module still find it.
-export type { LocaleOption } from '@jini-ai/ui-core';
-import type { LocaleOption } from '@jini-ai/ui-core';
+// Shape lives in `features/language/types.ts` (plain data, shared with the
+// settings Language tab); re-exported so existing importers of this module
+// still find it.
+import type { LocaleOption } from '../../features/language/types.js';
+export type { LocaleOption } from '../../features/language/types.js';
 
 export interface LanguageMenuProps {
   /** Supported locales and their display labels — host-supplied, not hardcoded. */

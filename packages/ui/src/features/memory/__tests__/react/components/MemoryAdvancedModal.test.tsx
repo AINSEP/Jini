@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MemoryAdvancedModal } from '../../../react/components/MemoryAdvancedModal.js';
-import type { MemoryTreeNode } from '@jini-ai/ui-core';
+import type { MemoryTreeNode } from '../../../types.js';
 
 function folder(id: string, over: Partial<MemoryTreeNode> = {}): MemoryTreeNode {
   return { id, kind: 'folder', name: id, path: `${id}/`, ...over };

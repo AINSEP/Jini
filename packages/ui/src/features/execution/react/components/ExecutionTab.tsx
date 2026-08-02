@@ -1,7 +1,7 @@
 import { useEffect, type CSSProperties, type ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { DEFAULT_AGENT_CLI_ENV_FIELDS, DEFAULT_PROVIDER_PRESETS } from '@jini-ai/ui-core';
-import type { ExecutionPort } from '@jini-ai/ui-core';
+import { DEFAULT_AGENT_CLI_ENV_FIELDS, DEFAULT_PROVIDER_PRESETS } from '../../constants.js';
+import type { ExecutionPort } from '../../ports.js';
 import {
   groupPresets,
   isProviderConfigured,
@@ -13,14 +13,14 @@ import {
   nextConfigForPresetSelect,
   resolveSelectedPreset,
   selectedAgentModel,
-} from '@jini-ai/ui-core';
+} from '../../rules.js';
 import type {
   AgentCliEnvFieldSpec,
   DetectedAgent,
   ExecutionConfig,
   ExecutionMode,
   ProviderPreset,
-} from '@jini-ai/ui-core';
+} from '../../types.js';
 import { useExecutionTab } from '../hooks/useExecutionTab.js';
 import { ByokProviderForm } from './ByokProviderForm.js';
 import { LocalCliAgentList } from './LocalCliAgentList.js';

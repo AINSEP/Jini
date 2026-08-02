@@ -1,7 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { createFakeMediaProvidersPort } from '@jini-ai/ui-core';
-import type { MediaProviderMap, MediaProvidersPort } from '@jini-ai/ui-core';
+import { createFakeMediaProvidersPort } from '../../../dependencies.js';
+import type { MediaProvidersPort } from '../../../ports.js';
+import type { MediaProviderMap } from '../../../types.js';
 import { useMediaProvidersTab } from '../../../react/hooks/useMediaProvidersTab.js';
 
 /**
@@ -10,8 +11,8 @@ import { useMediaProvidersTab } from '../../../react/hooks/useMediaProvidersTab.
  * (`fetchMediaProviders` resolving `null`) must never be treated the same as
  * a daemon that answered with nothing (`{}`) — the former must leave local
  * state exactly as it was, the latter is a real answer that can drop stale
- * local markers. See `mergeDaemonProviders`'s own doc comment in ui-core for
- * the full rule this hook must not violate.
+ * local markers. See `mergeDaemonProviders`'s own doc comment
+ * (`../../../rules.js`) for the full rule this hook must not violate.
  */
 
 describe('useMediaProvidersTab — initial load', () => {

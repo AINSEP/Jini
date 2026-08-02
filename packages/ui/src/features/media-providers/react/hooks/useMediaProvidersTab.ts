@@ -1,12 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { MediaProvidersPort } from '../../ports.js';
+import {
+  hasAnyConfiguredProvider,
+  isEntryEmpty,
+  mergeDaemonProviders,
+  shouldSyncLocalProvidersToDaemon,
+} from '../../rules.js';
 import type {
   MediaProviderCredentials,
   MediaProviderMap,
   MediaProvidersLoadState,
-  MediaProvidersPort,
   MediaProvidersSaveState,
-} from '@jini-ai/ui-core';
-import { hasAnyConfiguredProvider, isEntryEmpty, mergeDaemonProviders, shouldSyncLocalProvidersToDaemon } from '@jini-ai/ui-core';
+} from '../../types.js';
 
 /** The operator-editable fields of a provider entry. Server markers
  *  (`apiKeyConfigured`/`apiKeyTail`) are deliberately excluded — they only

@@ -1,9 +1,9 @@
-import { DRAFT_TEST_SCOPE } from '@jini-ai/ui-core';
+import { DRAFT_TEST_SCOPE } from '../../constants.js';
+import type { SourceConfigDependencies } from '../../ports.js';
+import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '../../types.js';
 import { useSourceConfigList, useWiredSourceConfigList } from '../hooks/useSourceConfigList.js';
 import { useSourceConfigAddForm, useWiredSourceConfigAddForm } from '../hooks/useSourceConfigAddForm.js';
 import { SourceConfigListView } from './SourceConfigListView.js';
-import type { SourceConfigDependencies } from '@jini-ai/ui-core';
-import type { SourceConfigItem, SourceFieldSpec, SourceTrustOption } from '@jini-ai/ui-core';
 
 export interface SourceConfigListProps<TSource extends SourceConfigItem> {
   /** Host-supplied transport adapter. Required — see `dependencies.ts`'s file-level comment for why this generic primitive has no zero-config default. */

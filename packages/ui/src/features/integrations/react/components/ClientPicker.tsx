@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useDismissOnOutsideOrEscape } from '../../../../browser/useDismissOnOutsideOrEscape.js';
-import type { McpClientDescriptor, McpClientId } from '@jini-ai/ui-core';
+import type { McpClientDescriptor, McpClientId } from '../../types.js';
 
 export interface ClientPickerProps {
   clients: readonly McpClientDescriptor[];

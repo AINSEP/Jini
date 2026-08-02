@@ -1,46 +1,5 @@
 export { FIELD_LABEL_STYLE } from './react/styles.js';
-export type {
-  ConnectorMemoryAttempt,
-  ConnectorMemoryAttemptStatus,
-  ConnectorMemorySuggestionResponse,
-  DraftEntry,
-  FlashKind,
-  FriendlyExtractionFailure,
-  MemoryEntry,
-  MemoryEntrySummary,
-  MemoryExtractionEvent,
-  MemoryExtractionPhase,
-  MemoryExtractionProvider,
-  MemoryExtractionRecord,
-  MemoryExtractionSkipReason,
-  MemoryExtractionsResponse,
-  MemoryListResponse,
-  MemorySourceTab,
-  MemorySuggestion,
-  MemoryTab,
-  MemoryTreeListResponse,
-  MemoryTreeNode,
-  MemoryTreeNodeKind,
-  MemoryType,
-  UpdateMemoryConfigRequest,
-  UpsertMemoryRequest,
-} from '@jini-ai/ui-core';
-export type {
-  MemoryConfigPort,
-  MemoryConnectorsPort,
-  MemoryEntriesPort,
-  MemoryExtractionsPort,
-} from '@jini-ai/ui-core';
-export type { MemoryConfigFlagKey } from '@jini-ai/ui-core';
-export {
-  applyMemoryConnectorStatus,
-  connectorWithPendingAuthorization,
-  enabledPatch,
-  memoryEntryIdForConnectorSuggestion,
-  singleFlagPatch,
-  upsertMemoryConnector,
-  visibleExtractionsFor,
-} from '@jini-ai/ui-core';
+export { type AsyncCommitGuard, createAsyncCommitGuard } from './async-commit-guard.js';
 export {
   CONNECTOR_CALLBACK_MESSAGE_TYPE,
   connectorAppLabel,
@@ -51,7 +10,7 @@ export {
   MEMORY_CONNECTOR_PENDING_AUTH_STORAGE_KEY,
   STARTERS,
   TYPES,
-} from '@jini-ai/ui-core';
+} from './constants.js';
 export {
   connectorAttemptDetail,
   connectorAttemptName,
@@ -72,10 +31,50 @@ export {
   memoryTypeLabels,
   parseProviderError,
   providerDisplayName,
-} from '@jini-ai/ui-core';
-export type { AsyncCommitGuard } from '@jini-ai/ui-core';
-export { createAsyncCommitGuard } from '@jini-ai/ui-core';
-export type { MemorySectionProps } from '@jini-ai/ui-core';
+} from './formatters.js';
+export type {
+  MemoryConfigPort,
+  MemoryConnectorsPort,
+  MemoryEntriesPort,
+  MemoryExtractionsPort,
+} from './ports.js';
+export {
+  applyMemoryConnectorStatus,
+  connectorWithPendingAuthorization,
+  enabledPatch,
+  type MemoryConfigFlagKey,
+  memoryEntryIdForConnectorSuggestion,
+  singleFlagPatch,
+  upsertMemoryConnector,
+  visibleExtractionsFor,
+} from './rules.js';
+export type {
+  ConnectorMemoryAttempt,
+  ConnectorMemoryAttemptStatus,
+  ConnectorMemorySuggestionResponse,
+  DraftEntry,
+  FlashKind,
+  FriendlyExtractionFailure,
+  MemoryEntry,
+  MemoryEntrySummary,
+  MemoryExtractionEvent,
+  MemoryExtractionPhase,
+  MemoryExtractionProvider,
+  MemoryExtractionRecord,
+  MemoryExtractionSkipReason,
+  MemoryExtractionsResponse,
+  MemoryListResponse,
+  MemorySectionProps,
+  MemorySourceTab,
+  MemorySuggestion,
+  MemoryTab,
+  MemoryTreeListResponse,
+  MemoryTreeNode,
+  MemoryTreeNodeKind,
+  MemoryType,
+  UpdateMemoryConfigRequest,
+  UpsertMemoryRequest,
+} from './types.js';
 
 export {
   createFakeMemoryConnectorsPort,

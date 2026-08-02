@@ -1,9 +1,15 @@
 import { useT } from '../../../i18n/index.js';
-import { isActionPending } from '@jini-ai/ui-core';
+import { isActionPending } from '../../rules.js';
+import type {
+  SourceConfigItem,
+  SourceFieldSpec,
+  SourceTestResult,
+  SourceTrustOption,
+  SourceUpdateInput,
+} from '../../types.js';
 import { SourceConfigAddForm, type SourceConfigAddFormProps } from './SourceConfigAddForm.js';
 import { SourceConfigItemCard } from './SourceConfigItemCard.js';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
-import type { SourceConfigItem, SourceFieldSpec, SourceTestResult, SourceTrustOption, SourceUpdateInput } from '@jini-ai/ui-core';
 
 export interface SourceConfigListViewProps<TSource extends SourceConfigItem> {
   title?: string;

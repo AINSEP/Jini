@@ -1,5 +1,5 @@
-import { humanizeSkillCategory } from '@jini-ai/ui-core';
-import type { SkillsPort } from '@jini-ai/ui-core';
+import type { SkillsPort } from '../../ports.js';
+import { humanizeSkillCategory } from '../../rules.js';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useSkillsTab } from '../hooks/useSkillsTab.js';
@@ -34,8 +34,8 @@ export interface SkillsTabProps {
  * one collapsible row per skill (enable toggle, preview, file tree, inline
  * edit, two-click delete). Origin: `SkillsSection.tsx` — GENERIC (per
  * `SkillSummary`'s own doc), with `mode`/category vocabulary entirely
- * host-defined. All filtering/search/count logic is `@jini-ai/ui-core`'s;
- * this component only renders it.
+ * host-defined. All filtering/search/count logic lives in this feature's
+ * own `rules.ts`; this component only renders it.
  */
 export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels }: SkillsTabProps) {
   const t = useT();

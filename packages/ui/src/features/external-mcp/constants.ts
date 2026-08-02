@@ -6,7 +6,7 @@
 // concept at all (`packages/ui/source-map.md`'s "the specific trust
 // vocabulary ... never hardcoded ... the origin MCP-server shape has none"),
 // so this feature defines no `SourceTrustOption[]` to go with it.
-import type { SourceFieldSpec } from '@jini-ai/ui-core';
+import type { SourceFieldSpec } from '../source-config-list/types.js';
 
 export const MCP_SOURCE_FIELD_SPECS: readonly SourceFieldSpec[] = [
   { key: 'id', label: 'ID', kind: 'text', required: true },

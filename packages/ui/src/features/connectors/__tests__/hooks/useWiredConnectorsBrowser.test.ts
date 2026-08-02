@@ -2,7 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useWiredConnectorsBrowser } from '../../hooks/useWiredConnectorsBrowser.js';
 import { createFakeConnectorsDependencies } from '../../dependencies.js';
-import type { Connector } from '@jini-ai/ui-core';
+import type { Connector } from '../../types.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };

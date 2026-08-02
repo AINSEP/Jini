@@ -5,14 +5,15 @@
 // (a settings store, a React effect, etc.).
 //
 // The accent-color validation and the color-mix formulas behind the five
-// `--accent*` values have no DOM dependency and live in `@jini-ai/ui-core`
-// (`tabs/appearance`) instead — re-exported below so every existing
-// importer of this module (including this package's own public `index.ts`)
-// keeps working unchanged.
+// `--accent*` values have no DOM dependency and live in
+// `features/appearance/{constants,rules}.ts` instead — re-exported below so
+// every existing importer of this module (including this package's own
+// public `index.ts`) keeps working unchanged.
 
-import { accentVars, resolveAccentColor } from '@jini-ai/ui-core';
+import { accentVars, resolveAccentColor } from '../features/appearance/rules.js';
+export { ACCENT_SWATCHES, DEFAULT_ACCENT_COLOR } from '../features/appearance/constants.js';
+export { normalizeAccentColor, resolveAccentColor } from '../features/appearance/rules.js';
 
-export { DEFAULT_ACCENT_COLOR, ACCENT_SWATCHES, normalizeAccentColor, resolveAccentColor } from '@jini-ai/ui-core';
 
 export type AppearanceTheme = 'light' | 'dark';
 

@@ -3,7 +3,7 @@
 // state + the toggle transport live in a host's config hook.
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
-import type { MemoryConfigFlagKey } from '@jini-ai/ui-core';
+import type { MemoryConfigFlagKey } from '../../rules.js';
 import { MemoryHooksPanel } from './MemoryHooksPanel.js';
 
 export function MemoryHowPanel({

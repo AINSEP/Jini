@@ -19,8 +19,13 @@ import {
   type MemoryEntriesCoordination,
 } from '../../../react/hooks/useMemoryEntries.hooks.js';
 import { memoryEntriesPort } from '../../../dependencies.js';
-import type { MemoryEntriesPort } from '@jini-ai/ui-core';
-import type { MemoryEntry, MemoryEntrySummary, MemoryListResponse, MemoryTreeNode } from '@jini-ai/ui-core';
+import type { MemoryEntriesPort } from '../../../ports.js';
+import type {
+  MemoryEntry,
+  MemoryEntrySummary,
+  MemoryListResponse,
+  MemoryTreeNode,
+} from '../../../types.js';
 
 function summary(id: string, over: Partial<MemoryEntrySummary> = {}): MemoryEntrySummary {
   return {

@@ -1,30 +1,3 @@
-export type {
-  AgentAuthStatus,
-  AgentCliEnvFieldSpec,
-  AgentDiagnostic,
-  AgentDiagnosticReason,
-  AgentDiagnosticSeverity,
-  AgentExecutableRepair,
-  AgentExecutableSource,
-  AgentFixIntent,
-  AgentModelOption,
-  AgentModelSource,
-  AgentScanState,
-  AgentSupportsCustomModel,
-  AgentTestState,
-  ApiProtocol,
-  ByokConfig,
-  ByokProviderCredentials,
-  ByokRequiredField,
-  ConnectionTestState,
-  DetectedAgent,
-  ExecutionConfig,
-  ExecutionMode,
-  LocalCliConfig,
-  ModelDiscoveryState,
-  ProviderPreset,
-  ProviderPresetKind,
-} from '@jini-ai/ui-core';
 export {
   CUSTOM_MODEL_SENTINEL,
   CUSTOM_PRESET_ID,
@@ -33,12 +6,15 @@ export {
   DEFAULT_BASE_URL_BY_PROTOCOL,
   DEFAULT_PROVIDER_PRESETS,
   PROTOCOL_OPTIONS,
-} from '@jini-ai/ui-core';
+} from './constants.js';
+export { createFakeExecutionPort, type FakeExecutionPortOptions } from './dependencies.js';
+export type { ExecutionPort } from './ports.js';
 export {
   agentCliEnvValue,
   agentDiagnosticTooltip,
   agentExecutableRepairState,
   agentMetaLabel,
+  type AgentMetaLabels,
   agentModelSummary,
   binPathEnvField,
   cleanAgentVersionLabel,
@@ -67,11 +43,34 @@ export {
   shouldShowCustomModelInput,
   showsBaseUrlField,
   sortDetectedAgents,
-} from '@jini-ai/ui-core';
-export type { AgentMetaLabels } from '@jini-ai/ui-core';
-export type { ExecutionPort } from '@jini-ai/ui-core';
-export { createFakeExecutionPort } from '@jini-ai/ui-core';
-export type { FakeExecutionPortOptions } from '@jini-ai/ui-core';
+} from './rules.js';
+export type {
+  AgentAuthStatus,
+  AgentCliEnvFieldSpec,
+  AgentDiagnostic,
+  AgentDiagnosticReason,
+  AgentDiagnosticSeverity,
+  AgentExecutableRepair,
+  AgentExecutableSource,
+  AgentFixIntent,
+  AgentModelOption,
+  AgentModelSource,
+  AgentScanState,
+  AgentSupportsCustomModel,
+  AgentTestState,
+  ApiProtocol,
+  ByokConfig,
+  ByokProviderCredentials,
+  ByokRequiredField,
+  ConnectionTestState,
+  DetectedAgent,
+  ExecutionConfig,
+  ExecutionMode,
+  LocalCliConfig,
+  ModelDiscoveryState,
+  ProviderPreset,
+  ProviderPresetKind,
+} from './types.js';
 
 export { ExecutionTab } from './react/components/ExecutionTab.js';
 export type { ExecutionTabProps } from './react/components/ExecutionTab.js';

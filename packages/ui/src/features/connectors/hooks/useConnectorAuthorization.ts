@@ -1,9 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { ConnectorAuthBridgePort, ConnectorAuthPendingStoragePort, ConnectorsPort } from '@jini-ai/ui-core';
-import type { Connector, ConnectorAction, ConnectorAuthorizationPendingState, ConnectorAuthResultEvent, ConnectorStatusMap, PendingConnectorAction } from '@jini-ai/ui-core';
-import { applyConnectorStatuses, clearConnectorAuthorizationCancelFailuresForConnected, clearConnectorAuthorizationErrorsForConnected, clearConnectorAuthorizationPending, findStaleAuthorizations, hasConnectorStatusChanges, mergeConnectorActionResult, pruneConnectorAuthorizationPending, updateConnectorAuthorizationPendingFromConnectResponse, updateConnectorAuthorizationPendingFromStatuses } from '@jini-ai/ui-core';
-import { CONNECTOR_AUTH_PENDING_POLL_MS } from '@jini-ai/ui-core';
+import { CONNECTOR_AUTH_PENDING_POLL_MS } from '../constants.js';
+import type {
+  ConnectorAuthBridgePort,
+  ConnectorAuthPendingStoragePort,
+  ConnectorsPort,
+} from '../ports.js';
+import {
+  applyConnectorStatuses,
+  clearConnectorAuthorizationCancelFailuresForConnected,
+  clearConnectorAuthorizationErrorsForConnected,
+  clearConnectorAuthorizationPending,
+  findStaleAuthorizations,
+  hasConnectorStatusChanges,
+  mergeConnectorActionResult,
+  pruneConnectorAuthorizationPending,
+  updateConnectorAuthorizationPendingFromConnectResponse,
+  updateConnectorAuthorizationPendingFromStatuses,
+} from '../rules.js';
+import type {
+  Connector,
+  ConnectorAction,
+  ConnectorAuthorizationPendingState,
+  ConnectorAuthResultEvent,
+  ConnectorStatusMap,
+  PendingConnectorAction,
+} from '../types.js';
 
 export interface UseConnectorAuthorizationParams {
   connectors: Connector[];

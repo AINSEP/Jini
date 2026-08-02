@@ -1,5 +1,5 @@
-export type { SettingsDialogChromeLabels, SettingsDialogTabMeta } from '@jini-ai/ui-core';
-export { findActiveTab, resolveInitialActiveTabId } from '@jini-ai/ui-core';
+export { findActiveTab, resolveInitialActiveTabId } from './rules.js';
+export type { SettingsDialogChromeLabels, SettingsDialogTabMeta } from './types.js';
 
 export { useSettingsDialogShell } from './react/hooks/useSettingsDialogShell.js';
 export type {

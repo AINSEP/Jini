@@ -1,10 +1,5 @@
-export type {
-  MediaProviderCredentials,
-  MediaProviderMap,
-  MediaProviderOption,
-  MediaProvidersLoadState,
-  MediaProvidersSaveState,
-} from '@jini-ai/ui-core';
+export { createFakeMediaProvidersPort, type FakeMediaProvidersPortOptions } from './dependencies.js';
+export type { MediaProvidersPort } from './ports.js';
 export {
   hasAnyConfiguredProvider,
   hasRecoverableFields,
@@ -16,10 +11,14 @@ export {
   resolveProviderBaseUrl,
   shouldSyncLocalProvidersToDaemon,
   sortProvidersByConfigured,
-} from '@jini-ai/ui-core';
-export type { MediaProvidersPort } from '@jini-ai/ui-core';
-export { createFakeMediaProvidersPort } from '@jini-ai/ui-core';
-export type { FakeMediaProvidersPortOptions } from '@jini-ai/ui-core';
+} from './rules.js';
+export type {
+  MediaProviderCredentials,
+  MediaProviderMap,
+  MediaProviderOption,
+  MediaProvidersLoadState,
+  MediaProvidersSaveState,
+} from './types.js';
 
 export { useMediaProvidersTab } from './react/hooks/useMediaProvidersTab.js';
 export type {

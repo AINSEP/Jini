@@ -1,5 +1,5 @@
 import { useT } from '../../i18n/index.js';
-import type { Connector, ConnectorAction, ConnectorAuthorizationPendingState } from '@jini-ai/ui-core';
+import type { Connector, ConnectorAction, ConnectorAuthorizationPendingState } from '../types.js';
 import { ConnectorCard } from './ConnectorCard.js';
 import { ConnectorGate, type ConnectorGateProps } from './ConnectorGate.js';
 

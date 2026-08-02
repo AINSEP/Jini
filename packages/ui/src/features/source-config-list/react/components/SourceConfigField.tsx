@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { maskFieldValue } from '@jini-ai/ui-core';
-import type { SourceFieldSpec } from '@jini-ai/ui-core';
+import { maskFieldValue } from '../../rules.js';
+import type { SourceFieldSpec } from '../../types.js';
 
 export interface SourceConfigFieldProps {
   spec: SourceFieldSpec;

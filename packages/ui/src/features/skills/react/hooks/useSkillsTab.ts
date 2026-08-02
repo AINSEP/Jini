@@ -1,15 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type {
-  SkillDetail,
-  SkillDraft,
-  SkillDraftError,
-  SkillFileEntry,
-  SkillFilterOption,
-  SkillFilters,
-  SkillSummary,
-  SkillsPort,
-  SourceFilter,
-} from '@jini-ai/ui-core';
+import type { SkillsPort } from '../../ports.js';
 import {
   EMPTY_SKILL_DRAFT,
   filterSkills,
@@ -19,7 +9,17 @@ import {
   skillFilterOptions,
   summaryToDraft,
   validateSkillDraft,
-} from '@jini-ai/ui-core';
+} from '../../rules.js';
+import type {
+  SkillDetail,
+  SkillDraft,
+  SkillDraftError,
+  SkillFileEntry,
+  SkillFilterOption,
+  SkillFilters,
+  SkillSummary,
+  SourceFilter,
+} from '../../types.js';
 
 export interface UseSkillsTabOptions {
   port: SkillsPort;
@@ -90,8 +90,9 @@ export interface UseSkillsTabResult {
  * inline so the component stays render-only, same split as every other tab
  * in this feature.
  *
- * Filtering/search/counts are NOT recomputed here beyond calling ui-core's
- * pure functions over the current `skills` + `filters` — see
+ * Filtering/search/counts are NOT recomputed here beyond calling this
+ * feature's own pure `rules.ts` functions over the current `skills` +
+ * `filters` — see
  * `filterSkills`/`skillFilterOptions` for the actual logic.
  */
 export function useSkillsTab({ port, locale = 'en' }: UseSkillsTabOptions): UseSkillsTabResult {

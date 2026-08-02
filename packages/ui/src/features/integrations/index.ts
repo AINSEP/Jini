@@ -1,14 +1,6 @@
-export type {
-  CodexInstallStatus,
-  McpClientDescriptor,
-  McpClientId,
-  McpClientSnippet,
-  McpInstallInfo,
-  McpInstallPlatform,
-  McpSnippetLanguage,
-  McpStdioServerConfig,
-} from '@jini-ai/ui-core';
-export { DEFAULT_MCP_CLIENT_ID, DEFAULT_MCP_SERVER_NAME, MCP_CLIENTS } from '@jini-ai/ui-core';
+export { DEFAULT_MCP_CLIENT_ID, DEFAULT_MCP_SERVER_NAME, MCP_CLIENTS } from './constants.js';
+export { createFakeMcpIntegrationsPort, type FakeMcpIntegrationsPortOptions } from './dependencies.js';
+export type { McpIntegrationsPort } from './ports.js';
 export {
   buildClaudeCliSnippet,
   buildCodexEnvToml,
@@ -24,10 +16,17 @@ export {
   settingsShortcut,
   snippetForClient,
   utf8Btoa,
-} from '@jini-ai/ui-core';
-export type { McpIntegrationsPort } from '@jini-ai/ui-core';
-export { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
-export type { FakeMcpIntegrationsPortOptions } from '@jini-ai/ui-core';
+} from './rules.js';
+export type {
+  CodexInstallStatus,
+  McpClientDescriptor,
+  McpClientId,
+  McpClientSnippet,
+  McpInstallInfo,
+  McpInstallPlatform,
+  McpSnippetLanguage,
+  McpStdioServerConfig,
+} from './types.js';
 
 export { useMcpInstallInfo, useWiredMcpInstallInfo } from './react/hooks/useMcpInstallInfo.js';
 export type { McpInstallInfoController } from './react/hooks/useMcpInstallInfo.js';

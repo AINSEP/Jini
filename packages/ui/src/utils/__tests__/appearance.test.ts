@@ -3,8 +3,8 @@ import { DEFAULT_ACCENT_COLOR, applyAppearanceToDocument } from '../appearance.j
 
 // `normalizeAccentColor`/`resolveAccentColor`/`ACCENT_SWATCHES` (and
 // `accentVars`, this function's other, DOM-free half) are pure and covered
-// in `@jini-ai/ui-core`'s own suite
-// (packages/ui-core/src/__tests__/tabs/appearance/rules.test.ts). This file
+// in this package's own suite
+// (packages/ui/src/__tests__/features/appearance/rules.test.ts). This file
 // only needs to cover the DOM write `applyAppearanceToDocument` layers on
 // top, plus that it still resolves an invalid accent color to the default —
 // re-exported here, not reimplemented.

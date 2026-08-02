@@ -2,8 +2,9 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
-import { createFakeSkillsPort } from '@jini-ai/ui-core';
-import type { SkillDetail, SkillsPort, SkillWritePayload } from '@jini-ai/ui-core';
+import { createFakeSkillsPort } from '../../../dependencies.js';
+import type { SkillsPort, SkillWritePayload } from '../../../ports.js';
+import type { SkillDetail } from '../../../types.js';
 import { SkillsTab } from '../../../react/components/SkillsTab.js';
 
 const BUILT_IN: SkillDetail = {

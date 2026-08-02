@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n/index.js';
 import { SourceConfigField } from './SourceConfigField.js';
-import type { SourceFieldSpec } from '@jini-ai/ui-core';
+import type { SourceFieldSpec } from '../../types.js';
 
 describe('SourceConfigField', () => {
   it('renders a text field and forwards changes', async () => {

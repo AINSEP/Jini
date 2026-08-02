@@ -10,9 +10,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useMemoryConfig, useWiredMemoryConfig } from '../../../react/hooks/useMemoryConfig.hooks.js';
 import { useMemoryEntries } from '../../../react/hooks/useMemoryEntries.hooks.js';
-import type { MemoryConfigPort, MemoryEntriesPort } from '@jini-ai/ui-core';
-import type { MemoryConfigFlagKey } from '@jini-ai/ui-core';
-import type { MemoryListResponse, MemoryTreeNode } from '@jini-ai/ui-core';
+import type { MemoryConfigPort, MemoryEntriesPort } from '../../../ports.js';
+import type { MemoryConfigFlagKey } from '../../../rules.js';
+import type { MemoryListResponse, MemoryTreeNode } from '../../../types.js';
 
 const SAVE_ERROR_MESSAGE = "Memory settings couldn't be saved. Try again shortly.";
 

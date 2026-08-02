@@ -3,11 +3,16 @@ import { useT } from '../../../i18n/index.js';
 import {
   isBaseUrlInvalid,
   missingRequiredFields,
-  presetRequiresApiKey,
   parseMaxTokens,
+  presetRequiresApiKey,
   showsBaseUrlField,
-} from '@jini-ai/ui-core';
-import type { ByokConfig, ConnectionTestState, ModelDiscoveryState, ProviderPreset } from '@jini-ai/ui-core';
+} from '../../rules.js';
+import type {
+  ByokConfig,
+  ConnectionTestState,
+  ModelDiscoveryState,
+  ProviderPreset,
+} from '../../types.js';
 
 export interface ByokProviderFormProps {
   config: ByokConfig;

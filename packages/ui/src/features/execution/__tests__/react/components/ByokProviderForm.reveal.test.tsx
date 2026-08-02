@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
-import type { ByokConfig, ProviderPreset } from '@jini-ai/ui-core';
+import type { ByokConfig, ProviderPreset } from '../../../types.js';
 
 /**
  * @file The credential-reveal toggle's provider scoping.

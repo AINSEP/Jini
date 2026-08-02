@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { RefObject } from 'react';
-import type { SettingsDialogTabMeta } from '@jini-ai/ui-core';
-import { resolveInitialActiveTabId } from '@jini-ai/ui-core';
+import { resolveInitialActiveTabId } from '../../rules.js';
+import type { SettingsDialogTabMeta } from '../../types.js';
 import { useDismissOnOutsideOrEscape } from '../../../../../browser/useDismissOnOutsideOrEscape.js';
 
 export interface UseSettingsDialogShellParams<T extends SettingsDialogTabMeta> {

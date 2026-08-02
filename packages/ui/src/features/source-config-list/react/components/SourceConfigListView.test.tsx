@@ -2,11 +2,11 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../i18n/index.js';
-import { validateSourceDraft } from '@jini-ai/ui-core';
+import { validateSourceDraft } from '../../rules.js';
+import type { SourceConfigItem, SourceFieldSpec } from '../../types.js';
 import { SourceConfigListView } from './SourceConfigListView.js';
 import type { ComponentProps } from 'react';
 import type { SourceConfigListCapabilities } from '../hooks/useSourceConfigList.js';
-import type { SourceConfigItem, SourceFieldSpec } from '@jini-ai/ui-core';
 
 const URL_FIELD: SourceFieldSpec = { key: 'url', label: 'URL', kind: 'url', required: true };
 const FULL_CAPS: SourceConfigListCapabilities = { canRefresh: true, canSetTrust: true, canTest: true, canUpdate: true };

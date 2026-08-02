@@ -7,7 +7,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MemoryExtractionCard } from '../../../react/components/MemoryExtractionCard.js';
-import type { MemoryExtractionRecord } from '@jini-ai/ui-core';
+import type { MemoryExtractionRecord } from '../../../types.js';
 
 function record(over: Partial<MemoryExtractionRecord> = {}): MemoryExtractionRecord {
   return {

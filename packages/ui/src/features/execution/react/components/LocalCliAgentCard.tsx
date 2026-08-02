@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { DEFAULT_AGENT_DESCRIPTIONS, CUSTOM_MODEL_SENTINEL } from '@jini-ai/ui-core';
+import { CUSTOM_MODEL_SENTINEL, DEFAULT_AGENT_DESCRIPTIONS } from '../../constants.js';
 import {
   agentExecutableRepairState,
   agentMetaLabel,
@@ -9,8 +9,13 @@ import {
   selectedAgentModel,
   selectedAgentReasoning,
   shouldShowCustomModelInput,
-} from '@jini-ai/ui-core';
-import type { AgentCliEnvFieldSpec, AgentTestState, DetectedAgent, LocalCliConfig } from '@jini-ai/ui-core';
+} from '../../rules.js';
+import type {
+  AgentCliEnvFieldSpec,
+  AgentTestState,
+  DetectedAgent,
+  LocalCliConfig,
+} from '../../types.js';
 import { AgentCliEnvFields } from './AgentCliEnvFields.js';
 import { AgentDiagnosticRow } from './AgentDiagnosticRow.js';
 import { SearchableModelSelect } from './SearchableModelSelect.js';
@@ -204,8 +209,9 @@ export function LocalCliAgentCard({
               </span>
             ) : null}
             {/* Pre-existing (not part of this pass's six gaps): `agentMetaLabel`
-                (packages/ui-core) always returns a non-empty `text` for every
-                branch of its own contract, so this ternary's `false` side is
+                (this feature's own `rules.ts`) always returns a non-empty
+                `text` for every branch of its own contract, so this ternary's
+                `false` side is
                 provably unreachable through the rule as written today — kept
                 defensive rather than asserted-non-null in case that contract
                 ever changes. */}
@@ -332,8 +338,8 @@ export function LocalCliAgentCard({
             {t('A custom path override did not work, so this used the automatically detected binary instead.')}
           </span>
           <div className="jini-agent-card-path-repair-actions">
-            {/* `agentExecutableRepairState` (packages/ui-core) always sets
-                `canUseDetected: true` on every non-null result it produces
+            {/* `agentExecutableRepairState` (this feature's own `rules.ts`)
+                always sets `canUseDetected: true` on every non-null result it produces
                 today — the field exists for a FUTURE detection outcome that
                 finds a fallback path but cannot vouch for it (see that
                 field's doc). The `false` branch is therefore provably

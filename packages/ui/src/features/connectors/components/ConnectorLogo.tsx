@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { fallbackLogoInitials, fallbackLogoPaletteIndex } from '@jini-ai/ui-core';
+import { fallbackLogoInitials, fallbackLogoPaletteIndex } from '../rules.js';
 
 const FALLBACK_PALETTE_SIZE = 6;
 

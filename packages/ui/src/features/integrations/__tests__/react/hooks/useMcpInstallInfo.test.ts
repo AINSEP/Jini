@@ -1,7 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
-import type { McpInstallInfo } from '@jini-ai/ui-core';
+import { createFakeMcpIntegrationsPort } from '../../../dependencies.js';
+import type { McpInstallInfo } from '../../../types.js';
 import { useMcpInstallInfo, useWiredMcpInstallInfo } from '../../../react/hooks/useMcpInstallInfo.js';
 
 describe('useMcpInstallInfo', () => {

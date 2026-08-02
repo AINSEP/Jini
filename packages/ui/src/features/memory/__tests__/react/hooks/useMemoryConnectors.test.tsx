@@ -17,10 +17,19 @@ import {
   useWiredMemoryConnectors,
   type MemoryConnectorsCoordination,
 } from '../../../react/hooks/useMemoryConnectors.hooks.js';
-import type { MemoryConnectorsPort } from '@jini-ai/ui-core';
-import type { ConnectorMemorySuggestionResponse, MemoryEntry, MemoryExtractionRecord, MemorySuggestion } from '@jini-ai/ui-core';
-import { DEFAULT_CONNECTOR_PROVIDER, MEMORY_CONNECTOR_APP_LABELS } from '@jini-ai/ui-core';
-import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '@jini-ai/ui-core';
+import type {
+  Connector,
+  ConnectorActionResult,
+  ConnectorStatusMap,
+} from '../../../../connectors/types.js';
+import { DEFAULT_CONNECTOR_PROVIDER, MEMORY_CONNECTOR_APP_LABELS } from '../../../constants.js';
+import type { MemoryConnectorsPort } from '../../../ports.js';
+import type {
+  ConnectorMemorySuggestionResponse,
+  MemoryEntry,
+  MemoryExtractionRecord,
+  MemorySuggestion,
+} from '../../../types.js';
 
 function connector(id: string, over: Partial<Connector> = {}): Connector {
   return {

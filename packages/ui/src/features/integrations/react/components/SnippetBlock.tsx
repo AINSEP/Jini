@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { copyToClipboard } from '../../../../utils/copy-to-clipboard.js';
-import type { McpSnippetLanguage } from '@jini-ai/ui-core';
+import type { McpSnippetLanguage } from '../../types.js';
 
 export interface SnippetBlockProps {
   snippet: string;

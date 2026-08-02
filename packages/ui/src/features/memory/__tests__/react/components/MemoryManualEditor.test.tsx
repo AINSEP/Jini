@@ -10,7 +10,7 @@ import { createRef, type MutableRefObject } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { MemoryManualEditor } from '../../../react/components/MemoryManualEditor.js';
-import type { DraftEntry } from '@jini-ai/ui-core';
+import type { DraftEntry } from '../../../types.js';
 
 function renderEditor(props: Partial<Parameters<typeof MemoryManualEditor>[0]> = {}) {
   const cbs = {

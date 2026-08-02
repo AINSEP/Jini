@@ -1,13 +1,21 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useT } from '../i18n/index.js';
-import type { ConnectorsDependencies } from '@jini-ai/ui-core';
-import type { Connector, ConnectorAuthResultEvent, ProviderTab } from '@jini-ai/ui-core';
+import {
+  AUTHORIZATION_CANCEL_FAILED_MESSAGE,
+  DEFAULT_PROVIDER_TAB_ID,
+  DEFAULT_PROVIDER_TABS,
+} from './constants.js';
+import type { ConnectorsDependencies } from './ports.js';
+import {
+  connectorPanelAlerts,
+  scopeConnectorsToProvider,
+  sortConnectorsForSearch,
+} from './rules.js';
+import type { Connector, ConnectorAuthResultEvent, ProviderTab } from './types.js';
 import { useConnectorCatalog } from './hooks/useConnectorCatalog.js';
 import { useConnectorAuthorization } from './hooks/useConnectorAuthorization.js';
 import { useConnectorDetail } from './hooks/useConnectorDetail.js';
 import { useWiredConnectorsBrowser } from './hooks/useWiredConnectorsBrowser.js';
-import { connectorPanelAlerts, scopeConnectorsToProvider, sortConnectorsForSearch } from '@jini-ai/ui-core';
-import { AUTHORIZATION_CANCEL_FAILED_MESSAGE, DEFAULT_PROVIDER_TABS, DEFAULT_PROVIDER_TAB_ID } from '@jini-ai/ui-core';
 import { CenteredLoader } from '../../react/components/Loading.js';
 import { ProviderTabBar } from './components/ProviderTabBar.js';
 import { ConnectorSearchBar } from './components/ConnectorSearchBar.js';

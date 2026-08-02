@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import type { ConnectorsPort } from '@jini-ai/ui-core';
-import type { Connector } from '@jini-ai/ui-core';
-import { mergeConnectors } from '@jini-ai/ui-core';
+import type { ConnectorsPort } from '../ports.js';
+import { mergeConnectors } from '../rules.js';
+import type { Connector } from '../types.js';
 
 export interface ConnectorCatalogOptions {
   /** Whether the host's provider is configured (e.g. an API key is saved) — gates lazy enrichment. */

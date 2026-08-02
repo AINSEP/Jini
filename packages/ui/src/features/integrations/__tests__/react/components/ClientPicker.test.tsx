@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { MCP_CLIENTS } from '@jini-ai/ui-core';
+import { MCP_CLIENTS } from '../../../constants.js';
 import { ClientPicker } from '../../../react/components/ClientPicker.js';
 
 describe('ClientPicker', () => {

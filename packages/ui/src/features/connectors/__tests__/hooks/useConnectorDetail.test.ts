@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { useConnectorDetail } from '../../hooks/useConnectorDetail.js';
 import { createFakeConnectorsPort } from '../../dependencies.js';
-import type { Connector } from '@jini-ai/ui-core';
+import type { Connector } from '../../types.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };

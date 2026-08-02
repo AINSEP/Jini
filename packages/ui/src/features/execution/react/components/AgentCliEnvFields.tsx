@@ -1,6 +1,6 @@
 import { useT } from '../../../i18n/index.js';
-import { agentCliEnvValue, cliEnvFieldsForAgent } from '@jini-ai/ui-core';
-import type { AgentCliEnvFieldSpec, LocalCliConfig } from '@jini-ai/ui-core';
+import { agentCliEnvValue, cliEnvFieldsForAgent } from '../../rules.js';
+import type { AgentCliEnvFieldSpec, LocalCliConfig } from '../../types.js';
 
 export interface AgentCliEnvFieldsProps {
   agentId: string;

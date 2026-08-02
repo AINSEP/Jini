@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { McpIntegrationsPort } from '@jini-ai/ui-core';
-import { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
+import { createFakeMcpIntegrationsPort } from '../../dependencies.js';
+import type { McpIntegrationsPort } from '../../ports.js';
 
 export interface CodexInstallToggleController {
   /** `null` while the initial status fetch is in flight; `false` once

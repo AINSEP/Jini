@@ -2,7 +2,12 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentCliEnvFieldSpec, AgentTestState, DetectedAgent, LocalCliConfig } from '@jini-ai/ui-core';
+import type {
+  AgentCliEnvFieldSpec,
+  AgentTestState,
+  DetectedAgent,
+  LocalCliConfig,
+} from '../../../types.js';
 import { LocalCliAgentCard } from '../../../react/components/LocalCliAgentCard.js';
 
 function agent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {

@@ -1,4 +1,4 @@
-import type { ProviderPreset } from '@jini-ai/ui-core';
+import type { ProviderPreset } from '../../types.js';
 
 export interface ProviderChipGroupProps {
   label: string;

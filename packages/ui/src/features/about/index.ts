@@ -1,3 +1,11 @@
+export {
+  ABOUT_UPDATE_KEYS,
+  beginSilentUpdatesWrite,
+  deriveAboutUpdateControl,
+  isAboutUpdateActionDisabled,
+  resolveSilentUpdatesWriteFailure,
+  resolveSilentUpdatesWriteSuccess,
+} from './rules.js';
 export type {
   AboutUpdateControl,
   AboutUpdatePrimaryAction,
@@ -10,15 +18,7 @@ export type {
   UpdaterModel,
   UpdaterState,
   UpdaterStatus,
-} from '@jini-ai/ui-core';
-export {
-  ABOUT_UPDATE_KEYS,
-  beginSilentUpdatesWrite,
-  deriveAboutUpdateControl,
-  isAboutUpdateActionDisabled,
-  resolveSilentUpdatesWriteFailure,
-  resolveSilentUpdatesWriteSuccess,
-} from '@jini-ai/ui-core';
+} from './types.js';
 
 export { AboutTab } from './react/components/AboutTab.js';
 export type { AboutAppVersionInfo, AboutTabLabels, AboutTabProps } from './react/components/AboutTab.js';

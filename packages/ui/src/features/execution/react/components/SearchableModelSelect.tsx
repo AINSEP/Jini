@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { filterAgentModelOptions } from '@jini-ai/ui-core';
-import type { AgentModelOption } from '@jini-ai/ui-core';
+import { filterAgentModelOptions } from '../../rules.js';
+import type { AgentModelOption } from '../../types.js';
 import { CustomSelect } from '../../../../react/components/CustomSelect.js';
 import type { CustomSelectOption } from '../../../../react/components/CustomSelect.js';
 

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../i18n/index.js';
 import { ConnectorsBrowser } from '../ConnectorsBrowser.js';
 import { createFakeConnectorsDependencies } from '../dependencies.js';
-import type { Connector } from '@jini-ai/ui-core';
+import type { Connector } from '../types.js';
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };
@@ -262,9 +262,9 @@ describe('ConnectorsBrowser', () => {
 
   it("reflects a pending connect action in the open detail drawer's own busy state", async () => {
     const dependencies = createFakeConnectorsDependencies({ connectors: [makeConnector()] });
-    let resolveConnect: (value: import('@jini-ai/ui-core').ConnectorActionResult) => void = () => {};
+    let resolveConnect: (value: import('../types.js').ConnectorActionResult) => void = () => {};
     dependencies.data.connectConnector = vi.fn(
-      () => new Promise<import('@jini-ai/ui-core').ConnectorActionResult>((resolve) => (resolveConnect = resolve)),
+      () => new Promise<import('../types.js').ConnectorActionResult>((resolve) => (resolveConnect = resolve)),
     );
     render(<ConnectorsBrowser unlocked dependencies={dependencies} />);
     await waitFor(() => expect(screen.getByText('Slack')).toBeTruthy());

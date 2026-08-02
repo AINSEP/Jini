@@ -11,7 +11,7 @@
  * `SUCCESS_SOUNDS`/`FAILURE_SOUNDS` labelKeys, `THEME_OPTIONS` labels,
  * `MCP_CLIENTS` labels, `methodLabelForClient`/`snippetForClient`'s
  * `instructionTemplate` branches, `toolsBadgeTranslation`, and `statusLabel`
- * -- all in `@jini-ai/ui-core`).
+ * -- all in this package's own framework-free per-feature `rules.ts` files).
  *
  * Most entries are an identity map: this codebase's `t()` convention keys
  * many call sites on the literal English copy itself (see `context.tsx`'s

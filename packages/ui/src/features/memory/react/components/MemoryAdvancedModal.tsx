@@ -5,7 +5,7 @@
 import { createPortal } from 'react-dom';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
-import type { MemoryTreeNode } from '@jini-ai/ui-core';
+import type { MemoryTreeNode } from '../../types.js';
 
 export function MemoryAdvancedModal({
   open,

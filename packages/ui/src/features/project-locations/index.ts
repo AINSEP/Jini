@@ -1,4 +1,5 @@
-export type { ProjectLocation, ProjectLocationDraft, ProjectLocationsActionResult, StoredProjectLocation } from '@jini-ai/ui-core';
+export { createFakeProjectLocationsPort, type FakeProjectLocationsPortOptions } from './dependencies.js';
+export type { ProjectLocationsPort } from './ports.js';
 export {
   DEFAULT_LOCATION_ID,
   externalLocations,
@@ -7,10 +8,13 @@ export {
   resolveDefaultLocationId,
   saveableDrafts,
   toStoredLocations,
-} from '@jini-ai/ui-core';
-export type { ProjectLocationsPort } from '@jini-ai/ui-core';
-export { createFakeProjectLocationsPort } from '@jini-ai/ui-core';
-export type { FakeProjectLocationsPortOptions } from '@jini-ai/ui-core';
+} from './rules.js';
+export type {
+  ProjectLocation,
+  ProjectLocationDraft,
+  ProjectLocationsActionResult,
+  StoredProjectLocation,
+} from './types.js';
 
 export { useProjectLocationsTab } from './react/hooks/useProjectLocationsTab.js';
 export type { UseProjectLocationsTabOptions, UseProjectLocationsTabResult } from './react/hooks/useProjectLocationsTab.js';

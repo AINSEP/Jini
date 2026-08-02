@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
-import { DEFAULT_NOTIFICATIONS_PREFERENCES } from '@jini-ai/ui-core';
+import { DEFAULT_NOTIFICATIONS_PREFERENCES } from '../../../constants.js';
 import { NotificationsTab } from '../../../react/components/NotificationsTab.js';
 
 afterEach(() => {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { McpIntegrationsPort } from '@jini-ai/ui-core';
-import type { McpInstallInfo } from '@jini-ai/ui-core';
-import { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
+import { createFakeMcpIntegrationsPort } from '../../dependencies.js';
+import type { McpIntegrationsPort } from '../../ports.js';
+import type { McpInstallInfo } from '../../types.js';
 
 export interface McpInstallInfoController {
   info: McpInstallInfo | null;

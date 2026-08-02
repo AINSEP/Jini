@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { createFakeMcpIntegrationsPort } from '@jini-ai/ui-core';
+import { createFakeMcpIntegrationsPort } from '../../../dependencies.js';
 import { CodexInstallToggleButton } from '../../../react/components/CodexInstallToggleButton.js';
 
 describe('CodexInstallToggleButton', () => {

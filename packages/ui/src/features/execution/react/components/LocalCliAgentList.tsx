@@ -6,7 +6,7 @@ import type {
   AgentTestState,
   DetectedAgent,
   LocalCliConfig,
-} from '@jini-ai/ui-core';
+} from '../../types.js';
 import { LocalCliAgentCard } from './LocalCliAgentCard.js';
 
 export interface LocalCliAgentListProps {

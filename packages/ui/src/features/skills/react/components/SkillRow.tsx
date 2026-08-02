@@ -1,5 +1,14 @@
-import type { SkillDraft, SkillDraftError, SkillFileEntry, SkillSummary } from '@jini-ai/ui-core';
-import { formatSkillFileSize, humanizeSkillCategory, isBuiltInSkill, isDeletableSkill, localizedSkillDescription, localizedSkillName, skillFileLeafName, skillFileTreeIndent } from '@jini-ai/ui-core';
+import {
+  formatSkillFileSize,
+  humanizeSkillCategory,
+  isBuiltInSkill,
+  isDeletableSkill,
+  localizedSkillDescription,
+  localizedSkillName,
+  skillFileLeafName,
+  skillFileTreeIndent,
+} from '../../rules.js';
+import type { SkillDraft, SkillDraftError, SkillFileEntry, SkillSummary } from '../../types.js';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { SkillDraftForm, type SkillDraftFormLabels } from './SkillDraftForm.js';

@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { SkillFileEntry, SkillSummary } from '@jini-ai/ui-core';
+import type { SkillFileEntry, SkillSummary } from '../../../types.js';
 import { SkillRow, type SkillRowProps } from '../../../react/components/SkillRow.js';
 
 const SKILL: SkillSummary = {

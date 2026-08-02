@@ -2,8 +2,9 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
-import { createFakeMediaProvidersPort } from '@jini-ai/ui-core';
-import type { MediaProviderOption, MediaProvidersPort } from '@jini-ai/ui-core';
+import { createFakeMediaProvidersPort } from '../../../dependencies.js';
+import type { MediaProvidersPort } from '../../../ports.js';
+import type { MediaProviderOption } from '../../../types.js';
 import { MediaProvidersTab } from '../../../react/components/MediaProvidersTab.js';
 
 const CATALOG: readonly MediaProviderOption[] = [

@@ -1,3 +1,19 @@
+export {
+  AUTHORIZATION_CANCEL_FAILED_MESSAGE,
+  CONNECTOR_AUTH_CONTINUE_LABEL,
+  CONNECTOR_AUTH_PENDING_POLL_MS,
+  CONNECTOR_AUTH_PENDING_STORAGE_KEY,
+  CONNECTOR_TOOL_PREVIEW_LIMIT,
+  DEFAULT_PROVIDER_TAB_ID,
+  DEFAULT_PROVIDER_TABS,
+} from './constants.js';
+export type {
+  ConnectorAuthBridgePort,
+  ConnectorAuthPendingStoragePort,
+  ConnectorsDependencies,
+  ConnectorsPort,
+  FetchConnectorDetailOptions,
+} from './ports.js';
 export type {
   Connector,
   ConnectorAction,
@@ -15,24 +31,8 @@ export type {
   ConnectorToolSafety,
   PendingConnectorAction,
   ProviderTab,
-} from '@jini-ai/ui-core';
-export type {
-  ConnectorAuthBridgePort,
-  ConnectorAuthPendingStoragePort,
-  ConnectorsDependencies,
-  ConnectorsPort,
-  FetchConnectorDetailOptions,
-} from '@jini-ai/ui-core';
-export {
-  AUTHORIZATION_CANCEL_FAILED_MESSAGE,
-  CONNECTOR_AUTH_CONTINUE_LABEL,
-  CONNECTOR_AUTH_PENDING_POLL_MS,
-  CONNECTOR_AUTH_PENDING_STORAGE_KEY,
-  CONNECTOR_TOOL_PREVIEW_LIMIT,
-  DEFAULT_PROVIDER_TABS,
-  DEFAULT_PROVIDER_TAB_ID,
-} from '@jini-ai/ui-core';
-export * from '@jini-ai/ui-core';
+} from './types.js';
+export * from './rules.js';
 
 export { ConnectorsBrowser } from './ConnectorsBrowser.js';
 export type { ConnectorsBrowserProps } from './ConnectorsBrowser.js';

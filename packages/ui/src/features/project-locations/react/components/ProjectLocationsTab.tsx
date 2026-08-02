@@ -1,7 +1,7 @@
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
-import { locationLabel } from '@jini-ai/ui-core';
-import type { ProjectLocationsPort } from '@jini-ai/ui-core';
+import type { ProjectLocationsPort } from '../../ports.js';
+import { locationLabel } from '../../rules.js';
 import { useProjectLocationsTab } from '../hooks/useProjectLocationsTab.js';
 
 export interface ProjectLocationsTabLabels {

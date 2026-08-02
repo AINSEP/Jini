@@ -1,5 +1,5 @@
 import { useT } from '../../../i18n/index.js';
-import type { SourceTestResult } from '@jini-ai/ui-core';
+import type { SourceTestResult } from '../../types.js';
 
 export interface SourceConfigTestControlProps {
   /** `true` while a test request is in flight for this item. */

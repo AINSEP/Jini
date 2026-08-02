@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // DOM is needed for `fetch`/`RequestInit`/`Response` in `core/transport` (universal in Node
+    // 18+, but only typed via this lib here) and for the genuinely browser-bound `src/browser/**`.
+    //
+    // Note what this does NOT do: having DOM types available does not make `src/core/**` a DOM
+    // module. That boundary is enforced at runtime by `vitest.config.ts`, which deliberately runs
+    // without a jsdom environment so a `window` reference in core fails loudly. Type-level
+    // enforcement is not available without splitting the package into two tsconfigs, which is a
+    // heavier trade than the runtime guard is worth.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+  },
+  "include": ["src"]
+}
