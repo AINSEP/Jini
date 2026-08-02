@@ -59,3 +59,67 @@ export type {
   AdminPolicy,
   AdminRole,
 } from './identity.js';
+
+export type {
+  AdminSeoAnalysis,
+  AdminSeoIssue,
+  AdminSeoMeta,
+  AdminSeoOpenGraph,
+  AdminSeoOverrides,
+  AdminSeoPort,
+  AdminSeoRobotsDirective,
+  AdminSeoRobotsRule,
+  AdminSeoSettings,
+  AdminSeoTwitterCard,
+  SeoIssueSeverity,
+  SeoOpenGraphType,
+  SeoTwitterCardKind,
+} from './seo.js';
+
+export type {
+  AdminRedirect,
+  AdminRedirectCreateInput,
+  AdminRedirectHitStats,
+  AdminRedirectImportFailure,
+  AdminRedirectImportResult,
+  AdminRedirectListFilter,
+  AdminRedirectsPort,
+  AdminRedirectUpdatePatch,
+  RedirectMatchType,
+  RedirectSource,
+  RedirectStatus,
+  RedirectStatusCode,
+} from './redirects.js';
+
+export type {
+  AdminAssignMenuLocationResult,
+  AdminDeleteMenuResult,
+  AdminMenu,
+  AdminMenuBinding,
+  AdminMenuCreateInput,
+  AdminMenuCustomTarget,
+  AdminMenuEntryTarget,
+  AdminMenuItem,
+  AdminMenuItemAttrs,
+  AdminMenuRouteTarget,
+  AdminMenusPort,
+  AdminMenuTarget,
+  AdminMenuTermTarget,
+  AdminMenuUpdateTreeInput,
+  AdminMenuUrlTarget,
+  MenuStatus,
+  NavTargetKind,
+} from './menus.js';
+
+export type {
+  AdminFormCreateInput,
+  AdminFormDefinition,
+  AdminFormField,
+  AdminFormNotifyConfig,
+  AdminFormsPort,
+  AdminFormSubmission,
+  AdminFormSubmissionPage,
+  AdminFormUpdatePatch,
+  FormDefinitionStatus,
+  FormFieldType,
+} from './forms.js';
