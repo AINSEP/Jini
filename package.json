@@ -12,17 +12,25 @@
     "playground:web": "tsx ./scripts/start-playground.ts --web-only",
     "playground:desktop": "pnpm --filter @jini-app/reference-desktop run build && pnpm --filter @jini-app/reference-desktop run dev",
     "typecheck": "pnpm -r --if-present run typecheck && tsc -p scripts/tsconfig.json --noEmit",
-    "changeset": "changeset"
+    "changeset": "changeset",
+    "complexity": "eslint --no-error-on-unmatched-pattern ."
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^10.8.0",
+    "eslint-plugin-sonarjs": "^4.2.0",
     "tsx": "^4.19.0",
     "typescript": "^5.6.0",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^2.1.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["better-sqlite3", "electron", "node-pty"]
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "node-pty"
+    ]
   }
 }
