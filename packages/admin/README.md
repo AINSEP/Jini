@@ -4,9 +4,9 @@ A composable admin surface for Jini-hosted products. A host picks the panels it 
 ports those panels need, and gets a working admin — sidebar, routing, and agent-navigation
 allowlist all derived from one declaration.
 
-Extracted from Tovu's admin SPA (`apps/admin`), which had grown a 1,548-line API client with 134
-methods in a single object and defined every section across three files that had to be kept in
-sync by hand.
+Extracted from the reference implementation's admin SPA, which had grown a 1,548-line API client
+with 134 methods in a single object and defined every section across three files that had to be
+kept in sync by hand.
 
 ## Layers
 
@@ -45,8 +45,8 @@ export const usersPanel: AdminPanel<() => ReactNode> = {
 
 Three properties carry decisions worth not re-deriving:
 
-- **`nav` is optional.** A panel can be routable without a sidebar row (Tovu's `appearance` and
-  `settings-raw` both rely on this).
+- **`nav` is optional.** A panel can be routable without a sidebar row (the reference
+  implementation's `appearance` and `settings-raw` panels both rely on this).
 - **`agentReachable` defaults to `false` and must stay an explicit opt-in.** It is the allowlist
   behind `page.navigate`-style capabilities. Deriving it from panel registration would make every
   new screen agent-reachable as a side effect of existing, which inverts the point of an
@@ -84,8 +84,8 @@ const transport = createHttpTransport({ baseUrl: '/api/admin/v1' });
 const client = createAdminClient(transport, {
   identity: createIdentityRoutes,   // shipped by @jini-ai/admin
   media:    createMediaRoutes,      // shipped by @jini-ai/admin
-  posts:    createTovuPostRoutes,   // yours, same signature
-  widgets:  createTovuWidgetRoutes, // yours
+  posts:    createHostPostRoutes,   // yours, same signature
+  widgets:  createHostWidgetRoutes, // yours
 });
 
 await client.identity.listUsers();
@@ -114,7 +114,7 @@ these into server code.
 ## `/server`: Composio integration
 
 `@jini-ai/admin/server` was `@jini-ai/composio`, a standalone package, until it was folded in here
-as a subpath (see `src/server/source-map.md` for the full provenance and security-model writeup).
+as a subpath (see `src/server/composio/source-map.md` for the full provenance and security-model writeup).
 It was never a standalone concern — its only consumer was ever going to be an admin surface, so a
 separate vendor-adapter package bought nothing but an extra install/version boundary. Unlike
 `/core` and `/browser`, it is Node-only (`node:fs`, `node:crypto`, `node:path`) and does **not**
@@ -151,7 +151,7 @@ It is headless: no HTTP routes, no UI code, no assumed host layout. A host injec
 config store, fetch implementation, cache path, and optional curation data. Connected-account
 ownership, connector/toolkit/auth-config state, and credential evidence are all revalidated before
 execution or disconnection — a provider-reported connected state alone is never sufficient. See
-`src/server/source-map.md` for the full boundary list (schema validation, output bounding, secret
+`src/server/composio/source-map.md` for the full boundary list (schema validation, output bounding, secret
 file handling, locking) and the accepted live-credential E2E gap.
 
 ## Before writing a panel: check `@jini-ai/ui-core` first

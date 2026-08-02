@@ -101,7 +101,7 @@ principle that is not there.
 | `memory` | memory slice wire + view-model types, commit guard | ✓ |
 | `notifications` | completion sounds, browser notification flow | |
 | `privacy` | telemetry/data-sharing toggles | |
-| `project-locations` | project folder registration — **belongs to Tovu-Runner; do not mount in Tovu's admin** | ✓ |
+| `project-locations` | project folder registration — **belongs to the fleet orchestrator; do not mount in a product's admin** | ✓ |
 | `skills` | skill catalog + detail | ✓ |
 | `source-config-list` | generic "add a source by URL/key, set trust, test/refresh" list | ✓ |
 
@@ -135,11 +135,11 @@ If a future consumer needs them without an admin, that is the moment to revisit.
 admin panel would otherwise re-derive — `execution`, `integrations`, `connectors`,
 `media-providers`, `notifications`, `appearance`.
 
-This has already gone wrong once: Tovu's `apps/admin/src/lib/api.ts` defines
+This has already gone wrong once: the reference implementation's admin API client defines
 `AdminExecutionDetectedAgent` with the comment *"Mirrors `@jini-ai/ui`'s `ExecutionTab`
 `DetectedAgent` shape"* — a hand-maintained copy of `features/execution/types.ts`'s
-`DetectedAgent` that has **already drifted** (Tovu added `authStatus`/`authMessage`; this side has
-`description` and reasoning-effort presets). Tovu also re-derived `detectExecutionAgents` /
+`DetectedAgent` that has **already drifted** (it added `authStatus`/`authMessage`; this side has
+`description` and reasoning-effort presets). It also re-derived `detectExecutionAgents` /
 `testExecutionConnection` / `listExecutionModels` / `testExecutionAgent`, which is exactly the
 `ExecutionPort` already defined in `features/execution/ports.ts`.
 

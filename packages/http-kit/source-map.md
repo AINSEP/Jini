@@ -1858,7 +1858,8 @@ Verified: `pnpm guard`; `pnpm --filter @jini/http build`; `pnpm --filter @jini/h
 
 ## 2026-07-29 addition — `requireStrictBearerToken`, shared bearer primitives, and `route-manifest.ts`
 
-**Nothing was ported.** Two additions generalized from a real consumer (Tovu), plus one consolidation.
+**Nothing was ported.** Two additions generalized from a real consumer (the reference
+implementation), plus one consolidation.
 
 ### `requireStrictBearerToken` (`api-security-middleware.ts`)
 

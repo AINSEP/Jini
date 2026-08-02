@@ -105,7 +105,7 @@ There is a structural-only reference stylesheet at
 `min-width: 0` rules for the parts of the DOM tree where a plain-HTML default (an inline element
 that doesn't stack, an `inline-flex` that doesn't shrink to fit a narrow parent) would otherwise
 render visibly broken rather than merely unstyled, including the two `.jini-chat-pane__controls`/
-`.jini-chat-pane__drop-target` layout traps documented in `tovu-learnings.md` §7. **It is not
+`.jini-chat-pane__drop-target` layout traps. **It is not
 exported via `package.json` and not applied automatically** — it's a checked-in reference for a
 host writing their own CSS against these class names, not something to `import` as-is. Read the
 file's own comments for the reasoning behind each rule.

@@ -8,7 +8,7 @@
   TypeScript's classic `moduleResolution: "node"` (node10) — which ignores `package.json#exports`
   entirely — could not resolve this package's types at all (`TS2307: Cannot find module`) even
   after the previous exports-map fix restored `require()` at runtime; type resolution and runtime
-  resolution are separate algorithms. Verified against a real external consumer (Tovu, whose
+  resolution are separate algorithms. Verified against a real external consumer (whose
   tsconfig uses this legacy resolution mode): adding these two fields, with its tsconfig completely
   unchanged, made the error disappear. Also fixes absolute-path `require()` (distinct from a bare
   specifier, which already worked) for the same reason — `main` was previously absent.

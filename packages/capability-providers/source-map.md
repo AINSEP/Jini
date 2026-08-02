@@ -9,11 +9,11 @@ reference stub per interface, zero wiring into any other package.
 
 `foundry/docs/jini-port/recon/r5b-consumers-matrix.md` §2 (the capability matrix) and
 §3.3 identify a **capability-provider registry with auth / storage /
-payments / db / realtime as Zana + Tovu-Runner convergent** — both consumers
+payments / db / realtime as Zana + a fleet orchestrator convergent** — both consumers
 independently built an explicit port+provider layer (Zana: `app-chassis`'s
 "rigid core, flexible edges" thesis, `packages/{core,ai,db,auth,storage,
 payments}` + `providers/supabase` declaring which capabilities it
-implements; Tovu-Runner: "ports+sqlite/memory"), while Open Design itself
+implements; the fleet orchestrator: "ports+sqlite/memory"), while Open Design itself
 only models these capabilities thinly. §3.3 states this "should be an engine
 primitive... so products swap Supabase/SQLite/Stripe without touching core"
 — that is the shape this package builds: 5 independent ports (not one

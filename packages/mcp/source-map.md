@@ -175,7 +175,7 @@ validation via `buildToolIndex`) is synchronous and side-effect-free; all I/O
 happens in `run()`. This is genuinely new kernel-adjacent surface (a new
 package capability, not a file port), justified per extraction-plan §7's
 two-consumer rule by the user's explicit request plus the stated expectation
-that Tovu/Zana/Open-Marketing will each want their own product-specific MCP
+that Zana/Open-Marketing will each want their own product-specific MCP
 server built on the same hosting mechanism later — so the mechanism accepts
 an arbitrary, caller-registered `McpToolDef[]`, not the 3-5 tools this pass
 ships as its first real, working example.
@@ -559,7 +559,7 @@ No `jini.entries` map was added: `entries` is opt-in, and `./bin` shares the pac
 `runtime: "node"` — adding it would have obliged every subpath to be listed for no gain.
 
 **Verified, personally, this session**: `require.resolve('@jini-ai/mcp/bin')` from a real CommonJS
-consumer (Tovu, which links this package via `file:`) now resolves to
+consumer (the reference implementation, which links this package via `file:`) now resolves to
 `.../packages/mcp/dist/bin/serve.js`, while `@jini-ai/mcp/dist/bin/serve.js` still correctly returns
 `ERR_PACKAGE_PATH_NOT_EXPORTED` — the escape hatch closed, the front door opened. 4 new tests in
 `src/__tests__/package-exports.test.ts` assert the subpath's declared target, that it never drifts
