@@ -11,7 +11,12 @@
   "jini": {
     "domain": "admin",
     "kind": "state",
-    "runtime": "universal"
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./core": "universal",
+      "./browser": "browser"
+    }
   },
   "type": "module",
   "sideEffects": false,

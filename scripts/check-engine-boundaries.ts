@@ -63,6 +63,10 @@ const PACKAGE_DOMAINS = new Set([
   'server',
   'platform',
   'chat',
+  // Added 2026-08-02 for `@jini-ai/admin`. A product-surface domain, peer of `chat`, not a
+  // member of `ui`: both `ui` packages are browser-runtime React libraries, whereas an admin
+  // surface's contracts, panel registry, and route model are framework-free and universal.
+  'admin',
   'ui',
   'capability',
   'integration',

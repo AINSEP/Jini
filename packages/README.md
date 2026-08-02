@@ -17,8 +17,8 @@ Every package declares a canonical `jini` block in `package.json`:
 }
 ```
 
-- `domain` is the conceptual folder: `engine`, `agent`, `server`, `platform`, `chat`, `ui`,
-  `capability`, `integration`, or `tooling`.
+- `domain` is the conceptual folder: `engine`, `agent`, `server`, `platform`, `chat`, `admin`,
+  `ui`, `capability`, `integration`, or `tooling`.
 - `kind` describes the package's role inside that domain.
 - `runtime` is `universal`, `node`, `browser`, or `desktop`.
 
