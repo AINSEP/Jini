@@ -21,7 +21,12 @@
       "./navigation": "universal",
       "./media": "universal",
       "./settings": "universal",
-      "./workspace": "universal"
+      "./workspace": "universal",
+      "./entries": "universal",
+      "./content-types": "universal",
+      "./taxonomy": "universal",
+      "./widgets": "universal",
+      "./presentation": "universal"
     }
   },
   "type": "module",
@@ -75,6 +80,31 @@
       "types": "./dist/workspace/index.d.ts",
       "import": "./dist/workspace/index.js",
       "default": "./dist/workspace/index.js"
+    },
+    "./entries": {
+      "types": "./dist/entries/index.d.ts",
+      "import": "./dist/entries/index.js",
+      "default": "./dist/entries/index.js"
+    },
+    "./content-types": {
+      "types": "./dist/content-types/index.d.ts",
+      "import": "./dist/content-types/index.js",
+      "default": "./dist/content-types/index.js"
+    },
+    "./taxonomy": {
+      "types": "./dist/taxonomy/index.d.ts",
+      "import": "./dist/taxonomy/index.js",
+      "default": "./dist/taxonomy/index.js"
+    },
+    "./widgets": {
+      "types": "./dist/widgets/index.d.ts",
+      "import": "./dist/widgets/index.js",
+      "default": "./dist/widgets/index.js"
+    },
+    "./presentation": {
+      "types": "./dist/presentation/index.d.ts",
+      "import": "./dist/presentation/index.js",
+      "default": "./dist/presentation/index.js"
     }
   },
   "files": [
