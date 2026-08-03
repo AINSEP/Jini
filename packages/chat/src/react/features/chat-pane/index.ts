@@ -32,6 +32,11 @@ export {
   type CreateDaemonAttachmentUploaderOptions,
 } from './create-daemon-attachment-uploader.js';
 export {
+  createMcpUiToolCaller,
+  type CreateMcpUiToolCallerOptions,
+  type McpUiToolCallRequest,
+} from './create-mcp-ui-tool-caller.js';
+export {
   useChatPane,
   type UseChatPaneOptions,
   type UseChatPaneResult,

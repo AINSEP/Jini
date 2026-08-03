@@ -8,7 +8,17 @@
  */
 import type { Principal, RunRef } from '@jini-ai/core';
 import type { RunLifecycle } from './run-lifecycle.js';
+import { splitToolResultSurfaces } from './tool-result-surfaces.js';
 import type { ToolExecutionResult, ToolExecutor } from './tool-executor.js';
+
+/**
+ * Run-protocol `type` for a human-only surface withheld from a tool result.
+ *
+ * Named for the ext-event a chat host renders it through (`@jini-ai/chat`'s
+ * `MCP_UI_EXT_EVENT_NAME`), so a host that already registered
+ * `registerMcpUiSurfaceRenderer()` picks these up with no further wiring.
+ */
+export const MCP_UI_EVENT_TYPE = 'mcp-ui';
 
 /** A tool request received through a Jini-owned delegated-execution protocol. */
 export interface DelegatedToolInvocation {
@@ -104,7 +114,30 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
     const run: RunRef = { id: runId };
     try {
       try {
-        const result = await toolExecutor.execute(principal, run, toolId, input, controller.signal);
+        const executed = await toolExecutor.execute(principal, run, toolId, input, controller.signal);
+
+        // THE MODEL/HUMAN FORK. A tool call's return value is definitionally what the model
+        // receives, so a UI resource left inside it is model-visible context no matter what any
+        // downstream layer does — `@jini-ai/mcp`'s `okResult()` JSON.stringifies the whole result
+        // into a single text block. This is the only point holding BOTH the raw result and the
+        // run's event stream, which is why the split happens here rather than later.
+        //
+        // Whitelist, not blacklist: only block types known to be model-safe survive into `output`;
+        // everything else is withheld and emitted for the human. See `tool-result-surfaces.ts` for
+        // why that direction is load-bearing.
+        const { modelOutput, surfaces } = splitToolResultSurfaces(executed.output);
+        const result: ToolExecutionResult =
+          surfaces.length === 0 ? executed : { ...executed, output: modelOutput };
+
+        // Emitted BEFORE `tool_result` so the surface is on screen by the time the transcript shows
+        // the call completing — otherwise the human is asked to confirm something not yet visible.
+        for (const surface of surfaces) {
+          await lifecycle.emit(runId, {
+            event: 'agent',
+            data: { type: MCP_UI_EVENT_TYPE, toolUseId, resource: surface },
+          });
+        }
+
         await lifecycle.emit(runId, {
           event: 'agent',
           data: {

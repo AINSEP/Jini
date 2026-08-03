@@ -129,7 +129,34 @@ export type RunAgentPayload =
    * see `examples/reference-web/src/daemon.ts`'s `runA2uiDemo` for the one producer that exists
    * today, and `examples/reference-web/src/A2uiLab.tsx` for the one consumer.
    */
-  | { type: 'a2ui'; message: unknown };
+  | { type: 'a2ui'; message: unknown }
+  /**
+   * One MCP content block withheld from a tool result because it is for the HUMAN, not the model.
+   *
+   * MCP's own model is that a tool result carries content blocks and the *host* decides which of
+   * them reach the model and which are rendered for the person: keeping them in one payload is the
+   * protocol, separating them is the host's job. This variant is that separation made explicit on
+   * the wire. `@jini-ai/daemon`'s `delegated-tool-bridge.ts` splits a result (see
+   * `tool-result-surfaces.ts`) and emits one of these per withheld block, then emits the
+   * model-visible remainder as the usual `tool_result`.
+   *
+   * Why it cannot simply stay in the result: a tool call's return value is definitionally what the
+   * model receives, and `@jini-ai/mcp`'s `okResult()` JSON.stringifies a whole result into one text
+   * block. A confirmation dialog left in the result therefore hands the model the very token the
+   * dialog exists to withhold — after which the model can approve its own destructive action with
+   * no human involved. Emitting out-of-band is what makes that structurally impossible rather than
+   * merely discouraged.
+   *
+   * `resource` is typed `unknown` for the same reason `a2ui`'s `message` is: `@jini-ai/protocol`
+   * sits below every other package in the dependency graph and must not depend sideways on a
+   * feature package for one variant's shape. Structural validation happens where the type IS
+   * known — `@jini-ai/ui`'s `parseUIResource` on the consuming side. `toolUseId` correlates the
+   * surface with the `tool_use`/`tool_result` pair it was split out of.
+   *
+   * A chat host renders these by calling `@jini-ai/chat`'s `registerMcpUiSurfaceRenderer()` once;
+   * this `type` deliberately matches that renderer's `MCP_UI_EXT_EVENT_NAME`.
+   */
+  | { type: 'mcp-ui'; toolUseId: string; resource: unknown };
 
 export type RunProtocolEvent =
   | RunEvent<'start', RunStartPayload>
