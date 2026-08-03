@@ -4,8 +4,8 @@ import {
   type ChatAttachment,
   type ChatMessage,
   type ChatRunStatus,
-} from '@jini-ai/chat-core';
-import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/ui/chat';
+} from '@jini-ai/chat/core';
+import type { ChatTransport, RunHandlers, StartRunInput } from '@jini-ai/chat/react';
 
 interface RunStatusWire {
   id: string;
@@ -39,7 +39,7 @@ interface ComposeRunPromptInput {
  * the playground's synthetic welcome message.
  *
  * @param input - Conversation history and the agent receiving the next turn.
- * @returns A role-delimited transcript scoped and sanitized by `@jini-ai/chat-core`.
+ * @returns A role-delimited transcript scoped and sanitized by `@jini-ai/chat/core`.
  * @throws Never.
  *
  * @complexity Time: O(n), where n is the total history character count.

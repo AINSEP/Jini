@@ -31,7 +31,7 @@ describe('amrAgentDef shape', () => {
     expect(amrAgentDef.bin).toBe('vela');
     expect(amrAgentDef.streamFormat).toBe('acp-json-rpc');
     expect(amrAgentDef.supportsCustomModel).toBe(false);
-    expect(amrAgentDef.supportsImagePaths).toBe(true);
+    expect(amrAgentDef.imageDelivery).toBe('native');
     expect(amrAgentDef.resumesSessionViaAcpLoad).toBe(true);
     expect(amrAgentDef.fallbackModels).toEqual([]);
     expect(amrAgentDef.defaultModelEnvVar).toBe('VELA_DEFAULT_MODEL');

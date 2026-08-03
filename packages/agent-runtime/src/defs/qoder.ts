@@ -60,4 +60,8 @@ export const qoderAgentDef = {
     },
     promptViaStdin: true,
     streamFormat: 'qoder-stream-json',
+    // Own dedicated `--attachment <path>` argv flag, built above — a real
+    // native CLI mechanism, not a workaround. See
+    // `types.ts#RuntimeAgentDef.imageDelivery`'s doc.
+    imageDelivery: 'native',
 } satisfies RuntimeAgentDef;

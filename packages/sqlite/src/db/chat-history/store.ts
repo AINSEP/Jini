@@ -1,7 +1,7 @@
 /**
  * @module db/chat-history/store
  *
- * The SQLite implementation of `@jini-ai/chat-core`'s `ChatHistoryStore`, bound to one owner.
+ * The SQLite implementation of `@jini-ai/chat/core`'s `ChatHistoryStore`, bound to one owner.
  *
  * The load-bearing property of this file is that **there is no way to obtain an unscoped store**.
  * {@link createChatHistoryStore} takes the scope up front and closes over it; every statement
@@ -28,7 +28,7 @@ import type {
   ChatOwnerScope,
   ChatTitleSource,
   CreateChatConversationInput,
-} from '@jini-ai/chat-core';
+} from '@jini-ai/chat/core';
 
 import type { DbRow, SqliteDb } from '../core/types.js';
 
@@ -62,7 +62,7 @@ function toConversation(row: DbRow): ChatConversation {
  * KNOWN GAP — `resumable` and `lastRunEventId` are dropped, deliberately, and adding columns is
  * NOT the fix.
  *
- * `ChatMessage` declares both (`@jini-ai/chat-core`'s `messages.ts`): `resumable` marks a failed run
+ * `ChatMessage` declares both (`@jini-ai/chat/core`'s `messages.ts`): `resumable` marks a failed run
  * recoverable by resuming the agent's existing session rather than restarting it, and
  * `lastRunEventId` is the cursor to resume from. Neither the projection below, nor `appendMessage`'s
  * insert, nor `CHAT_HISTORY_DDL` carries them, so a message round-tripped through this store comes

@@ -284,7 +284,42 @@ export type RuntimeAgentDef = {
     env: RuntimeEnv,
   ) => Promise<RuntimeModelOption[] | null>;
   reasoningOptions?: RuntimeReasoningOption[];
-  supportsImagePaths?: boolean;
+  /**
+   * How this def's CLI/protocol receives user-supplied image attachments.
+   * Supersedes the old `supportsImagePaths: boolean` field (which was never
+   * actually read anywhere outside its own two defs' tests — a pure
+   * documentation flag, not a gate on any real behavior): that boolean could
+   * not express *how* a def receives an image, so a caller had no way to
+   * apply the right mechanism per def, or to avoid applying two at once.
+   *
+   *   'native'      — the def's own protocol/CLI already carries the image
+   *                    reference or bytes directly (an ACP `resource_link`
+   *                    prompt block, pi-rpc's base64 `images` field, a
+   *                    dedicated CLI flag like qoder's `--attachment`, …).
+   *                    The daemon must NOT also augment the prompt text or
+   *                    widen `extraAllowedDirs` for these — the def's own
+   *                    code path already delivers the image, and doing both
+   *                    would deliver the same image twice.
+   *   'prompt-path'  — the CLI has no dedicated image mechanism, but CAN
+   *                    read a local file once its path is named in the
+   *                    prompt text (confirmed for Claude Code by a live
+   *                    `claude -p` probe — see `defs/claude.ts`'s module
+   *                    doc). The caller (`@jini-ai/daemon`'s
+   *                    `image-prompt-delivery.ts`) appends an
+   *                    attachment-naming section to the prompt and widens
+   *                    `extraAllowedDirs` with each image's containing
+   *                    directory before `buildArgs` runs.
+   *   'unsupported'  — the CLI has no way to receive an image at all.
+   *                    Distinct from `undefined` on purpose: `undefined`
+   *                    means "not yet audited for image support", not "this
+   *                    CLI genuinely cannot do it" — a caller must not treat
+   *                    the two as equivalent.
+   *
+   * `undefined` (the default for most defs today) is the same as before this
+   * field existed: no def-specific image handling is applied, and images are
+   * silently dropped exactly as they were previously — unchanged behavior.
+   */
+  imageDelivery?: 'native' | 'prompt-path' | 'unsupported';
   maxPromptArgBytes?: number;
   mcpDiscovery?: string;
   // How the caller forwards the user's external MCP servers to this

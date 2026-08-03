@@ -166,6 +166,6 @@ describe('piAgentDef shape', () => {
     expect(piAgentDef.reasoningOptions?.length).toBeGreaterThan(0);
     expect(piAgentDef.promptViaStdin).toBe(true);
     expect(piAgentDef.streamFormat).toBe('pi-rpc');
-    expect(piAgentDef.supportsImagePaths).toBe(true);
+    expect(piAgentDef.imageDelivery).toBe('native');
   });
 });

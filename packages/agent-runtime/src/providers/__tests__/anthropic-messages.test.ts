@@ -525,6 +525,164 @@ describe('runAnthropicToolTurn', () => {
     expect(events).toContainEqual({ type: 'error', message: 'upstream error' });
   });
 
+  it('round-trips an image inside a tool_result: emits it on tool_result and sends it in the continuation request body', async () => {
+    const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
+    const secondBody = sseBody(messageStart('m2'), textBlock(0, 'looks right'), messageDelta('end_turn'), messageStop());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const imageBlock = {
+      type: 'image' as const,
+      source: { type: 'base64' as const, media_type: 'image/png' as const, data: 'iVBORw0KGgoAAAANSUhEUg==' },
+    };
+    const executeTool = vi.fn().mockResolvedValue({
+      content: [{ type: 'text' as const, text: 'here is the screenshot' }, imageBlock],
+    });
+    const events: AnthropicTurnEvent[] = [];
+    await runAnthropicToolTurn({
+      apiKey: 'sk-ant',
+      model: 'claude-opus-4-8',
+      maxTokens: 256,
+      messages: baseMessages,
+      executeTool,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(events).toContainEqual({
+      type: 'tool_result',
+      toolUseId: 'toolu_1',
+      content: [{ type: 'text', text: 'here is the screenshot' }, imageBlock],
+      isError: false,
+    });
+    const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(secondCallBody.messages[2]).toEqual({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: 'toolu_1',
+          content: [{ type: 'text', text: 'here is the screenshot' }, imageBlock],
+        },
+      ],
+    });
+  });
+
+  it('still accepts a plain-string tool_result alongside image-bearing ones in the same turn (backward compatibility)', async () => {
+    const firstBody = sseBody(
+      messageStart(),
+      toolUseBlock(0, 'toolu_1', 'get_weather', {}),
+      toolUseBlock(1, 'toolu_2', 'take_screenshot', {}),
+      messageDelta('tool_use'),
+      messageStop(),
+    );
+    const secondBody = sseBody(messageStart('m2'), textBlock(0, 'done'), messageDelta('end_turn'), messageStop());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const executeTool = vi.fn().mockImplementation(async (call: { name: string }) =>
+      call.name === 'get_weather'
+        ? { content: '72F sunny' }
+        : { content: [{ type: 'image' as const, source: { type: 'url' as const, url: 'https://example.com/shot.png' } }] },
+    );
+    await runAnthropicToolTurn({
+      apiKey: 'sk-ant',
+      model: 'claude-opus-4-8',
+      maxTokens: 256,
+      messages: baseMessages,
+      executeTool,
+      onEvent: () => {},
+    });
+
+    const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(secondCallBody.messages[2].content).toEqual([
+      { type: 'tool_result', tool_use_id: 'toolu_1', content: '72F sunny' },
+      {
+        type: 'tool_result',
+        tool_use_id: 'toolu_2',
+        content: [{ type: 'image', source: { type: 'url', url: 'https://example.com/shot.png' } }],
+      },
+    ]);
+  });
+
+  it('rejects a tool_result image with an unsupported media_type as a normal is_error result instead of forwarding it upstream', async () => {
+    const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
+    const secondBody = sseBody(messageStart('m2'), textBlock(0, 'ok'), messageDelta('end_turn'), messageStop());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const executeTool = vi.fn().mockResolvedValue({
+      content: [{ type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/heic' as never, data: 'abc' } }],
+    });
+    const events: AnthropicTurnEvent[] = [];
+    await runAnthropicToolTurn({
+      apiKey: 'sk-ant',
+      model: 'claude-opus-4-8',
+      maxTokens: 256,
+      messages: baseMessages,
+      executeTool,
+      onEvent: (e) => events.push(e),
+    });
+
+    const toolResultEvent = events.find((e) => e.type === 'tool_result');
+    expect(toolResultEvent).toMatchObject({ isError: true });
+    expect(String((toolResultEvent as { content: unknown }).content)).toContain('unsupported image media_type');
+    const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(secondCallBody.messages[2].content[0].is_error).toBe(true);
+    expect(typeof secondCallBody.messages[2].content[0].content).toBe('string');
+  });
+
+  it('rejects a tool_result image whose base64 payload exceeds the direct API 10 MB limit as an is_error result', async () => {
+    const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
+    const secondBody = sseBody(messageStart('m2'), textBlock(0, 'ok'), messageDelta('end_turn'), messageStop());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const oversizedData = 'A'.repeat(Math.ceil((10 * 1024 * 1024 * 4) / 3) + 1);
+    const executeTool = vi.fn().mockResolvedValue({
+      content: [{ type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/png' as const, data: oversizedData } }],
+    });
+    const events: AnthropicTurnEvent[] = [];
+    await runAnthropicToolTurn({
+      apiKey: 'sk-ant',
+      model: 'claude-opus-4-8',
+      maxTokens: 256,
+      messages: baseMessages,
+      executeTool,
+      onEvent: (e) => events.push(e),
+    });
+
+    const toolResultEvent = events.find((e) => e.type === 'tool_result');
+    expect(toolResultEvent).toMatchObject({ isError: true });
+    expect(String((toolResultEvent as { content: unknown }).content)).toContain('10 MB base64 size limit');
+  });
+
+  it('does not size-check a url-sourced tool_result image (Anthropic fetches it, not this adapter)', async () => {
+    const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
+    const secondBody = sseBody(messageStart('m2'), textBlock(0, 'ok'), messageDelta('end_turn'), messageStop());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const executeTool = vi.fn().mockResolvedValue({
+      content: [{ type: 'image' as const, source: { type: 'url' as const, url: 'https://example.com/huge.png' } }],
+    });
+    const events: AnthropicTurnEvent[] = [];
+    await runAnthropicToolTurn({
+      apiKey: 'sk-ant',
+      model: 'claude-opus-4-8',
+      maxTokens: 256,
+      messages: baseMessages,
+      executeTool,
+      onEvent: (e) => events.push(e),
+    });
+
+    expect(events).toContainEqual({
+      type: 'tool_result',
+      toolUseId: 'toolu_1',
+      content: [{ type: 'image', source: { type: 'url', url: 'https://example.com/huge.png' } }],
+      isError: false,
+    });
+  });
+
   it('defaults a tool_use block with unparsable partial JSON input to an empty object', async () => {
     const body = sseBody(
       messageStart(),

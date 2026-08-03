@@ -23,9 +23,9 @@
  * logic belong?" section for the placement decision this file implements.
  *
  * **Scope for this pass:** the Anthropic Messages API only (native
- * `x-api-key`/`anthropic-version` auth), text + tool-use content blocks,
- * and the tool-execution loop. Extended thinking is deliberately out of
- * scope — this adapter never sends a `thinking` request parameter, so
+ * `x-api-key`/`anthropic-version` auth), text + tool-use + image content
+ * blocks, and the tool-execution loop. Extended thinking is deliberately out
+ * of scope — this adapter never sends a `thinking` request parameter, so
  * Anthropic never emits `thinking`/`signature_delta` content blocks in the
  * response (per the streaming docs: thinking blocks are opt-in), which
  * means there is nothing to parse. A future pass can add it by following
@@ -33,6 +33,24 @@
  * *unguarded* — the role-marker guard only polices the user-visible text
  * channel, since thinking content is never re-serialized as a transcript
  * turn boundary).
+ *
+ * **Image ("vision") support**, added for the vision self-check loop (render
+ * the model's own in-progress HTML, screenshot it, hand the PNG back to the
+ * model inside a tool result so the next turn sees what it built): the wire
+ * shape for `AnthropicImageBlockParam`/`AnthropicBase64ImageSource`/
+ * `AnthropicUrlImageSource` is modeled on Anthropic's real, current
+ * `ImageBlockParam`/`Base64ImageSource`/`URLImageSource` types
+ * (`github.com/anthropics/anthropic-sdk-typescript/blob/main/src/resources/
+ * messages/messages.ts`), and the 10 MB base64/4-format size guard below is
+ * modeled on the real, current direct-API limits documented at
+ * `platform.claude.com/docs/en/build-with-claude/vision#request-limits`
+ * (10 MB base64-encoded per image on the direct API; jpeg/png/gif/webp
+ * only — the lower 5 MB Bedrock/Google Cloud limit does not apply, since
+ * this adapter only ever speaks the direct API). Deliberately narrower than
+ * the real API: the real `ToolResultBlockParam.content` union also allows
+ * `DocumentBlockParam`/`SearchResultBlockParam`/`ToolReferenceBlockParam`
+ * blocks — those are out of scope, since the driving use case only needs
+ * text + image.
  *
  * **Two confirmed OD bugs fixed here, not carried forward** (both per the
  * proposal doc above):
@@ -72,15 +90,37 @@ export interface AnthropicToolUseBlockParam {
   readonly input: unknown;
 }
 
+/** Base64-encoded image source. `media_type` mirrors Anthropic's real, current supported-format list (jpeg/png/gif/webp — see module doc). */
+export interface AnthropicBase64ImageSource {
+  readonly type: 'base64';
+  readonly media_type: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  readonly data: string;
+}
+
+/** A URL Anthropic's servers fetch server-side — never fetched by this adapter, so the size guard below does not apply to it (see `guardToolResult`'s doc). */
+export interface AnthropicUrlImageSource {
+  readonly type: 'url';
+  readonly url: string;
+}
+
+export interface AnthropicImageBlockParam {
+  readonly type: 'image';
+  readonly source: AnthropicBase64ImageSource | AnthropicUrlImageSource;
+}
+
+/** Content blocks legal inside a `tool_result`'s `content` array. Narrower than the real API's `ToolResultBlockParam.content` union — see module doc's "Image support" section for what was deliberately left out and why. */
+export type AnthropicToolResultContentBlock = AnthropicTextBlockParam | AnthropicImageBlockParam;
+
 export interface AnthropicToolResultBlockParam {
   readonly type: 'tool_result';
   readonly tool_use_id: string;
-  readonly content: string;
+  readonly content: string | readonly AnthropicToolResultContentBlock[];
   readonly is_error?: boolean;
 }
 
 export type AnthropicContentBlockParam =
   | AnthropicTextBlockParam
+  | AnthropicImageBlockParam
   | AnthropicToolUseBlockParam
   | AnthropicToolResultBlockParam;
 
@@ -102,7 +142,7 @@ export interface AnthropicToolCall {
 }
 
 export interface AnthropicToolResult {
-  readonly content: string;
+  readonly content: string | readonly AnthropicToolResultContentBlock[];
   readonly isError?: boolean;
 }
 
@@ -116,7 +156,7 @@ export type AnthropicTurnEvent =
   | { readonly type: 'status'; readonly label: string }
   | { readonly type: 'text_delta'; readonly delta: string }
   | { readonly type: 'tool_use'; readonly id: string; readonly name: string; readonly input: unknown }
-  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string; readonly isError: boolean }
+  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string | readonly AnthropicToolResultContentBlock[]; readonly isError: boolean }
   | { readonly type: 'usage'; readonly usage: Record<string, unknown> | null }
   | { readonly type: 'fabricated_role_marker'; readonly marker: string; readonly messageId: string }
   | { readonly type: 'error'; readonly message: string; readonly code?: string }
@@ -199,6 +239,75 @@ function extractAnthropicErrorDetail(rawText: string): string {
     // Non-JSON error body — fall through to the raw text below.
   }
   return rawText.trim().slice(0, 500);
+}
+
+const ANTHROPIC_ALLOWED_IMAGE_MEDIA_TYPES: ReadonlySet<string> = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+]);
+
+/**
+ * Direct-API base64 image limit is 10 MB (see module doc's "Image support" section for the
+ * verified docs URL). Approximated from the base64 *string* length rather than decoded byte
+ * count — that string is what actually crosses the wire, and checking its length is O(1) with no
+ * decode step, at the cost of a small (~1 char in 10^7) rounding slack from base64's 4/3 expansion
+ * ratio, which is immaterial at this size.
+ */
+const MAX_IMAGE_BASE64_CHARS = Math.ceil((10 * 1024 * 1024 * 4) / 3);
+
+/**
+ * Validates one tool-result content block against the real API's format/size constraints.
+ * Returns the violation reason, or `null` when the block is legal to send.
+ *
+ * URL-sourced images are intentionally not size-checked here: Anthropic's servers fetch that URL,
+ * not this adapter, so there is no local payload to bound (a different threat model than
+ * `connection-guard.ts`'s SSRF guard, which protects *this adapter's own* outbound `baseUrl`
+ * request).
+ *
+ * @complexity O(1) — reads `data.length`, never decodes or parses the base64 payload.
+ * @overallScore 100
+ */
+function invalidToolResultContentBlockReason(block: AnthropicToolResultContentBlock): string | null {
+  if (block.type === 'text') return null;
+  if (block.source.type === 'url') return null;
+  if (!ANTHROPIC_ALLOWED_IMAGE_MEDIA_TYPES.has(block.source.media_type)) {
+    return `unsupported image media_type ${JSON.stringify(block.source.media_type)} (direct API supports image/jpeg, image/png, image/gif, image/webp)`;
+  }
+  if (block.source.data.length > MAX_IMAGE_BASE64_CHARS) {
+    return `image exceeds the direct API's 10 MB base64 size limit (${block.source.data.length} base64 chars)`;
+  }
+  return null;
+}
+
+/**
+ * Runtime guard applied to every `AnthropicToolExecutor` result before it is wired onto the
+ * outbound request or reported via `onEvent`. `AnthropicToolResult` is host-owned (see
+ * `AnthropicToolExecutor`'s "Host-owned tool execution" doc comment) — the TS content-block union
+ * only constrains a well-behaved host at compile time, not a buggy one at runtime, e.g. a
+ * screenshot helper that hands back an oversized PNG or a HEIC file mislabeled as `image/jpeg`.
+ * Rather than forwarding an invalid block and letting Anthropic reject the *entire* turn with an
+ * opaque upstream 400, this substitutes a normal `is_error` tool_result the model can see and
+ * react to — matching this module's existing security-conscious posture
+ * (`connection-guard.ts`'s SSRF guard, `role-marker-guard.ts`'s contamination guard).
+ *
+ * @param result - The (host-supplied, not yet trusted) return value of one `executeTool` call.
+ * @returns `result` unchanged when valid; otherwise a replacement `{ content, isError: true }`
+ * describing the violation.
+ * @complexity O(n) in the number of content blocks; O(1) per block (see
+ * `invalidToolResultContentBlockReason`).
+ * @overallScore 100
+ */
+function guardToolResult(result: AnthropicToolResult): AnthropicToolResult {
+  if (typeof result.content === 'string') return result;
+  for (const block of result.content) {
+    const reason = invalidToolResultContentBlockReason(block);
+    if (reason) {
+      return { content: `[rejected tool result] ${reason}`, isError: true };
+    }
+  }
+  return result;
 }
 
 interface AnthropicBlockState {
@@ -424,7 +533,8 @@ export async function runAnthropicToolTurn(options: AnthropicTurnOptions): Promi
     ];
     const toolResultBlocks: AnthropicToolResultBlockParam[] = [];
     for (const call of outcome.toolCalls) {
-      const result = await options.executeTool(call);
+      const rawResult = await options.executeTool(call);
+      const result = guardToolResult(rawResult);
       options.onEvent({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: result.isError ?? false });
       toolResultBlocks.push({
         type: 'tool_result',

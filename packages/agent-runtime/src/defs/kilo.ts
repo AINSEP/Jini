@@ -19,4 +19,7 @@ export const kiloAgentDef = {
     buildArgs: () => ['acp'],
     streamFormat: 'acp-json-rpc',
     externalMcpInjection: 'acp-merge',
+    // ACP's `resource_link` prompt blocks carry images natively for every
+    // `acp-json-rpc` def — see `types.ts#RuntimeAgentDef.imageDelivery`'s doc.
+    imageDelivery: 'native',
 } satisfies RuntimeAgentDef;

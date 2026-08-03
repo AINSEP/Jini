@@ -447,4 +447,195 @@ describe('runOpenAiToolTurn', () => {
     expect(events.some((e) => e.type === 'tool_use')).toBe(false);
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'contaminated' }]);
   });
+
+  describe('image support', () => {
+    const pngDataUri = `data:image/png;base64,${Buffer.from('fake-png-bytes').toString('base64')}`;
+
+    it('round-trips an image_url part in the initial request body, alongside plain string messages elsewhere', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+      vi.stubGlobal('fetch', fetchMock);
+      const messages: OpenAiMessageParam[] = [
+        { role: 'system', content: 'be terse' },
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: "what's in this image?" },
+            { type: 'image_url', image_url: { url: pngDataUri, detail: 'high' } },
+          ],
+        },
+      ];
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages, onEvent: () => {} });
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      expect(body.messages[0]).toEqual({ role: 'system', content: 'be terse' });
+      expect(body.messages[1]).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: "what's in this image?" },
+          { type: 'image_url', image_url: { url: pngDataUri, detail: 'high' } },
+        ],
+      });
+    });
+
+    it('still sends a plain string message content unchanged (backward compatibility)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+      vi.stubGlobal('fetch', fetchMock);
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: () => {} });
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
+    });
+
+    it('keeps a tool result with a screenshot text-only on the tool message and delivers the image via a synthetic follow-up user message', async () => {
+      // OpenAI documents `role:'tool'` content as text-only — an image_url part cannot live there.
+      const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
+      const secondBody = sseBody(textChunk('looks good'), finishChunk('stop'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({
+        content: [
+          { type: 'text', text: 'here is the current render' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+        ],
+      });
+      const events: OpenAiTurnEvent[] = [];
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      // messages: [user, assistant(tool_calls), tool, user(labeled image)]
+      expect(secondCallBody.messages).toHaveLength(4);
+      expect(secondCallBody.messages[2]).toEqual({
+        role: 'tool',
+        content: [{ type: 'text', text: 'here is the current render' }],
+        tool_call_id: 'call_1',
+      });
+      expect(secondCallBody.messages[3]).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Image output from tool `screenshot` (tool_call_id: call_1):' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+        ],
+      });
+      expect(events).toContainEqual({
+        type: 'tool_result',
+        toolUseId: 'call_1',
+        content: [
+          { type: 'text', text: 'here is the current render' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+        ],
+        isError: false,
+      });
+    });
+
+    it('batches a multi-tool-call turn correctly: all tool messages emitted before a single labeled follow-up covering only the calls that returned images', async () => {
+      // The naive per-call implementation would interleave a synthetic user message between tool
+      // messages, which OpenAI rejects — every `tool` message answering a batch of parallel
+      // tool_calls must directly follow the assistant message with nothing else in between.
+      const firstBody = sseBody(
+        toolCallStartChunk(0, 'call_1', 'get_weather'),
+        toolCallArgsChunk(0, '{}'),
+        toolCallStartChunk(1, 'call_2', 'screenshot'),
+        toolCallArgsChunk(1, '{}'),
+        toolCallStartChunk(2, 'call_3', 'screenshot_2'),
+        toolCallArgsChunk(2, '{}'),
+        finishChunk('tool_calls'),
+        done(),
+      );
+      const secondBody = sseBody(finishChunk('stop'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi
+        .fn()
+        .mockResolvedValueOnce({ content: '72F sunny' }) // call_1: no image
+        .mockResolvedValueOnce({ content: [{ type: 'image_url', image_url: { url: pngDataUri } }] }) // call_2: image
+        .mockResolvedValueOnce({ content: [{ type: 'image_url', image_url: { url: `${pngDataUri}2` } }] }); // call_3: image
+      const events: OpenAiTurnEvent[] = [];
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      // messages: [user, assistant(tool_calls x3), tool(call_1), tool(call_2), tool(call_3), user(images)] —
+      // exactly ONE follow-up message, positioned after all three tool messages.
+      expect(secondCallBody.messages).toHaveLength(6);
+      expect(secondCallBody.messages[2]).toEqual({ role: 'tool', content: '72F sunny', tool_call_id: 'call_1' });
+      expect(secondCallBody.messages[3]).toEqual({
+        role: 'tool',
+        content: [{ type: 'text', text: '(tool result included only non-text content; see the following message)' }],
+        tool_call_id: 'call_2',
+      });
+      expect(secondCallBody.messages[4]).toEqual({
+        role: 'tool',
+        content: [{ type: 'text', text: '(tool result included only non-text content; see the following message)' }],
+        tool_call_id: 'call_3',
+      });
+      expect(secondCallBody.messages[5]).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Image output from tool `screenshot` (tool_call_id: call_2):' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+          { type: 'text', text: 'Image output from tool `screenshot_2` (tool_call_id: call_3):' },
+          { type: 'image_url', image_url: { url: `${pngDataUri}2` } },
+        ],
+      });
+    });
+
+    it('substitutes a placeholder text part on the tool message when a tool result is image-only', async () => {
+      const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
+      const secondBody = sseBody(finishChunk('stop'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: pngDataUri } }] });
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: () => {} });
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(secondCallBody.messages[2].content).toEqual([
+        { type: 'text', text: '(tool result included only non-text content; see the following message)' },
+      ]);
+    });
+
+    it('rejects an unsupported image media type as an isError tool_result instead of forwarding it', async () => {
+      const body = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(sseBody(finishChunk('stop'), done())));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({
+        content: [{ type: 'image_url', image_url: { url: 'data:image/tiff;base64,AAAA' } }],
+      });
+      const events: OpenAiTurnEvent[] = [];
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+      const toolResultEvent = events.find((e) => e.type === 'tool_result');
+      expect(toolResultEvent).toMatchObject({ isError: true });
+      expect((toolResultEvent as { content: string }).content).toContain('unsupported image media type');
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(secondCallBody.messages[2]).toEqual({
+        role: 'tool',
+        content: (toolResultEvent as { content: string }).content,
+        tool_call_id: 'call_1',
+      });
+    });
+
+    it('rejects an oversized data URI image as an isError tool_result', async () => {
+      const body = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(sseBody(finishChunk('stop'), done())));
+      vi.stubGlobal('fetch', fetchMock);
+      const oversized = 'A'.repeat(Math.ceil((20 * 1024 * 1024 * 4) / 3) + 100);
+      const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${oversized}` } }] });
+      const events: OpenAiTurnEvent[] = [];
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+      const toolResultEvent = events.find((e) => e.type === 'tool_result');
+      expect(toolResultEvent).toMatchObject({ isError: true });
+      expect((toolResultEvent as { content: string }).content).toContain('20 MB base64 size guard');
+    });
+
+    it('does not size-check a plain https image_url (OpenAI, not this adapter, fetches it)', async () => {
+      const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
+      const secondBody = sseBody(finishChunk('stop'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: 'https://example.com/huge-but-unchecked.png' } }] });
+      const events: OpenAiTurnEvent[] = [];
+      await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+      expect(events).toContainEqual({
+        type: 'tool_result',
+        toolUseId: 'call_1',
+        content: [{ type: 'image_url', image_url: { url: 'https://example.com/huge-but-unchecked.png' } }],
+        isError: false,
+      });
+    });
+  });
 });

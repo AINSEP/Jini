@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
-    "@jini-ai/chat-core": "workspace:*",
+    "@jini-ai/chat": "workspace:*",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/daemon": "workspace:*",
     "@jini-ai/http-kit": "workspace:*",

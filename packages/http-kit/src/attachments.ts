@@ -92,7 +92,7 @@ import { sendApiError, sendJson } from './response.js';
 /**
  * A staged upload as it crosses the wire and as `claim()` returns it.
  *
- * Deliberately declared here rather than imported from `@jini-ai/chat-core`, whose `ChatAttachment`
+ * Deliberately declared here rather than imported from `@jini-ai/chat/core`, whose `ChatAttachment`
  * this mirrors field-for-field: the same reason `media.ts` declares its own `MediaTask`/
  * `MediaDispatchEngine` port types instead of depending on `@jini-ai/media`. A transport package
  * should not acquire a dependency on a *domain* package (`jini.domain: "chat"`) to describe an

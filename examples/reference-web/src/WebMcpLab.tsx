@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatMessage } from '@jini-ai/chat-core';
-import { ChatFab, ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/ui/chat';
+import type { ChatMessage } from '@jini-ai/chat/core';
+import { ChatFab, ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat/react';
 import {
   findCapabilityInputError,
   toWebMcpTool,

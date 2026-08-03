@@ -1,5 +1,5 @@
 /**
- * Structurally `@jini-ai/http-kit`'s `StoredAttachment` (and `@jini-ai/chat-core`'s
+ * Structurally `@jini-ai/http-kit`'s `StoredAttachment` (and `@jini-ai/chat/core`'s
  * `ChatAttachment`), kept as a local name only so this host's own request envelope reads in its own
  * vocabulary. Assignable to the store's `claim()` parameter without conversion — the compile-time
  * proof is `daemon.ts` passing `decoded.attachments` straight into `attachmentStore.claim`.

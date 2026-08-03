@@ -32,6 +32,39 @@
  * field, not model-aware) — matching OD's own azure handler, which never
  * uses the model-aware picker (Azure deployment names are caller-defined
  * strings, not necessarily matching OpenAI's own model-naming scheme).
+ *
+ * **Image support**: verified against `developers.openai.com/api/docs/api-reference/chat/create`
+ * (the Chat Completions endpoint specifically — a redirect from the older
+ * `platform.openai.com/docs/guides/vision` URL now leads to a *different*, newer Responses API
+ * guide that uses `input_text`/`input_image` part names; those do not apply here and are not
+ * modeled). A user/system/assistant message's `content` may be an array mixing `{type:'text'}` and
+ * `{type:'image_url', image_url:{url, detail?}}` parts; `url` is either an `https://` URL (OpenAI's
+ * servers fetch it — see `invalidOpenAiContentPartReason`'s doc for why this module does not size-
+ * check that case) or a `data:<mime>;base64,<data>` URI. Supported formats per the same reference:
+ * PNG/JPEG/WEBP/non-animated GIF; documented limits are a 512 MB total request payload and 1500
+ * images per request (this module also applies its own conservative single-image guard — see
+ * `MAX_IMAGE_DATA_URI_BASE64_CHARS`'s doc).
+ *
+ * **Tool messages cannot carry an image** — confirmed against the same API reference: a `role:
+ * 'tool'` message's `content` is documented as `string | ChatCompletionContentPartText[]` only
+ * ("For tool messages, only type text is supported"). So a vision self-check whose tool result
+ * includes a screenshot cannot put that image on the `tool` message itself. `runOpenAiToolTurn`
+ * instead keeps the `tool` message text-only (see `splitOpenAiToolResultContent`) and appends one
+ * synthetic `role: 'user'` message carrying every image from the batch, built up while iterating
+ * every `tool_call` in the batch but appended exactly once, after every one of that batch's `tool`
+ * messages — never interleaved between them or emitted per-call, since OpenAI requires every `tool`
+ * message answering a batch of parallel `tool_calls` to directly follow the assistant message with
+ * nothing else in between. This is a real 400 if violated, not a style concern — see
+ * `runOpenAiToolTurn`'s tool-loop body and its test file's multi-tool-call image test.
+ *
+ * **This synthetic follow-up message is a workaround for the OpenAI wire protocol's own text-only
+ * `tool` message, not structure this module invented.** Anthropic's `tool_result` content block can
+ * carry an image directly (see `anthropic-messages.ts`) and needs no such split. Each image (or run
+ * of images) in the follow-up is preceded by a plain-text label naming the tool call it answers
+ * (name + `tool_call_id`) — an unlabeled image sitting alone in a `user` message is indistinguishable
+ * from a human having just pasted a screenshot, which in a vision self-check loop risks the model
+ * treating its own tool's output as a brand-new user request instead of a continuation of its own
+ * reasoning.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
@@ -54,9 +87,26 @@ export interface OpenAiToolCallParam {
   readonly function: { readonly name: string; readonly arguments: string };
 }
 
+export interface OpenAiTextPart {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+/** `detail` defaults to `'auto'` server-side when omitted — never sent unless the caller supplies it. */
+export interface OpenAiImageUrlPart {
+  readonly type: 'image_url';
+  readonly image_url: {
+    readonly url: string;
+    readonly detail?: 'auto' | 'low' | 'high';
+  };
+}
+
+/** A user/system/assistant message's `content` array item. Not legal inside a `role: 'tool'` message — see module doc's "Tool messages cannot carry an image" section. */
+export type OpenAiContentPart = OpenAiTextPart | OpenAiImageUrlPart;
+
 export interface OpenAiMessageParam {
   readonly role: 'system' | 'user' | 'assistant' | 'tool';
-  readonly content: string | null;
+  readonly content: string | null | readonly OpenAiContentPart[];
   readonly tool_calls?: readonly OpenAiToolCallParam[];
   readonly tool_call_id?: string;
   readonly name?: string;
@@ -68,8 +118,9 @@ export interface OpenAiToolCall {
   readonly input: unknown;
 }
 
+/** `content` may include `OpenAiImageUrlPart`s (e.g. a vision self-check's screenshot) even though the wire `tool` message can't carry them directly — `runOpenAiToolTurn` splits them onto a follow-up `user` message; see module doc. */
 export interface OpenAiToolResult {
-  readonly content: string;
+  readonly content: string | readonly OpenAiContentPart[];
 }
 
 /** Host-owned tool execution — same "the collaborator is always supplied" convention as `anthropic-messages.ts#AnthropicToolExecutor`. */
@@ -81,7 +132,7 @@ export type OpenAiTurnEvent =
   | { readonly type: 'status'; readonly label: string }
   | { readonly type: 'text_delta'; readonly delta: string }
   | { readonly type: 'tool_use'; readonly id: string; readonly name: string; readonly input: unknown }
-  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string; readonly isError: boolean }
+  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string | readonly OpenAiContentPart[]; readonly isError: boolean }
   | { readonly type: 'usage'; readonly usage: Record<string, unknown> | null }
   | { readonly type: 'fabricated_role_marker'; readonly marker: string; readonly messageId: string }
   | { readonly type: 'error'; readonly message: string; readonly code?: string }
@@ -386,6 +437,108 @@ async function runSingleOpenAiRequest(
   });
 }
 
+const OPENAI_ALLOWED_IMAGE_MEDIA_TYPES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+/**
+ * OpenAI documents a 512 MB total-payload cap and a 1500-image-per-request cap for the Chat
+ * Completions API (see module doc's "Image support" section) but no single-image byte limit. This
+ * module still bounds one image's base64 length defensively, matching
+ * `anthropic-messages.ts`'s posture — 20 MB is this module's own conservative choice (not an
+ * OpenAI-documented per-image number), anchored to Gemini's documented 20 MB total-inline-request
+ * budget (`google-messages.ts`) as the closest real, vendor-documented single-request inline-image
+ * bound available across this package's providers. Approximated from the base64 *string* length,
+ * not decoded byte count — see `anthropic-messages.ts#MAX_IMAGE_BASE64_CHARS`'s doc for why that's
+ * the right thing to measure (O(1), no decode step, negligible rounding slack at this size).
+ */
+const MAX_IMAGE_DATA_URI_BASE64_CHARS = Math.ceil((20 * 1024 * 1024 * 4) / 3);
+
+/** OpenAI's documented per-request image count cap (see module doc). Applied per tool-result content array as a conservative simplification — a real request can also carry images from earlier turns this module doesn't track. */
+const MAX_IMAGES_PER_OPENAI_TOOL_RESULT = 1500;
+
+const OPENAI_DATA_URI_PATTERN = /^data:([^;,]+)(?:;charset=[^;,]+)?;base64,(.+)$/su;
+
+/**
+ * Validates one content part against OpenAI's real format/size constraints. Returns the violation
+ * reason, or `null` when the part is legal to send.
+ *
+ * A plain `https://` `image_url` (not a `data:` URI) is intentionally not size-checked: OpenAI's
+ * servers fetch that URL, not this adapter, so there is no local payload to bound — same threat-
+ * model split as `anthropic-messages.ts`'s URL-sourced skip (`connection-guard.ts`'s SSRF guard
+ * protects this adapter's own outbound `baseUrl` request, a different thing; an `image_url` that
+ * points at attacker-chosen infrastructure is a request OpenAI's own servers make, not this one).
+ *
+ * @complexity O(1) — reads `data.length`, never decodes or parses the base64 payload.
+ */
+function invalidOpenAiContentPartReason(part: OpenAiContentPart): string | null {
+  if (part.type === 'text') return null;
+  const dataUriMatch = OPENAI_DATA_URI_PATTERN.exec(part.image_url.url);
+  if (!dataUriMatch) return null;
+  const [, mediaType, base64Data] = dataUriMatch;
+  if (!mediaType || !OPENAI_ALLOWED_IMAGE_MEDIA_TYPES.has(mediaType.toLowerCase())) {
+    return `unsupported image media type ${JSON.stringify(mediaType)} (OpenAI's Chat Completions API supports image/jpeg, image/png, image/webp, and non-animated image/gif)`;
+  }
+  if (base64Data && base64Data.length > MAX_IMAGE_DATA_URI_BASE64_CHARS) {
+    return `image exceeds this adapter's 20 MB base64 size guard (${base64Data.length} base64 chars)`;
+  }
+  return null;
+}
+
+interface SanitizedOpenAiToolResult {
+  readonly content: string | readonly OpenAiContentPart[];
+  readonly isError: boolean;
+}
+
+/**
+ * Runtime guard applied to every `OpenAiToolExecutor` result before it is wired onto the outbound
+ * request or reported via `onEvent`. `OpenAiToolResult` is host-owned (see `OpenAiToolExecutor`'s
+ * "Host-owned tool execution" doc comment) — the TS content-part union only constrains a
+ * well-behaved host at compile time, not a buggy one at runtime, e.g. a screenshot helper that
+ * hands back an oversized PNG or a HEIC file mislabeled as `image/jpeg`. Rather than forwarding an
+ * invalid part and letting OpenAI reject the *entire* turn with an opaque upstream 400, this
+ * substitutes a plain-text `isError: true` result the model can see and react to — matching this
+ * package's existing security-conscious posture (`connection-guard.ts`'s SSRF guard,
+ * `role-marker-guard.ts`'s contamination guard, and `anthropic-messages.ts`'s identical guard).
+ *
+ * @complexity O(n) in the number of content parts; O(1) per part (see `invalidOpenAiContentPartReason`).
+ */
+function sanitizeOpenAiToolResult(result: OpenAiToolResult): SanitizedOpenAiToolResult {
+  if (typeof result.content === 'string') return { content: result.content, isError: false };
+  if (result.content.length > MAX_IMAGES_PER_OPENAI_TOOL_RESULT) {
+    return { content: `tool result rejected: exceeds the ${MAX_IMAGES_PER_OPENAI_TOOL_RESULT}-image-per-request guard (${result.content.length} parts)`, isError: true };
+  }
+  for (const part of result.content) {
+    const reason = invalidOpenAiContentPartReason(part);
+    if (reason) return { content: `tool result rejected: ${reason}`, isError: true };
+  }
+  return { content: result.content, isError: false };
+}
+
+interface SplitOpenAiToolResultContent {
+  readonly toolMessageContent: string | readonly OpenAiTextPart[];
+  readonly imageParts: readonly OpenAiImageUrlPart[];
+}
+
+/**
+ * Splits one (already-sanitized) tool result's content into what can legally sit on the wire
+ * `role: 'tool'` message (text only — see module doc's "Tool messages cannot carry an image"
+ * section) and the `image_url` parts that must instead travel on a follow-up `user` message.
+ *
+ * A string `content` is left untouched (`imageParts: []`) — this is the pre-existing, unchanged
+ * path every current caller already exercises. For an array, text parts are kept in order for the
+ * `tool` message; if there is no text at all (an image-only result), a single placeholder text part
+ * is substituted so the `tool` message's content is never empty (OpenAI rejects empty content).
+ *
+ * @complexity O(n) in the number of content parts.
+ */
+function splitOpenAiToolResultContent(content: string | readonly OpenAiContentPart[]): SplitOpenAiToolResultContent {
+  if (typeof content === 'string') return { toolMessageContent: content, imageParts: [] };
+  const textParts = content.filter((part): part is OpenAiTextPart => part.type === 'text');
+  const imageParts = content.filter((part): part is OpenAiImageUrlPart => part.type === 'image_url');
+  const toolMessageContent: readonly OpenAiTextPart[] =
+    textParts.length > 0 ? textParts : [{ type: 'text', text: '(tool result included only non-text content; see the following message)' }];
+  return { toolMessageContent, imageParts };
+}
+
 /**
  * Runs a full OpenAI Chat Completions turn, including the tool-execution
  * loop when `options.executeTool` is supplied and the model requests a
@@ -428,16 +581,32 @@ export async function runOpenAiToolTurn(options: OpenAiTurnOptions): Promise<Ope
       function: { name: call.name, arguments: JSON.stringify(call.input) },
     }));
     const toolResultMessages: OpenAiMessageParam[] = [];
+    // Every `tool` message for this batch is pushed here first; the labeled image parts below are
+    // only ever assembled into a SINGLE follow-up message appended after the loop — never per-call
+    // — because OpenAI rejects a request where a non-tool message sits between two `tool` messages
+    // answering the same assistant turn. See module doc's "Tool messages cannot carry an image"
+    // section, and this file's `__tests__` for the multi-tool-call proof.
+    const followUpParts: OpenAiContentPart[] = [];
     for (const call of outcome.toolCalls) {
       const result = await options.executeTool(call);
-      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: false });
-      toolResultMessages.push({ role: 'tool', content: result.content, tool_call_id: call.id });
+      const sanitized = sanitizeOpenAiToolResult(result);
+      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
+      const split = splitOpenAiToolResultContent(sanitized.content);
+      toolResultMessages.push({ role: 'tool', content: split.toolMessageContent, tool_call_id: call.id });
+      if (split.imageParts.length > 0) {
+        // Attribution label — without it, the model cannot tell this image apart from a human
+        // having just pasted one into the conversation (see module doc). Named per-call so a batch
+        // with multiple image-bearing tool calls stays disambiguated in one follow-up message.
+        followUpParts.push({ type: 'text', text: `Image output from tool \`${call.name}\` (tool_call_id: ${call.id}):` });
+        followUpParts.push(...split.imageParts);
+      }
     }
 
     messages = [
       ...messages,
       { role: 'assistant', content: outcome.text || null, tool_calls: assistantToolCalls },
       ...toolResultMessages,
+      ...(followUpParts.length > 0 ? [{ role: 'user' as const, content: followUpParts }] : []),
     ];
   }
 

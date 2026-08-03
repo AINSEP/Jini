@@ -1,4 +1,4 @@
-import { createDaemonAttachmentUploader } from '@jini-ai/ui/chat';
+import { createDaemonAttachmentUploader } from '@jini-ai/chat/react';
 
 /**
  * Composer drag-and-drop and file-picker uploads for every pane in this host, talking to the

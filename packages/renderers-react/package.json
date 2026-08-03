@@ -43,7 +43,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@jini-ai/chat-core": "workspace:*",
+    "@jini-ai/chat": "workspace:*",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0",
     "shiki": "^1.24.4"

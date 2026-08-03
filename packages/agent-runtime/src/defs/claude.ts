@@ -1,4 +1,32 @@
-/** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/claude.ts` (import path adjusted only). See `source-map.md`. */
+/**
+ * Ported verbatim from OD's `apps/daemon/src/runtimes/defs/claude.ts` (import
+ * path adjusted only). See `source-map.md`.
+ *
+ * **Image delivery (added 2026-08-03):** `buildArgs` below takes an
+ * `_imagePaths` parameter but never references it — the Claude Code CLI has
+ * no dedicated image-attachment flag or wire mechanism this adapter could
+ * forward to. It is not, however, blind to images: confirmed live by piping
+ * `Tell me what this image is as best you can: /tmp/probe-image.png` into a
+ * real `claude -p` and getting an accurate description back — the CLI reads
+ * a local file itself once its path is named in the prompt text. The one
+ * real precondition, also confirmed live: the path's directory has to be in
+ * the CLI's allowed-directory list (`claude -p` first refused the identical
+ * probe when the path was under `/Users/la/Desktop`, reporting that
+ * directory as outside its allowed working directories) — which is exactly
+ * what `buildArgs`'s existing `extraAllowedDirs` -> `--add-dir` handling
+ * below already provides, unmodified.
+ *
+ * `imageDelivery: 'prompt-path'` (declared below) is what turns this into
+ * real behavior: `@jini-ai/daemon`'s `agent-executor.ts` reads that field and,
+ * before `buildArgs` ever runs, (1) appends an attachment-naming section to
+ * the prompt text via `image-prompt-delivery.ts#augmentPromptWithImageAttachments`
+ * and (2) widens `extraAllowedDirs` with each image's containing directory —
+ * so this file needed no change to its own `dirs`/`--add-dir` logic at all,
+ * only the one-line `imageDelivery` declaration. See
+ * `types.ts#RuntimeAgentDef.imageDelivery`'s doc for the full mode contract
+ * and why 'native'-delivery defs (ACP, pi-rpc, qoder) must never also get
+ * this treatment.
+ */
 import { agentCapabilities } from '../capabilities.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import { loadMmdRouteModels } from '../mmd-routes.js';
@@ -155,4 +183,9 @@ export const claudeAgentDef = {
     // launching (server.ts handles the cwd guard).
     externalMcpInjection: 'claude-mcp-json',
     resumesSessionViaCli: true,
+    // See this file's module doc's "Image delivery" section — the CLI reads
+    // a local file once its path is named in the prompt, so the daemon
+    // augments the prompt text and widens `extraAllowedDirs` on this def's
+    // behalf rather than this file forwarding `_imagePaths` itself.
+    imageDelivery: 'prompt-path',
 } satisfies RuntimeAgentDef;

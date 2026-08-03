@@ -66,15 +66,39 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
 
 /** Adapts a real `core/ports` `OutboxPort` into the narrower `{enqueue({name,payload})}` shape
  * `entries/write-service.ts` declares locally — same pattern as
- * `features/content-types/repo.memory.ts`'s `toContentTypeOutbox`. */
+ * `features/content-types/repo.memory.ts`'s `toContentTypeOutbox`.
+ *
+ * `workspaceId` is REQUIRED and is declared on the wrapped port's event type on purpose. A real
+ * `core/ports` `DomainEvent` carries `workspaceId` as a non-optional tenant boundary (ADR-007), and
+ * persistent adapters store it in a NOT NULL column. This wrapper previously under-declared the
+ * wrapped port as `{id,name,occurredAt,payload}` and constructed an event without `workspaceId`, so
+ * a host binding a SQLite outbox typechecked cleanly and then threw
+ * `NOT NULL constraint failed: outbox_events.workspace_id` on every write. Sourcing it from `deps`
+ * rather than from `event.payload` is deliberate: the narrow local port carries only `{name,payload}`
+ * and payload contents are per-event convention, not a contract. */
 export function toEntryOutbox(deps: {
-  outbox: { enqueue(event: { id: string; name: string; occurredAt: string; payload: Record<string, unknown> }): Promise<void> };
+  outbox: {
+    enqueue(event: {
+      id: string;
+      workspaceId: string;
+      name: string;
+      occurredAt: string;
+      payload: Record<string, unknown>;
+    }): Promise<void>;
+  };
   clock: { nowIso(): string };
   idGen: { newId(): string };
+  workspaceId: string;
 }): OutboxPort {
   return {
     enqueue: async (event) => {
-      await deps.outbox.enqueue({ id: deps.idGen.newId(), name: event.name, occurredAt: deps.clock.nowIso(), payload: event.payload });
+      await deps.outbox.enqueue({
+        id: deps.idGen.newId(),
+        workspaceId: deps.workspaceId,
+        name: event.name,
+        occurredAt: deps.clock.nowIso(),
+        payload: event.payload,
+      });
     },
   };
 }

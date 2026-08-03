@@ -429,6 +429,104 @@ describe('runOllamaToolTurn', () => {
     expect(toolResultMessage.tool_call_id).toBeUndefined();
   });
 
+  it('round-trips a bare-base64 image inside a tool result: emits it on tool_result and sends it on the continuation tool message', async () => {
+    const firstBody = ndjsonBody(toolCallLine('take_screenshot', {}, 'call_1'), doneLine());
+    const secondBody = ndjsonBody(textLine('looks right'), doneLine());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+    const executeTool = vi.fn().mockResolvedValue({ content: 'here is the screenshot', images: ['iVBORw0KGgoAAAANSUhEUg=='] });
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+
+    expect(events).toContainEqual({
+      type: 'tool_result',
+      toolUseId: 'call_1',
+      content: 'here is the screenshot',
+      images: ['iVBORw0KGgoAAAANSUhEUg=='],
+      isError: false,
+    });
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(secondRequestBody.messages).toContainEqual({
+      role: 'tool',
+      content: 'here is the screenshot',
+      tool_name: 'take_screenshot',
+      images: ['iVBORw0KGgoAAAANSUhEUg=='],
+    });
+  });
+
+  it('still accepts an image-free tool result alongside an image-bearing one in the same turn (backward compatibility)', async () => {
+    const firstBody = ndjsonBody(
+      JSON.stringify({
+        model: 'llama3',
+        message: {
+          role: 'assistant',
+          content: '',
+          tool_calls: [
+            { id: 'call_1', function: { name: 'get_weather', arguments: {} } },
+            { id: 'call_2', function: { name: 'take_screenshot', arguments: {} } },
+          ],
+        },
+        done: false,
+      }),
+      doneLine(),
+    );
+    const secondBody = ndjsonBody(textLine('done'), doneLine());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+    const executeTool = vi.fn().mockImplementation(async (call: { name: string }) =>
+      call.name === 'get_weather' ? { content: '72F sunny' } : { content: 'shot', images: ['aGVsbG8='] },
+    );
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: () => {} });
+
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const toolMessages = secondRequestBody.messages.filter((m: { role: string }) => m.role === 'tool');
+    expect(toolMessages).toEqual([
+      { role: 'tool', content: '72F sunny', tool_name: 'get_weather' },
+      { role: 'tool', content: 'shot', tool_name: 'take_screenshot', images: ['aGVsbG8='] },
+    ]);
+  });
+
+  it('rejects a data:-URI-prefixed tool-result image as a normal is_error result instead of forwarding malformed bytes to Ollama', async () => {
+    const firstBody = ndjsonBody(toolCallLine('take_screenshot', {}, 'call_1'), doneLine());
+    const secondBody = ndjsonBody(textLine('ok'), doneLine());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+    const executeTool = vi.fn().mockResolvedValue({ content: 'shot', images: ['data:image/png;base64,aGVsbG8='] });
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+
+    const toolResultEvent = events.find((e) => e.type === 'tool_result');
+    expect(toolResultEvent).toMatchObject({ isError: true });
+    expect(String((toolResultEvent as { content: unknown }).content)).toContain('data:');
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const toolMessage = secondRequestBody.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(toolMessage.images).toBeUndefined();
+  });
+
+  it('rejects an empty-string tool-result image as an is_error result', async () => {
+    const firstBody = ndjsonBody(toolCallLine('take_screenshot', {}, 'call_1'), doneLine());
+    const secondBody = ndjsonBody(textLine('ok'), doneLine());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+    const executeTool = vi.fn().mockResolvedValue({ content: 'shot', images: [''] });
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+
+    const toolResultEvent = events.find((e) => e.type === 'tool_result');
+    expect(toolResultEvent).toMatchObject({ isError: true });
+  });
+
+  it('propagates an explicit executeTool isError result, including when it carries no images', async () => {
+    const body = ndjsonBody(toolCallLine('fail_tool', {}, 'call_1'), doneLine());
+    const secondBody = ndjsonBody(textLine('done'), doneLine());
+    const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(secondBody));
+    vi.stubGlobal('fetch', fetchMock);
+    const executeTool = vi.fn().mockResolvedValue({ content: 'boom', isError: true });
+    const events: OllamaTurnEvent[] = [];
+    await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
+    expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'call_1', content: 'boom', isError: true });
+  });
+
   it('generates a stable synthetic id for a tool call with no id in the response', async () => {
     const body = ndjsonBody(toolCallLine('noop', {}), doneLine());
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));

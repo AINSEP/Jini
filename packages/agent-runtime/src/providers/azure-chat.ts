@@ -51,6 +51,25 @@
  * once with `max_completion_tokens` on that specific error
  * (`isUnsupportedMaxTokensError`); this module does the same via
  * `runOpenAiCompatibleRequest`'s `retryableBody` hook.
+ *
+ * **Image support inherits from plain OpenAI, confirmed by doc AND by code.** Microsoft's own
+ * vision how-to (`learn.microsoft.com/azure/ai-foundry/openai/how-to/gpt-with-vision`) states
+ * verbatim: "The format is the same as the chat completions API for GPT-4o, except that the
+ * message content can be an array containing text and images" — identical `type:'text'`/
+ * `type:'image_url'` shape and `detail` values as `openai-chat.ts`. That inheritance is genuine at
+ * the code level too, not just assumed from the docs matching: `azureRequestBody` below spreads
+ * `messages` straight into the JSON body with no per-field transform, so once `AzureMessageParam`
+ * (this module's own copy of `OpenAiMessageParam`, per this file's existing full-duplication
+ * convention — see every other type in this file) is widened the same way as OpenAI's, an image
+ * survives untouched all the way to the wire. `azure-chat.test.ts`'s new image tests assert the
+ * request body directly to prove this, rather than trusting the doc claim alone.
+ *
+ * **The synthetic follow-up message and its ordering/attribution rules are also inherited
+ * unchanged from `openai-chat.ts`** — same workaround for the same text-only `tool` message
+ * constraint, same requirement that every `tool` message in a batch be emitted before the single
+ * follow-up (never interleaved — a real 400 otherwise), same per-image attribution label naming
+ * the tool call it answers. See that module's doc for the full rationale; it is not repeated here
+ * beyond this pointer to avoid the two copies drifting.
  */
 import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
 import { runOpenAiCompatibleRequest, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
@@ -72,9 +91,26 @@ export interface AzureToolCallParam {
   readonly function: { readonly name: string; readonly arguments: string };
 }
 
+export interface AzureTextPart {
+  readonly type: 'text';
+  readonly text: string;
+}
+
+/** `detail` defaults to `'auto'` server-side when omitted — never sent unless the caller supplies it. Same shape as `openai-chat.ts#OpenAiImageUrlPart`; see module doc's "Image support inherits from plain OpenAI" note. */
+export interface AzureImageUrlPart {
+  readonly type: 'image_url';
+  readonly image_url: {
+    readonly url: string;
+    readonly detail?: 'auto' | 'low' | 'high';
+  };
+}
+
+/** A user/system/assistant message's `content` array item. Not legal inside a `role: 'tool'` message — same constraint as OpenAI's (see `openai-chat.ts` module doc's "Tool messages cannot carry an image" section, which applies here identically). */
+export type AzureContentPart = AzureTextPart | AzureImageUrlPart;
+
 export interface AzureMessageParam {
   readonly role: 'system' | 'user' | 'assistant' | 'tool';
-  readonly content: string | null;
+  readonly content: string | null | readonly AzureContentPart[];
   readonly tool_calls?: readonly AzureToolCallParam[];
   readonly tool_call_id?: string;
   readonly name?: string;
@@ -86,8 +122,9 @@ export interface AzureToolCall {
   readonly input: unknown;
 }
 
+/** `content` may include `AzureImageUrlPart`s (e.g. a vision self-check's screenshot) even though the wire `tool` message can't carry them directly — `runAzureToolTurn` splits them onto a follow-up `user` message; see `openai-chat.ts`'s identical design. */
 export interface AzureToolResult {
-  readonly content: string;
+  readonly content: string | readonly AzureContentPart[];
 }
 
 /** Host-owned tool execution — same "the collaborator is always supplied" convention as `anthropic-messages.ts#AnthropicToolExecutor`. */
@@ -99,7 +136,7 @@ export type AzureTurnEvent =
   | { readonly type: 'status'; readonly label: string }
   | { readonly type: 'text_delta'; readonly delta: string }
   | { readonly type: 'tool_use'; readonly id: string; readonly name: string; readonly input: unknown }
-  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string; readonly isError: boolean }
+  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string | readonly AzureContentPart[]; readonly isError: boolean }
   | { readonly type: 'usage'; readonly usage: Record<string, unknown> | null }
   | { readonly type: 'fabricated_role_marker'; readonly marker: string; readonly messageId: string }
   | { readonly type: 'error'; readonly message: string; readonly code?: string }
@@ -205,6 +242,64 @@ async function runSingleAzureRequest(
   });
 }
 
+const AZURE_ALLOWED_IMAGE_MEDIA_TYPES: ReadonlySet<string> = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
+
+/** Same 20 MB conservative single-image guard as `openai-chat.ts#MAX_IMAGE_DATA_URI_BASE64_CHARS` — see that constant's doc for the full rationale (Azure inherits OpenAI's image support, so it inherits this module's own defensive posture around it too). */
+const MAX_IMAGE_DATA_URI_BASE64_CHARS = Math.ceil((20 * 1024 * 1024 * 4) / 3);
+
+/** Same conservative per-tool-result image-count guard as `openai-chat.ts#MAX_IMAGES_PER_OPENAI_TOOL_RESULT`. */
+const MAX_IMAGES_PER_AZURE_TOOL_RESULT = 1500;
+
+const AZURE_DATA_URI_PATTERN = /^data:([^;,]+)(?:;charset=[^;,]+)?;base64,(.+)$/su;
+
+/** Azure counterpart of `openai-chat.ts#invalidOpenAiContentPartReason` — same validation, same URL-sourced-image skip rationale (Azure's own servers fetch a plain `https://` `image_url`, not this adapter). @complexity O(1). */
+function invalidAzureContentPartReason(part: AzureContentPart): string | null {
+  if (part.type === 'text') return null;
+  const dataUriMatch = AZURE_DATA_URI_PATTERN.exec(part.image_url.url);
+  if (!dataUriMatch) return null;
+  const [, mediaType, base64Data] = dataUriMatch;
+  if (!mediaType || !AZURE_ALLOWED_IMAGE_MEDIA_TYPES.has(mediaType.toLowerCase())) {
+    return `unsupported image media type ${JSON.stringify(mediaType)} (Azure OpenAI's chat completions API supports image/jpeg, image/png, image/webp, and non-animated image/gif — same as plain OpenAI)`;
+  }
+  if (base64Data && base64Data.length > MAX_IMAGE_DATA_URI_BASE64_CHARS) {
+    return `image exceeds this adapter's 20 MB base64 size guard (${base64Data.length} base64 chars)`;
+  }
+  return null;
+}
+
+interface SanitizedAzureToolResult {
+  readonly content: string | readonly AzureContentPart[];
+  readonly isError: boolean;
+}
+
+/** Azure counterpart of `openai-chat.ts#sanitizeOpenAiToolResult` — same runtime guard, same rationale (an `AzureToolResult` is host-owned; the TS union only constrains a well-behaved host at compile time). @complexity O(n) in content parts. */
+function sanitizeAzureToolResult(result: AzureToolResult): SanitizedAzureToolResult {
+  if (typeof result.content === 'string') return { content: result.content, isError: false };
+  if (result.content.length > MAX_IMAGES_PER_AZURE_TOOL_RESULT) {
+    return { content: `tool result rejected: exceeds the ${MAX_IMAGES_PER_AZURE_TOOL_RESULT}-image-per-request guard (${result.content.length} parts)`, isError: true };
+  }
+  for (const part of result.content) {
+    const reason = invalidAzureContentPartReason(part);
+    if (reason) return { content: `tool result rejected: ${reason}`, isError: true };
+  }
+  return { content: result.content, isError: false };
+}
+
+interface SplitAzureToolResultContent {
+  readonly toolMessageContent: string | readonly AzureTextPart[];
+  readonly imageParts: readonly AzureImageUrlPart[];
+}
+
+/** Azure counterpart of `openai-chat.ts#splitOpenAiToolResultContent` — same text/image split, same placeholder-when-image-only rule, same reason (a `role: 'tool'` message on Azure is the identical wire shape as plain OpenAI's, so it has the identical text-only constraint). @complexity O(n) in content parts. */
+function splitAzureToolResultContent(content: string | readonly AzureContentPart[]): SplitAzureToolResultContent {
+  if (typeof content === 'string') return { toolMessageContent: content, imageParts: [] };
+  const textParts = content.filter((part): part is AzureTextPart => part.type === 'text');
+  const imageParts = content.filter((part): part is AzureImageUrlPart => part.type === 'image_url');
+  const toolMessageContent: readonly AzureTextPart[] =
+    textParts.length > 0 ? textParts : [{ type: 'text', text: '(tool result included only non-text content; see the following message)' }];
+  return { toolMessageContent, imageParts };
+}
+
 /**
  * Runs a full Azure OpenAI Chat Completions turn, including the
  * tool-execution loop when `options.executeTool` is supplied and the model
@@ -247,16 +342,27 @@ export async function runAzureToolTurn(options: AzureTurnOptions): Promise<Azure
       function: { name: call.name, arguments: JSON.stringify(call.input) },
     }));
     const toolResultMessages: AzureMessageParam[] = [];
+    // Same batching discipline as `openai-chat.ts`: every `tool` message for this batch goes here
+    // first; the follow-up is assembled but only ever appended once, after the loop.
+    const followUpParts: AzureContentPart[] = [];
     for (const call of outcome.toolCalls) {
       const result = await options.executeTool(call);
-      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: false });
-      toolResultMessages.push({ role: 'tool', content: result.content, tool_call_id: call.id });
+      const sanitized = sanitizeAzureToolResult(result);
+      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
+      const split = splitAzureToolResultContent(sanitized.content);
+      toolResultMessages.push({ role: 'tool', content: split.toolMessageContent, tool_call_id: call.id });
+      if (split.imageParts.length > 0) {
+        // Attribution label — see `openai-chat.ts`'s identical note for why this matters.
+        followUpParts.push({ type: 'text', text: `Image output from tool \`${call.name}\` (tool_call_id: ${call.id}):` });
+        followUpParts.push(...split.imageParts);
+      }
     }
 
     messages = [
       ...messages,
       { role: 'assistant', content: outcome.text || null, tool_calls: assistantToolCalls },
       ...toolResultMessages,
+      ...(followUpParts.length > 0 ? [{ role: 'user' as const, content: followUpParts }] : []),
     ];
   }
 

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ChatMessage } from '@jini-ai/chat-core';
+import type { ChatMessage } from '@jini-ai/chat/core';
 import {
   ChatFab,
   ChatPane,
   createDomPageDriver,
   createFrontendSessionBridge,
   type FrontendSessionBridge,
-} from '@jini-ai/ui/chat';
+} from '@jini-ai/chat/react';
 import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { EMPTY_SUBMISSION, LabSignupForm, LabSummary, type SignupSubmission } from './LabPages.js';

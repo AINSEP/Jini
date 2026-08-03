@@ -97,5 +97,5 @@ export const piAgentDef = {
     // pi's RPC `prompt` command supports an `images` field for multimodal
     // input (base64-encoded). The daemon attaches image paths to the
     // session so attachPiRpcSession can read and forward them.
-    supportsImagePaths: true,
+    imageDelivery: 'native',
 } satisfies RuntimeAgentDef;

@@ -51,7 +51,7 @@
     "express": "^4.21.0"
   },
   "devDependencies": {
-    "@jini-ai/chat-core": "workspace:*",
+    "@jini-ai/chat": "workspace:*",
     "@types/express": "^4.17.21",
     "@vitest/coverage-v8": "^2.1.9"
   }

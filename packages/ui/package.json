@@ -38,11 +38,6 @@
       "import": "./dist/features/lexical-rich-text-editor/index.js",
       "default": "./dist/features/lexical-rich-text-editor/index.js"
     },
-    "./chat": {
-      "types": "./dist/react/chat/index.d.ts",
-      "import": "./dist/react/chat/index.js",
-      "default": "./dist/react/chat/index.js"
-    },
     "./mcp-ui": {
       "types": "./dist/react/mcp-ui/index.d.ts",
       "import": "./dist/react/mcp-ui/index.js",
@@ -75,7 +70,6 @@
   },
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
-    "@jini-ai/chat-core": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "@jini-ai/renderers-react": "workspace:*",
     "micromark": "^4.0.0",

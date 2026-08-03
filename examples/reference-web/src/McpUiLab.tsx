@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import type { ChatMessage } from '@jini-ai/chat-core';
-import { ChatFab, ChatPane, registerToolRenderer } from '@jini-ai/ui/chat';
+import type { ChatMessage } from '@jini-ai/chat/core';
+import { ChatFab, ChatPane, registerToolRenderer } from '@jini-ai/chat/react';
 import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { McpUiLabHostFrame } from './McpUiLabHost.js';

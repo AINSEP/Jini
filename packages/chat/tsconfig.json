@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    // DOM is needed for `src/react/**`'s components/hooks (see `@jini-ai/admin`'s tsconfig.json,
+    // whose comment this mirrors). Having DOM types available does not make `src/core/**` a DOM
+    // module: that boundary is enforced at runtime by `vitest.config.ts` (no jsdom by default) and
+    // by a direct import-scan test under `src/core/__tests__/`, not by withholding lib types.
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // For `src/react/**` only. Costs `src/core/**` nothing.
+    "jsx": "react-jsx",
+    "types": ["@testing-library/jest-dom"]
+  },
+  "include": ["src"]
+}

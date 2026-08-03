@@ -59,6 +59,45 @@
  * this repo's established practice elsewhere (e.g. `xai.ts` deliberately
  * generalizing OD's OAuth-connect *shape* while dropping its OD-specific
  * SuperGrok billing gate).
+ *
+ * **Image ("vision") support**, added for the same vision self-check use
+ * case as `anthropic-messages.ts` (see that module's doc). Ollama's real
+ * wire shape is genuinely unlike every other provider this repo's adapters
+ * touch: `Message.Images` (`github.com/ollama/ollama/blob/main/api/
+ * types.go`) is `[]ImageData` where `ImageData` is a raw Go `[]byte` —
+ * `encoding/json` marshals a byte slice as a **bare base64 string**, so
+ * there is no `data:` URI prefix and no `media_type` field at all (unlike
+ * Anthropic/OpenAI's wrapped-source shapes). Confirmed directly against that
+ * struct, not assumed from the "list of images" prose in `docs/api.md`.
+ *
+ * **Design decision: native `tool`-role images, not a synthetic follow-up
+ * turn.** A prior pass on this same task (see `ADS-memory/reports/refactors/
+ * 2026-08-03-image-send-capability.md`) found OpenAI/Azure/Google's `tool`-
+ * role message is documented text-only, so those three need a synthetic
+ * `user`-role follow-up turn to carry an image at all. Ollama does not need
+ * that workaround — verified, not assumed, against two independent pieces of
+ * real server-side evidence: (1) `api/types.go`'s `Message` struct puts
+ * `Images` at the same level as `Role`/`Content`/`ToolName`, with no
+ * role-conditional field; (2) `server/prompt.go`'s `imageTaggedMessages`
+ * function, which actually builds the model prompt, iterates every message
+ * regardless of `Role` and reads `msg.Images` unconditionally — there is no
+ * `if msg.Role == "user"` gate anywhere near that read. A `tool`-role
+ * message's `images` field therefore reaches the model exactly like a
+ * `user`-role message's would. This makes Ollama's tool-result channel
+ * behave like Anthropic's (native), not like OpenAI/Azure/Google's
+ * (workaround required) — a third shape the prior pass's provider table
+ * did not anticipate, because Ollama was outside its original four-protocol
+ * scope.
+ *
+ * **`OllamaToolResult.isError` added alongside `images`, not purely a vision
+ * change.** Before this pass, every `tool_result` event and continuation
+ * message hardcoded `isError: false` regardless of what `executeTool`
+ * returned — `OllamaToolResult` had no `isError` field for a host to even
+ * set. That is a pre-existing gap independent of images, but this pass's own
+ * `guardToolResult` (see below) needs to signal a rejected/malformed image
+ * as an error the model can see, which is impossible without it. Wired
+ * through as `result.isError ?? false`, so every existing caller that never
+ * set `isError` keeps its exact prior behavior.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
@@ -92,6 +131,8 @@ export interface OllamaToolCallParam {
 export interface OllamaMessageParam {
   readonly role: 'system' | 'user' | 'assistant' | 'tool';
   readonly content: string | null;
+  /** Bare base64-encoded image strings — no `data:` URI prefix, no `media_type` field (see module doc's "Image support" section for the verified real wire shape). Legal on any role, `tool` included — Ollama's server-side prompt builder reads this field with no role restriction. */
+  readonly images?: readonly string[];
   readonly tool_calls?: readonly OllamaToolCallParam[];
   /** Ollama's native tool-result association field — NOT `tool_call_id` (that's the OpenAI shape; Ollama has no call-id concept on the wire). */
   readonly tool_name?: string;
@@ -105,6 +146,10 @@ export interface OllamaToolCall {
 
 export interface OllamaToolResult {
   readonly content: string;
+  /** Bare base64-encoded image strings — same wire shape as `OllamaMessageParam.images` (see module doc). Attached to the outbound `tool`-role continuation message's own `images` field. */
+  readonly images?: readonly string[];
+  /** Added alongside `images` — see module doc's "`OllamaToolResult.isError` added alongside `images`" note for why this was a pre-existing gap, not a vision-only addition. */
+  readonly isError?: boolean;
 }
 
 /** Host-owned tool execution — same "the collaborator is always supplied" convention as `anthropic-messages.ts#AnthropicToolExecutor`. */
@@ -116,7 +161,7 @@ export type OllamaTurnEvent =
   | { readonly type: 'status'; readonly label: string }
   | { readonly type: 'text_delta'; readonly delta: string }
   | { readonly type: 'tool_use'; readonly id: string; readonly name: string; readonly input: unknown }
-  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string; readonly isError: boolean }
+  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string; readonly images?: readonly string[]; readonly isError: boolean }
   | { readonly type: 'usage'; readonly usage: Record<string, unknown> | null }
   | { readonly type: 'fabricated_role_marker'; readonly marker: string; readonly messageId: string }
   | { readonly type: 'error'; readonly message: string; readonly code?: string }
@@ -189,6 +234,57 @@ function extractOllamaErrorDetail(rawText: string): string {
     // fall through to raw text
   }
   return rawText.slice(0, 500);
+}
+
+/**
+ * Validates one image string from a host-returned `OllamaToolResult.images` array. Returns the
+ * violation reason, or `null` when the string is legal to send.
+ *
+ * Deliberately narrower than `anthropic-messages.ts#invalidToolResultContentBlockReason`: no
+ * `media_type` allow-list (Ollama's wire shape has no such field to validate — see module doc), and
+ * no byte-size cap. The size guard was considered and rejected, not skipped reflexively: Anthropic's
+ * 10 MB figure came from a real, documented direct-API limit; no equivalent published figure exists
+ * for Ollama. A local install's real ceiling is whatever the host machine's memory allows (not a
+ * fixed vendor number this module could verify), and `OllamaTurnOptions.baseUrl`'s own documented
+ * default target — Ollama Cloud — is a remote, metered service too, but its docs likewise publish no
+ * per-image size limit as of this pass. Inventing a number in either case would be exactly the kind
+ * of memory-guess this repo's "verify against real docs" convention forbids (see module doc).
+ *
+ * What IS checked: the shape mistake an existing host is actually likely to make. A caller that
+ * already built an Anthropic/OpenAI-shaped payload elsewhere in the same codebase has a `data:`
+ * URI-prefixed or object-wrapped image sitting right there — pasting that into Ollama's `images`
+ * array (a bare base64 string, no wrapper) is a real, easy, silent mistake, not a hypothetical one.
+ *
+ * @complexity O(1) — a string-prefix check and a length check, no base64 decoding.
+ * @overallScore 100
+ */
+function invalidOllamaImageReason(image: string): string | null {
+  if (image.length === 0) return 'image must be a non-empty base64 string';
+  if (image.startsWith('data:')) {
+    return "image must be a bare base64 string with no `data:` URI prefix (Ollama's wire format has no media_type field — see module doc)";
+  }
+  return null;
+}
+
+/**
+ * Runtime guard applied to every `OllamaToolExecutor` result before it is wired onto the outbound
+ * continuation message or reported via `onEvent` — same rationale and posture as
+ * `anthropic-messages.ts#guardToolResult` (host-owned executor, TS types don't constrain a buggy
+ * host at runtime; substitutes a legible `is_error` tool_result rather than forwarding a malformed
+ * image the server would reject with a less legible error).
+ *
+ * @complexity O(n) in the number of images; O(1) per image.
+ * @overallScore 100
+ */
+function guardToolResult(result: OllamaToolResult): OllamaToolResult {
+  if (!result.images || result.images.length === 0) return result;
+  for (const image of result.images) {
+    const reason = invalidOllamaImageReason(image);
+    if (reason) {
+      return { content: `[rejected tool result] ${reason}`, isError: true };
+    }
+  }
+  return result;
 }
 
 interface SingleRequestOutcome {
@@ -376,9 +472,21 @@ export async function runOllamaToolTurn(options: OllamaTurnOptions): Promise<Oll
     }));
     const toolResultMessages: OllamaMessageParam[] = [];
     for (const call of outcome.toolCalls) {
-      const result = await options.executeTool(call);
-      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: false });
-      toolResultMessages.push({ role: 'tool', content: result.content, tool_name: call.name });
+      const rawResult = await options.executeTool(call);
+      const result = guardToolResult(rawResult);
+      options.onEvent({
+        type: 'tool_result',
+        toolUseId: call.id,
+        content: result.content,
+        ...(result.images ? { images: result.images } : {}),
+        isError: result.isError ?? false,
+      });
+      toolResultMessages.push({
+        role: 'tool',
+        content: result.content,
+        tool_name: call.name,
+        ...(result.images ? { images: result.images } : {}),
+      });
     }
 
     messages = [

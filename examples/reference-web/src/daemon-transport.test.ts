@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatMessage } from '@jini-ai/chat-core';
-import type { RunHandlers } from '@jini-ai/ui/chat';
+import type { ChatMessage } from '@jini-ai/chat/core';
+import type { RunHandlers } from '@jini-ai/chat/react';
 import { composeRunPrompt, encodeRunContext, toAgentEvent } from './daemon-transport.js';
 
 const handlers: RunHandlers = {

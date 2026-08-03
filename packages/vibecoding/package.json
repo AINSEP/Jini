@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/vibecoding",
   "version": "0.1.0",
-  "description": "Conversational artifact authoring: a target-agnostic edit loop — addressable parts, validated replace, and per-turn snapshot/rewind. Framework-free in `/core`; filesystem targets behind ./node and the chat/preview surface behind ./react.",
+  "description": "Conversational artifact authoring: a target-agnostic edit loop — addressable parts, validated replace, operation-level undo/redo, and per-turn snapshot/rewind. Framework-free in `/core`; tagged-region HTML documents behind ./html; filesystem targets behind ./node and the chat/preview surface behind ./react.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -14,7 +14,8 @@
     "runtime": "universal",
     "entries": {
       ".": "universal",
-      "./core": "universal"
+      "./core": "universal",
+      "./html": "universal"
     }
   },
   "type": "module",
@@ -31,6 +32,11 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
+    },
+    "./html": {
+      "types": "./dist/html/index.d.ts",
+      "import": "./dist/html/index.js",
+      "default": "./dist/html/index.js"
     }
   },
   "files": [

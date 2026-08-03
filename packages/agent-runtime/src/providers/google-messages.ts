@@ -41,12 +41,57 @@
  *    `finishReason` comparison — the one structural place this adapter
  *    cannot mirror `anthropic-messages.ts`/`openai-chat.ts` byte-for-byte.
  *
- * **Scope for this pass:** text + function-call parts and the tool-
- * execution loop only. `inlineData`/`fileData` parts (multimodal input/
- * output) and `promptFeedback`'s per-category safety ratings are out of
- * scope — a blocked prompt (`promptFeedback.blockReason` present, no
- * candidates) is still surfaced as an `error` event rather than silently
- * hanging, but the detailed safety-rating breakdown is not modeled.
+ * **Scope for this pass:** text + function-call parts, `inlineData` image
+ * parts, and the tool-execution loop. `fileData` parts (the Files-API
+ * reference form, for content too large to inline) and `promptFeedback`'s
+ * per-category safety ratings are still out of scope — a blocked prompt
+ * (`promptFeedback.blockReason` present, no candidates) is still surfaced as
+ * an `error` event rather than silently hanging, but the detailed
+ * safety-rating breakdown is not modeled.
+ *
+ * **Image support**: `inlineData: {mimeType, data}` (base64) — canonical
+ * proto3 JSON field names confirmed via `ai.google.dev/api/rest/v1beta/
+ * Content` (`inline_data`/`mime_type` also parse, per proto3's JSON mapping,
+ * but this module sends the camelCase canonical form to match every other
+ * field it already sends: `functionCall`, `functionResponse`,
+ * `usageMetadata`, etc.). Supported formats and the 20 MB total-inline-
+ * request budget (text + system instructions + inline bytes combined) per
+ * `ai.google.dev/gemini-api/docs/image-understanding` — see
+ * `MAX_INLINE_IMAGE_BASE64_CHARS`'s doc for how this module applies that
+ * budget per-image.
+ *
+ * **No documented way to attach an image to a `functionResponse` in this
+ * (classic) API.** Checked `ai.google.dev/api/rest/v1beta/Content` and
+ * `ai.google.dev/gemini-api/docs/image-understanding` directly for a
+ * `FunctionResponse.parts` field or similar — neither documents one; images
+ * are only documented as ordinary `Content` input. (A "multimodal function
+ * response" feature does exist under `ai.google.dev/gemini-api/docs/
+ * function-calling`, but confirmed to belong exclusively to the newer
+ * `interactions` API this module already deliberately excludes — see the
+ * "Two REST APIs coexist" note above; its `result`/`function_result` shape
+ * does not apply here.) So a tool result carrying an image keeps
+ * `functionResponse.response` as a plain string (same shape as before), and
+ * `runGoogleToolTurn` appends the image as ordinary `inlineData` parts in
+ * the *same* `role: 'user'` `Content` alongside the `functionResponse` parts
+ * — unlike `openai-chat.ts`, which is forced onto a separate follow-up
+ * message because OpenAI's wire `tool` role is hard-restricted to text.
+ * Gemini's `Content.parts` has no such restriction: it is just an ordered
+ * list of `Part` union members, so mixing `functionResponse` and
+ * `inlineData` parts in one `Content` is exactly the same pattern this
+ * module already uses for `modelParts` (text + `functionCall` together).
+ *
+ * **This is still a workaround for a real protocol limitation, not this module inventing
+ * structure** — Anthropic's `tool_result` content block can carry an image natively and needs no
+ * such fold (see `anthropic-messages.ts`). Both `openai-chat.ts`'s separate-message form and this
+ * module's same-`Content` form exist for the identical underlying reason: `FunctionResponse`/`tool`
+ * has no documented image slot, so the image has to travel some other way. Each `inlineData` part
+ * appended this way is preceded by a plain-text label naming the tool call it answers (name + id)
+ * — an unlabeled image is otherwise indistinguishable from a human-supplied one, which in a vision
+ * self-check loop risks the model treating its own tool's output as a new user turn. When a batch
+ * has parallel tool calls, ALL `functionResponse` parts for the batch are assembled first and every
+ * labeled image is appended after them, in one `Content` — never one `Content` per tool result —
+ * matching this module's existing single-continuation-turn shape (see `runGoogleToolTurn`'s
+ * tool-loop body and its test file's multi-tool-call image test).
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
 import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
@@ -56,6 +101,14 @@ import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 
 export interface GoogleTextPart {
   readonly text: string;
+}
+
+/** Base64 inline image (or other binary) data. Canonical camelCase field names — see module doc's "Image support" section for the verified proto3 JSON mapping. */
+export interface GoogleInlineDataPart {
+  readonly inlineData: {
+    readonly mimeType: string;
+    readonly data: string;
+  };
 }
 
 export interface GoogleFunctionCallPart {
@@ -74,7 +127,10 @@ export interface GoogleFunctionResponsePart {
   };
 }
 
-export type GooglePart = GoogleTextPart | GoogleFunctionCallPart | GoogleFunctionResponsePart;
+export type GooglePart = GoogleTextPart | GoogleInlineDataPart | GoogleFunctionCallPart | GoogleFunctionResponsePart;
+
+/** The subset of `GooglePart` a tool result may legally carry — no `functionCall`/`functionResponse` part makes sense as a tool's own output. */
+export type GoogleToolResultPart = GoogleTextPart | GoogleInlineDataPart;
 
 export interface GoogleContent {
   readonly role: 'user' | 'model';
@@ -97,8 +153,9 @@ export interface GoogleToolCall {
   readonly input: unknown;
 }
 
+/** `content` may include `GoogleInlineDataPart`s (e.g. a vision self-check's screenshot) — `runGoogleToolTurn` folds them into the continuation `Content`'s `parts` alongside the `functionResponse`; see module doc's "No documented way to attach an image to a functionResponse" section. */
 export interface GoogleToolResult {
-  readonly content: string;
+  readonly content: string | readonly GoogleToolResultPart[];
   readonly isError?: boolean;
 }
 
@@ -112,7 +169,7 @@ export type GoogleTurnEvent =
   | { readonly type: 'status'; readonly label: string }
   | { readonly type: 'text_delta'; readonly delta: string }
   | { readonly type: 'tool_use'; readonly id: string; readonly name: string; readonly input: unknown }
-  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string; readonly isError: boolean }
+  | { readonly type: 'tool_result'; readonly toolUseId: string; readonly content: string | readonly GoogleToolResultPart[]; readonly isError: boolean }
   | { readonly type: 'usage'; readonly usage: Record<string, unknown> | null }
   | { readonly type: 'fabricated_role_marker'; readonly marker: string; readonly messageId: string }
   | { readonly type: 'error'; readonly message: string; readonly code?: string }
@@ -334,6 +391,97 @@ async function runSingleGoogleRequest(
   return { finishReason, toolCalls, text: fullText };
 }
 
+const GOOGLE_ALLOWED_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+]);
+
+/**
+ * Gemini documents a 20 MB total-inline-request budget — text prompts, system instructions, and
+ * inline bytes combined (see module doc's "Image support" section) — not a per-image number. This
+ * module applies that 20 MB figure per image as a conservative simplification: a real request
+ * always also carries text, so a single inline image already at 20 MB leaves no room for anything
+ * else, making per-image enforcement at this bound strictly more permissive than the documented
+ * total ever allows in practice. No per-image count cap is enforced here (unlike
+ * `openai-chat.ts#MAX_IMAGES_PER_OPENAI_TOOL_RESULT`) because Google does not document one for this
+ * API. Approximated from the base64 *string* length, not decoded byte count — see
+ * `anthropic-messages.ts#MAX_IMAGE_BASE64_CHARS`'s doc for why that's the right thing to measure.
+ */
+const MAX_INLINE_IMAGE_BASE64_CHARS = Math.ceil((20 * 1024 * 1024 * 4) / 3);
+
+/**
+ * Validates one tool-result part against Gemini's real format/size constraints. Returns the
+ * violation reason, or `null` when the part is legal to send. Text parts are always legal — only
+ * `inlineData` is format/size-checked.
+ *
+ * @complexity O(1) — reads `data.length`, never decodes or parses the base64 payload.
+ */
+function invalidGoogleToolResultPartReason(part: GoogleToolResultPart): string | null {
+  if ('text' in part) return null;
+  const { mimeType, data } = part.inlineData;
+  if (!GOOGLE_ALLOWED_IMAGE_MIME_TYPES.has(mimeType.toLowerCase())) {
+    return `unsupported image mimeType ${JSON.stringify(mimeType)} (Gemini supports image/png, image/jpeg, image/webp, image/heic, image/heif)`;
+  }
+  if (data.length > MAX_INLINE_IMAGE_BASE64_CHARS) {
+    return `image exceeds this adapter's 20 MB inline-data base64 size guard (${data.length} base64 chars)`;
+  }
+  return null;
+}
+
+interface SanitizedGoogleToolResult {
+  readonly content: string | readonly GoogleToolResultPart[];
+  readonly isError: boolean;
+}
+
+/**
+ * Runtime guard applied to every `GoogleToolExecutor` result before it is wired onto the outbound
+ * request or reported via `onEvent` — same rationale and posture as
+ * `anthropic-messages.ts`'s/`openai-chat.ts`'s identical guards (`GoogleToolResult` is host-owned;
+ * the TS content-part union only constrains a well-behaved host at compile time, not a buggy one at
+ * runtime).
+ *
+ * @complexity O(n) in the number of content parts; O(1) per part (see `invalidGoogleToolResultPartReason`).
+ */
+function sanitizeGoogleToolResult(result: GoogleToolResult): SanitizedGoogleToolResult {
+  const originalIsError = result.isError ?? false;
+  if (typeof result.content === 'string') return { content: result.content, isError: originalIsError };
+  for (const part of result.content) {
+    const reason = invalidGoogleToolResultPartReason(part);
+    if (reason) return { content: `tool result rejected: ${reason}`, isError: true };
+  }
+  return { content: result.content, isError: originalIsError };
+}
+
+interface SplitGoogleToolResultContent {
+  /** Always a plain string — `functionResponse.response` is a generic JSON object with no documented way to carry a `Part`; see module doc's "No documented way to attach an image to a functionResponse" section. */
+  readonly responseContent: string;
+  readonly imageParts: readonly GoogleInlineDataPart[];
+}
+
+/**
+ * Splits one (already-sanitized) tool result's content into the plain-string form
+ * `functionResponse.response.content` requires, plus any `inlineData` parts that travel alongside
+ * it in the same continuation `Content` — see `runGoogleToolTurn`'s call site.
+ *
+ * A string `content` is left untouched (`imageParts: []`) — this is the pre-existing, unchanged
+ * path every current caller already exercises. For an array, text parts are joined in order; if
+ * there is no text at all (an image-only result), a placeholder string is substituted so
+ * `functionResponse.response.content` is never empty.
+ *
+ * @complexity O(n) in the number of content parts.
+ */
+function splitGoogleToolResultContent(content: string | readonly GoogleToolResultPart[]): SplitGoogleToolResultContent {
+  if (typeof content === 'string') return { responseContent: content, imageParts: [] };
+  const textParts = content.filter((part): part is GoogleTextPart => 'text' in part);
+  const imageParts = content.filter((part): part is GoogleInlineDataPart => 'inlineData' in part);
+  const responseContent =
+    textParts.length > 0 ? textParts.map((part) => part.text).join('\n') : '(tool result included only non-text content; see the accompanying image parts)';
+  return { responseContent, imageParts };
+}
+
 /**
  * Runs a full Gemini `streamGenerateContent` turn, including the
  * tool-execution loop when `options.executeTool` is supplied and the model
@@ -381,22 +529,37 @@ export async function runGoogleToolTurn(options: GoogleTurnOptions): Promise<Goo
       ...outcome.toolCalls.map((call) => ({ functionCall: { name: call.name, args: call.input, id: call.id } }) as const),
     ];
     const functionResponseParts: GooglePart[] = [];
+    // Every `functionResponse` part for this batch is pushed here first; the labeled image parts
+    // below are only ever folded into the SAME single continuation `Content`, after the loop —
+    // matching `openai-chat.ts`'s batching discipline even though Gemini's wire format doesn't
+    // strictly require it (see module doc for why this module still does it this way).
+    const followUpParts: GooglePart[] = [];
     for (const call of outcome.toolCalls) {
       const result = await options.executeTool(call);
-      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: result.content, isError: result.isError ?? false });
+      const sanitized = sanitizeGoogleToolResult(result);
+      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
+      const split = splitGoogleToolResultContent(sanitized.content);
       functionResponseParts.push({
         functionResponse: {
           name: call.name,
           id: call.id,
-          response: { content: result.content, isError: result.isError ?? false },
+          response: { content: split.responseContent, isError: sanitized.isError },
         },
       });
+      if (split.imageParts.length > 0) {
+        // Attribution label — see module doc for why an unlabeled image is unsafe here.
+        followUpParts.push({ text: `Image output from tool \`${call.name}\` (tool_call_id: ${call.id}):` });
+        followUpParts.push(...split.imageParts);
+      }
     }
 
     contents = [
       ...contents,
       { role: 'model', parts: modelParts },
-      { role: 'user', parts: functionResponseParts },
+      // `inlineData` parts ride in the same `Content` as the `functionResponse` parts they belong
+      // to — no separate follow-up message needed here, unlike `openai-chat.ts` (see module doc's
+      // "No documented way to attach an image to a functionResponse" section for why).
+      { role: 'user', parts: [...functionResponseParts, ...followUpParts] },
     ];
   }
 

@@ -1,0 +1,89 @@
+{
+  "name": "@jini-ai/chat",
+  "version": "0.1.0",
+  "description": "Jini's chat/artifact frontend, consolidated into one package with two subpaths: framework-free chat vocabulary and pure parsers in `/core`, headless hooks + presentational components + slots in `/react`. Import only the layer you need.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/chat"
+  },
+  "jini": {
+    "domain": "chat",
+    "kind": "state",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./core": "universal",
+      "./react": "browser"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && mkdir -p dist/react/styles && cp src/react/styles/reference.css dist/react/styles/",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/protocol": "workspace:*",
+    "@jini-ai/renderers-react": "workspace:*",
+    "@jini-ai/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}

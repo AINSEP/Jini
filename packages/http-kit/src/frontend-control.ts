@@ -66,7 +66,7 @@ export interface FrontendBindErrorContext {
 
 export interface CreateFrontendControlOptions {
   /**
-   * The capabilities to expose. `@jini-ai/agentic`'s `PAGE_CAPABILITIES` and `@jini-ai/chat-core`'s
+   * The capabilities to expose. `@jini-ai/agentic`'s `PAGE_CAPABILITIES` and `@jini-ai/chat/core`'s
    * `CHAT_CAPABILITIES` satisfy this structurally — the engine never imports that vocabulary
    * (see `frontend-capability-tools.ts`'s module doc for why the edge points one way).
    */

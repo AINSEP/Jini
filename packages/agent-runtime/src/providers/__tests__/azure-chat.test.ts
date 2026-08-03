@@ -403,4 +403,151 @@ describe('runAzureToolTurn', () => {
     expect(result).toEqual({ finishReason: 'tool_calls', toolTurns: 0 });
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'stop' }]);
   });
+
+  describe('image support (inherited from openai-chat.ts)', () => {
+    const pngDataUri = `data:image/png;base64,${Buffer.from('fake-png-bytes').toString('base64')}`;
+
+    // Proves the inheritance claim directly rather than trusting the module doc's claim alone: an
+    // image_url part placed on an ordinary user message reaches the real Azure request body
+    // untouched — `azureRequestBody` never strips or transforms it.
+    it('round-trips an image_url part into the Azure deployment request body unchanged', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+      vi.stubGlobal('fetch', fetchMock);
+      const messages: AzureMessageParam[] = [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: "what's in this image?" },
+            { type: 'image_url', image_url: { url: pngDataUri, detail: 'high' } },
+          ],
+        },
+      ];
+      await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages, onEvent: () => {} });
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      expect(body.messages[0]).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: "what's in this image?" },
+          { type: 'image_url', image_url: { url: pngDataUri, detail: 'high' } },
+        ],
+      });
+    });
+
+    it('still sends a plain string message content unchanged (backward compatibility)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+      vi.stubGlobal('fetch', fetchMock);
+      await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} });
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
+    });
+
+    it('keeps a tool result with a screenshot text-only on the tool message and delivers the image via a synthetic follow-up user message', async () => {
+      const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
+      const secondBody = sseBody(textChunk('looks good'), finishChunk('stop'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({
+        content: [
+          { type: 'text', text: 'here is the current render' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+        ],
+      });
+      const events: AzureTurnEvent[] = [];
+      await runAzureToolTurn({
+        apiKey: 'k',
+        baseUrl: 'https://my-resource.openai.azure.com',
+        model: 'gpt-4o-deployment',
+        messages: baseMessages,
+        executeTool,
+        onEvent: (e) => events.push(e),
+      });
+
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(secondCallBody.messages).toHaveLength(4);
+      expect(secondCallBody.messages[2]).toEqual({
+        role: 'tool',
+        content: [{ type: 'text', text: 'here is the current render' }],
+        tool_call_id: 'call_1',
+      });
+      expect(secondCallBody.messages[3]).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Image output from tool `screenshot` (tool_call_id: call_1):' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+        ],
+      });
+      expect(events).toContainEqual({
+        type: 'tool_result',
+        toolUseId: 'call_1',
+        content: [
+          { type: 'text', text: 'here is the current render' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+        ],
+        isError: false,
+      });
+    });
+
+    it('rejects an unsupported image media type as an isError tool_result instead of forwarding it', async () => {
+      const body = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(sseBody(finishChunk('stop'), done())));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: 'data:image/tiff;base64,AAAA' } }] });
+      const events: AzureTurnEvent[] = [];
+      await runAzureToolTurn({
+        apiKey: 'k',
+        baseUrl: 'https://my-resource.openai.azure.com',
+        model: 'gpt-4o-deployment',
+        messages: baseMessages,
+        executeTool,
+        onEvent: (e) => events.push(e),
+      });
+      const toolResultEvent = events.find((e) => e.type === 'tool_result');
+      expect(toolResultEvent).toMatchObject({ isError: true });
+      expect((toolResultEvent as { content: string }).content).toContain('unsupported image media type');
+    });
+
+    it('batches a multi-tool-call turn correctly: all tool messages emitted before a single labeled follow-up covering only the calls that returned images', async () => {
+      const firstBody = sseBody(
+        toolCallStartChunk(0, 'call_1', 'get_weather'),
+        toolCallArgsChunk(0, '{}'),
+        toolCallStartChunk(1, 'call_2', 'screenshot'),
+        toolCallArgsChunk(1, '{}'),
+        toolCallStartChunk(2, 'call_3', 'screenshot_2'),
+        toolCallArgsChunk(2, '{}'),
+        finishChunk('tool_calls'),
+        done(),
+      );
+      const secondBody = sseBody(finishChunk('stop'), done());
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi
+        .fn()
+        .mockResolvedValueOnce({ content: '72F sunny' })
+        .mockResolvedValueOnce({ content: [{ type: 'image_url', image_url: { url: pngDataUri } }] })
+        .mockResolvedValueOnce({ content: [{ type: 'image_url', image_url: { url: `${pngDataUri}2` } }] });
+      await runAzureToolTurn({
+        apiKey: 'k',
+        baseUrl: 'https://my-resource.openai.azure.com',
+        model: 'gpt-4o-deployment',
+        messages: baseMessages,
+        executeTool,
+        onEvent: () => {},
+      });
+
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(secondCallBody.messages).toHaveLength(6);
+      expect(secondCallBody.messages[2]).toEqual({ role: 'tool', content: '72F sunny', tool_call_id: 'call_1' });
+      expect(secondCallBody.messages[3].role).toBe('tool');
+      expect(secondCallBody.messages[4].role).toBe('tool');
+      expect(secondCallBody.messages[5]).toEqual({
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Image output from tool `screenshot` (tool_call_id: call_2):' },
+          { type: 'image_url', image_url: { url: pngDataUri } },
+          { type: 'text', text: 'Image output from tool `screenshot_2` (tool_call_id: call_3):' },
+          { type: 'image_url', image_url: { url: `${pngDataUri}2` } },
+        ],
+      });
+    });
+  });
 });

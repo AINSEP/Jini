@@ -20,3 +20,5 @@ export type {
 export type { EditTarget } from "./target.js";
 export type { ProposedEdit } from "./apply.js";
 export { applyEdit, applyEdits, correctionsFor } from "./apply.js";
+export type { EditHistory, EditHistoryOptions, HistoryEntry, PartChange } from "./history.js";
+export { createEditHistory } from "./history.js";

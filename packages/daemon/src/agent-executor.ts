@@ -134,6 +134,7 @@ import { classifyRunCloseStatus } from './close-status.js';
 import { resolveContinuationTransport } from './continuation/continuation-transport.js';
 import type { RunByteJournal } from './continuation/journal.js';
 import { resultContent } from './delegated-tool-bridge.js';
+import { applyImagePromptDelivery } from './image-prompt-delivery.js';
 import type { RunRetrySideEffectState } from './run/core/index.js';
 import type { ToolExecutor } from './tool-executor.js';
 import type { RunLifecycle } from './run-lifecycle.js';
@@ -515,7 +516,16 @@ export interface AgentExecutorRunInput {
    * A host that wants a run to NOT auto-approve every action passes `'restricted'` here.
    */
   readonly permissionMode?: 'bypass' | 'restricted';
-  /** Host-validated image files forwarded through argv, ACP, or pi-rpc. */
+  /**
+   * Host-validated image files. How each one actually reaches the model
+   * depends on `def.imageDelivery` (see `@jini-ai/agent-runtime`'s `types.ts`):
+   * a `'native'` def forwards these through its own protocol (argv, ACP
+   * `resource_link` blocks, or pi-rpc's base64 `images` field); a
+   * `'prompt-path'` def (currently just `claude`) instead gets them named in
+   * the prompt text and its allowed directories widened, via
+   * `image-prompt-delivery.ts#applyImagePromptDelivery`, called once near
+   * the top of `run()` below.
+   */
   readonly imagePaths?: readonly string[];
   /** Additional host-validated directories the runtime may read. */
   readonly extraAllowedDirs?: readonly string[];
@@ -2167,10 +2177,22 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     }
     const streamFormat = compatibility.streamFormat;
 
+    // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
+    // dirs" — a no-op (`{prompt: input.prompt, extraAllowedDirs: input.extraAllowedDirs}`,
+    // literally unchanged) unless `def.imageDelivery === 'prompt-path'` AND `input.imagePaths`
+    // is non-empty, so this can never affect a 'native'-delivery def (ACP, pi-rpc, qoder) or a
+    // run with no attachments. See `image-prompt-delivery.ts`'s own doc for the full mechanism;
+    // every use of `input.prompt`/`input.extraAllowedDirs` below that reflects what the CLI
+    // actually receives reads `imageDelivery.*` instead — the two ACP/pi-rpc `wire*Lifecycle`
+    // calls further down deliberately keep reading `input.prompt` verbatim, since those two
+    // defs' own native protocol already delivers the image and must never also get this
+    // treatment (the double-delivery hazard this mechanism exists to avoid).
+    const imageDelivery = applyImagePromptDelivery(def.imageDelivery, input.prompt, input.imagePaths, input.extraAllowedDirs);
+
     // Argv-bound defs (aider, deepseek) — reject an oversized prompt before
     // ever resolving a binary or touching the filesystem. A no-op for every
     // def without `maxPromptArgBytes` (checkPromptArgvBudget's own guard).
-    const argvBudgetError = checkPromptArgvBudget(def, input.prompt);
+    const argvBudgetError = checkPromptArgvBudget(def, imageDelivery.prompt);
     if (argvBudgetError) {
       return failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', argvBudgetError.message);
     }
@@ -2194,7 +2216,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // without promptViaFile: true (preparePromptFileForAgent's own guard).
     let preparedPromptFile: PreparedPromptFile | null;
     try {
-      preparedPromptFile = await preparePromptFileForAgentFn(def, input.prompt, input.runId);
+      preparedPromptFile = await preparePromptFileForAgentFn(def, imageDelivery.prompt, input.runId);
     } catch (err) {
       return failBeforeSpawn(
         input.runId,
@@ -2335,9 +2357,9 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     let args: string[];
     try {
       args = def.buildArgs(
-        input.prompt,
+        imageDelivery.prompt,
         [...(input.imagePaths ?? [])],
-        input.extraAllowedDirs === undefined ? undefined : [...input.extraAllowedDirs],
+        imageDelivery.extraAllowedDirs === undefined ? undefined : [...imageDelivery.extraAllowedDirs],
         input.model !== undefined
           || input.reasoning !== undefined
           || input.permissionMode !== undefined
@@ -2561,7 +2583,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       return;
     }
 
-    writePromptToStdin(def, child, input.prompt, stdinHandle!);
+    writePromptToStdin(def, child, imageDelivery.prompt, stdinHandle!);
   }
 
   return { run };

@@ -412,6 +412,118 @@ describe('AgentExecutor — successful run end-to-end', () => {
   });
 });
 
+describe('AgentExecutor — image prompt delivery (MSG-4: prompt-path defs)', () => {
+  it("augments the prompt and widens extraAllowedDirs for a 'prompt-path' def, and the augmented prompt (not the raw one) is what actually reaches stdin", async () => {
+    const buildArgs = vi.fn((...args: Parameters<RuntimeAgentDef['buildArgs']>) => ['--flag']);
+    const def = createFakeDef({ buildArgs, imageDelivery: 'prompt-path' });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-image-prompt-path' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'describe this',
+      cwd: '/work',
+      imagePaths: ['/uploads/reference.png'],
+      extraAllowedDirs: ['/project'],
+    });
+    await flushAsync();
+    await runPromise;
+
+    // buildArgs' first arg (the prompt) is augmented, and its third arg (extraAllowedDirs) is
+    // widened with the image's own directory merged in alongside the caller-supplied one.
+    const [promptArg, imagePathsArg, extraAllowedDirsArg] = buildArgs.mock.calls[0]!;
+    expect(promptArg).toContain('describe this');
+    expect(promptArg).toContain('1. /uploads/reference.png');
+    expect(imagePathsArg).toEqual(['/uploads/reference.png']); // unchanged — still raw, for a def that also wants it directly
+    expect(extraAllowedDirsArg).toEqual(['/project', '/uploads']);
+
+    // What's actually written to stdin (a text-format def, per createFakeDef's default) is the
+    // SAME augmented prompt, not the raw one — this is the field that actually reaches the model.
+    expect(child.stdin!.writes).toEqual([promptArg]);
+  });
+
+  it("is byte-identical to today's behavior for a 'prompt-path' def when there are zero images", async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const def = createFakeDef({ buildArgs, imageDelivery: 'prompt-path' });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-image-prompt-path-empty' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'do the thing', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, undefined, undefined);
+    expect(child.stdin!.writes).toEqual(['do the thing']);
+  });
+
+  it("does not augment a path containing spaces and quotes out of existence — it survives verbatim into both the prompt and extraAllowedDirs", async () => {
+    const buildArgs = vi.fn((...args: Parameters<RuntimeAgentDef['buildArgs']>) => ['--flag']);
+    const def = createFakeDef({ buildArgs, imageDelivery: 'prompt-path' });
+    const { lifecycle, executor } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-image-prompt-path-quotes' });
+    const weirdPath = '/Users/x/My Pictures/a "great" shot.png';
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'describe this',
+      cwd: '/work',
+      imagePaths: [weirdPath],
+    });
+    await flushAsync();
+    await runPromise;
+
+    const [promptArg, , extraAllowedDirsArg] = buildArgs.mock.calls[0]!;
+    expect(promptArg).toContain(weirdPath);
+    expect(extraAllowedDirsArg).toEqual(['/Users/x/My Pictures']);
+  });
+
+  it("does NOT augment the prompt or widen extraAllowedDirs for a 'native' def, even with images present — the double-delivery hazard MSG-4 named", async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const def = createFakeDef({ buildArgs, imageDelivery: 'native' });
+    const { lifecycle, executor, child } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-image-native' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'describe this',
+      cwd: '/work',
+      imagePaths: ['/uploads/reference.png'],
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith(
+      'describe this', // unaugmented
+      ['/uploads/reference.png'],
+      undefined, // unwidened
+      undefined,
+      undefined,
+    );
+    expect(child.stdin!.writes).toEqual(['describe this']);
+  });
+
+  it("does NOT augment the prompt handed to an ACP session, even for a def with imageDelivery: 'native' and images present — ACP's own resource_link mechanism already delivers them", async () => {
+    const { lifecycle, executor, attachCalls } = createAcpHarness({ def: { imageDelivery: 'native' } });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-acp-image-native' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'describe this',
+      cwd: '/work',
+      imagePaths: ['/uploads/reference.png'],
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(attachCalls[0]?.prompt).toBe('describe this');
+    expect(attachCalls[0]?.imagePaths).toEqual(['/uploads/reference.png']);
+  });
+});
+
 describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
   it('rejects with AGENT_NOT_FOUND for an unknown agentId and finishes the run failed', async () => {
     const { lifecycle, executor } = createHarness({ def: null });

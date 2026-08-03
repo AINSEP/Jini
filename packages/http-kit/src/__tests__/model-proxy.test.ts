@@ -343,6 +343,48 @@ describe('POST /api/proxy/anthropic/stream', () => {
     expect(events.at(-1)).toEqual({ kind: 'end', data: { type: 'end', reason: 'stop' } });
   });
 
+  // Proves the full live route, not just the agent-runtime adapter in isolation: `parseCommon`
+  // never reshapes `messages`/tool-result content (see its own doc comment — provider wire-protocol
+  // shape is explicitly not this package's concern), and `writtenEvents` parses the *actual*
+  // `res.write` SSE bytes via `JSON.parse` rather than reading the in-memory event object, so this
+  // also proves `sse.ts`'s `JSON.stringify`-based wire format survives a nested image content block
+  // intact (no `String(...)` coercion anywhere on the way out — see `defaultFormatEvent`). This is
+  // the class of test MSG-2 asked for: it would have caught a silent-strip or a `[object Object]`
+  // stringification bug that a pure agent-runtime unit test (which only sees JS objects, never the
+  // JSON round trip) cannot.
+  it('round-trips an image-bearing tool result through the full live route: SSE-out and the continuation request body', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'take_screenshot', {}))))
+      .mockResolvedValueOnce(okResponse(sseBody(anthropicChunk('looks right'))));
+    vi.stubGlobal('fetch', fetchMock);
+    const imageBlock = {
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUg==' },
+    };
+    const anthropicExecuteTool = vi.fn().mockResolvedValue({ content: [imageBlock] });
+    const res = makeSseRes();
+    await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
+
+    // 1. The image survives out over the real SSE wire bytes (JSON.parse'd from res.write, not the
+    //    in-memory JS object) — proves `sse.ts` does not coerce `content` to a string.
+    const events = writtenEvents(res);
+    expect(events).toContainEqual({
+      kind: 'tool_result',
+      data: { type: 'tool_result', toolUseId: 'toolu_1', content: [imageBlock], isError: false },
+    });
+
+    // 2. The image survives into the second (continuation) request body sent to Anthropic — proves
+    //    `parseCommon`/the registry's `run` closure never reshapes tool-result content en route.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    expect(secondRequestBody.messages[2].content[0]).toEqual({
+      type: 'tool_result',
+      tool_use_id: 'toolu_1',
+      content: [imageBlock],
+    });
+  });
+
   it('SEC-005: catches an executeTool exception, redacts it behind a correlation id, and still ends the stream exactly once', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom_tool', {}))));
     vi.stubGlobal('fetch', fetchMock);
@@ -780,6 +822,32 @@ describe('POST /api/proxy/ollama/stream', () => {
   });
 
   // Ollama Cloud, not a local install — the corrected default (see module doc's BYOK section).
+  // Same class of test as the Anthropic one above (MSG-2): reads the actual `res.write` SSE bytes
+  // via `writtenEvents`'s `JSON.parse`, and asserts the bare-base64 image survives into the real
+  // continuation request body — proving the live route, not just the adapter in isolation. Ollama's
+  // `parseCommon`/registry wiring is identical to every other provider's (see model-proxy.ts's own
+  // doc — the ignorance of `messages` contents is uniform across all five providers, not
+  // Anthropic-specific), so this closes the same gap MSG-2 investigated for the fifth provider.
+  it('round-trips a bare-base64 image-bearing tool result through the full live route', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaToolCallLine('take_screenshot', {}), ollamaDoneLine())))
+      .mockResolvedValueOnce(okResponse(ollamaBody(ollamaTextLine('looks right'), ollamaDoneLine())));
+    vi.stubGlobal('fetch', fetchMock);
+    const ollamaExecuteTool = vi.fn().mockResolvedValue({ content: 'here is the screenshot', images: ['iVBORw0KGgoAAAANSUhEUg=='] });
+    const res = makeSseRes();
+    await handler({ ollamaExecuteTool })(makeReq(validOllamaBody), res);
+
+    const events = writtenEvents(res);
+    const toolResultEvent = events.find((e) => e.kind === 'tool_result')!;
+    expect((toolResultEvent.data as { images?: string[] }).images).toEqual(['iVBORw0KGgoAAAANSUhEUg==']);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const secondRequestBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+    const toolMessage = secondRequestBody.messages.find((m: { role: string }) => m.role === 'tool');
+    expect(toolMessage.images).toEqual(['iVBORw0KGgoAAAANSUhEUg==']);
+  });
+
   it('falls back to https://ollama.com/api/chat when baseUrl is omitted', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaDoneLine())));
     vi.stubGlobal('fetch', fetchMock);

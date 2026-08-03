@@ -330,7 +330,11 @@ export const amrAgentDef = {
   // free-text "Custom" id silently fails at spawn. The model picker
   // surfaces the live Vela catalog instead.
   supportsCustomModel: false,
-  supportsImagePaths: true,
+  // vela's ACP transport carries images as `resource_link` prompt blocks —
+  // see `agent-protocol/acp/session-params.ts#buildPromptBlocks`, shared by
+  // every `acp-json-rpc` def, confirmed live to receive `imagePaths` from
+  // `agent-executor.ts#wireAcpLifecycle` for all 9 of them, not just AMR.
+  imageDelivery: 'native',
   // Daemon-process env override for emergency operator pinning. Normal UI
   // selection comes from the live `vela models` catalog and is preflighted
   // before spawn.

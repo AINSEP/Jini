@@ -60,6 +60,11 @@ export * from './utils/polygon-selection.js';
 export * from './utils/scroll-tabs-with-wheel.js';
 export * from './utils/color-math.js';
 export * from './utils/design-md.js';
+// Promoted to the public barrel 2026-08-03: previously package-internal only, reached by
+// `useFileDropTarget.js` (also exported below) and by three in-package features via relative
+// import. `@jini-ai/chat`'s `./react` subpath needs `FILE_SYSTEM_READ_ERROR_MESSAGE` for a test
+// assertion now that it's an external package rather than living inside `ui`.
+export * from './utils/file-system-errors.js';
 
 export * from './react/hooks/useInView.js';
 export * from './react/hooks/useCoalescedCallback.js';

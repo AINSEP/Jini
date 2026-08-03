@@ -48,6 +48,9 @@ export const reasonixAgentDef = {
     streamFormat: 'acp-json-rpc',
     mcpDiscovery: 'mature-acp',
     externalMcpInjection: 'acp-merge',
+    // ACP's `resource_link` prompt blocks carry images natively for every
+    // `acp-json-rpc` def — see `types.ts#RuntimeAgentDef.imageDelivery`'s doc.
+    imageDelivery: 'native',
     acpMcpEnvFormat: 'map',
     env: {
       REASONIX_HOME: reasonixHome(),

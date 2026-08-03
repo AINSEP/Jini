@@ -408,4 +408,165 @@ describe('runGoogleToolTurn', () => {
     expect(events.some((e) => e.type === 'usage')).toBe(false);
     expect(result.finishReason).toBeNull();
   });
+
+  describe('image support', () => {
+    const pngBase64 = Buffer.from('fake-png-bytes').toString('base64');
+
+    it('round-trips an inlineData part in the initial request body, alongside a plain text part', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(textCandidate('hi', 'STOP'))));
+      vi.stubGlobal('fetch', fetchMock);
+      const contents: GoogleContent[] = [
+        { role: 'user', parts: [{ text: "what's in this image?" }, { inlineData: { mimeType: 'image/png', data: pngBase64 } }] },
+      ];
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents, onEvent: () => {} });
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      expect(body.contents[0]).toEqual({
+        role: 'user',
+        parts: [{ text: "what's in this image?" }, { inlineData: { mimeType: 'image/png', data: pngBase64 } }],
+      });
+    });
+
+    it('still sends plain-text-only contents unchanged (backward compatibility)', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(textCandidate('hi', 'STOP'))));
+      vi.stubGlobal('fetch', fetchMock);
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, onEvent: () => {} });
+      const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
+      expect(body.contents).toEqual([{ role: 'user', parts: [{ text: 'hi' }] }]);
+    });
+
+    it('folds a tool result screenshot into the same continuation Content as the functionResponse, keeping functionResponse.response.content plain text', async () => {
+      const firstBody = sseBody(functionCallCandidate('screenshot', {}, 'fc_1'), textCandidate('', 'STOP'));
+      const secondBody = sseBody(textCandidate('looks good', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({
+        content: [{ text: 'here is the current render' }, { inlineData: { mimeType: 'image/png', data: pngBase64 } }],
+      });
+      const events: GoogleTurnEvent[] = [];
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(secondCallBody.contents).toHaveLength(3);
+      expect(secondCallBody.contents[2]).toEqual({
+        role: 'user',
+        parts: [
+          { functionResponse: { name: 'screenshot', id: 'fc_1', response: { content: 'here is the current render', isError: false } } },
+          { text: 'Image output from tool `screenshot` (tool_call_id: fc_1):' },
+          { inlineData: { mimeType: 'image/png', data: pngBase64 } },
+        ],
+      });
+      expect(events).toContainEqual({
+        type: 'tool_result',
+        toolUseId: 'fc_1',
+        content: [{ text: 'here is the current render' }, { inlineData: { mimeType: 'image/png', data: pngBase64 } }],
+        isError: false,
+      });
+    });
+
+    it('batches a multi-tool-call turn correctly: all functionResponse parts come first, then one labeled follow-up section covering only the calls that returned images', async () => {
+      const firstBody = sseBody(
+        chunk({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  { functionCall: { name: 'get_weather', args: {}, id: 'fc_1' } },
+                  { functionCall: { name: 'screenshot', args: {}, id: 'fc_2' } },
+                  { functionCall: { name: 'screenshot_2', args: {}, id: 'fc_3' } },
+                ],
+              },
+              index: 0,
+              finishReason: 'STOP',
+            },
+          ],
+        }),
+      );
+      const secondBody = sseBody(textCandidate('ok', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi
+        .fn()
+        .mockResolvedValueOnce({ content: '72F sunny' })
+        .mockResolvedValueOnce({ content: [{ inlineData: { mimeType: 'image/png', data: pngBase64 } }] })
+        .mockResolvedValueOnce({ content: [{ inlineData: { mimeType: 'image/png', data: `${pngBase64}2` } }] });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: () => {} });
+
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      // contents: [baseContents, model(3 functionCalls), user(3 functionResponses + one batched labeled image section)]
+      expect(secondCallBody.contents).toHaveLength(3);
+      expect(secondCallBody.contents[2]).toEqual({
+        role: 'user',
+        parts: [
+          { functionResponse: { name: 'get_weather', id: 'fc_1', response: { content: '72F sunny', isError: false } } },
+          {
+            functionResponse: {
+              name: 'screenshot',
+              id: 'fc_2',
+              response: { content: '(tool result included only non-text content; see the accompanying image parts)', isError: false },
+            },
+          },
+          {
+            functionResponse: {
+              name: 'screenshot_2',
+              id: 'fc_3',
+              response: { content: '(tool result included only non-text content; see the accompanying image parts)', isError: false },
+            },
+          },
+          { text: 'Image output from tool `screenshot` (tool_call_id: fc_2):' },
+          { inlineData: { mimeType: 'image/png', data: pngBase64 } },
+          { text: 'Image output from tool `screenshot_2` (tool_call_id: fc_3):' },
+          { inlineData: { mimeType: 'image/png', data: `${pngBase64}2` } },
+        ],
+      });
+    });
+
+    it('substitutes a placeholder response.content string when a tool result is image-only', async () => {
+      const firstBody = sseBody(functionCallCandidate('screenshot', {}, 'fc_1'), textCandidate('', 'STOP'));
+      const secondBody = sseBody(textCandidate('ok', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/png', data: pngBase64 } }] });
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: () => {} });
+      const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
+      expect(secondCallBody.contents[2].parts[0].functionResponse.response.content).toBe(
+        '(tool result included only non-text content; see the accompanying image parts)',
+      );
+    });
+
+    it('rejects an unsupported image mimeType as an isError tool_result instead of forwarding it', async () => {
+      const firstBody = sseBody(functionCallCandidate('screenshot', {}, 'fc_1'), textCandidate('', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('ok', 'STOP'))));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/tiff', data: 'AAAA' } }] });
+      const events: GoogleTurnEvent[] = [];
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+      const toolResultEvent = events.find((e) => e.type === 'tool_result');
+      expect(toolResultEvent).toMatchObject({ isError: true });
+      expect((toolResultEvent as { content: string }).content).toContain('unsupported image mimeType');
+    });
+
+    it('rejects an oversized inline image as an isError tool_result', async () => {
+      const firstBody = sseBody(functionCallCandidate('screenshot', {}, 'fc_1'), textCandidate('', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('ok', 'STOP'))));
+      vi.stubGlobal('fetch', fetchMock);
+      const oversized = 'A'.repeat(Math.ceil((20 * 1024 * 1024 * 4) / 3) + 100);
+      const executeTool = vi.fn().mockResolvedValue({ content: [{ inlineData: { mimeType: 'image/png', data: oversized } }] });
+      const events: GoogleTurnEvent[] = [];
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+      const toolResultEvent = events.find((e) => e.type === 'tool_result');
+      expect(toolResultEvent).toMatchObject({ isError: true });
+      expect((toolResultEvent as { content: string }).content).toContain('20 MB inline-data base64 size guard');
+    });
+
+    it('preserves an executeTool isError:true alongside a rejected image (validation failure still wins the message)', async () => {
+      const firstBody = sseBody(functionCallCandidate('screenshot', {}, 'fc_1'), textCandidate('', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('ok', 'STOP'))));
+      vi.stubGlobal('fetch', fetchMock);
+      const executeTool = vi.fn().mockResolvedValue({ content: 'plain error text', isError: true });
+      const events: GoogleTurnEvent[] = [];
+      await runGoogleToolTurn({ apiKey: 'k', model: 'gemini-2.5-flash', contents: baseContents, executeTool, onEvent: (e) => events.push(e) });
+      expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'fc_1', content: 'plain error text', isError: true });
+    });
+  });
 });

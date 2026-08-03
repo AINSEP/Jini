@@ -31,7 +31,7 @@ import {
 } from 'node:fs/promises';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatAttachment } from '@jini-ai/chat-core';
+import type { ChatAttachment } from '@jini-ai/chat/core';
 import {
   ATTACHMENTS_ROUTE_PATH,
   AttachmentRejectedError,
@@ -48,7 +48,7 @@ import {
 } from '../attachments.js';
 
 // ---------------------------------------------------------------------------
-// The mirrored wire type must stay assignable to `@jini-ai/chat-core`'s `ChatAttachment`
+// The mirrored wire type must stay assignable to `@jini-ai/chat/core`'s `ChatAttachment`
 // ---------------------------------------------------------------------------
 
 /**

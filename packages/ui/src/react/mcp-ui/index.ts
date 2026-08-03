@@ -8,9 +8,15 @@
  * This half owns React and the DOM; it never hand-builds HTML. The documents it mounts come from
  * `@jini-ai/ui/mcp-ui/surfaces` (`../../features/mcp-ui/`), which owns no React. The dependency runs
  * one way only.
+ *
+ * `McpUiSurfaceCard`/`registerMcpUiSurfaceRenderer` moved to `@jini-ai/chat/react` 2026-08-03: it's
+ * a chat-transcript ext-event renderer (chat domain), not a generic mcp-ui hosting primitive, and
+ * keeping it here would have made this package depend on `@jini-ai/chat` — a cycle, since
+ * `@jini-ai/chat` already depends on `@jini-ai/ui` for shared React primitives. `McpUiHost` and
+ * `useMcpUiHost` (the actual sandboxed-iframe hosting mechanics, reused by more than the chat
+ * integration) stay here.
  */
 export * from './McpUiHost.js';
-export * from './McpUiSurfaceCard.js';
 export * from './host-message-source.js';
 export * from './useMcpUiHost.js';
 

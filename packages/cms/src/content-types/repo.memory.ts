@@ -71,13 +71,30 @@ export class NoopContentTypeIndexProvisioner implements IndexProvisionerPort, Te
  * narrower `{enqueue({name,payload})}` shape this package's write-service/lifecycle modules
  * declare locally (mirrors their own "no shared import, kept decoupled" convention). */
 export function toContentTypeOutbox(deps: {
-  outbox: { enqueue(event: { id: string; name: string; occurredAt: string; payload: Record<string, unknown> }): Promise<void> };
+  outbox: {
+    enqueue(event: {
+      id: string;
+      workspaceId: string;
+      name: string;
+      occurredAt: string;
+      payload: Record<string, unknown>;
+    }): Promise<void>;
+  };
   clock: { nowIso(): string };
   idGen: { newId(): string };
+  /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale (ADR-007
+   * tenant boundary, NOT NULL in persistent adapters, previously under-declared and omitted). */
+  workspaceId: string;
 }): OutboxPort {
   return {
     enqueue: async (event) => {
-      await deps.outbox.enqueue({ id: deps.idGen.newId(), name: event.name, occurredAt: deps.clock.nowIso(), payload: event.payload });
+      await deps.outbox.enqueue({
+        id: deps.idGen.newId(),
+        workspaceId: deps.workspaceId,
+        name: event.name,
+        occurredAt: deps.clock.nowIso(),
+        payload: event.payload,
+      });
     },
   };
 }

@@ -143,16 +143,28 @@ export function noopStampWatermark(): void {}
  * `name`/`occurredAt` at their top level (unlike `content-types`/`entries`' nested-`payload`
  * shape), so this wrapper forwards them as the full event payload rather than re-nesting. */
 export function toTaxonomyOutbox(deps: {
-  outbox: { enqueue(event: { id: string; name: string; occurredAt: string; payload: Record<string, unknown> }): Promise<void> };
+  outbox: {
+    enqueue(event: {
+      id: string;
+      workspaceId: string;
+      name: string;
+      occurredAt: string;
+      payload: Record<string, unknown>;
+    }): Promise<void>;
+  };
   clock: { nowIso(): string };
   idGen: { newId(): string };
+  /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale. Taxonomy is
+   * the case that rules out reading the tenant off the event: its own event objects
+   * (`{name, taxonomyId, actorId, occurredAt}`) carry no `workspaceId` at all. */
+  workspaceId: string;
 }): { enqueue: (event: unknown) => Promise<void> } {
   return {
     enqueue: async (event) => {
       const record = event as Record<string, unknown>;
       const name = typeof record.name === "string" ? record.name : "taxonomy.event";
       const occurredAt = typeof record.occurredAt === "string" ? record.occurredAt : deps.clock.nowIso();
-      await deps.outbox.enqueue({ id: deps.idGen.newId(), name, occurredAt, payload: record });
+      await deps.outbox.enqueue({ id: deps.idGen.newId(), workspaceId: deps.workspaceId, name, occurredAt, payload: record });
     },
   };
 }
