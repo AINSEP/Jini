@@ -139,6 +139,24 @@ pnpm guard        # boundary + neutrality checks
 pnpm typecheck
 ```
 
+## Cloud dispatch — standing rules
+
+Applies to every unattended run launched against this repository: `RemoteTrigger`, scheduled routines, any agent working with no human watching. Every rule here has already cost a real run.
+
+**1. Set up before reading a single source file.** `dist/` is gitignored, so a fresh clone has **no build output** and every `@jini-ai/*` import resolves to nothing. Run `pnpm install && pnpm -r build` first. Host repos (Tovu, Tovu-Runner, Zana) declare their deps as `file:../Jini/packages/*`, so when one is mounted alongside, this checkout must be named **exactly** `Jini`. Then record a **green baseline on the unmodified tree**, so a setup failure is never mistaken for your own breakage.
+
+**2. Commit and push every 5–10 minutes, or per package/logical unit — whichever comes first.** Never batch a job into one commit at the end. `wip:` prefixes are fine; history can be squashed, lost work cannot be recovered. Two reasons:
+- **Partial work must survive.** 300 of 523 edits committed beats 523 edited and lost.
+- **Your commits are the only telemetry.** The trigger API exposes no transcript or session URL. From outside, an agent that has not pushed in 15 minutes is indistinguishable from a dead one.
+
+**3. Never gate a commit on tests passing.** Commit the work, *then* verify, *then* commit fixes. Report failures honestly rather than withholding work. A de-branding sweep dispatched 2026-08-03 required green-before-commit and omitted the setup step above; it ran 65+ minutes and pushed nothing.
+
+**4. Always `git pull --rebase` immediately before pushing. Never force-push.** A human may be committing to the same branch concurrently — this one moved four times in an hour on 2026-08-03. If a rebase will not resolve cleanly, push to a named fallback branch and say so prominently in the report.
+
+**5. Report every pushed SHA and the branch.** Not "done" — the actual commits, so the work can be found. Confirm the push succeeded; do not trust "I'm finished."
+
+Per-package tests run as `npm --prefix packages/<pkg> run test`. A root-level `npx vitest` has no jsdom and fails DOM tests misleadingly.
+
 ## Provenance
 
 Apache-2.0 (inherited from OD). See `NOTICE` and per-package `source-map.md`. Backups of the pre-extraction `integrated` OD trunk are in `../jini-backups/`.
