@@ -16,6 +16,7 @@
       ".": "universal",
       "./core": "universal",
       "./browser": "browser",
+      "./react": "browser",
       "./server": "node"
     }
   },
@@ -38,6 +39,11 @@
       "types": "./dist/browser/index.d.ts",
       "import": "./dist/browser/index.js",
       "default": "./dist/browser/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js",
+      "default": "./dist/react/index.js"
     },
     "./server": {
       "types": "./dist/server/index.d.ts",
@@ -77,6 +83,13 @@
   },
   "devDependencies": {
     "@jini-ai/protocol": "workspace:*",
-    "@vitest/coverage-v8": "^2.1.9"
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
   }
 }

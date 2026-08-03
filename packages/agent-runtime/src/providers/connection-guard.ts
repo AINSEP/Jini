@@ -17,14 +17,14 @@
  * tokens / API-key headers / `?key=` query values out of free-form text
  * before it is logged or surfaced to a caller.
  *
- * ## Paired with `@jini-ai/ui-core`'s `utils/endpoint-policy.ts`
+ * ## Paired with `@jini-ai/ui`'s `utils/endpoint-policy.ts`
  *
  * That module carries a browser-safe copy of the SYNCHRONOUS half below —
  * `isLoopbackApiHost`/`isBlockedExternalApiHostname`/`validateBaseUrl` — so the
  * settings tabs can reject a bad endpoint as the operator types it. It is a
- * copy rather than an import because `ui-core` ships zero dependencies by
- * design and this package is Node-only (`validateBaseUrlResolved` needs
- * `node:dns`); see that file's header for the full reasoning.
+ * copy rather than an import because `endpoint-policy.ts` itself has zero
+ * imports by design and this package is Node-only (`validateBaseUrlResolved`
+ * needs `node:dns`); see that file's header for the full reasoning.
  *
  * **If the block-list here changes, change it there too.** A divergence means
  * the UI accepts an endpoint this guard then refuses — or, in the direction
@@ -129,7 +129,7 @@ export function isBlockedExternalApiHostname(hostname: string): boolean {
  * Synchronous base-URL check: scheme allow-list + literal-hostname block-list.
  * Does not resolve DNS — see {@link validateBaseUrlResolved}.
  *
- * **Trims before parsing, and must keep doing so.** `ui-core`'s
+ * **Trims before parsing, and must keep doing so.** `@jini-ai/ui`'s
  * `isAllowedEndpointUrl` is a deliberate browser-safe copy of this function and
  * trims its input; this one did not. WHATWG URL parsing strips leading/trailing
  * ASCII space itself, so the two agreed on `" https://x "` and diverged only on

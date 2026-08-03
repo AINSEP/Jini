@@ -11,7 +11,13 @@
     // without a jsdom environment so a `window` reference in core fails loudly. Type-level
     // enforcement is not available without splitting the package into two tsconfigs, which is a
     // heavier trade than the runtime guard is worth.
-    "lib": ["ES2023", "DOM", "DOM.Iterable"]
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    // For `src/react/**` only. The other three layers contain no JSX; this setting costs them
+    // nothing, and splitting the package into a second tsconfig to keep it off them would buy no
+    // enforcement that `"jsx"` alone provides — a stray `.tsx` under `src/core/` would be caught by
+    // the no-jsdom runtime guard in `vitest.config.ts` the moment it touched the DOM.
+    "jsx": "react-jsx",
+    "types": ["@testing-library/jest-dom"]
   },
   "include": ["src"]
 }
