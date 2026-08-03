@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/cms",
   "version": "0.1.0",
-  "description": "Content-model capability for Jini-hosted products: framework-free content contracts, ports, and domain services in `/core`; Node-bound persistence adapters in `/server`. Placeholder — the implementation is being ported from Tovu.",
+  "description": "Content-model capability for Jini-hosted products: framework-free contracts, ports, and domain services in `/core` and per-domain subpaths; Node-bound persistence adapters in `/server`.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -15,11 +15,19 @@
     "entries": {
       ".": "universal",
       "./core": "universal",
-      "./server": "node"
+      "./identity": "node",
+      "./server": "node",
+      "./identity/hasher": "node",
+      "./navigation": "universal",
+      "./media": "universal",
+      "./settings": "universal",
+      "./workspace": "universal"
     }
   },
   "type": "module",
-  "sideEffects": false,
+  "sideEffects": [
+    "./dist/identity/permissions.js"
+  ],
   "main": "./dist/core/index.js",
   "types": "./dist/core/index.d.ts",
   "exports": {
@@ -37,6 +45,36 @@
       "types": "./dist/server/index.d.ts",
       "import": "./dist/server/index.js",
       "default": "./dist/server/index.js"
+    },
+    "./identity": {
+      "types": "./dist/identity/index.d.ts",
+      "import": "./dist/identity/index.js",
+      "default": "./dist/identity/index.js"
+    },
+    "./identity/hasher": {
+      "types": "./dist/identity/hasher.d.ts",
+      "import": "./dist/identity/hasher.js",
+      "default": "./dist/identity/hasher.js"
+    },
+    "./navigation": {
+      "types": "./dist/navigation/index.d.ts",
+      "import": "./dist/navigation/index.js",
+      "default": "./dist/navigation/index.js"
+    },
+    "./media": {
+      "types": "./dist/media/index.d.ts",
+      "import": "./dist/media/index.js",
+      "default": "./dist/media/index.js"
+    },
+    "./settings": {
+      "types": "./dist/settings/index.d.ts",
+      "import": "./dist/settings/index.js",
+      "default": "./dist/settings/index.js"
+    },
+    "./workspace": {
+      "types": "./dist/workspace/index.d.ts",
+      "import": "./dist/workspace/index.js",
+      "default": "./dist/workspace/index.js"
     }
   },
   "files": [
@@ -55,9 +93,27 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "check:packaging": "node scripts/check-packaging.mjs"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
+    "@vitest/coverage-v8": "^2.1.9",
+    "argon2": "^0.44.0",
+    "sharp": "^0.35.3"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:*"
+  },
+  "peerDependencies": {
+    "argon2": "^0.44.0",
+    "sharp": "^0.35.3"
+  },
+  "peerDependenciesMeta": {
+    "argon2": {
+      "optional": true
+    },
+    "sharp": {
+      "optional": true
+    }
   }
 }
