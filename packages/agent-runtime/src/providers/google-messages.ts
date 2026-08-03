@@ -117,6 +117,31 @@ export interface GoogleFunctionCallPart {
     readonly args: unknown;
     readonly id?: string;
   };
+  /**
+   * An opaque, encrypted handle on the model's reasoning for this call. A SIBLING of `functionCall`
+   * on the same `Part`, not a field inside it — verified against a live response, not inferred:
+   *
+   * ```json
+   * { "functionCall": { "name": "render_preview", "args": {}, "id": "UgFzM3QW" },
+   *   "thoughtSignature": "EukCCuYCARFNMg+HEX+iufpVJfgG..." }
+   * ```
+   *
+   * **Required on the continuation request.** Omitting it makes every currently-served Gemini model
+   * reject the follow-up with HTTP 400:
+   *
+   * > Function call is missing a thought_signature in functionCall parts. This is required for
+   * > tools to work correctly … Additional data, function call `default_api:<name>`, position 2.
+   *
+   * so the whole tool loop fails before the model evaluates anything. Note the wire key is
+   * camelCase `thoughtSignature` even though the error message spells it `thought_signature`.
+   *
+   * Treated as **opaque and echoed back verbatim** — never parsed, normalized, or synthesized. It
+   * is encrypted model state; a value we invent is not a weaker signature, it is an invalid one.
+   * Optional because a model may return a `functionCall` without one (older models, and non-thinking
+   * paths), and in that case the correct continuation omits the field rather than sending an empty
+   * string.
+   */
+  readonly thoughtSignature?: string;
 }
 
 export interface GoogleFunctionResponsePart {
@@ -151,6 +176,9 @@ export interface GoogleToolCall {
   readonly id: string;
   readonly name: string;
   readonly input: unknown;
+  /** Carried from the response `Part` to the continuation `Part` untouched — see
+   *  `GoogleFunctionCallPart.thoughtSignature` for why omitting it breaks the whole tool loop. */
+  readonly thoughtSignature?: string;
 }
 
 /** `content` may include `GoogleInlineDataPart`s (e.g. a vision self-check's screenshot) — `runGoogleToolTurn` folds them into the continuation `Content`'s `parts` alongside the `functionResponse`; see module doc's "No documented way to attach an image to a functionResponse" section. */
@@ -380,7 +408,15 @@ async function runSingleGoogleRequest(
         const name = typeof fc.name === 'string' ? fc.name : null;
         if (name) {
           const id = typeof fc.id === 'string' && fc.id.length > 0 ? fc.id : `call_${toolCalls.length}`;
-          const call: GoogleToolCall = { id, name, input: fc.args ?? {} };
+          // Read off the PART, not off `fc` — `thoughtSignature` is a sibling of `functionCall`,
+          // not a member of it. Only a non-empty string is carried: a missing signature and an
+          // empty one are different states, and the continuation must omit the field entirely
+          // rather than send `""`, which the API treats as a malformed signature rather than as
+          // "absent". See `GoogleFunctionCallPart.thoughtSignature`.
+          const signature = typeof rawPart.thoughtSignature === 'string' && rawPart.thoughtSignature.length > 0
+            ? rawPart.thoughtSignature
+            : undefined;
+          const call: GoogleToolCall = { id, name, input: fc.args ?? {}, ...(signature ? { thoughtSignature: signature } : {}) };
           toolCalls.push(call);
           onEvent({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
         }
@@ -526,7 +562,16 @@ export async function runGoogleToolTurn(options: GoogleTurnOptions): Promise<Goo
 
     const modelParts: GooglePart[] = [
       ...(outcome.text ? [{ text: outcome.text } as const] : []),
-      ...outcome.toolCalls.map((call) => ({ functionCall: { name: call.name, args: call.input, id: call.id } }) as const),
+      // `thoughtSignature` is spread back on as a SIBLING of `functionCall`, in the same shape the
+      // response delivered it, and only when the response actually carried one — a `functionCall`
+      // part with no signature is legal; one with an empty-string signature is not.
+      ...outcome.toolCalls.map(
+        (call) =>
+          ({
+            functionCall: { name: call.name, args: call.input, id: call.id },
+            ...(call.thoughtSignature ? { thoughtSignature: call.thoughtSignature } : {}),
+          }) as const,
+      ),
     ];
     const functionResponseParts: GooglePart[] = [];
     // Every `functionResponse` part for this batch is pushed here first; the labeled image parts

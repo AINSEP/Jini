@@ -569,4 +569,68 @@ describe('runGoogleToolTurn', () => {
       expect(events).toContainEqual({ type: 'tool_result', toolUseId: 'fc_1', content: 'plain error text', isError: true });
     });
   });
+
+  describe('thoughtSignature', () => {
+    /**
+     * Regression cover for a measured production break: every currently-served Gemini model
+     * rejects a tool continuation whose `functionCall` part carries no `thoughtSignature`, with
+     * HTTP 400 "Function call is missing a thought_signature in functionCall parts". The whole
+     * loop failed before the model evaluated anything, so this is not a quality nicety.
+     *
+     * The shape is the easy thing to get wrong: `thoughtSignature` is a SIBLING of `functionCall`
+     * on the same `Part`, not a field inside it. Verified against a live response.
+     */
+    function signedFunctionCallCandidate(name: string, args: unknown, id: string, signature: string): string {
+      return chunk({
+        candidates: [
+          { content: { role: 'model', parts: [{ functionCall: { name, args, id }, thoughtSignature: signature }] }, index: 0 },
+        ],
+      });
+    }
+
+    it('echoes the thoughtSignature back on the continuation, verbatim and as a sibling of functionCall', async () => {
+      const SIGNATURE = 'EukCCuYCARFNMg+HEX+iufpVJfgG/opaque==';
+      const firstBody = sseBody(signedFunctionCallCandidate('render_preview', {}, 'fc_1', SIGNATURE), textCandidate('', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('done', 'STOP'))));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await runGoogleToolTurn({
+        apiKey: 'k',
+        model: 'gemini-2.5-flash',
+        contents: baseContents,
+        executeTool: vi.fn().mockResolvedValue({ content: 'ok' }),
+        onEvent: () => {},
+      });
+
+      const continuation = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string) as { contents: GoogleContent[] };
+      const modelContent = continuation.contents.find((c) => c.role === 'model');
+      const callPart = modelContent?.parts.find((p) => 'functionCall' in p) as unknown as Record<string, unknown>;
+
+      // Sibling, not nested — asserted explicitly, because nesting it inside `functionCall` is the
+      // natural-looking mistake and would sail through a loose `args: unknown`.
+      expect(callPart.thoughtSignature).toBe(SIGNATURE);
+      expect((callPart.functionCall as Record<string, unknown>).thoughtSignature).toBeUndefined();
+    });
+
+    it('omits thoughtSignature entirely when the response carried none, rather than sending an empty string', async () => {
+      // A `functionCall` with no signature is legal (older/non-thinking paths). An empty-string
+      // signature is NOT — the API reads it as malformed rather than as "absent", so "absent" and
+      // "empty" must stay distinguishable all the way to the wire.
+      const firstBody = sseBody(functionCallCandidate('render_preview', {}, 'fc_1'), textCandidate('', 'STOP'));
+      const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(sseBody(textCandidate('done', 'STOP'))));
+      vi.stubGlobal('fetch', fetchMock);
+
+      await runGoogleToolTurn({
+        apiKey: 'k',
+        model: 'gemini-2.5-flash',
+        contents: baseContents,
+        executeTool: vi.fn().mockResolvedValue({ content: 'ok' }),
+        onEvent: () => {},
+      });
+
+      const continuation = JSON.parse(fetchMock.mock.calls[1]?.[1]?.body as string) as { contents: GoogleContent[] };
+      const callPart = continuation.contents.find((c) => c.role === 'model')?.parts.find((p) => 'functionCall' in p) as unknown as Record<string, unknown>;
+      expect('thoughtSignature' in callPart).toBe(false);
+    });
+  });
 });
