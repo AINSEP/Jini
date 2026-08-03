@@ -38,8 +38,11 @@
  * module's tool-call loop kept the OpenAI-compatible wire shape for both the
  * emitted lifecycle event and the continuation request — `tool_use` was
  * never emitted, and the assistant/tool continuation messages used a
- * stringified `arguments` blob with `id`/`type`/`tool_call_id` fields that
- * don't exist in Ollama's native tool-call schema. Fixed: `tool_use` now
+ * stringified `arguments` blob plus a `type` discriminator that does not
+ * exist in Ollama's native tool-call schema. (Narrowed 2026-08-03: this note
+ * previously also named `id`/`tool_call_id` as nonexistent, which is wrong —
+ * see `OllamaMessageParam.tool_name`'s doc for what `api/types.go` actually
+ * declares. `type` is the only genuinely absent field.) Fixed: `tool_use` now
  * fires for every resolved call as soon as the stream ends (see
  * `runSingleOllamaRequest`), and `OllamaToolCallParam`/`OllamaMessageParam`
  * now match Ollama's own documented shape (`arguments` as a native object,
@@ -134,7 +137,21 @@ export interface OllamaMessageParam {
   /** Bare base64-encoded image strings — no `data:` URI prefix, no `media_type` field (see module doc's "Image support" section for the verified real wire shape). Legal on any role, `tool` included — Ollama's server-side prompt builder reads this field with no role restriction. */
   readonly images?: readonly string[];
   readonly tool_calls?: readonly OllamaToolCallParam[];
-  /** Ollama's native tool-result association field — NOT `tool_call_id` (that's the OpenAI shape; Ollama has no call-id concept on the wire). */
+  /**
+   * Ollama's name-based tool-result association field. This adapter associates by name rather than
+   * by call id — a deliberate choice, NOT a limitation of the protocol.
+   *
+   * Corrected 2026-08-03 against Ollama's own `api/types.go`: an earlier version of this comment
+   * claimed "Ollama has no call-id concept on the wire", and that is false. `Message` declares BOTH
+   * `ToolName string \`json:"tool_name,omitempty"\`` and `ToolCallID string \`json:"tool_call_id,omitempty"\``,
+   * and `ToolCall` carries `ID string \`json:"id,omitempty"\``. Only OpenAI's `type` discriminator is
+   * genuinely absent from Ollama's `ToolCall`.
+   *
+   * Name-based association is still correct here, and is what `OllamaToolCall.id` being synthesized
+   * locally (see below) is built around — but if parallel calls to the SAME tool in one turn ever
+   * need disambiguating, `tool_call_id` is available on the wire and is the right fix. Do not
+   * re-derive "the protocol can't do it".
+   */
   readonly tool_name?: string;
 }
 
