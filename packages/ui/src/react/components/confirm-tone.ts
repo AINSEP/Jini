@@ -1,10 +1,16 @@
 /**
- * @file Vocabulary shared across this layer's components, so picking one does not drag in another.
+ * @file Confirmation-tone vocabulary, shared by `ConfirmDialog` and `RowMenu` so picking one does
+ * not drag in the other.
  *
  * `ConfirmTone` lived in `ConfirmDialog.tsx` and was imported from there by `RowMenu.tsx`. The
  * import was type-only and therefore free at runtime, but it still said something untrue about the
  * package: that a host wanting only a row menu depends on the confirm dialog. In a layer whose
  * whole premise is "take the pieces you need", that is the wrong signal to send.
+ *
+ * Named for what it holds rather than the bare `types.ts` it arrived as: this package has ~40
+ * feature domains carrying a `types.ts` apiece, so an unqualified one sitting beside the flat
+ * components would read as "the React layer's types" — far broader than the three-value enum and
+ * two helpers actually here.
  */
 
 /**

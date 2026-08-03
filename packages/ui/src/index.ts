@@ -106,3 +106,13 @@ export * from './react/components/EditorIcon.js';
 export * from './react/components/TokenChip.js';
 export * from './react/components/ValueChip.js';
 export * from './react/components/ComponentKitPreview.js';
+
+// Domain-blind list/confirmation chrome, moved here from `@jini-ai/admin/react` — none of it knew
+// anything about admin panels, which is what put it on the wrong side of that package's `/core`
+// boundary. `@jini-ai/admin` keeps `Sidebar` (and its rail hook), which genuinely does read the
+// panel registry and route model. See packages/ui/source-map.md.
+export * from './react/components/confirm-tone.js';
+export * from './react/components/ConfirmButton.js';
+export * from './react/components/ConfirmDialog.js';
+export * from './react/components/DataTable.js';
+export * from './react/components/RowMenu.js';

@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 
 /**
- * @file The admin list table.
+ * @file The generic list table.
  *
  * ## Designed from the corpus, not from what a table component usually has
  *
- * This replaces 25 hand-rolled `<table>` blocks across one reference admin, every one of which had
+ * This replaces 25 hand-rolled `<table>` blocks across one reference host, every one of which had
  * the identical skeleton — a `.table-scroll` wrapper, a `.list-table`, a `<thead>` of plain `<th>`,
  * and a `<tbody>` mapping rows — wrapped in a ternary that rendered an empty state instead when
  * there was nothing to show. That ternary is the single most duplicated thing in the corpus, which
@@ -38,10 +38,10 @@ import type { ReactNode } from 'react';
  *
  * ## Styling contract
  *
- * Unstyled, like everything in this layer: `.table-scroll` and `.list-table` are emitted for the
- * host stylesheet to define. The wrapper is not decorative — `overflow-x: auto` on it is what makes
- * a wide table scroll instead of breaking the page, and it is also why `RowMenu` portals its popup
- * out to `document.body` rather than positioning inside this box.
+ * Unstyled, like the rest of this flat-component set: `.table-scroll` and `.list-table` are
+ * emitted for the host stylesheet to define. The wrapper is not decorative — `overflow-x: auto` on
+ * it is what makes a wide table scroll instead of breaking the page, and it is also why `RowMenu`
+ * portals its popup out to `document.body` rather than positioning inside this box.
  */
 
 export interface DataTableColumn<Row> {

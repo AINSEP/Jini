@@ -5693,3 +5693,92 @@ mentions of the directory were updated to the new name.
 (verified 2026-07-26, referencing `packages/ui/src/features/rich-text-input/`
 by path in prose) mentions the old path and was not edited — `chat-react` is
 owned by a sibling agent concurrently, per this task's scope rule.
+
+---
+
+## Section: flat confirmation/list chrome adopted from `@jini-ai/admin/react` (2026-08-03)
+
+Origin: `packages/admin/src/react/`, not an OD snapshot — this is an
+intra-repo move, so provenance for the code itself remains whatever
+`packages/admin`'s own history records.
+
+### Adopted
+
+| now at | was | tests |
+|---|---|---|
+| `src/react/components/ConfirmButton.tsx` | `packages/admin/src/react/components/ConfirmButton.tsx` | 13 |
+| `src/react/components/ConfirmDialog.tsx` | `…/components/ConfirmDialog.tsx` | 17 |
+| `src/react/components/DataTable.tsx` | `…/components/DataTable.tsx` | 16 |
+| `src/react/components/RowMenu.tsx` | `…/components/RowMenu.tsx` | 21 |
+| `src/react/components/confirm-tone.ts` | `…/react/types.ts` | (covered via the two above) |
+
+All five moved with `git mv`. The four test files moved unedited — the two
+packages already shared the exact `src/react/__tests__/components/X.test.tsx`
+→ `../../components/X.js` layout, so not one import in them needed touching.
+Package test count went 5804 → 5871 (+67), matching `@jini-ai/admin`'s
+295 → 228 exactly; no test was rewritten, dropped, or added.
+
+**Why these and not the rest of that layer.** Every one is domain-blind: the
+only cross-file dependency any of them had was on the tone vocabulary, which
+came along. `Sidebar` and `useSidebarRail` deliberately did **not** come —
+see `packages/admin/src/react/index.ts`'s header for that reasoning.
+
+### Renamed on arrival
+
+`types.ts` → `confirm-tone.ts`. In `@jini-ai/admin/react` — a five-file layer
+— an unqualified `types.ts` plainly meant "this layer's vocabulary". Here it
+would have sat beside ~40 feature domains that each carry their own
+`types.ts`, reading as "the React layer's types" rather than the one enum and
+two helpers it actually holds.
+
+### Barrel
+
+Root barrel (`.`) only, alongside the other flat components — no new subpath.
+`@jini-ai/ui` already exports its flat `react/components/*` from `.`, and
+these are flat components; a `./admin-chrome`-style subpath would have
+invented a grouping this package does not otherwise use, and named it after
+the very domain the move exists to shed.
+
+### Complexity work (done as part of the move, not before it)
+
+Repo config is `complexity`/`sonarjs/cognitive-complexity` at 15; this task
+targeted 10. Two files needed work, and `DataTable` — the one predicted to be
+the problem — was already clean:
+
+- **`ConfirmDialog`** — the open/close effect was at cognitive **17**, over
+  the repo's own hard limit, i.e. this was pre-existing debt rather than
+  something the move introduced. Extracted `showDialog`/`hideDialog`, which
+  also gives the jsdom `showModal`-absent fallback one named home instead of
+  two inline `typeof` ladders.
+- **`RowMenu`** — 11. Extracted `popupPosition` (pure placement math),
+  `nextActiveIndex` (pure roving-focus arithmetic), `popupStyle` (the
+  measured-vs-unmeasured inline style), and `useAnchoredPosition` (the
+  layout-effect measurement lifecycle, which now also owns clearing the
+  position on close — `close()` used to do that by hand). Now ≤10.
+
+Both are behavior-preserving: all 38 of their tests pass unchanged.
+
+`RowMenu` still trips one warning, `'// eslint-disable-next-line
+react-hooks/exhaustive-deps' has no effect because you have 'noInlineConfig'`.
+That is repo-wide and pre-existing — `eslint.config.mjs` sets `noInlineConfig`
+on purpose so inline disables for unloaded plugins do not error — and is not a
+complexity finding. The comment was left in place because it is meaningful to
+a lint run that does load `react-hooks`.
+
+### Doc references corrected
+
+`RowMenu`'s header cited `Sidebar.tsx`'s `RailTooltip` (same overflow-clipping
+problem, same portal fix) and its kebab icon cited `Sidebar.tsx`'s stroked
+chevrons — both now live in another package, so the cross-references were
+rewritten to state the reasoning directly rather than point across a package
+boundary. `DataTable`/`ConfirmDialog`'s "like everything in this layer"
+styling note became "like the rest of this flat-component set", since this
+package is not uniformly unstyled the way `admin/react` was.
+
+### Not changed
+
+No `package.json` edit was needed on either side. React and `react-dom` were
+already optional peers of both packages (`peerDependenciesMeta`), and both
+already carried the jsdom/@testing-library devDependencies these tests need;
+`@jini-ai/ui`'s vitest config already defaults to `jsdom` package-wide, so no
+second test-environment convention was introduced.

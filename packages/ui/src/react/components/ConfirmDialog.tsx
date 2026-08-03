@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, type MouseEvent, type ReactNode, type SyntheticEvent } from 'react';
-import { resolveTone, toneClassName, type ConfirmTone } from '../types.js';
+import { resolveTone, toneClassName, type ConfirmTone } from './confirm-tone.js';
 
 /**
  * @file Shared modal confirmation primitive — the replacement for `window.confirm`, which blocks
@@ -18,7 +18,7 @@ import { resolveTone, toneClassName, type ConfirmTone } from '../types.js';
  * `<dialog>` ever takes (the `showModal`/`close` branch always wins there), so this only changes
  * behavior under jsdom, where it keeps the dialog mountable and its content queryable.
  *
- * Unstyled, like everything in this layer: the `.confirm-dialog` / `.btn-secondary` /
+ * Unstyled, like the rest of this flat-component set: the `.confirm-dialog` / `.btn-secondary` /
  * `.btn-danger` / `.btn-warning` class names are emitted for the host stylesheet to define.
  */
 
@@ -44,6 +44,30 @@ export interface ConfirmDialogProps {
 }
 
 const DEFAULT_CANCEL_LABEL = 'Cancel';
+
+/**
+ * Opens `dialog` modally, falling back to the plain `open` attribute where `showModal` is absent.
+ * See the file header for why that fallback exists (jsdom implements neither method).
+ *
+ * `if (!dialog.open)` guards against calling `showModal()` on an already-open dialog, which throws
+ * `InvalidStateError` — reachable whenever the effect below re-runs while `open` stays true.
+ */
+function showDialog(dialog: HTMLDialogElement): void {
+  if (typeof dialog.showModal !== 'function') {
+    dialog.setAttribute('open', '');
+    return;
+  }
+  if (!dialog.open) dialog.showModal();
+}
+
+/** The mirror of {@link showDialog}: closes `dialog`, or clears the attribute under the fallback. */
+function hideDialog(dialog: HTMLDialogElement): void {
+  if (typeof dialog.close !== 'function') {
+    dialog.removeAttribute('open');
+    return;
+  }
+  if (dialog.open) dialog.close();
+}
 
 /**
  * Controlled modal confirm. The caller keeps this mounted and toggles `open` — it is never
@@ -81,20 +105,12 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
     if (!dialog) return;
     if (props.open) {
       triggerRef.current = document.activeElement;
-      if (typeof dialog.showModal === 'function') {
-        if (!dialog.open) dialog.showModal();
-      } else {
-        dialog.setAttribute('open', '');
-      }
+      showDialog(dialog);
       cancelRef.current?.focus();
-    } else {
-      if (typeof dialog.close === 'function') {
-        if (dialog.open) dialog.close();
-      } else {
-        dialog.removeAttribute('open');
-      }
-      if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
+      return;
     }
+    hideDialog(dialog);
+    if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
   }, [props.open]);
 
   function handleNativeCancel(e: SyntheticEvent<HTMLDialogElement>) {

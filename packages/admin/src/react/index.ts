@@ -1,24 +1,33 @@
 /**
- * @file `@jini-ai/admin/react` — the React layer. Presentational primitives the admin shell and its
- * panels are built from.
+ * @file `@jini-ai/admin/react` — the React layer. The admin-shaped chrome the shell and its panels
+ * are built from.
  *
  * ## What belongs here
  *
- * Components and hooks that are genuinely reusable across hosts. Anything that decides *policy* —
+ * Components and hooks that are genuinely *about an admin surface*. Anything that decides *policy* —
  * which panels exist, what a route means, who may see a section — lives in `/core` and is passed in
  * as data. `Sidebar` is the worked example: it renders an `AdminNavGroup[]` produced by `/core`'s
  * `buildNav`, and has no nav list of its own.
  *
+ * ## What deliberately does NOT belong here
+ *
+ * Domain-blind chrome. `ConfirmButton`, `ConfirmDialog`, `DataTable` and `RowMenu` used to live here
+ * and no longer do: none of them knew anything about admin panels, so they were generic UI wearing
+ * this package's name. They are `@jini-ai/ui` exports now, imported from there by hosts that want
+ * them. What is left is the part that could not move — `Sidebar` reads `/core`'s panel-derived nav
+ * model and route helpers, so it is admin-shaped by construction rather than by accident.
+ *
+ * `useSidebarRail` stays with it. The hook itself is generic (a persisted boolean with cross-tab
+ * sync), but it is `Sidebar`'s own persistence mechanism and has no other consumer, and relocating
+ * it alone would make this package depend on `@jini-ai/ui` — and so on that package's whole
+ * dependency tree — just to render its own sidebar. A `/core`-only host would pay for that too.
+ *
  * ## Styling contract
  *
- * **Every component here is unstyled.** They emit stable class names (`.cms-nav`, `.row-menu-*`,
- * `.confirm-dialog`, `.btn-danger`, `.btn-warning`, `.btn-secondary`, `.visually-hidden`) and ship
- * no CSS whatsoever. The host owns the stylesheet. Inline styles appear only where a value must be
- * measured at runtime — portal coordinates in `Sidebar`'s rail tooltip and `RowMenu`'s popup.
- *
- * A few behaviors documented in these files assume the host defines a matching rule (for instance
- * that `.visually-hidden` is `position: absolute`, so `ConfirmButton`'s live region does not
- * consume layout). Those assumptions are called out where they are load-bearing.
+ * **Every component here is unstyled.** They emit stable class names (`.cms-nav`, `.cms-item`,
+ * `.cms-section`, `.cms-group`, `.cms-foot`, `.cms-tooltip-portal`, …) and ship no CSS whatsoever.
+ * The host owns the stylesheet. Inline styles appear only where a value must be measured at
+ * runtime — the portal coordinates in `Sidebar`'s rail tooltip.
  *
  * ## Runtime
  *
@@ -26,25 +35,6 @@
  * listeners. Declared as such in `jini.entries`. React and react-dom are optional peers of this
  * package, so a host importing only `/core`, `/browser`, or `/server` never installs them.
  */
-
-// Shared vocabulary. Lives outside any one component so taking `RowMenu` alone does not imply a
-// dependency on `ConfirmDialog` — see `types.ts`.
-export { resolveTone, toneClassName } from './types.js';
-export type { ConfirmTone } from './types.js';
-
-export { ConfirmButton } from './components/ConfirmButton.js';
-export type { ConfirmButtonProps } from './components/ConfirmButton.js';
-
-export { ConfirmDialog } from './components/ConfirmDialog.js';
-export type { ConfirmDialogProps } from './components/ConfirmDialog.js';
-
-// The list table. Deliberately has no sorting, pagination or row selection — see its file header
-// for the corpus evidence behind each omission.
-export { DataTable } from './components/DataTable.js';
-export type { DataTableColumn, DataTableProps } from './components/DataTable.js';
-
-export { RowMenu } from './components/RowMenu.js';
-export type { RowMenuItem, RowMenuProps } from './components/RowMenu.js';
 
 // Compound: `Sidebar.MobileHeader`, `.Nav`, `.Footer`, `.RailToggle` hang off the root. `useSidebar`
 // is exported so a host's own control (a log-out button, a workspace switcher) can read the rail

@@ -18,7 +18,7 @@ not in your bundle.
 | `@jini-ai/admin/core` | contracts, panel registry, route matching, transport, ports | nothing |
 | `@jini-ai/admin/browser` | `window`-bound navigation, link interception | a DOM |
 | `@jini-ai/admin/server` | Composio integration: catalog, OAuth, tool execution | Node.js |
-| `@jini-ai/admin/react` *(not built yet)* | `<AdminShell>`, primitives, panels | React (optional peer) |
+| `@jini-ai/admin/react` *(partial)* | `Sidebar` + its rail hook; panels not built yet | React (optional peer) |
 
 `/core` is the layer a panel author codes against: no React, no DOM, no I/O. That boundary is
 enforced at runtime — this package's vitest config runs `src/core/**` without a jsdom environment,
@@ -168,5 +168,13 @@ unrelated domain features to get a type.
 ## Status
 
 Slice 1: `/core` and `/browser`, 76 tests. `/server` (folded in from `@jini-ai/composio`
-2026-08-01): 123 tests, 100% statement/branch/function/line coverage. `/react` is not built yet,
-and of the twelve planned ports only `AdminIdentityPort` is specified.
+2026-08-01): 123 tests, 100% statement/branch/function/line coverage. `/react` holds only
+`Sidebar` and `useSidebarRail`; the panels and `<AdminShell>` are not built yet, and of the twelve
+planned ports only `AdminIdentityPort` is specified.
+
+`/react` used to also carry `ConfirmButton`, `ConfirmDialog`, `DataTable` and `RowMenu`. They moved
+to `@jini-ai/ui` on 2026-08-03 (import them from there): none of them knew anything about admin
+panels, so they were generic chrome shipping under this package's name. `Sidebar` stayed because it
+genuinely reads `/core` — it renders `buildNav`'s `AdminNavGroup[]` and resolves item links through
+`adminHref` — and `useSidebarRail` stayed with it rather than make this package depend on
+`@jini-ai/ui` (and that package's dependency tree) just to render its own sidebar.
