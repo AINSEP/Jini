@@ -85,6 +85,9 @@ body {
 }
 .mcpui-textarea { resize: vertical; min-height: 72px; font-family: var(--jini-mcpui-font); }
 .mcpui-checkbox { margin: 3px 0 0; accent-color: var(--jini-mcpui-accent); }
+.mcpui-choice-group { border: 0; padding: 0; margin: 0; min-width: 0; }
+.mcpui-choice { display: flex; flex-direction: row; align-items: flex-start; gap: 8px; margin: 6px 0 0; }
+.mcpui-choice-label { color: var(--jini-mcpui-text); font-weight: 400; }
 .mcpui-input:focus-visible, .mcpui-select:focus-visible, .mcpui-textarea:focus-visible,
 .mcpui-checkbox:focus-visible, .mcpui-button:focus-visible {
   outline: 2px solid var(--jini-mcpui-accent-ring);

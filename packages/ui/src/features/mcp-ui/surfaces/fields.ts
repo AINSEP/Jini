@@ -15,6 +15,7 @@
  * that failure to runtime, and add a branch no test could reach.
  */
 import { renderCheckbox } from './checkbox.js';
+import { renderChoiceGroup } from './choice-group.js';
 import { renderSelect, type SelectOption } from './select.js';
 import { renderTextInput } from './text-input.js';
 
@@ -55,9 +56,30 @@ export interface EnumField extends SurfaceFieldBase {
   readonly value?: string;
   readonly options: readonly SelectOption[];
   readonly placeholder?: string;
+  /**
+   * How the same one-of-N value is drawn. `select` (the default) hides the options until opened —
+   * right for a long list; `radio` shows them all at once — right for a short one the human is
+   * meant to compare before choosing. Presentation only: both post one string under `name`, and
+   * both read back through the same `control.value` path, so `kind` stays `'enum'` either way.
+   */
+  readonly presentation?: 'select' | 'radio';
 }
 
-export type SurfaceField = StringField | NumberField | BooleanField | EnumField;
+/**
+ * A pick-any-number-of-N field.
+ *
+ * Its own kind rather than a flag on {@link EnumField}, because it is the only field whose value is
+ * an **array** — `form.ts`'s `readField` and `isBlank` both branch on that, and no `presentation`
+ * discriminator would have told them to.
+ */
+export interface MultiEnumField extends SurfaceFieldBase {
+  readonly kind: 'multi-enum';
+  /** Pre-checked values. Unknown entries check nothing rather than erroring. */
+  readonly value?: readonly string[];
+  readonly options: readonly SelectOption[];
+}
+
+export type SurfaceField = StringField | NumberField | BooleanField | EnumField | MultiEnumField;
 
 /** Only the properties present on a given field are forwarded, because `exactOptionalPropertyTypes` makes `{ hint: undefined }` and `{}` different types. */
 function base(field: SurfaceField): { name: string; label: string; hint?: string; required?: boolean; disabled?: boolean } {
@@ -103,11 +125,26 @@ export function renderFieldControl(field: SurfaceField): string {
         ...(field.value === undefined ? {} : { value: field.value }),
       });
     case 'enum':
+      if (field.presentation === 'radio') {
+        return renderChoiceGroup({
+          ...base(field),
+          selection: 'single',
+          options: field.options,
+          ...(field.value === undefined ? {} : { value: [field.value] }),
+        });
+      }
       return renderSelect({
         ...base(field),
         options: field.options,
         ...(field.value === undefined ? {} : { value: field.value }),
         ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
+      });
+    case 'multi-enum':
+      return renderChoiceGroup({
+        ...base(field),
+        selection: 'multiple',
+        options: field.options,
+        ...(field.value === undefined ? {} : { value: field.value }),
       });
   }
 }

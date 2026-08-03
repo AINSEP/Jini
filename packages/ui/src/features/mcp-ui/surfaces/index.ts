@@ -1,5 +1,6 @@
 export * from './bridge.js';
 export * from './checkbox.js';
+export * from './choice-group.js';
 export * from './confirmation.js';
 export * from './document.js';
 export * from './fields.js';

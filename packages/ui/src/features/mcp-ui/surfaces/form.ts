@@ -114,16 +114,34 @@ ${SURFACE_SCRIPT_PRELUDE}
   var TEXT = ${escapeJsValue(text)};
   var form = document.getElementById(${escapeJsValue(FORM_ELEMENT_ID)});
 
+  // form.elements[name] yields a RadioNodeList when several controls share a name and the BARE
+  // element when only one does. A one-option checklist would otherwise read as "no options" —
+  // silently, since a bare input has no length to iterate. Presence of "checked" is what tells the
+  // two apart: an input has it, a RadioNodeList does not.
+  function checkedValues(control) {
+    if (!control) return [];
+    var nodes = typeof control.length === "number" && !("checked" in control) ? control : [control];
+    var out = [];
+    for (var i = 0; i < nodes.length; i++) if (nodes[i] && nodes[i].checked) out.push(nodes[i].value);
+    return out;
+  }
+
   function readField(field) {
     var control = form.elements[field.name];
     if (field.kind === "boolean") return control.checked;
     if (field.kind === "number") return control.value === "" ? null : Number(control.value);
+    if (field.kind === "multi-enum") return checkedValues(control);
+    // Covers a radio-presented enum too: a RadioNodeList's own .value is the checked radio's
+    // value, or "" when none is checked — the same shape a <select> reports.
     return control.value;
   }
 
   function isBlank(field, value) {
     if (field.kind === "boolean") return value !== true;
     if (field.kind === "number") return value === null || isNaN(value);
+    // Required means "choose at least one", never "choose this one" — see choice-group.ts on why
+    // the native required attribute is deliberately not used for a checkbox group.
+    if (field.kind === "multi-enum") return value.length === 0;
     return value === "";
   }
 
