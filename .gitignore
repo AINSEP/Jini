@@ -31,9 +31,14 @@ coverage/
 !.claude/agents/
 !.claude/skills/
 
-# project-runner local execution state (leases/sandboxes are ephemeral; ledger tasks are committed)
-foundry/automation/project-runner/leases/
-foundry/automation/project-runner/.sandbox/
+# The foundry is Jini's local workshop — design history, the Open Design reference dumps, and the
+# project-runner control plane. Deliberately untracked: 1404 of its 1541 files were vendored copies
+# of third-party source (od-web-src.orig/, components-original/, i18n/locales/) that are not worth
+# carrying in the repo. Everything here stays in git history up to the commit that untracked it.
+# NOTE: pnpm-workspace.yaml still lists foundry/integrations/open-design and
+# foundry/automation/project-runner as workspace packages, so they resolve locally but not in a
+# fresh clone. See the untracking commit message.
+/foundry/
 
 # heavy local graph indexes are never committed (see extraction-plan §H)
 **/graphify-out/
