@@ -1,7 +1,7 @@
 /**
- * @file Public surface (barrel) for the `navigation` library (ADR-029).
+ * @file Public surface (barrel) for the `navigation` library.
  *
- * A module's public contract is its `index.ts` (ADR-009 §1) — deep imports
+ * A module's public contract is its `index.ts` — deep imports
  * from outside this directory should go through here.
  */
 export type {

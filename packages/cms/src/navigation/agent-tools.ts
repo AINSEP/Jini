@@ -1,5 +1,5 @@
 /**
- * @file The Navigation (Menus) agent-tool catalog (ADR-029) — this domain's instance of the
+ * @file The Navigation (Menus) agent-tool catalog — this domain's instance of the
  * per-domain `agent-tools.ts` convention `forms/agent-tools.ts` and `identity/agent-tools.ts`
  * already use.
  *
@@ -25,7 +25,7 @@
  *
  * Deliberate absence (the point of a catalog, not an oversight):
  * - There is NO `menus_delete_menu` (nor a separate trash-only tool). `deleteMenu` is ONE function
- *   that performs BOTH steps of the ADR-029 §6 deletion ladder, keyed off the menu's CURRENT status:
+ *   that performs BOTH steps of the deletion ladder, keyed off the menu's CURRENT status:
  *   a first call trashes (safe, unconditional), but a second call against an already-trashed menu
  *   PURGES it — a hard, irreversible delete, blocked only by a still-bound-location guard that
  *   itself can be bypassed with `force` (gated behind the separate `admin.menus.delete.force`
@@ -88,7 +88,7 @@ const MENU_ID_SCHEMA = {
 /**
  * A link target, published as a `oneOf` over the 4 v1 kinds `menu-service.ts`'s `validateTarget`
  * accepts (`entryRef`/`termRef`/`url`/`route`) — `dynamicQuery`/`content` are named-but-rejected
- * reserved seams (ADR-029 §8) and are deliberately absent from this enum so the model is never
+ * reserved seams and are deliberately absent from this enum so the model is never
  * invited to try them.
  */
 const NAV_TARGET_SCHEMA = {

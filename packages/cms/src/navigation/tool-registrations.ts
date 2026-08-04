@@ -1,13 +1,13 @@
 /**
- * @file Navigation's (Menus') half of ADR-049 Decision 4 (ADR-029): maps `agent-tools.ts`'s five
+ * @file Navigation's (Menus') half of the agent-tool authorization wiring: maps `agent-tools.ts`'s five
  * catalog entries onto `menu-service.ts`'s read/create/update/assign operations, as
  * `ToolRegistration`s. The entire catalog is wired — `deleteMenu` is deliberately absent from the
  * catalog rather than present-but-unwired; see `navigation/agent-tools.ts`'s own header.
  *
  * Authorization shape: like Media and unlike Forms/Identity/Widgets, `menu-service.ts`'s functions
  * perform NO internal `authorize()` call of their own — every admin HTTP route a host builds gates
- * inline. Every handler here does the same via the kit's `requireToolPermission`, which is
- * ADR-021 §2's single evaluation for these tools, located where the real route locates it.
+ * inline. Every handler here does the same via the kit's `requireToolPermission`, which is the
+ * single evaluation for these tools, located where the real route locates it.
  */
 import type { AuthorizeFn } from "../core/commands/command.js";
 import type { OutboxPort } from "../core/ports.js";

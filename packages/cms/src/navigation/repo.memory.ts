@@ -1,5 +1,5 @@
 /**
- * @file In-memory adapters for the `navigation` library (ADR-029).
+ * @file In-memory adapters for the `navigation` library.
  *
  * Purpose:
  * Provides the two dev/test persistence adapters this build needs:
@@ -7,15 +7,15 @@
  * - `InMemoryNavLocationBindingRepo` — the real `NavLocationBindingRepoPort`
  *   adapter (`ports.ts`) for the derived `nav_location_bindings` index, honoring
  *   its `UNIQUE (workspace_id, location_key)` constraint via last-writer-wins
- *   `upsert` (ADR-029 §4).
- * - `InMemoryMenuRepo` — a **self-contained** menu store. ADR-029 §5 is explicit
+ *   `upsert`.
+ * - `InMemoryMenuRepo` — a **self-contained** menu store. The original design is explicit
  *   that a menu "adds NO new persistence port" because it should ride the
- *   ADR-022 generic entries repo. That generic entries system is not yet
+ *   generic entries repo. That generic entries system is not yet
  *   implemented as reusable code (only `post` exists as a concrete type in the
  *   host that first built this), so this build stores menu records directly
  *   instead of force-fitting the not-yet-generic entries system. `MenuRepoPort`
  *   below is a local, navigation-owned interface (not part of the frozen
- *   `ports.ts` ADR surface) that exists only to make this simplification
+ *   `ports.ts` surface) that exists only to make this simplification
  *   swappable later without touching `menu-service.ts` call sites. When the
  *   generic entries system ships, this repo should be deleted in favor of the
  *   entries repo, and `MenuRepoPort` should be deleted in favor of typed reads
@@ -41,18 +41,18 @@ import type { NavLocationBindingRow, NavLocationKey, NavMenuEntry } from "./type
 // ---------------------------------------------------------------------------
 
 /**
- * Storage seam for menu records, standing in for the ADR-022 generic entries
+ * Storage seam for menu records, standing in for the generic entries
  * repo until that generic system exists as reusable code. Shape mirrors the
  * `post` feature's own repo port plus a `remove` for hard purge, since menus
- * have a real hard-delete step in their ADR-027-style deletion ladder
- * (ADR-029 §6).
+ * have a real hard-delete step in their deletion ladder (mirrors the media
+ * library's).
  */
 export interface MenuRepoPort {
   findById(required: { workspaceId: UUID; id: UUID }): Promise<NavMenuEntry | null>;
   findBySlug(required: { workspaceId: UUID; slug: string }): Promise<NavMenuEntry | null>;
   list(required: { workspaceId: UUID }): Promise<NavMenuEntry[]>;
   save(record: NavMenuEntry): Promise<void>;
-  /** Hard-remove a menu row. Only called after the trash step (ADR-029 §6). */
+  /** Hard-remove a menu row. Only called after the trash step. */
   remove(required: { workspaceId: UUID; id: UUID }): Promise<void>;
 }
 
@@ -112,14 +112,14 @@ export class InMemoryMenuRepo implements MenuRepoPort {
 }
 
 // ---------------------------------------------------------------------------
-// NavLocationBindingRepoPort — the one real ADR-029 port
+// NavLocationBindingRepoPort — the one real port this library declares
 // ---------------------------------------------------------------------------
 
 /**
  * In-memory `NavLocationBindingRepoPort` adapter for dev/tests. Enforces the
  * derived index's `UNIQUE (workspace_id, location_key)` constraint by storing
  * at most one row per `(workspaceId, locationKey)` pair: `upsert` replaces
- * whatever row previously held that key (last-writer-wins, ADR-029 §4).
+ * whatever row previously held that key (last-writer-wins).
  *
  * @complexity O(n) linear scan per operation over the workspace's binding
  * count; `n` is bounded by the number of registered locations, which is small

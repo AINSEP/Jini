@@ -1,22 +1,22 @@
 /**
- * @file Ports + typed-call contracts for the `navigation` library (ADR-029).
+ * @file Ports + typed-call contracts for the `navigation` library.
  *
- * ADR-006 (rule-of-two) applied honestly to navigation:
+ * The rule-of-two applied honestly to navigation:
  *
  * - **`NavLocationBindingRepoPort` IS a port.** It persists the derived
  *   `nav_location_bindings` index and has two real adapters, one built now:
  *   in-memory (dev/tests) + SQLite (persistent, host-supplied) — the same shape
  *   every other repo in this library already follows.
  *
- * - **Menus themselves add NO new persistence port.** A menu is an ADR-022
+ * - **Menus themselves add NO new persistence port.** A menu is a generic
  *   entry; it rides the existing entries repo (in-memory + SQLite), which
  *   already passes rule-of-two. Inventing a `MenuRepoPort` would be a second
  *   store for data that already has one.
  *
  * - **`NavTargetResolver` is NOT a port — it is one evaluator.** Resolving a
  *   target ref to an href/label is ordinary core code over routing + entries +
- *   taxonomy (ADR-009 §1 typed calls). There is exactly one production
- *   implementation, so — following ADR-021 §2's self-application of ADR-006 to
+ *   taxonomy (typed calls). There is exactly one production
+ *   implementation, so — following the identity library's self-application of the rule-of-two to
  *   `authorize()` ("no PolicyPort; one evaluator") — it stays a plain typed-call
  *   contract, refactored into a port only if a second real resolver appears.
  *
@@ -37,11 +37,10 @@ import type {
 // ---------------------------------------------------------------------------
 
 /**
- * Persistence for the derived `nav_location_bindings` index (ADR-029
- * §Decision-3). Writes happen only inside the same transaction as the menu-entry
- * mutation that changed `locations` (single write chokepoint, ADR-022 §4a); this
+ * Persistence for the derived `nav_location_bindings` index. Writes happen only inside the same transaction as the menu-entry
+ * mutation that changed `locations` (single write chokepoint); this
  * port is the storage seam, not a second write path. `rebuildForWorkspace`
- * exists because the index is **rebuildable by definition** (ADR-022 §5) —
+ * exists because the index is **rebuildable by definition** —
  * a full rescan of menu entries can always reconstruct it.
  */
 export interface NavLocationBindingRepoPort {
@@ -61,7 +60,7 @@ export interface NavLocationBindingRepoPort {
    * Assign a location to a menu. Honors `UNIQUE (workspace_id, location_key)` —
    * claiming a location already bound elsewhere **reassigns** it (last writer
    * wins) and the caller records the displaced menu's revision through the
-   * chokepoint (ADR-029 §Decision-3). Returns the row that now holds the binding.
+   * chokepoint. Returns the row that now holds the binding.
    */
   upsert(required: {
     workspaceId: UUID;
@@ -78,7 +77,7 @@ export interface NavLocationBindingRepoPort {
 
   /**
    * Rebuild the whole workspace's index from the authoritative menu entries.
-   * The index is derived + rebuildable (ADR-022 §5), so this is always safe.
+   * The index is derived + rebuildable, so this is always safe.
    */
   rebuildForWorkspace(required: {
     workspaceId: UUID;
@@ -87,7 +86,7 @@ export interface NavLocationBindingRepoPort {
 }
 
 // ---------------------------------------------------------------------------
-// Typed-call contracts (NOT injected ports — one evaluator each, ADR-009 §1)
+// Typed-call contracts (NOT injected ports — one evaluator each)
 // ---------------------------------------------------------------------------
 
 /** Context needed to compute hrefs + active-state during resolution. */
@@ -105,7 +104,7 @@ export interface NavResolveContext {
  * hrefs, labels filled from targets, active-state computed, unavailable targets
  * flagged. One production evaluator (routing + entries + taxonomy typed calls),
  * so this is a contract, not a port (see file header). The theme receives only
- * the resolved data (ADR-020 §6).
+ * the resolved data.
  */
 export interface NavTargetResolver {
   resolve(required: {
@@ -119,7 +118,7 @@ export interface NavTargetResolver {
 
 /**
  * The navigation library's public read surface over the entries repo, exposed as
- * typed calls (ADR-009 §1) so callers (theme renderer, routing, AI tools) never
+ * typed calls so callers (theme renderer, routing, AI tools) never
  * reach into storage. Reuses the entries repo underneath — adds no new port.
  */
 export interface NavMenuReadModel {
@@ -140,7 +139,7 @@ export interface NavMenuReadModel {
 
 /**
  * Registry of theme/plugin-declared locations (populated by the
- * `navigation.locations.register` hook, ADR-029 §Hooks). Read-only lookup; the
+ * `navigation.locations.register` hook). Read-only lookup; the
  * writable side is the hook, not this contract.
  */
 export interface NavLocationRegistry {

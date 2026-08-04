@@ -1,11 +1,11 @@
 /**
- * @file Render-time read model for the `navigation` library (ADR-029 §7).
+ * @file Render-time read model for the `navigation` library.
  *
  * Purpose:
  * `resolveForLocation` is the one typed call a theme renderer makes: look up
  * the menu bound to a location, then walk its stored item tree into a
  * `ResolvedNav` — concrete hrefs, `available` flags, active-state — so the
- * theme "receives resolved data, never resolves refs" (ADR-020 §6).
+ * theme "receives resolved data, never resolves refs".
  *
  * How it relates to the project:
  * - `entryRef`/`termRef`/`route` targets need a resolver over entries/taxonomy/
@@ -17,9 +17,9 @@
  *   pure DI swap, not a rewrite.
  * - `url` targets are already-resolved hrefs (validated at write time in
  *   `menu-service.ts`) and pass straight through.
- * - `termRef` targets: per the ADR-029 Round-3 audit fold item 1, term-link
- *   integrity has **no compatible ADR-022 schema yet** (`entry_refs` is
- *   entry-to-entry only) — this is a named Wave-1 blocker, not an oversight.
+ * - `termRef` targets: term-link
+ *   integrity has **no compatible schema yet** (`entry_refs` is
+ *   entry-to-entry only) — this is a named blocker, not an oversight.
  *   This resolver does not special-case `termRef`; it is passed to the same
  *   injected `resolveTargetHref` as `entryRef`/`route`, and a fake/real
  *   resolver that has no term schema to consult should return `null`, which
@@ -28,7 +28,7 @@
  *
  * Architectural role:
  * Pure read-side feature logic. No storage writes; no theme code reachable
- * from here reads storage directly (ADR-020 §6 render-IR boundary honored by
+ * from here reads storage directly (render-IR boundary honored by
  * returning only `ResolvedNav`/`ResolvedNavItem` data).
  */
 import type { MenuRepoPort } from "./repo.memory.js";
@@ -93,14 +93,14 @@ export interface ResolveForLocationOptional {}
  * `ResolvedNav`, or `null` if the location has no menu bound.
  *
  * Defensive note: if the binding index points at a menu id the menu repo no
- * longer has (a stale derived row — the index is declared rebuildable,
- * ADR-029 §Decision-3), this resolves to `null` rather than throwing, since a
+ * longer has (a stale derived row — the index is declared rebuildable —
+ * this resolves to `null` rather than throwing, since a
  * missing nav fragment is a theme-recoverable degradation and a hard error at
  * render time is not.
  *
  * @complexity O(n) over the resolved menu's total node count — one
  * `resolveTargetHref` call per non-`url` node, awaited depth-first. No bound
- * on concurrency is applied since menu trees are bounded (ADR-029 §6,
+ * on concurrency is applied since menu trees are bounded (
  * `DEFAULT_MAX_ITEM_COUNT` in `menu-service.ts`) and are not a user-scale
  * collection at render time.
  * @overallScore 100
@@ -180,7 +180,7 @@ async function resolveItemList(
  * hrefs, `menu-service.ts`); every other kind goes through the injected
  * `resolveTargetHref` seam. A `null`/unavailable result never throws and never
  * drops the node — it is returned with `available: false, href: null` so the
- * rest of the tree keeps resolving (ADR-029 §7 — themes must omit unavailable
+ * rest of the tree keeps resolving (themes must omit unavailable
  * links, never render dead ones, but core still hands back a full model for
  * the theme to filter).
  *
@@ -217,7 +217,7 @@ async function resolveItem(
     // entryRef / termRef / route: resolved via the injected seam standing in
     // for the host's own routing layer, which is not this library's running
     // code. termRef in particular has no compatible entry_refs schema today
-    // (ADR-029 Round-3 audit fold item 1) — a resolver with no term schema to
+    // — a resolver with no term schema to
     // consult returns null here, same as any other "cannot resolve" outcome.
     const result = await resolveTargetHref(node.target, context);
     if (result === null) {

@@ -5,21 +5,20 @@ import type { NavLocationBindingRow } from "./types.js";
 
 /**
  * @file `rebuildNavLocationBindings` — the first real caller of the
- * already-implemented-but-unused `NavLocationBindingRepoPort.rebuildForWorkspace`
- * (ADR-PIPE-012 D-8, C-009).
+ * already-implemented-but-unused `NavLocationBindingRepoPort.rebuildForWorkspace`.
  *
  * Purpose:
  * Reads every menu's `.locations` field (the source of truth,
  * `NavMenuEntry.locations`), computes the resulting binding-index rows, and
  * calls `rebuildForWorkspace` to replace the whole workspace's index in one
- * shot. The index is derived + rebuildable by definition (ADR-029
- * §Decision-4/§Decision-3, same species as ADR-022 §5 `entry_refs`) — a full
+ * shot. The index is derived + rebuildable by definition (same species as
+ * `entry_refs`) — a full
  * rescan of menu entries can always reconstruct it, including dropping any
  * orphan rows that drifted out of sync with the menus' own field.
  *
  * How it relates to the project:
  * - Meant to be called once at boot from a host's SQLite composition root,
- *   after the SQLite db opens (ADR-PIPE-012 W-003) — the same
+ *   after the SQLite db opens — the same
  *   per-row-failure-tolerant boot-time reconciliation pattern this library's
  *   first host uses elsewhere, though this rebuild has no per-row failure
  *   mode (a pure read-then-replace, not a fallible write-service call).

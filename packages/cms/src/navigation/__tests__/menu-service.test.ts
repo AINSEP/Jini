@@ -28,7 +28,7 @@ function fakeIdGen(prefix = "id") {
   return { newId: () => `${prefix}-${++counter}` };
 }
 
-/** Records every enqueued event (ADR-PIPE-012 D-11 — outbox-enqueue assertions, T020-T023). */
+/** Records every enqueued event (outbox-enqueue assertions, T020-T023). */
 function fakeOutbox(): { outbox: OutboxPort; enqueued: DomainEvent[] } {
   const enqueued: DomainEvent[] = [];
   const outbox: OutboxPort = {
@@ -257,7 +257,7 @@ test("updateMenuTree rejects a reserved (not-yet-supported) target kind", async 
           items: [
             item({
               id: "item-1",
-              // Reserved seam (ADR-029 §8) — not a supported v1 target yet.
+              // Reserved seam — not a supported v1 target yet.
               target: { kind: "dynamicQuery" } as unknown as NavItemNode["target"],
             }),
           ],
@@ -479,7 +479,7 @@ test("deleteMenu on an unknown id throws MenuNotFoundError", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// ADR-PIPE-012 D-11 — outbox event publication (T020-T023, C-004..C-007)
+// Outbox event publication (T020-T023, C-004..C-007)
 // ---------------------------------------------------------------------------
 
 test("C-004: createMenu enqueues exactly one navigation.menu.created on success; zero on a rejection", async () => {

@@ -8,7 +8,7 @@ import type { NavMenuEntry } from "../types.js";
 /**
  * @file `rebuildNavLocationBindings` — the first real caller of the
  * already-implemented `NavLocationBindingRepoPort.rebuildForWorkspace`
- * (ADR-PIPE-012 D-8, C-009, T026).
+ * (C-009, T026).
  */
 
 function fakeClock(iso = "2026-07-13T00:00:00.000Z") {

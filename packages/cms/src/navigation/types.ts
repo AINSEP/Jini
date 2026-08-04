@@ -1,13 +1,13 @@
 /**
- * @file Core type definitions for the `navigation` library (ADR-029).
+ * @file Core type definitions for the `navigation` library.
  *
  * Purpose:
- * Menus/nav are **navigation trees as editable content**. A menu is an ADR-022
+ * Menus/nav are **navigation trees as editable content**. A menu is a generic
  * content entry (type `menu`); its ordered, nested item tree lives in the
  * entry's validated `bodyJson` as a `navigation`-namespaced block vocabulary.
  * Link targets that point at other content (entries, taxonomy terms) are `ref`
- * values so the ADR-022 §5 write-chokepoint extracts them into the rebuildable
- * `entry_refs` index (where-used + safe-delete), exactly as ADR-027 §5 reuses it
+ * values so the write-chokepoint extracts them into the rebuildable
+ * `entry_refs` index (where-used + safe-delete), exactly as the media library reuses it
  * for media. External URLs and named routes carry no ref.
  *
  * How it relates to the project:
@@ -15,12 +15,12 @@
  * - `navigation/ports.ts` declares the one rule-of-two port this library adds
  *   (`NavLocationBindingRepoPort`) plus the typed-call resolver contract.
  * - The theme renderer consumes `ResolvedNav` (data only — no theme code
- *   resolves refs; ADR-020 §6 render-IR boundary).
+ *   resolves refs; the render-IR boundary).
  *
  * Architectural role:
  * INTERFACES + TYPES ONLY (no feature logic). This is the design-frozen shape
- * ADR-029 introduces; the entries repo, revisions, `entry_refs`, and the command
- * gateway are reused unchanged from ADR-022 / ADR-008.
+ * this library introduces; the entries repo, revisions, `entry_refs`, and the command
+ * gateway are reused unchanged from the generic entries model.
  */
 import type { ISODateTime, JsonObject, UUID } from "../core/ports.js";
 
@@ -29,10 +29,10 @@ import type { ISODateTime, JsonObject, UUID } from "../core/ports.js";
 // ---------------------------------------------------------------------------
 
 /**
- * `menu` ships as a **seeded content-type registry row** (ADR-022 §1), like
+ * `menu` ships as a **seeded content-type registry row**, like
  * `post`/`page`/`media`. Core may special-case it in admin UI/rendering, never
  * in storage. The extension-field owner namespace for menu-level fields
- * (`fields.ext.navigation.*`, ADR-022 §2) is `navigation`.
+ * (`fields.ext.navigation.*`) is `navigation`.
  */
 export const NAV_MENU_CONTENT_TYPE = "menu" as const;
 export const NAV_FIELD_NAMESPACE = "navigation" as const;
@@ -51,10 +51,10 @@ export const NAV_DOC_TYPE = "menu" as const;
 export type NavTargetKind = "entryRef" | "termRef" | "url" | "route";
 
 /**
- * Reserved-but-rejected target kinds — the named deferred seams (ADR-029 §8).
+ * Reserved-but-rejected target kinds — the named deferred seams.
  * Recognized by the validator and **rejected with a clear "coming later" error**
  * until their resolver stage ships, so the discriminant never has to widen in a
- * breaking way. `dynamicQuery` needs the ADR-022 total/bounded expression
+ * breaking way. `dynamicQuery` needs a total/bounded expression
  * language; `content` needs a mega-menu block-embed resolver.
  */
 export type ReservedNavTargetKind = "dynamicQuery" | "content";
@@ -117,9 +117,9 @@ export interface NavItemAttrs {
  * One node in the menu tree. **Ordering = array order** among siblings;
  * **nesting = `children`**. `id` is a **stable ULID minted on item creation and
  * preserved across edits/moves** (never regenerated on reorder) — the stable
- * identity `entry_refs` locators and per-item caches depend on (ADR-022 §4c
+ * identity `entry_refs` locators and per-item caches depend on (a discipline
  * discipline applied within the doc). The chokepoint validator enforces id
- * stability and bounded depth/breadth (ADR-024 totality amendment).
+ * stability and bounded depth/breadth.
  */
 export interface NavItemNode {
   readonly id: UUID;
@@ -134,7 +134,7 @@ export interface NavItemNode {
 /**
  * The full navigation document stored in a menu entry's `bodyJson`. Shaped so it
  * satisfies `JsonObject` structurally (all fields are JSON-serializable), which
- * keeps it inside the ADR-022 storage contract and the ADR-024 §3 serializable
+ * keeps it inside the storage contract and the serializable
  * ABI.
  */
 export interface NavMenuDoc {
@@ -145,13 +145,13 @@ export interface NavMenuDoc {
 }
 
 // ---------------------------------------------------------------------------
-// The menu read model (a typed view over the ADR-022 entries row)
+// The menu read model (a typed view over the generic entries row)
 // ---------------------------------------------------------------------------
 
 export type MenuStatus = "draft" | "published" | "trash";
 
 /**
- * A typed read model over a `type='menu'` entries row (ADR-022 §2 universal
+ * A typed read model over a `type='menu'` entries row (universal
  * columns) plus the parsed `bodyJson` tree and the `navigation`-namespaced
  * fields. This is a **projection**, not a new table — menus are entries.
  */
@@ -183,9 +183,9 @@ export interface NavMenuEntry {
 export type NavLocationKey = string;
 
 /**
- * A row of the derived `nav_location_bindings` index (ADR-029 §Decision-3).
+ * A row of the derived `nav_location_bindings` index.
  * **Derived + rebuildable** from `NavMenuEntry.locations` at the write
- * chokepoint (same species as ADR-022 §5 `entry_refs`), NOT a source of truth
+ * chokepoint (same species as `entry_refs`), NOT a source of truth
  * and NOT revision-generating. Its purpose is a single indexed location→menu
  * lookup at render time and a **`UNIQUE (workspace_id, location_key)`**
  * constraint that enforces *exactly one menu per location* — an invariant a
@@ -201,10 +201,10 @@ export interface NavLocationBindingRow {
 }
 
 /**
- * A theme/plugin-registered navigation location (ADR-029 §Hooks —
+ * A theme/plugin-registered navigation location (registered via
  * `navigation.locations.register`). Registration is data; a menu may be bound to
  * an **unregistered** key so assignments survive a theme switch (fixes WP's
- * "lose your menus on theme change" sin — ADR-029 §Consequences).
+ * "lose your menus on theme change" sin).
  */
 export interface NavLocationDescriptor {
   readonly key: NavLocationKey;
@@ -216,7 +216,7 @@ export interface NavLocationDescriptor {
 }
 
 // ---------------------------------------------------------------------------
-// The resolved render model (data handed to themes — ADR-020 §6)
+// The resolved render model (data handed to themes)
 // ---------------------------------------------------------------------------
 
 /**

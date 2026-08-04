@@ -1,5 +1,5 @@
 /**
- * @file Real `NavMenuReadModel` implementation (ADR-029 §7).
+ * @file Real `NavMenuReadModel` implementation.
  *
  * Purpose:
  * `navigation/index.ts`'s file header names the entries-backed read model as an

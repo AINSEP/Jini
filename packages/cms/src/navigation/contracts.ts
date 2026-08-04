@@ -1,12 +1,12 @@
 /**
  * @file Command inputs, permission catalog, events, and hook points for the
- * `navigation` library (ADR-029).
+ * `navigation` library.
  *
- * All mutation runs through the ADR-008 command gateway (`core/commands`) so
+ * All mutation runs through the command gateway (`core/commands`) so
  * menus inherit the single write chokepoint, same-transaction revisions,
  * `pluginId`/actor attribution, and revert — no bespoke write path. These are
  * the typed shapes those commands take; the handler bodies live in
- * `navigation/menu-service.ts` (not in this ADR-029 interface-only slice).
+ * `navigation/menu-service.ts` (not in this interface-only slice).
  *
  * INTERFACES + DATA CATALOGS ONLY. No feature logic.
  */
@@ -18,21 +18,22 @@ import type {
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// Permission catalog (ADR-021 §3 — flat dotted strings, code-side registered)
+// Permission catalog (flat dotted strings, code-side registered)
 // ---------------------------------------------------------------------------
 
 /**
- * The `admin.menus.*` permission strings (ADR-PIPE-012 D-1/D-2/D-9 — renamed
+ * The `admin.menus.*` permission strings (renamed
  * from the flat `navigation.manage` to the frozen `admin.<section>.<action>`
  * convention, and split by action so force-purge no longer shares a
  * permission with ordinary edits). `assign` is split from `update` because
  * changing where a menu appears on the live site is higher-trust than
- * editing an item label (mirrors ADR-027's `media.delete.force` /
+ * editing an item label (mirrors the media library's `media.delete.force` /
  * `media.upload_svg` splits); `delete.force` is split from `delete` for the
- * same reason (ADR-PIPE-012 Decision). The legacy `navigation.manage` string
+ * same reason. The legacy `navigation.manage` string
  * stays registered (deprecated, not deleted) in the host's identity permission
- * registry until the Point of No Return (ADR-PIPE-012 Migration Safety) — it
- * is not part of this catalog.
+ * registry until the Point of No Return — it
+ * is not part of this catalog. See `docs/decisions/permission-catalog-migration.md`
+ * for the migration's completion criteria.
  */
 export const NAVIGATION_PERMISSIONS = [
   "admin.menus.read",
@@ -47,7 +48,7 @@ export const NAVIGATION_PERMISSIONS = [
 export type NavigationPermission = (typeof NAVIGATION_PERMISSIONS)[number];
 
 // ---------------------------------------------------------------------------
-// Command inputs (shapes the gateway carries; ADR-008 `CommandMutation`)
+// Command inputs (shapes the gateway carries)
 // ---------------------------------------------------------------------------
 
 export interface CreateMenuInput {
@@ -66,7 +67,7 @@ export interface UpdateMenuInput {
   /**
    * The full replacement tree. Menus are edited whole → whole-menu revisions +
    * clean optimistic-concurrency on the entry `version` (a point in favor of the
-   * entry-native model, ADR-029 §Consequences). Item ids must be preserved for
+   * entry-native model). Item ids must be preserved for
    * items that survive the edit (id-stability validation).
    */
   readonly items: readonly NavItemNode[];
@@ -91,7 +92,7 @@ export interface DeleteMenuInput {
 }
 
 // ---------------------------------------------------------------------------
-// Domain events (ADR-009 §2 — outbox, async, workspace-scoped)
+// Domain events (outbox, async, workspace-scoped)
 // ---------------------------------------------------------------------------
 
 /** Stable event names emitted on the outbox for async consumers. */
@@ -117,7 +118,7 @@ export interface NavLocationChangedPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Hook points (ADR-009 §3 — synchronous, ordered, declared-before-attached)
+// Hook points (synchronous, ordered, declared-before-attached)
 // ---------------------------------------------------------------------------
 
 /**
@@ -138,12 +139,12 @@ export const NAVIGATION_HOOKS = [
 export type NavigationHookName = (typeof NAVIGATION_HOOKS)[number];
 
 // ---------------------------------------------------------------------------
-// AI tool surface (clients of the SAME gateway handlers — ADR-027 §7 dogfood)
+// AI tool surface (clients of the SAME gateway handlers — dogfooding the media library's pattern)
 // ---------------------------------------------------------------------------
 
 /**
  * AI tools are thin clients of the same command/read handlers admins use (no
- * back door). Agents are delegated principals (`grant ∩ delegator`, ADR-021 §6);
+ * back door). Agents are delegated principals (`grant ∩ delegator`);
  * `update`/`assign`/`delete` are HITL through the change-set review layer.
  */
 export const NAVIGATION_AI_TOOLS = [

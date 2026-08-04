@@ -18,7 +18,7 @@ function fakeIdGen(prefix = "id") {
 /**
  * A fake `resolveTargetHref` for tests: `entryRef` resolves to a deterministic
  * path; `route` resolves `home` only; every `termRef` resolves to `null`
- * (ADR-029 Round-3 audit fold item 1 — no `entry_refs`-compatible term-target
+ * (no `entry_refs`-compatible term-target
  * schema exists yet, so a real resolver has nothing to consult for term
  * targets today). Any `entryRef` whose id starts with `deleted-` simulates a
  * trashed target: resolves to a real path but `available: false`.

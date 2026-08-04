@@ -1,5 +1,5 @@
 /**
- * @file Write-service for the `navigation` library (ADR-029).
+ * @file Write-service for the `navigation` library.
  *
  * Purpose:
  * Implements the menu mutation slice: create, whole-tree update (OCC), soft
@@ -9,11 +9,11 @@
  *
  * How it relates to the project:
  * - Storage is `MenuRepoPort` (`repo.memory.ts`) — a self-contained repo, not
- *   the ADR-022 entries repo (see `repo.memory.ts`'s file header for why).
+ *   the generic entries repo (see `repo.memory.ts`'s file header for why).
  * - Location assignment additionally writes `NavLocationBindingRepoPort`
- *   (`ports.ts`), the one real ADR-029 port.
- * - In production this whole module runs inside the ADR-008 command
- *   gateway/ADR-022 write chokepoint (same-transaction revision, attribution,
+ *   (`ports.ts`), the one real port this library declares.
+ * - In production this whole module runs inside the command
+ *   gateway/write chokepoint (same-transaction revision, attribution,
  *   `entry_refs` extraction). That gateway is not implemented as running code
  *   yet, so these functions are the chokepoint's future *contents*, called
  *   directly for now.
@@ -37,7 +37,7 @@ import {
 } from "./types.js";
 
 // ---------------------------------------------------------------------------
-// Outbox event publication (ADR-PIPE-012 D-11) — each mutating function below
+// Outbox event publication — each mutating function below
 // enqueues its matching NAVIGATION_EVENTS entry after its repo write(s)
 // succeed, never on a rejection path. Mirrors the host's proven
 // `outbox.enqueue()` call shape.
@@ -79,7 +79,7 @@ export class MenuConflictError extends Error {}
 
 /**
  * The 409-style purge rejection: hard delete is blocked while the menu is
- * still bound to at least one theme location (ADR-029 §6 deletion ladder).
+ * still bound to at least one theme location (deletion ladder).
  * Carries the offending location keys so a caller can render "unassign these
  * first" without a second lookup.
  */
@@ -93,16 +93,16 @@ export class MenuLocationBoundError extends MenuConflictError {
 }
 
 // ---------------------------------------------------------------------------
-// Tree validation (ADR-024 total/bounded amendment; ADR-029 §6)
+// Tree validation (total/bounded amendment)
 // ---------------------------------------------------------------------------
 
-/** Default max nesting depth (root = depth 1). Configurable per ADR-029 §6. */
+/** Default max nesting depth (root = depth 1). Configurable. */
 export const DEFAULT_MAX_TREE_DEPTH = 5;
 /** Default max total item count across the whole tree. */
 export const DEFAULT_MAX_ITEM_COUNT = 500;
 
 const VALID_TARGET_KINDS = new Set<string>(["entryRef", "termRef", "url", "route"]);
-/** ADR-029 §8 named deferred seams — recognized, rejected until their resolver ships. */
+/** Named deferred seams — recognized, rejected until their resolver ships. */
 const RESERVED_TARGET_KINDS = new Set<string>(["dynamicQuery", "content"]);
 const URL_SCHEME_DENYLIST = ["javascript:", "data:", "vbscript:"];
 
@@ -114,7 +114,7 @@ export interface TreeValidationLimits {
 /**
  * Validates a candidate item tree and returns a defensively-cloned copy.
  *
- * Checks (ADR-029 §6 total/bounded validation + §3 target integrity):
+ * Checks (total/bounded validation + target integrity):
  * - every node has a non-empty `id`, unique across the whole tree (id
  *   stability is a caller responsibility — see `updateMenuTree` doc for the
  *   simplification this build accepts);
@@ -168,7 +168,7 @@ function validateTarget(target: NavTarget): void {
   const kind = target.kind;
   if (RESERVED_TARGET_KINDS.has(kind)) {
     throw new MenuValidationError(
-      `target kind '${kind}' is a reserved seam (ADR-029 §8) and is not supported yet`
+      `target kind '${kind}' is a reserved seam and is not supported yet`
     );
   }
   if (!VALID_TARGET_KINDS.has(kind)) {
@@ -199,7 +199,7 @@ export interface CreateMenuDeps {
   repo: MenuRepoPort;
   clock: ClockPort;
   idGen: IdGeneratorPort;
-  /** ADR-PIPE-012 D-11: enqueues `navigation.menu.created` after a successful save. */
+  /** Enqueues `navigation.menu.created` after a successful save. */
   outbox: OutboxPort;
 }
 
@@ -221,7 +221,7 @@ export interface CreateMenuOptional {
 }
 
 /**
- * Creates a new `menu` entry (ADR-029 §2) in `draft` status with no location
+ * Creates a new `menu` entry in `draft` status with no location
  * assignments. Rejects a duplicate slug within the workspace.
  *
  * @complexity O(n) in the initial tree size for validation; O(m) in existing
@@ -277,20 +277,20 @@ export async function createMenu(
 export interface UpdateMenuTreeDeps {
   repo: MenuRepoPort;
   clock: ClockPort;
-  /** ADR-PIPE-012 D-11: not previously present on this deps bag — needed to mint the outbox event's id. */
+  /** Not previously present on this deps bag — needed to mint the outbox event's id. */
   idGen: IdGeneratorPort;
-  /** ADR-PIPE-012 D-11: enqueues `navigation.menu.updated` after a successful save. */
+  /** Enqueues `navigation.menu.updated` after a successful save. */
   outbox: OutboxPort;
 }
 
 export interface UpdateMenuTreeServiceInput {
   workspaceId: UUID;
   id: UUID;
-  /** The entry `version` this edit was based on — OCC guard (ADR-022). */
+  /** The entry `version` this edit was based on — OCC guard. */
   expectedVersion: number;
   title?: string | undefined;
   slug?: string | undefined;
-  /** The full replacement tree (whole-tree edit, ADR-029 §2/§Consequences). */
+  /** The full replacement tree (whole-tree edit). */
   items: readonly NavItemNode[];
 }
 
@@ -307,7 +307,7 @@ export interface UpdateMenuTreeOptional {
  * Replaces a menu's whole item tree, guarded by optimistic concurrency on the
  * entry `version` (matches the host's `updatePost` pattern).
  *
- * Id-stability note (ADR-029 §6 "an update may not renumber surviving items"):
+ * Id-stability note ("an update may not renumber surviving items"):
  * this build enforces only that ids are present and unique within the
  * submitted tree (`validateAndCloneTree`). Detecting whether a *specific*
  * surviving node kept its original id would require diffing against the
@@ -383,9 +383,9 @@ export interface AssignLocationDeps {
   repo: MenuRepoPort;
   bindingRepo: NavLocationBindingRepoPort;
   clock: ClockPort;
-  /** ADR-PIPE-012 D-11: not previously present on this deps bag — needed to mint outbox event ids. */
+  /** Not previously present on this deps bag — needed to mint outbox event ids. */
   idGen: IdGeneratorPort;
-  /** ADR-PIPE-012 D-11: enqueues `navigation.location.assigned` (+ `.unassigned` on reassignment). */
+  /** Enqueues `navigation.location.assigned` (+ `.unassigned` on reassignment). */
   outbox: OutboxPort;
 }
 
@@ -403,23 +403,23 @@ export interface AssignLocationRequired {
 export interface AssignLocationOptional {}
 
 /**
- * Assigns a menu to a theme location. Per ADR-029 §4, this writes two
+ * Assigns a menu to a theme location. This writes two
  * representations that must stay in lockstep:
  * 1. the menu's own `locations` field (source of truth, revisioned), and
  * 2. the derived `nav_location_bindings` row (uniqueness index).
  *
  * If the location was already bound to a *different* menu, that menu is
- * **reassigned away** (last-writer-wins, ADR-029 §Open item 1's chosen
+ * **reassigned away** (last-writer-wins, the chosen
  * default) and its `locations` field is updated to drop the key — recorded as
  * its own revision-worthy write.
  *
- * Atomicity note (ADR-029 §4 + Round-3 fold item 2): these writes are
+ * Atomicity note: these writes are
  * logically ONE transaction — the binding-index write is a second in-tx
  * participant alongside a slug-change-capture slot in the host's routing
  * layer. Neither real cross-write transactions nor that routing layer exist
  * as running code yet anywhere this library has shipped, so this function
  * performs the writes sequentially with no rollback if a later step throws.
- * This is an accepted, documented gap pending the ADR-008 command gateway's
+ * This is an accepted, documented gap pending the command gateway's
  * transaction machinery — do not copy this sequencing pattern into code that
  * has real transactions available.
  *
@@ -428,8 +428,8 @@ export interface AssignLocationOptional {}
  * @overallScore 90
  * @findings Medium: no rollback across the two writes (menu save, then
  * binding upsert) if the second fails, leaving the derived index stale until
- * a rebuild. Acceptable because the index is declared rebuildable-by-definition
- * (ADR-029 §Decision-4/§Decision-3); flagged as tech debt for when transactions
+ * a rebuild. Acceptable because the index is declared rebuildable-by-definition;
+ * flagged as tech debt for when transactions
  * exist.
  */
 export async function assignLocation(
@@ -510,16 +510,16 @@ export async function assignLocation(
 }
 
 // ---------------------------------------------------------------------------
-// deleteMenu (trash → purge, ADR-027-style ladder per ADR-029 §6)
+// deleteMenu (trash → purge ladder, mirrors the media library's deletion ladder)
 // ---------------------------------------------------------------------------
 
 export interface DeleteMenuDeps {
   repo: MenuRepoPort;
   bindingRepo: NavLocationBindingRepoPort;
   clock: ClockPort;
-  /** ADR-PIPE-012 D-11: not previously present on this deps bag — needed to mint outbox event ids. */
+  /** Not previously present on this deps bag — needed to mint outbox event ids. */
   idGen: IdGeneratorPort;
-  /** ADR-PIPE-012 D-11: enqueues `navigation.menu.updated` (trash) or `navigation.menu.deleted` (purge); nothing on a blocked purge. */
+  /** Enqueues `navigation.menu.updated` (trash) or `navigation.menu.deleted` (purge); nothing on a blocked purge. */
   outbox: OutboxPort;
 }
 
@@ -538,7 +538,7 @@ export interface DeleteMenuRequired {
 export interface DeleteMenuOptional {}
 
 /**
- * Deletion ladder (ADR-029 §6, mirroring ADR-027):
+ * Deletion ladder (mirrors the media library's):
  * 1. First call on a non-trashed menu **soft-deletes** it (`status: 'trash'`,
  *    revisioned) and returns — no purge yet.
  * 2. A second call on an already-trashed menu attempts the **hard purge**. If
