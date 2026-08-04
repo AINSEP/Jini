@@ -41,6 +41,7 @@ import type {
   AuthorizationDecision,
   Principal,
   RunRef,
+  SurfaceEmitter,
   ToolDescriptor,
   ToolRegistry,
 } from '@jini-ai/core';
@@ -136,13 +137,19 @@ export interface ToolExecutionResult {
 }
 
 export interface ToolExecutor {
-  /** @throws If `toolId` isn't registered — a routing/programming error, distinct from the denial/confirmation-denial states `ToolExecutionResult.status` covers. */
+  /**
+   * @param emitSurface - Transport-supplied seam letting the handler push a human-only surface into
+   * the run's event stream *before* this call settles. Omit for a caller with no run event stream;
+   * see `@jini-ai/core`'s `SurfaceEmitter` for why a handler that waits on a human needs it.
+   * @throws If `toolId` isn't registered — a routing/programming error, distinct from the denial/confirmation-denial states `ToolExecutionResult.status` covers.
+   */
   execute(
     principal: Principal,
     run: RunRef,
     toolId: string,
     input: unknown,
     signal?: AbortSignal,
+    emitSurface?: SurfaceEmitter,
   ): Promise<ToolExecutionResult>;
   /** @throws If `executionId` has no confirmation currently pending (already resumed, never required one, or unknown). */
   resumeConfirmation(executionId: string, decision: ConfirmationDecision): void;
@@ -297,6 +304,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     toolId: string,
     input: unknown,
     signal?: AbortSignal,
+    emitSurface?: SurfaceEmitter,
   ): Promise<ToolExecutionResult> {
     // Existence is checked separately from — and before — authorization so the audit record can
     // be opened before the (possibly slow, possibly throwing) authorization gate runs, matching
@@ -354,7 +362,17 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     };
     appendEvent(executionId, 'started');
     try {
-      const rawOutput = await handler({ executionId, principal, run, input, signal: controller.signal });
+      // `emitSurface` is spread in only when the transport supplied one, so a handler can test
+      // `ctx.emitSurface` and get a truthful answer about whether a surface it emits would actually
+      // reach anybody. An always-present no-op would read as "yes" and let a handler park forever.
+      const rawOutput = await handler({
+        executionId,
+        principal,
+        run,
+        input,
+        signal: controller.signal,
+        ...(emitSurface !== undefined ? { emitSurface } : {}),
+      });
       const { output, truncated } = truncateOutput(rawOutput, descriptor.maxOutputBytes);
       appendEvent(executionId, 'completed');
       cleanup();

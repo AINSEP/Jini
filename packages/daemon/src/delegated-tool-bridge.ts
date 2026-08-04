@@ -6,7 +6,8 @@
  * enforces Jini's registry policy, confirmation, timeout, cancellation, and
  * audit trail before any registered handler runs.
  */
-import type { Principal, RunRef } from '@jini-ai/core';
+import type { Principal, RunRef, SurfaceEmission } from '@jini-ai/core';
+import type { RunAgentPayload } from '@jini-ai/protocol';
 import type { RunLifecycle } from './run-lifecycle.js';
 import { splitToolResultSurfaces } from './tool-result-surfaces.js';
 import type { ToolExecutionResult, ToolExecutor } from './tool-executor.js';
@@ -47,6 +48,26 @@ export interface DelegatedToolBridge {
 export interface CreateDelegatedToolBridgeOptions {
   readonly lifecycle: RunLifecycle;
   readonly toolExecutor: ToolExecutor;
+}
+
+/**
+ * Channels whose run-event payload declares a `toolUseId`, and therefore want the bridge to supply
+ * it.
+ *
+ * Correlation genuinely differs per channel rather than being universal, so injecting `toolUseId`
+ * everywhere would put a field on the wire that the channel's own schema does not declare. The other
+ * channels carry their own handle instead — A2UI correlates by `surfaceId`, and so does the
+ * protocol's `surface_request`/`surface_response` pair — and a handler driving those sets it from
+ * the exchange it opened, which is a strictly better correlation than `toolUseId` anyway: it
+ * survives across the several messages one exchange sends.
+ *
+ * A one-line addition is all a new `toolUseId`-carrying channel needs. Kept explicit rather than
+ * inferred so that decision stays visible.
+ */
+const CHANNELS_CARRYING_TOOL_USE_ID: ReadonlySet<string> = new Set([MCP_UI_EVENT_TYPE]);
+
+function correlationFor(channel: string, toolUseId: string): { toolUseId?: string } {
+  return CHANNELS_CARRYING_TOOL_USE_ID.has(channel) ? { toolUseId } : {};
 }
 
 function errorMessage(error: unknown): string {
@@ -112,9 +133,57 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
     }
 
     const run: RunRef = { id: runId };
+
+    /**
+     * The seam a handler needs in order to show something it then WAITS on.
+     *
+     * Surfaces normally ride out in the return value and are split out below — which is useless to a
+     * handler that cannot return until the human has answered the very thing it wants to display.
+     * Emitting through here reaches the same run event stream, so a message pushed mid-call is
+     * indistinguishable to a renderer from one carried by the result.
+     *
+     * **Channel-neutral by construction.** The handler names its own channel, and this only injects
+     * correlation. That is what lets one seam drive `mcp-ui`, A2UI's multi-turn envelope
+     * (`createSurface` → `updateComponents` → …), the protocol's own `surface_request`/
+     * `surface_response` pair, or a channel invented later — none of which this file needs to know
+     * the shape of, matching `@jini-ai/protocol`'s own posture of typing each channel's body
+     * `unknown` and validating where the concrete type is known.
+     *
+     * Callable any number of times before the call settles; refused after. A handler that stashed
+     * this emitter could otherwise paint a surface onto a run whose `tool_result` is already on
+     * screen, with no call left to answer it.
+     */
+    let settled = false;
+    const emitSurface = async (emission: SurfaceEmission): Promise<void> => {
+      if (settled) throw new Error(`emitSurface: tool call ${toolUseId} has already completed`);
+      // Cast because `RunAgentPayload` is a closed union and `channel` is deliberately an open
+      // string — a seam that only accepts channels this file already knows about is not a
+      // channel-neutral seam. This mirrors `@jini-ai/protocol`'s own posture of typing each
+      // channel's BODY `unknown` and validating where the concrete type is known, applied one level
+      // up to the channel name itself.
+      //
+      // Blast radius of a bogus channel is bounded and worth stating: this path is human-only, so
+      // the failure mode is an event no renderer subscribes to — nothing rendered. It cannot put
+      // anything into model context, which is the property that would actually matter.
+      const data = {
+        type: emission.channel,
+        ...correlationFor(emission.channel, toolUseId),
+        ...emission.payload,
+      } as unknown as RunAgentPayload;
+      await lifecycle.emit(runId, { event: 'agent', data });
+    };
+
     try {
       try {
-        const executed = await toolExecutor.execute(principal, run, toolId, input, controller.signal);
+        const executed = await toolExecutor.execute(
+          principal,
+          run,
+          toolId,
+          input,
+          controller.signal,
+          emitSurface,
+        );
+        settled = true;
 
         // THE MODEL/HUMAN FORK. A tool call's return value is definitionally what the model
         // receives, so a UI resource left inside it is model-visible context no matter what any
@@ -149,6 +218,7 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
         });
         return result;
       } catch (error) {
+        settled = true;
         await lifecycle.emit(runId, {
           event: 'agent',
           data: { type: 'tool_result', toolUseId, content: errorMessage(error), isError: true },

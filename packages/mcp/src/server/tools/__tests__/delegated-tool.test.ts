@@ -41,9 +41,23 @@ describe('createExecuteDelegatedToolTool', () => {
       'http://d.example',
       '/api/delegated-tool-calls',
       { runId: 'run-1', toolUseId: 'tu-1', toolId: 'weather.get', input: { city: 'nyc' } },
-      { fetchImpl: ctx.fetchImpl },
+      { fetchImpl: ctx.fetchImpl, timeoutMs: 6 * 60 * 1000 },
     );
     expect(result).toEqual({ executionId: 'e1', status: 'completed', output: 'ok' });
+  });
+
+  it('overrides the daemon client 15s default so a handler parked on a human is not cut off', async () => {
+    // The reason this route needs its own deadline at all: a tool that raises an MCP-UI surface
+    // parks until the person answers it, and nobody reads a dialog in fifteen seconds. Asserted as
+    // its own case rather than only inside the body-shape assertions above, because the value is a
+    // deliberate decision (ADR-055 Decision 5) and a future edit dropping it would otherwise look
+    // like an unrelated diff to an argument object.
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+    await tool.handler({ toolId: 't1' }, ctx);
+    const options = (postDaemonJson.mock.calls[0] as unknown[])[3] as { timeoutMs?: number };
+    expect(options.timeoutMs).toBe(6 * 60 * 1000);
+    expect(options.timeoutMs).toBeGreaterThan(15_000);
   });
 
   it('generates a fresh toolUseId per call via the default randomUUID generator when none is injected', async () => {
@@ -66,7 +80,7 @@ describe('createExecuteDelegatedToolTool', () => {
       'http://d.example',
       '/api/delegated-tool-calls',
       { runId: 'run-1', toolUseId: 'tu-2', toolId: 't1', input: undefined },
-      { fetchImpl: ctx.fetchImpl },
+      { fetchImpl: ctx.fetchImpl, timeoutMs: 6 * 60 * 1000 },
     );
   });
 

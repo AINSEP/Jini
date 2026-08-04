@@ -33,6 +33,32 @@ interface DelegatedToolExecuteResponse {
   readonly result: unknown;
 }
 
+/**
+ * Request deadline for one delegated tool call, overriding `daemon-client.ts`'s 15 s default.
+ *
+ * That default is sized for "a slow tool call" — a tool doing work. It is the wrong shape for this
+ * route, which is the one path in the system where a registered handler may legitimately be waiting
+ * on a *person*: a tool that raises an MCP-UI surface parks until the human answers it, and a human
+ * reading a dialog does not answer in fifteen seconds. Left at the default, every human-in-the-loop
+ * tool call fails at 15 s regardless of what the human eventually clicks.
+ *
+ * Six minutes because the operative deadline lives elsewhere and is tighter: the exchange's own
+ * total-lifetime ceiling (5.5 min in Tovu's `surface-exchanges.ts`) ends the call with an explicit
+ * "no answer" outcome first. This is the backstop behind that, not the budget itself — half a minute
+ * of headroom so the exchange is always what gives up. It stays inside every measured agent-CLI
+ * ceiling (Claude Code 30 min idle, Gemini CLI 10 min), which is what makes hop #3 stop being the
+ * binding constraint.
+ *
+ * This is also, transitively, the hard cap on a multi-turn human conversation driven from one tool
+ * call: however many turns an exchange takes, they all happen inside this one request. Raising that
+ * ceiling starts here, not in the exchange store.
+ *
+ * The cost is real and accepted: a genuinely hung daemon now hangs this call for six minutes rather
+ * than fifteen seconds. The daemon-side alternative does not exist to lean on — `ToolDescriptor.timeoutMs`
+ * is unset on every registration today, so `ToolExecutor` arms no timer of its own.
+ */
+const DELEGATED_TOOL_TIMEOUT_MS = 6 * 60 * 1000;
+
 export interface CreateExecuteDelegatedToolToolOptions {
   /** The one run this MCP server process — and therefore this tool instance — is scoped to. */
   readonly runId: string;
@@ -95,7 +121,10 @@ export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedTo
         toolId: args.toolId,
         input: args.input,
       };
-      const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, daemonCallOptions(ctx));
+      const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, {
+        ...daemonCallOptions(ctx),
+        timeoutMs: DELEGATED_TOOL_TIMEOUT_MS,
+      });
       return data.result;
     },
   };

@@ -58,6 +58,51 @@ export interface ToolDescriptor {
   readonly maxOutputBytes?: number;
 }
 
+/**
+ * One human-facing message a handler pushes out mid-call.
+ *
+ * `channel` becomes the run event payload's `type`, and `payload` is merged in beside it. It is
+ * deliberately NOT a union of the known channels: `@jini-ai/protocol` sits below every package in
+ * the graph and already types each channel's own body as `unknown` for exactly this reason —
+ * structural validation belongs where the concrete type is known (`@jini-ai/ui`'s `parseUIResource`
+ * for mcp-ui, `@jini-ai/agentic/a2ui`'s `parseAgentToRendererMessage` for a2ui). Naming the channel
+ * as a string is what lets a handler drive `mcp-ui`, `a2ui`, or `surface_request` — or a channel
+ * that does not exist yet — through one seam.
+ *
+ * @example mcp-ui — a sandboxed HTML surface; the transport supplies `toolUseId`
+ * `{ channel: 'mcp-ui', payload: { resource } }`
+ * @example a2ui — a component tree that can be updated repeatedly on one held-open call
+ * `{ channel: 'a2ui', payload: { message: createSurface(exchangeId, ...) } }`
+ * @example the protocol-neutral human-in-the-loop pair
+ * `{ channel: 'surface_request', payload: { surfaceId, surfaceKind: 'form', payload: {...} } }`
+ */
+export interface SurfaceEmission {
+  /** The run event payload `type` this belongs on. */
+  readonly channel: string;
+  /** The channel's own fields, merged into the emitted event beside `type`. */
+  readonly payload: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * Pushes a human-facing message into the run's event stream *while the call is still in flight*.
+ *
+ * A handler's return value is the only other way to reach a human, and that route is useless to a
+ * handler that must WAIT for one: the daemon reads surfaces out of the completed result, so a
+ * handler that parks first never emits the thing being answered, and the park can never resolve.
+ * That is a deadlock by construction, not a race. This is the seam that breaks it — emit, then await.
+ *
+ * Callable any number of times before the call settles, which is what makes a multi-turn exchange
+ * (A2UI's `createSurface` → action → `updateComponents` → action) expressible on a single tool call
+ * rather than only a one-shot ask.
+ *
+ * Human-only in both directions: emitting never puts anything into model context.
+ *
+ * Optional because it is transport-supplied. A caller with no run event stream to emit into (a
+ * headless or synthetic execution) omits it, and a handler that finds it absent must fall back to
+ * returning its surface rather than parking — see the `@jini-ai/daemon` bridge for the supplying end.
+ */
+export type SurfaceEmitter = (emission: SurfaceEmission) => Promise<void>;
+
 /** What a `ToolHandler` receives — everything it needs and nothing it could use to bypass the gate (no registry access, no other tools' state). */
 export interface ToolExecutionContext {
   /** The id `ToolExecutor` assigned this call — for the handler's own logging/correlation; carries no authority (the gate already ran before the handler is invoked). */
@@ -66,6 +111,8 @@ export interface ToolExecutionContext {
   readonly run: RunRef;
   readonly input: unknown;
   readonly signal: AbortSignal;
+  /** Present only when the invoking transport owns a run event stream — see {@link SurfaceEmitter}. */
+  readonly emitSurface?: SurfaceEmitter;
 }
 
 /** Runs the tool's actual side effect. Only ever invoked by `ToolExecutor`, never called directly by a route/agent holding the registry. */

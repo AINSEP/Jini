@@ -15,6 +15,8 @@ export * from './principal.js';
 export type {
   AuthorizationDecision,
   RunRef,
+  SurfaceEmission,
+  SurfaceEmitter,
   ToolAuthorizationContext,
   ToolDescriptor,
   ToolExecutionContext,
