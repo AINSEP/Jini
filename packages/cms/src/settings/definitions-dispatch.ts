@@ -4,7 +4,7 @@ import { renameDefinition, retypeDefinition, deprecateDefinition, tombstoneDefin
 import type { SettingsWriteServiceDeps } from "./write-service.js";
 
 /**
- * @file `SETTINGS_REGISTER_DEFINITIONS` per-op dispatch (ADR-042 item 2).
+ * @file `SETTINGS_REGISTER_DEFINITIONS` per-op dispatch.
  *
  * A route handler's inline `switch (op)` shape can grow into the
  * highest-complexity function in a codebase because four of its five branches

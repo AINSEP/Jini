@@ -112,8 +112,9 @@ export function validateValueAgainstSchema(schema: SettingValueSchema, value: Js
     case "enum":
       return typeof value === "string" && schema.values.includes(value);
     case "json":
-      // ADR-PIPE-008 Decision §3: any JSON value is accepted; internal shape/
-      // length validation is the registering feature's own write-path job.
+      // Any JSON value is accepted; internal shape/length validation is the
+      // registering feature's own write-path job — see
+      // docs/decisions/settings-json-schema-variant.md.
       return true;
   }
 }
@@ -126,12 +127,11 @@ export function registerCoercer(tag: string, fn: (value: JsonValue) => JsonValue
 }
 
 /**
- * Workspace-qualified definition cache (SPEC-007 REQ-12, AC-20; ADR-028 §8
- * "Cache, definition cache, and API").
+ * Workspace-qualified definition cache.
  *
  * ## There is no per-layer VALUE cache here. Do not add one without reading this note.
  *
- * ADR-028 §8 also specifies a value cache keyed
+ * An earlier design also specified a value cache keyed
  * `settings:{global | ws:{wsId} | user:{wsId}:{pid}}:{ns}`, invalidated by the write that owned
  * each key. It is correct for a single-process host and NOT correct once a second process shares
  * the same store: a `WeakMap<SettingsRepoPort, ...>`-held cache is scoped to one repo instance in
@@ -151,7 +151,7 @@ export function registerCoercer(tag: string, fn: (value: JsonValue) => JsonValue
  * ## The DEFINITION cache below is kept, and the asymmetry is deliberate
  *
  * It is workspace-qualified (`{wsId|"platform"}:{ns}:{key}`) — site-owned defs are per-workspace
- * data, so ADR-007 applies to it too — and invalidated lazily by a per-namespace epoch folded into
+ * data, so the same tenant-isolation rule applies to it too — and invalidated lazily by a per-namespace epoch folded into
  * the key, so old-epoch entries are never looked up again rather than being enumerated.
  *
  * It carries the same cross-process exposure in principle, and it is kept anyway because its
@@ -193,8 +193,8 @@ function definitionCacheKey(workspaceId: string | null, namespace: string, key: 
 }
 
 /**
- * Bumps the namespace's definition-cache epoch (ADR-028 §8's lazy
- * invalidation) — every previously-cached definition-cache entry for this
+ * Bumps the namespace's definition-cache epoch (lazy invalidation) — every
+ * previously-cached definition-cache entry for this
  * namespace (across every workspace) becomes unreachable on the next read,
  * without needing to enumerate tenants. Call after any write that changes a
  * definition's identity/shape/status in this namespace: register, rename
@@ -258,10 +258,10 @@ export async function resolveDefinitionRaw(
 }
 
 /**
- * REQ-03 — the read-path resolver: typed-absent (`null`) for a tombstoned or
- * missing key (EC-10). Cached (AC-19/AC-20, ADR-028 §8) — keyed by
+ * The read-path resolver: typed-absent (`null`) for a tombstoned or
+ * missing key. Cached — keyed by
  * `(workspaceId, namespace, key, namespace-epoch)`, so it is workspace-
- * qualified by construction (AC-20) and invalidated wholesale by
+ * qualified by construction and invalidated wholesale by
  * `invalidateDefinitionNamespaceCache` on any definition-lifecycle write
  * (register/rename/retype/deprecate/tombstone). `resolveDefinitionRaw`
  * itself stays uncached — the write chokepoint (`write-service.ts`) calls it

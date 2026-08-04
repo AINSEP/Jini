@@ -4,10 +4,10 @@ import { test } from "vitest";
 import { validateValueAgainstSchema } from "../settings.js";
 
 /**
- * @file Certification of the `{type:"json"}` `SettingValueSchema` variant (ADR-PIPE-008 Decision
- * §3, C-024; Named Risk #3). Scoped narrowly: the ledger only asserts "this is a JSON value" —
- * internal shape/length validation is the registering feature's own write-path responsibility,
- * never this ledger's job.
+ * @file Certification of the `{type:"json"}` `SettingValueSchema` variant. Scoped narrowly: the
+ * ledger only asserts "this is a JSON value" — internal shape/length validation is the
+ * registering feature's own write-path responsibility, never this ledger's job. See
+ * `docs/decisions/settings-json-schema-variant.md` for the originating rationale.
  */
 
 test("validateValueAgainstSchema({type:'json'}): accepts a plain object", () => {

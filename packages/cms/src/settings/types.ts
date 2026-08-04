@@ -1,7 +1,7 @@
 import type { ISODateTime, JsonValue, UUID } from "../core/ports.js";
 
 /**
- * @file Settings domain types (SPEC-007, core-only subset of ADR-028).
+ * @file Settings domain types.
  *
  * Purpose:
  * Record shapes + the schema-validation vocabulary shared by `settings.ts`,
@@ -33,7 +33,7 @@ export type RevisionOp =
   | "purge"
   | "coerce";
 
-/** Scope bitmask values (ADR-028 §2): global=1, workspace=2, user=4. Legal range 1..7. */
+/** Scope bitmask values: global=1, workspace=2, user=4. Legal range 1..7. */
 export const SCOPE_BIT = { global: 1, workspace: 2, user: 4 } as const;
 
 /**
@@ -43,16 +43,18 @@ export const SCOPE_BIT = { global: 1, workspace: 2, user: 4 } as const;
  * variant is exhaustively validatable by `validateValue`.
  */
 /**
- * `{type:"json"}` (ADR-PIPE-008 Decision §3) is a deliberately narrow, scalar-
- * ADJACENT exception to the "deliberately small" vocabulary above: it accepts
- * any JSON value (object/array/scalar) and validates nothing about its
- * internal shape — that is the registering feature's own write-path
- * responsibility, never this ledger's job.
+ * `{type:"json"}` is a deliberately narrow, scalar-ADJACENT exception to the
+ * "deliberately small" vocabulary above: it accepts any JSON value
+ * (object/array/scalar) and validates nothing about its internal shape —
+ * that is the registering feature's own write-path responsibility, never
+ * this ledger's job.
  *
- * ADR-PIPE-008 Enforcement: Code Review must confirm that EVERY use is
- * genuinely unbounded, list-shaped data with no scalar decomposition available
- * — it is not a general escape hatch for fields that could be scalar-
- * decomposed instead. The check is per-use, deliberately not a headcount.
+ * Enforcement rule that must survive any refactor: Code Review must confirm
+ * that EVERY use is genuinely unbounded, list-shaped data with no scalar
+ * decomposition available — it is not a general escape hatch for fields that
+ * could be scalar-decomposed instead. The check is per-use, deliberately not
+ * a headcount. See `docs/decisions/settings-json-schema-variant.md` for the
+ * originating rationale and a related non-null-default invariant.
  */
 export type SettingValueSchema =
   | { type: "string"; nullable?: boolean }

@@ -22,7 +22,7 @@ import { reconcileDefinitionDefault, registerDefinitions, type AuthorizeFn } fro
  * loop, deliberately left alone. Those are typically `ownerKind: "site"` and
  * pair their registration with bespoke get/set services and their own
  * permissions; the generic settings-dialog tabs this helper serves are
- * `ownerKind: "core"` and read/write through the generic SPEC-007 ledger
+ * `ownerKind: "core"` and read/write through the generic settings ledger
  * routes with no bespoke service at all. Folding both shapes into one helper
  * would mean parameterising the differences that matter.
  */
@@ -36,10 +36,11 @@ export interface SettingDefinitionSpec {
    * Every non-secret definition needs a NON-NULL default.
    * `validateDefinitionInput` (`settings.ts`) rejects a null `default_json` for
    * every non-secret definition, full stop — there is no nullable-schema
-   * carve-out in the actual check, whatever ADR-028 §6's prose says about "may
-   * be JSON null iff nullable". A field that is nullable in spirit needs a
-   * sentinel instead (a distinguished non-null value the host's own code
-   * treats as "unset").
+   * carve-out in the actual check, regardless of what a nullable schema might
+   * suggest. A field that is nullable in spirit needs a sentinel instead (a
+   * distinguished non-null value the host's own code treats as "unset"). See
+   * `docs/decisions/settings-json-schema-variant.md` for why this diverges
+   * from this ledger's own originating design notes.
    *
    * Typed `Exclude<…, null>` rather than a bare primitive union: `DefinitionInput`
    * already accepts any `JsonValue`, and a `{ type: "json" }` definition needs an

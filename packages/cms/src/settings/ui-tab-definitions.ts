@@ -17,7 +17,7 @@ import { SCOPE_BIT } from "./types.js";
  * (routes, a port) should keep its own module rather than accreting into
  * this one.
  *
- * All three read and write through the generic SPEC-007 ledger routes a host
+ * All three read and write through the generic settings ledger routes a host
  * exposes, gated by the ledger's own scope-derived `settings.workspace.write`
  * check. There is no bespoke get/set service and no per-tab permission — the
  * reason the shared `ensureSettingDefinitions` helper exists.

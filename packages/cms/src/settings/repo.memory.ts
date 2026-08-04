@@ -2,7 +2,7 @@ import type { SettingsRepoPort } from "./ports.js";
 import type { SettingDefinitionRecord, SettingRevisionRecord, SettingValueRecord } from "./types.js";
 
 /**
- * @file In-memory adapter for `SettingsRepoPort` (SPEC-007, rule-of-two #1).
+ * @file In-memory adapter for `SettingsRepoPort` (the rule-of-two: in-memory + production adapters).
  *
  * Purpose:
  * Test/dev implementation. Mirrors the exact style of `identity/repo.memory.ts`:
@@ -57,8 +57,8 @@ export class InMemorySettingsRepo implements SettingsRepoPort {
     // treats tombstone as read-absent but write-service.ts reports it
     // distinctly as DEFINITION_TOMBSTONED). Deliberately excludes
     // `deprecated`: those are stale prior-version rows superseded by a newer
-    // active row at the same (ns,key,ws) slot (ADR-028 §2's retype
-    // mechanism), so including them would make this lookup ambiguous.
+    // active row at the same (ns,key,ws) slot (the retype mechanism), so
+    // including them would make this lookup ambiguous.
     return (
       this.definitions.find(
         (d) =>

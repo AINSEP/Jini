@@ -10,10 +10,9 @@ import { InMemoryPrincipalRepo } from "../../identity/index.js";
 import type { SettingDefinitionRecord } from "../types.js";
 
 /**
- * T026 (AC-12, INV-06) — the ledgered tenant/principal purge: authorize once,
- * then append a redacted `op='purge'` revision per affected row before
- * deleting it, all in one transaction; prior revision rows must remain in
- * the ledger untouched (ADR-028 §5).
+ * The ledgered tenant/principal purge: authorize once, then append a
+ * redacted `op='purge'` revision per affected row before deleting it, all in
+ * one transaction; prior revision rows must remain in the ledger untouched.
  */
 
 const clock = { nowIso: () => "2026-07-12T00:00:00.000Z" };

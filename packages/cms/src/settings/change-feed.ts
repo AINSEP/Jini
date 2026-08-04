@@ -37,7 +37,7 @@ export interface ChangeFeedViewer {
  * Whether `revision` may be disclosed to `viewer`.
  *
  * - **`global`** — platform-wide values every workspace resolves through. Disclosed.
- * - **`workspace`** — disclosed only for the viewer's own workspace (ADR-007 tenant scoping).
+ * - **`workspace`** — disclosed only for the viewer's own workspace (tenant scoping).
  * - **`user`** — disclosed only when the viewer IS the target principal. Another operator's
  *   preference changing is not the viewer's business, and telling them would leak both that the
  *   other principal exists and that they are active right now.

@@ -5,19 +5,18 @@ import { invalidateWorkspaceSettingsCache } from "./settings.js";
 import type { AuthorizeFn } from "./write-service.js";
 
 /**
- * @file `purgeTenantSettings` — the ledgered tenant/principal purge chokepoint
- * (SPEC-007 REQ-07; ADR-028 §5; INV-06).
+ * @file `purgeTenantSettings` — the ledgered tenant/principal purge chokepoint.
  *
  * Purpose:
  * A host's value-table FKs (`setting_values_workspace`/`_user` -> `workspaces`)
  * are typically `ON DELETE RESTRICT`, not `CASCADE` — a raw workspace delete
  * cannot silently drop value rows without a ledgered revision. This module is
- * the explicit, ledgered alternative ADR-028 §5 requires: `authorize()` once
+ * the explicit, ledgered alternative that requires: `authorize()` once
  * -> enumerate every affected row -> append a redacted `op='purge'` revision
  * per row -> delete the row, all in ONE transaction. The `setting_revisions`
  * ledger itself is NEVER touched by a purge — only value rows are removed,
- * with their purge revision left behind (INV-06). Repo write methods stay
- * package-private to this file and `write-service.ts` (ADR-028 §4).
+ * with their purge revision left behind. Repo write methods stay
+ * package-private to this file and `write-service.ts`.
  *
  * Deviation from the outline's `SettingsWriteServiceDeps`: purge needs
  * neither `ids` (no new definition/value rows are created) nor `principals`
@@ -50,9 +49,9 @@ export interface PurgeTenantSettingsRequired {
 }
 
 /**
- * REQ-07/INV-06 chokepoint: authorize `settings.definitions.manage` once ->
+ * The purge chokepoint: authorize `settings.definitions.manage` once ->
  * enumerate the affected rows -> append a redacted `op='purge'` revision +
- * delete, per row, all in one transaction (ADR-028 §5).
+ * delete, per row, all in one transaction.
  */
 export async function purgeTenantSettings(
   required: PurgeTenantSettingsRequired

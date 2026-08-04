@@ -1,5 +1,5 @@
 /**
- * @file SPEC-007 — the Settings domain's agent-tool catalog, instantiating the naming/callability
+ * @file The Settings domain's agent-tool catalog, instantiating the naming/callability
  * convention every other domain catalog in this package already uses.
  *
  * Purpose:
@@ -146,7 +146,7 @@ const SET_UI_PREFERENCE_SCHEMA = {
 } as const;
 
 /**
- * The Settings domain's fixed agent-tool catalog (SPEC-007) — the three reads, one curated write
+ * The Settings domain's fixed agent-tool catalog — the three reads, one curated write
  * (`settings_set_ui_preference`), and four generic writes documented but deliberately never
  * wired. See file header.
  *

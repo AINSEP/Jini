@@ -13,7 +13,7 @@ import {
 } from "../write-service.js";
 
 /**
- * @file `authorizeDefinitionsManage` (ADR-028 §3/§7) is the single shared authorization gate in
+ * @file `authorizeDefinitionsManage` is the single shared authorization gate in
  * front of every definition-lifecycle op: rename/retype/deprecate/tombstone each call it before
  * touching the repo. A mutation sweep proved a denied caller could reach all four writes
  * unchallenged with this one gate deleted outright -- every existing lifecycle test

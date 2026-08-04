@@ -66,7 +66,7 @@ test("resetNamespace clears every key in the namespace, each with its own op='cl
   assert.equal(revsB[revsB.length - 1]!.op, "clear");
 });
 
-test("resetNamespace succeeds for a caller holding only settings.reset.workspace, without also holding settings.workspace.write (ADR-028 §7 R3-01)", async () => {
+test("resetNamespace succeeds for a caller holding only settings.reset.workspace, without also holding settings.workspace.write", async () => {
   const defA = definition("a");
   const repo = new InMemorySettingsRepo({ definitions: [defA] });
   const principals = new InMemoryPrincipalRepo([]);

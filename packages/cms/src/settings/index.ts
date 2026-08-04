@@ -1,5 +1,5 @@
 /**
- * @file Public surface (barrel) for the `settings` library (SPEC-007 / ADR-028).
+ * @file Public surface (barrel) for the `settings` library.
  *
  * A module's public contract is its `index.ts` — deep imports from outside
  * this directory should go through here.

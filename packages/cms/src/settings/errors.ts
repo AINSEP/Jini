@@ -1,5 +1,5 @@
 /**
- * @file Typed domain errors for `settings` (SPEC-007 errors.spec.md §2).
+ * @file Typed domain errors for `settings`.
  *
  * Purpose:
  * One class per error this module originates, mirroring the

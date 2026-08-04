@@ -17,8 +17,7 @@ import { purgeTenantSettings } from "../purge-service.js";
 import type { SettingDefinitionRecord, SettingValueRecord } from "../types.js";
 
 /**
- * @file T048/T049 — per-layer + definition cache (SPEC-007 REQ-12; ADR-028
- * §8; AC-19/AC-20).
+ * @file Per-layer + definition cache.
  *
  * Covers:
  * - AC-19: a global write to namespace N invalidates only that one
