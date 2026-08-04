@@ -21,6 +21,16 @@
  * stylesheets, `react/chat/styles/reference.css` and the Remix icon font, declare no custom
  * properties at all), so these are namespaced `--jini-mcpui-*` to stay out of the way of one if it
  * ever lands.
+ *
+ * ## Dark mode
+ *
+ * {@link SURFACE_TOKENS_DARK} is the same key set with dark values, applied by
+ * {@link renderTokenBlock} inside a `@media (prefers-color-scheme: dark)` block that redeclares only
+ * the base tokens — never {@link DERIVED_TOKENS}. A derived token's own declaration still says
+ * `color-mix(in srgb, var(--jini-mcpui-accent) …)`; it does not need a dark-specific line because the
+ * browser resolves that `var()` against whichever `--jini-mcpui-accent` cascades on the element at
+ * used-value time, light or dark. Redeclaring a derived token per scheme would just be two ways to
+ * get the same answer with an extra place for them to drift.
  */
 
 /**
@@ -60,6 +70,37 @@ export const SURFACE_TOKENS = {
 export type SurfaceTokenName = keyof typeof SURFACE_TOKENS;
 
 /**
+ * The dark-scheme value for every token in {@link SURFACE_TOKENS}, keyed the same way and typed as
+ * `Record<SurfaceTokenName, string>` rather than a partial — a token added to the light palette and
+ * forgotten here would not fail to compile, so the full-parity type is what catches it instead.
+ * Radius and font values are repeated verbatim: they do not change with scheme, but the record needs
+ * every key regardless, and a value can only be omitted by weakening the type that guards this file
+ * against exactly that omission.
+ */
+export const SURFACE_TOKENS_DARK: Record<SurfaceTokenName, string> = {
+  '--jini-mcpui-bg': '#1a1917',
+  '--jini-mcpui-panel': '#222120',
+  '--jini-mcpui-border': '#333128',
+  '--jini-mcpui-border-strong': '#46433c',
+  '--jini-mcpui-text': '#e8e4dc',
+  '--jini-mcpui-text-strong': '#f2ede4',
+  '--jini-mcpui-text-muted': '#9a9690',
+  '--jini-mcpui-text-soft': '#6e6b65',
+  '--jini-mcpui-text-faint': '#4e4b46',
+  '--jini-mcpui-accent': '#d97a56',
+  '--jini-mcpui-accent-strong': '#e8896a',
+  '--jini-mcpui-danger': '#e0685f',
+  '--jini-mcpui-radius-xs': SURFACE_TOKENS['--jini-mcpui-radius-xs'],
+  '--jini-mcpui-radius-sm': SURFACE_TOKENS['--jini-mcpui-radius-sm'],
+  '--jini-mcpui-radius-md': SURFACE_TOKENS['--jini-mcpui-radius-md'],
+  '--jini-mcpui-radius-lg': SURFACE_TOKENS['--jini-mcpui-radius-lg'],
+  '--jini-mcpui-radius-xl': SURFACE_TOKENS['--jini-mcpui-radius-xl'],
+  '--jini-mcpui-radius-pill': SURFACE_TOKENS['--jini-mcpui-radius-pill'],
+  '--jini-mcpui-font': SURFACE_TOKENS['--jini-mcpui-font'],
+  '--jini-mcpui-font-mono': SURFACE_TOKENS['--jini-mcpui-font-mono'],
+};
+
+/**
  * Tokens computed from the base set. Never overridable, by design — a caller that could override
  * `--jini-mcpui-danger-strong` independently could also desynchronize it from `--jini-mcpui-danger`,
  * which is the exact failure this indirection removes.
@@ -75,21 +116,42 @@ const DERIVED_TOKENS: Readonly<Record<string, string>> = {
 };
 
 /**
- * Renders the `:root` declaration block for a surface document.
+ * The dark-scheme override for `--jini-mcpui-surface-shadow`. Not folded into
+ * {@link SURFACE_TOKENS_DARK}/{@link DERIVED_TOKENS}'s usual var()-cascades-automatically trick,
+ * because that trick relies on the derived expression staying correct across schemes, and this one
+ * does not: `color-mix(in srgb, var(--jini-mcpui-text) 8%, transparent)` reads as a near-invisible
+ * dark tint in light mode but as a near-invisible *light* tint in dark mode, where `--jini-mcpui-text`
+ * itself is light. A drop shadow should stay dark ink at low opacity in both schemes, so this is a
+ * fixed value the dark media block below applies as a second, later declaration of the same property.
+ */
+const DARK_SURFACE_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.32)';
+
+/**
+ * Renders the `:root` declaration block for a surface document, plus a `prefers-color-scheme: dark`
+ * variant of it.
  *
- * @param overrides - Base tokens to replace. Unknown names are a compile error, not a silent no-op,
- * because a mistyped token name would otherwise leave the real one at its default and produce a
- * surface that looks unstyled for no visible reason. Values are emitted verbatim — a caller passing
- * a token value is trusted the same way it is trusted with the surface's own body HTML.
- * @returns A `:root { … }` block, ready to paste into the first `<style>` tag.
+ * @param overrides - Base tokens to replace, applied in both schemes. Unknown names are a compile
+ * error, not a silent no-op, because a mistyped token name would otherwise leave the real one at its
+ * default and produce a surface that looks unstyled for no visible reason. Values are emitted
+ * verbatim — a caller passing a token value is trusted the same way it is trusted with the surface's
+ * own body HTML. A caller wanting scheme-specific values is not served by this parameter; it exists
+ * for a host's brand tokens, which by design apply the same way regardless of scheme.
+ * @returns A `:root { … }` block followed by a `@media (prefers-color-scheme: dark) { :root { … } }`
+ * block, ready to paste into the first `<style>` tag.
  * @complexity O(n) in the number of tokens.
  */
 export function renderTokenBlock(overrides: Partial<Record<SurfaceTokenName, string>> = {}): string {
-  const declarations = [
+  const declare = (entries: readonly (readonly [string, string])[]): string =>
+    entries.map(([name, value]) => `  ${name}: ${value};`).join('\n');
+
+  const light = declare([
     ...Object.entries({ ...SURFACE_TOKENS, ...overrides }),
     ...Object.entries(DERIVED_TOKENS),
-  ]
-    .map(([name, value]) => `  ${name}: ${value};`)
-    .join('\n');
-  return `:root {\n${declarations}\n}`;
+  ]);
+  const dark = declare([
+    ...Object.entries({ ...SURFACE_TOKENS_DARK, ...overrides }),
+    ['--jini-mcpui-surface-shadow', DARK_SURFACE_SHADOW],
+  ]);
+
+  return `:root {\n${light}\n}\n@media (prefers-color-scheme: dark) {\n  :root {\n${dark}\n  }\n}`;
 }

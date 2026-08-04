@@ -26,7 +26,13 @@ import { renderTokenBlock, type SurfaceTokenName } from './tokens.js';
 export const SURFACE_BASE_CSS = `*, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
 body {
-  background: var(--jini-mcpui-bg);
+  /* Transparent, not var(--jini-mcpui-bg): this document has no page of its own to paint. It is an
+     allow-scripts-only sandboxed iframe embedded directly in a host's chat transcript, and html's
+     background is left at its (also transparent) initial value, so the host's own pane shows
+     straight through to .mcpui-surface below rather than through a second, unrelated rectangle of
+     fill color sitting between the two. --jini-mcpui-bg stays declared for a caller styling
+     something else via extraCss -- nothing in this stylesheet reads it anymore. */
+  background: transparent;
   color: var(--jini-mcpui-text);
   font-family: var(--jini-mcpui-font);
   font-size: 14px;
@@ -35,9 +41,11 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 .mcpui-surface {
-  background: var(--jini-mcpui-panel);
-  border: 1px solid var(--jini-mcpui-border);
-  border-radius: var(--jini-mcpui-radius-xl);
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--jini-mcpui-accent) 5%, var(--jini-mcpui-panel)) 0%,
+    var(--jini-mcpui-panel) 60%);
+  border: 1px solid color-mix(in srgb, var(--jini-mcpui-accent) 18%, var(--jini-mcpui-border));
+  border-radius: var(--jini-mcpui-radius-md);
   box-shadow: var(--jini-mcpui-surface-shadow);
   padding: 18px 20px 16px;
   max-width: 640px;
@@ -77,7 +85,7 @@ body {
   font: inherit;
   color: var(--jini-mcpui-text);
   background: var(--jini-mcpui-panel);
-  border: 1px solid var(--jini-mcpui-border-strong);
+  border: 1px solid color-mix(in srgb, var(--jini-mcpui-accent) 14%, var(--jini-mcpui-border-strong));
   border-radius: var(--jini-mcpui-radius-sm);
   padding: 7px 9px;
   width: 100%;
@@ -100,7 +108,7 @@ body {
   font-weight: 500;
   padding: 7px 15px;
   border-radius: var(--jini-mcpui-radius-pill);
-  border: 1px solid var(--jini-mcpui-border-strong);
+  border: 1px solid color-mix(in srgb, var(--jini-mcpui-accent) 14%, var(--jini-mcpui-border-strong));
   background: var(--jini-mcpui-panel);
   color: var(--jini-mcpui-text);
   cursor: pointer;
@@ -343,7 +351,15 @@ export interface SurfaceAction {
   readonly label: string;
   /** `primary` for the affirmative action, `danger` for a destructive one, `neutral` for cancel. */
   readonly variant?: 'primary' | 'danger' | 'neutral';
-  /** `submit` inside a `<form>`, so Enter in a text field submits it. Defaults to `button`. */
+  /**
+   * `submit` triggers native `<form>` submission on click — which every surface in this package
+   * avoids. In the sandbox these documents actually render in (`allow-scripts`, no `allow-forms`),
+   * a native form submission is blocked before the browser ever dispatches the `submit` event, so a
+   * `type="submit"` button inside a `<form>` there is inert by construction and any handler wired to
+   * `submit` is unreachable dead code — see `form.ts`'s `runSubmit`, which is called from `click`
+   * instead. Kept as an option here, not removed, for a caller embedding this HTML somewhere other
+   * than that sandbox; every current builder passes `button` (the default).
+   */
   readonly type?: 'button' | 'submit';
 }
 
