@@ -20,8 +20,7 @@
  * consolidation: this is an ext-event renderer for a chat transcript (chat-domain), not a generic
  * ui primitive, and its sibling `A2uiSurfaceCard.tsx` already lived here. Moving it also removed a
  * real `ui → chat` edge that would otherwise have formed a cycle with `@jini-ai/chat`'s own new
- * dependency on `@jini-ai/ui` — see this package's own report in Tovu's ADS-memory for the full
- * finding. `McpUiHost`/`McpUiToolCallHandler`/`parseUIResource`/`readPreferredFrameSize` still
+ * dependency on `@jini-ai/ui`. `McpUiHost`/`McpUiToolCallHandler`/`parseUIResource`/`readPreferredFrameSize` still
  * come from `@jini-ai/ui/mcp-ui`, which owns the actual sandboxed-iframe hosting and MCP-UI
  * resource vocabulary — genuinely ui-generic, with real consumers beyond this one component.
  */

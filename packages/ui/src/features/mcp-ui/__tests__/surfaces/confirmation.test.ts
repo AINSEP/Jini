@@ -156,19 +156,19 @@ describe('renderConfirmationDocument', () => {
   it('reports the app identity and token overrides through to the document', () => {
     const html = renderConfirmationDocument({
       ...DELETE_POST,
-      app: { appName: 'tovu-delete-dialog', appVersion: '3' },
+      app: { appName: 'host-delete-dialog', appVersion: '3' },
       tokens: { '--jini-mcpui-danger': '#800000' },
     });
-    expect(html).toContain('"tovu-delete-dialog"');
+    expect(html).toContain('"host-delete-dialog"');
     expect(html).toContain('--jini-mcpui-danger: #800000;');
   });
 });
 
 describe('buildConfirmationSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource', () => {
-    const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://tovu/content-post-delete/p1/3' });
+    const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://example-host/content-post-delete/p1/3' });
     expect(resource.type).toBe('resource');
-    expect(resource.resource.uri).toBe('ui://tovu/content-post-delete/p1/3');
+    expect(resource.resource.uri).toBe('ui://example-host/content-post-delete/p1/3');
     expect(resource.resource.mimeType).toBe('text/html;profile=mcp-app');
     expect(resource.resource.text).toContain('<h1 class="mcpui-title">Delete this post?</h1>');
     expect(resource.resource).not.toHaveProperty('_meta');
@@ -177,7 +177,7 @@ describe('buildConfirmationSurface', () => {
   it('carries a preferred frame size when one is asked for', () => {
     const resource = buildConfirmationSurface({
       ...DELETE_POST,
-      uri: 'ui://tovu/x/1',
+      uri: 'ui://example-host/x/1',
       preferredFrameSize: ['420px', '460px'],
     });
     expect(resource.resource._meta).toEqual({ [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['420px', '460px'] });

@@ -1,7 +1,7 @@
 /**
  * Proves the hard invariant this package's `/core` subpath exists to hold: `src/core/**` must
  * stay completely React-free and `runtime: "universal"` (see this package's `package.json`
- * `jini.entries["."]`/`["./core"]`). Tovu imports chat state server-side in Node
+ * `jini.entries["."]`/`["./core"]`). A host importing chat state server-side in Node
  * (`src/assistant/persistence/tenant-scope.ts`, `src/server/modules/assistant-chats.ts`) — a
  * React dependency anywhere in this subtree, direct or transitive, would break that.
  *

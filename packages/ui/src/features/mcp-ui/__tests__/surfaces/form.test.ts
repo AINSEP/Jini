@@ -241,12 +241,12 @@ describe('renderFormDocument', () => {
       text: { working: 'Envoi…' },
       lang: 'fr',
       tokens: { '--jini-mcpui-accent': '#00aa88' },
-      app: { appName: 'tovu-schedule-form', appVersion: '9' },
+      app: { appName: 'host-schedule-form', appVersion: '9' },
     });
     const surface = mountSurface(html);
     expect(surface.doc.documentElement.getAttribute('lang')).toBe('fr');
     expect(html).toContain('--jini-mcpui-accent: #00aa88;');
-    expect(html).toContain('"tovu-schedule-form"');
+    expect(html).toContain('"host-schedule-form"');
     surface.submit();
     expect(surface.status()).toBe('Envoi…');
   });
@@ -254,14 +254,14 @@ describe('renderFormDocument', () => {
 
 describe('buildFormSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource', () => {
-    const resource = buildFormSurface({ ...SPEC, uri: 'ui://tovu/schedule/p1' });
-    expect(resource.resource.uri).toBe('ui://tovu/schedule/p1');
+    const resource = buildFormSurface({ ...SPEC, uri: 'ui://example-host/schedule/p1' });
+    expect(resource.resource.uri).toBe('ui://example-host/schedule/p1');
     expect(resource.resource.text).toContain('Schedule this post');
     expect(resource.resource).not.toHaveProperty('_meta');
   });
 
   it('carries a preferred frame size when one is asked for', () => {
-    const resource = buildFormSurface({ ...SPEC, uri: 'ui://tovu/schedule/p1', preferredFrameSize: ['500px', '600px'] });
+    const resource = buildFormSurface({ ...SPEC, uri: 'ui://example-host/schedule/p1', preferredFrameSize: ['500px', '600px'] });
     expect(resource.resource._meta).toEqual({ [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['500px', '600px'] });
   });
 });

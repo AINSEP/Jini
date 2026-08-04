@@ -11,7 +11,7 @@
  * (`@jini-ai/mcp`'s `tool-protocol.ts`) `JSON.stringify`s whatever it is handed into a single text
  * block. So a UI resource left in a handler's return value becomes ordinary model-visible context.
  *
- * That is not hypothetical. Tovu's `content_post_delete` returned
+ * That is not hypothetical. A host's `content_post_delete` tool returned
  * `{ content: [textBlock, uiResource] }` where the resource's inline `<script>` held a single-use
  * confirmation token, and the tool's own description told the model the token "is never shown to
  * you". The model could read it out of its own tool result and approve its own deletion. The split

@@ -14,7 +14,7 @@ import { createToolExecutor } from '../tool-executor.js';
  * from the value returned to the caller (which becomes the model's tool result via
  * `@jini-ai/mcp`'s `okResult()`).
  *
- * The regression being guarded is concrete: Tovu's `content_post_delete` returned a confirmation
+ * The regression being guarded is concrete: a host's `content_post_delete` tool returned a confirmation
  * dialog whose inline script held a single-use token, in the same result the model reads. The model
  * could lift the token from its own tool result and approve its own deletion, with the tool's
  * description still asserting the token "is never shown to you".

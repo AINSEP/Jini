@@ -103,14 +103,14 @@ describe('useMcpUiHost handshake', () => {
     render(
       <Harness
         messageSource={bus.source}
-        hostInfo={{ name: 'tovu-admin', version: '4.2' }}
+        hostInfo={{ name: 'example-admin', version: '4.2' }}
         hostContext={{ theme: 'dark', displayMode: 'fullscreen' }}
       />,
     );
     const posts = spyOnPosts();
     bus.deliver(INITIALIZE, viewWindow());
     expect(posts.mock.calls[0]?.[0]).toMatchObject({
-      result: { hostInfo: { name: 'tovu-admin', version: '4.2' }, hostContext: { theme: 'dark', displayMode: 'fullscreen' } },
+      result: { hostInfo: { name: 'example-admin', version: '4.2' }, hostContext: { theme: 'dark', displayMode: 'fullscreen' } },
     });
   });
 
