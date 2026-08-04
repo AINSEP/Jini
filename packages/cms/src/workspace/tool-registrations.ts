@@ -1,5 +1,5 @@
 /**
- * @file Workspace's half of ADR-049 Decision 4 (SPEC-044): maps the wireable subset of
+ * @file Workspace's half of the cross-domain agent-tool wiring split: maps the wireable subset of
  * `agent-tools.ts`'s four catalog entries onto the current-workspace read and the narrow rename
  * write, as `ToolRegistration`s.
  *

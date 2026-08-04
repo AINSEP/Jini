@@ -6,7 +6,7 @@ import { InMemoryWorkspaceRepo } from "../repo.memory.js";
 import { updateWorkspace } from "../update.js";
 
 /**
- * Specification tests for SPEC-044 REQ-04 (`UPDATE_WORKSPACE`) — AC-05, EC-01, EC-02.
+ * Specification tests for the update-workspace slice (`UPDATE_WORKSPACE`) — AC-05, EC-01, EC-02.
  */
 test("updateWorkspace renames name and persists it (AC-05)", async () => {
   const repo = new InMemoryWorkspaceRepo([{ id: "ws-1", name: "Old Name", slug: "old-slug", createdAt: "t0" }]);

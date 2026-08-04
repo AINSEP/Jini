@@ -1,8 +1,8 @@
 /**
- * @file Public surface (barrel) for the `workspace` library (SPEC-044).
+ * @file Public surface (barrel) for the `workspace` library.
  *
- * A module's public contract is its `index.ts` (ADR-009 §1) — deep imports from outside this
- * directory should go through here.
+ * A module's public contract is its `index.ts` (module-boundary convention) — deep imports from
+ * outside this directory should go through here.
  */
 export {
   createWorkspace,

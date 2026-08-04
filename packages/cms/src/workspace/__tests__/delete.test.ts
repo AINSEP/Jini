@@ -6,7 +6,7 @@ import { deleteWorkspace } from "../delete.js";
 import { InMemoryWorkspaceRepo } from "../repo.memory.js";
 
 /**
- * Specification tests for SPEC-044 REQ-05/INV-03 (`DELETE_WORKSPACE`) — AC-06, EC-04-adjacent
+ * Specification tests for the delete-workspace slice (`DELETE_WORKSPACE`) — AC-06, EC-04-adjacent
  * (EC-04's :workspaceId-mismatch case is a route-layer 404, exercised in the HTTP integration
  * suite; these tests cover the domain-level guard directly).
  */

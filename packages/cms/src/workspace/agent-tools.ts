@@ -1,13 +1,13 @@
 /**
- * @file SPEC-044 — the Workspace domain's agent-tool catalog, instantiating SPEC-016 REQ-22's
+ * @file The Workspace domain's agent-tool catalog, instantiating this package's shared
  * naming/callability convention (the same shape every other domain catalog in this package
  * already uses).
  *
  * Purpose:
  * A static, in-process catalog describing every agent-callable tool this domain exposes and the
  * permission each one carries. This is the highest-stakes domain wired so far: a host's
- * `workspaceId` is fixed at process composition (SPEC-044's Architectural Finding — a v1 install
- * always has exactly one addressable workspace row), so `create`/`delete` are deliberately excluded
+ * `workspaceId` is fixed at process composition (a v1 install always has exactly one addressable
+ * workspace row), so `create`/`delete` are deliberately excluded
  * outright rather than treated as ordinary CRUD:
  * - `CREATE_WORKSPACE` inserts a row no route can ever address afterwards (every other workspace
  *   route resolves strictly against the boot-wired `workspaceId`, never a caller-supplied id)
@@ -23,10 +23,10 @@
  * see `update.ts`), the same risk class as `identity_role_rename`.
  *
  * How it relates to the package:
- * A host's server-side tool filter (ADR-014) consumes this catalog to decide which tool names an
- * agent session may even see; `authorize()` (ADR-021 §2) enforces the actual permission checks at
- * call time — this module only declares the catalog shape, it performs no I/O and no enforcement
- * itself.
+ * A host's server-side tool filter consumes this catalog to decide which tool names an
+ * agent session may even see; `authorize()` (the single-evaluator rule below) enforces the actual
+ * permission checks at call time — this module only declares the catalog shape, it performs no
+ * I/O and no enforcement itself.
  *
  * Architectural role:
  * `workspace` domain logic. No dependencies.
@@ -87,7 +87,7 @@ const UPDATE_WORKSPACE_SCHEMA = {
 } as const;
 
 /**
- * The Workspace domain's fixed agent-tool catalog (SPEC-044).
+ * The Workspace domain's fixed agent-tool catalog.
  *
  * @complexity O(1) — a fixed, statically-defined list.
  * @overallScore 100
