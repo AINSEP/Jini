@@ -1,26 +1,27 @@
 import type { ContentTypeFieldDef, ContentTypeFieldKind } from "../content-types/types.js";
 
 /**
- * @file REQ-14/15/25 (SPEC-020) — `validateFieldsAgainstSchema`'s envelope-shape-first ordering
- * (C-411) and `selectVisibleEntryFields`'s orphaned-field read tolerance (ADR-022 "Failure modes",
+ * @file `validateFieldsAgainstSchema`'s envelope-shape-first ordering and
+ * `selectVisibleEntryFields`'s orphaned-field read tolerance ("Failure modes",
  * schema drift / dangling fields: "validation is strict on write, tolerant on read").
  *
  * Purpose:
  * The single pure-logic implementation of "does this `fieldsJson` conform to this content type's
  * current schema" — reused identically by `write-service.ts`'s `createEntry`/`updateEntry` and by
- * any future validate-only route (AC-39/AC-40), so there is exactly one place this rule can drift.
+ * any future validate-only route, so there is exactly one place this rule can drift.
  * `fieldsJson` must already be wrapped in the `{ ext: { <owner>: {...} } }` namespaced envelope
- * (ADR-022 §2) — a flat/unwrapped payload is rejected as a distinct envelope-shape violation
- * BEFORE any per-field check runs (AC-50/EC-15), never conflated with a per-field error for a key
+ * — a flat/unwrapped payload is rejected as a distinct envelope-shape violation
+ * BEFORE any per-field check runs, never conflated with a per-field error for a key
  * that happens to share a field's name.
  *
  * Owner namespace (2026-07-21): `validateFieldsAgainstSchema` takes an optional `owner`, defaulting
- * to `"site"` — every caller that omits it keeps ADR-022 §2's originally-shipped, single-namespace
- * behavior byte-for-byte (same envelope, same error message, same certified SPEC-020 test suite).
+ * to `"site"` — every caller that omits it keeps the originally-shipped, single-namespace
+ * behavior byte-for-byte (same envelope, same error message, same certified test suite).
  * This is the fix for a real, confirmed gap: this module previously hardcoded the literal `site`
- * namespace with no way for a content type to declare its own, contradicting ADR-022 §2's documented
- * `fields.ext.{owner}.*` promise (first surfaced by SPEC-043/widgets, which needs `ext.widget`/
- * `ext.widgets`, not `ext.site`, for data that structurally belongs to a different feature).
+ * namespace with no way for a content type to declare its own, contradicting this engine's
+ * documented `fields.ext.{owner}.*` promise (first surfaced by a widgets feature, which needs
+ * `ext.widget`/`ext.widgets`, not `ext.site`, for data that structurally belongs to a different
+ * feature).
  * `selectVisibleEntryFields` is intentionally left untouched — it has no production caller anywhere
  * in this codebase today, so widening it now would be speculative; extend it the same way once a
  * real caller needs a non-`site` read projection.
@@ -78,7 +79,7 @@ function conformsToKind(value: unknown, kind: ContentTypeFieldKind): boolean {
 export function validateFieldsAgainstSchema(required: {
   schema: ContentTypeFieldDef[];
   fieldsJson: unknown;
-  /** The `ext` sub-key this content type's fields live under (ADR-022 §2). Defaults to `"site"` — every existing caller keeps identical behavior unless it opts into a different owner namespace. */
+  /** The `ext` sub-key this content type's fields live under. Defaults to `"site"` — every existing caller keeps identical behavior unless it opts into a different owner namespace. */
   owner?: string | undefined;
 }): ValidateFieldsResult {
   const { schema, fieldsJson, owner = "site" } = required;
@@ -88,7 +89,7 @@ export function validateFieldsAgainstSchema(required: {
   if (!isPlainObject(fieldsJson) || !isPlainObject(ext) || !isPlainObject(ownerBag)) {
     return {
       valid: false,
-      fieldErrors: [{ field: "__envelope__", reason: `fieldsJson must be wrapped in the { ext: { ${owner}: {...} } } envelope shape (ADR-022 §2)` }],
+      fieldErrors: [{ field: "__envelope__", reason: `fieldsJson must be wrapped in the { ext: { ${owner}: {...} } } envelope shape` }],
     };
   }
 
@@ -116,9 +117,9 @@ export function validateFieldsAgainstSchema(required: {
 }
 
 /**
- * AC-24/EC-08 — projects an entry's `fieldsJson.ext.site` down to only the keys still present in
+ * Projects an entry's `fieldsJson.ext.site` down to only the keys still present in
  * the content type's CURRENT schema, silently dropping orphaned keys left behind by a prior field
- * removal rather than erroring (ADR-022 "Failure modes": "validation is strict on write, tolerant
+ * removal rather than erroring ("Failure modes": "validation is strict on write, tolerant
  * on read").
  *
  * @complexity O(k) in the number of keys present on the entry's stored fields bag.

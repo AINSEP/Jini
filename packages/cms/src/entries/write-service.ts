@@ -12,22 +12,22 @@ import { validateFieldsAgainstSchema } from "./field-validation.js";
 import type { ActorIdentityInput, EntryRecord, OwningContentType, Result } from "./types.js";
 
 /**
- * @file REQ-13/14/19/28 (SPEC-020) — the `entries` write chokepoint: `createEntry`,
- * `updateEntry`, `publishEntry`, `unpublishEntry` (ADR-022 §1/§2/§4, ADR-043 §4).
+ * @file The `entries` write chokepoint: `createEntry`,
+ * `updateEntry`, `publishEntry`, `unpublishEntry`.
  *
  * Purpose:
  * The ONLY path that creates or mutates an `entries` row. `createEntry` validates the owning
- * content type exists IN THIS WORKSPACE (INV-01 — a soft polymorphic reference, so a same-key type
- * owned by a different workspace must never be silently accepted), is `active` (REQ-10 — new-entry
+ * content type exists IN THIS WORKSPACE (a soft polymorphic reference, so a same-key type
+ * owned by a different workspace must never be silently accepted), is `active` (new-entry
  * creation is blocked for both `deprecated` and `tombstone` owning types), and that `(workspaceId,
- * type, slug)` is unique (AC-21) before writing.
+ * type, slug)` is unique before writing.
  *
- * `updateEntry`/`publishEntry`/`unpublishEntry` invert REQ-10's rule per REQ-28: only a
- * `tombstone` owning type blocks these (AC-44/AC-45); `deprecated` blocks none of them (AC-46) —
+ * `updateEntry`/`publishEntry`/`unpublishEntry` invert that rule: only a
+ * `tombstone` owning type blocks these; `deprecated` blocks none of them —
  * deprecation only ever stops NEW entries, never touches entries that already exist.
  *
  * How it relates to the project:
- * `deps.watermark` (SPEC-016 REQ-01/INV-08) and the actor-identity delegation fields mirror
+ * `deps.watermark` and the actor-identity delegation fields mirror
  * `features/content-types/write-service.ts`'s identical optional/additive shape —
  * `watermark-stamping.integration.test.ts` exercises both packages side by side to prove they
  * share the same chokepoint discipline.
@@ -71,7 +71,7 @@ export interface OutboxPort {
   enqueue(event: { name: string; payload: Record<string, unknown> }): Promise<void>;
 }
 
-/** Optional (SPEC-016 REQ-01/INV-08) — advances `database_write_watermark` by exactly 1 when supplied. */
+/** Optional — advances `database_write_watermark` by exactly 1 when supplied. */
 export interface WatermarkPort {
   stampWatermark(input: { workspaceId: string }): Promise<number>;
 }
@@ -107,7 +107,7 @@ export interface CreateEntryRequired {
     title: string;
     fieldsJson: unknown;
     bodyJson?: unknown;
-    /** The `ext` sub-key `fieldsJson` is namespaced under (ADR-022 §2). Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
+    /** The `ext` sub-key `fieldsJson` is namespaced under. Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
     owner?: string | undefined;
   };
 }
@@ -239,23 +239,23 @@ export interface UpdateEntryRequired {
     title?: string | undefined;
     fieldsJson?: unknown;
     /**
-     * SPEC-043/ADR-047 Debate Fold-In Amendment 6 (REQ-44/45) — additive-only, optional. Every
-     * pre-existing caller omits this and is byte-for-byte unaffected (verified via a full-suite run
-     * before/after this change — see the widgets implementation report's identical `onWritten`
-     * precedent for the same verification discipline). Closes a real, previously-disclosed gap: no
-     * path existed to change an entry's `bodyJson` after creation (only `createEntry` accepted it),
-     * which blocked REQ-44's "server-side, versioned document-mutation command for widgetEmbed
-     * nodes" — that command IS an `updateEntry` call with a mutated `bodyJson`, through the SAME
-     * chokepoint, `expectedVersion` guard, and revision machinery every other update already uses,
-     * not a second mutation path. No schema validation is applied to `bodyJson` here (none is applied
-     * anywhere else in this codebase either — every existing `bodyJson` writer, e.g.
-     * `CollectionEntryEditor.tsx`'s create call, already writes arbitrary TipTap JSON unchecked);
-     * `widgets/embed-service.ts` is responsible for its own guardrail check
-     * (`validateWidgetEmbedMutation`, REQ-19/20) before ever calling this.
+     * Additive-only, optional. Every pre-existing caller omits this and is byte-for-byte
+     * unaffected (verified via a full-suite run before/after this change — see the widgets
+     * implementation report's identical `onWritten` precedent for the same verification
+     * discipline). Closes a real, previously-disclosed gap: no path existed to change an entry's
+     * `bodyJson` after creation (only `createEntry` accepted it), which blocked a server-side,
+     * versioned document-mutation command for widgetEmbed nodes — that command IS an
+     * `updateEntry` call with a mutated `bodyJson`, through the SAME chokepoint, `expectedVersion`
+     * guard, and revision machinery every other update already uses, not a second mutation path.
+     * No schema validation is applied to `bodyJson` here (none is applied anywhere else in this
+     * codebase either — every existing `bodyJson` writer, e.g. `CollectionEntryEditor.tsx`'s
+     * create call, already writes arbitrary TipTap JSON unchecked); `widgets/embed-service.ts` is
+     * responsible for its own guardrail check (`validateWidgetEmbedMutation`) before ever calling
+     * this.
      */
     bodyJson?: unknown;
     expectedVersion: number;
-    /** The `ext` sub-key `fieldsJson` is namespaced under (ADR-022 §2). Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
+    /** The `ext` sub-key `fieldsJson` is namespaced under. Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
     owner?: string | undefined;
   };
 }

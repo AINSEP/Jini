@@ -4,8 +4,8 @@ import { test } from "vitest";
 import { selectVisibleEntryFields, validateFieldsAgainstSchema } from "../field-validation.js";
 
 /**
- * @file REQ-14/15/25 (SPEC-020) — `validateFieldsAgainstSchema`'s envelope-shape-first ordering
- * (C-411) and `selectVisibleEntryFields`'s orphaned-field read tolerance.
+ * @file `validateFieldsAgainstSchema`'s envelope-shape-first ordering and
+ * `selectVisibleEntryFields`'s orphaned-field read tolerance.
  *
  * Covers: AC-22 (unrecognized field rejected), AC-23 (missing required field rejected), AC-24
  * (orphaned key silently omitted on read), AC-39/AC-40 (validate-only route reuses identical

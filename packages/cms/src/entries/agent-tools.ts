@@ -1,7 +1,7 @@
 /**
  * @file The Entries agent-tool catalog — this domain's instance of the per-domain `agent-tools.ts`
  * convention `features/content-types/agent-tools.ts`, `features/settings/agent-tools.ts`, and every
- * other domain catalog already use (ADR-049 Decision 4).
+ * other domain catalog already use.
  *
  * Purpose:
  * A static, in-process catalog describing every agent-callable tool this domain exposes. Every
@@ -22,7 +22,7 @@
  * namespace entirely). `features/entries` has no relationship to that module at all: no shared
  * table, no shared write chokepoint, no shared permission. So this catalog's tools name their
  * resource `collections_entry_*` (pairing with `features/content-types/agent-tools.ts`'s own
- * `collections_content_type_*` prefix — the two packages are "one cohesive ADR-043 domain" per
+ * `collections_content_type_*` prefix — the two packages are "one cohesive domain" per
  * `server/routes/admin/content-types/deps.ts`'s own file header), not `entry_*`/`page_*`/`post_*` —
  * a name that could be misread as covering Pages/Posts. Wiring Pages/Posts agent tools would mean
  * wrapping `features/post`, a different backend this dispatch was not asked to touch and has not
@@ -87,7 +87,7 @@ const EXPECTED_VERSION_SCHEMA = {
 const FIELDS_JSON_SCHEMA = {
   type: "object",
   description:
-    "The entry's field-extension bag, wrapped as { ext: { site: {...} } } (ADR-022 §2 envelope). Must conform to the owning content type's CURRENT field schema — an unrecognized key, a wrong-kind value, or a missing required field is rejected with every failing field named, before anything is written.",
+    "The entry's field-extension bag, wrapped as { ext: { site: {...} } } envelope. Must conform to the owning content type's CURRENT field schema — an unrecognized key, a wrong-kind value, or a missing required field is rejected with every failing field named, before anything is written.",
 } as const;
 
 /** The Entries domain's fixed agent-tool catalog: the Collections authoring surface's 4 writes

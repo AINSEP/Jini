@@ -2,7 +2,7 @@ import { publishEntry, unpublishEntry, type PublishUnpublishEntryRequired } from
 import type { EntryRecord, Result } from "./types.js";
 
 /**
- * @file Entry publish/unpublish `op` dispatch (ADR-042's closed-union-dispatch convention, same
+ * @file Entry publish/unpublish `op` dispatch (the closed-union-dispatch convention, same
  * shape as `features/content-types/lifecycle-dispatch.ts`).
  */
 

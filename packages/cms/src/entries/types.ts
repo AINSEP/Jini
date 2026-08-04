@@ -1,10 +1,10 @@
 import type { ContentTypeFieldDef, ContentTypeStatus } from "../content-types/types.js";
 
 /**
- * @file SPEC-020 (ADR-022 §2, ADR-043) — shared vocabulary for the `entries` package.
+ * @file Shared vocabulary for the `entries` package.
  *
  * Purpose:
- * The `EntryRecord` shape (ADR-043 §5's universal columns + the namespaced `fields.ext.{owner}.*`
+ * The `EntryRecord` shape (the universal columns + the namespaced `fields.ext.{owner}.*`
  * bag) and the read-only slice of a content type this package needs (`fields`/`status`/
  * `workspaceId`) — imported by type only from `features/content-types`, never a runtime value, so
  * this package never calls into content-types' write path directly.
@@ -15,7 +15,7 @@ import type { ContentTypeFieldDef, ContentTypeStatus } from "../content-types/ty
 
 export type EntryStatus = "draft" | "published" | "unpublished";
 
-/** The validated, namespaced field-extension envelope (ADR-022 §2): `{ ext: { site: {...} } }`. */
+/** The validated, namespaced field-extension envelope: `{ ext: { site: {...} } }`. */
 export interface EntryFieldsJson {
   ext: { site: Record<string, unknown> };
 }

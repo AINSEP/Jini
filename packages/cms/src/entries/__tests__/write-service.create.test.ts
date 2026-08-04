@@ -12,8 +12,7 @@ import { createEntry } from "../write-service.js";
 import type { EntryRecord } from "../types.js";
 
 /**
- * @file REQ-13/14/19 (SPEC-020) — `createEntry` slug-uniqueness and type-existence/workspace-
- * ownership validation (C-409).
+ * @file `createEntry` slug-uniqueness and type-existence/workspace-ownership validation.
  *
  * Covers: AC-21 (duplicate (workspaceId,type,slug) rejected), AC-29 (nonexistent type rejected),
  * AC-30 (cross-workspace type reference rejected — INV-01), AC-27 (entry.created outbox event).
@@ -113,7 +112,7 @@ test("AC-30/INV-01: a content type that exists only in a DIFFERENT workspace is 
     input: { workspaceId: "ws-1", actorId: "user-1", type: "recipe", slug: "x", title: "X", fieldsJson: { ext: { site: {} } } },
   });
 
-  assert.equal(result.ok, false, "a content type owned by a different workspace must never be silently accepted (SPEC-016 REQ-18's general soft-reference rule)");
+  assert.equal(result.ok, false, "a content type owned by a different workspace must never be silently accepted (the general soft-reference rule)");
   assert.equal(entryRepo.rows.length, 0);
 });
 

@@ -8,7 +8,7 @@ import type { EntryRecord, EntryStatus } from "./types.js";
  *
  * `status`/`orderBy`/`limit` (2026-07-21) — added to close a real, audit-confirmed gap
  * (`widgets/resolvers/recent-entries.ts` was loading every entry in the workspace into memory with
- * no filter/bound at all, then sorting/slicing in JS, violating SPEC-043 REQ-25's "one bounded
+ * no filter/bound at all, then sorting/slicing in JS, violating this engine's "one bounded
  * query, no unbounded scans" resolver contract). All three are optional and additive — every
  * existing caller that omits them keeps identical behavior.
  *

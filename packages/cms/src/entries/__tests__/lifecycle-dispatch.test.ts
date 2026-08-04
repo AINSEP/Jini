@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { ENTRY_LIFECYCLE_OPS, parseEntryLifecycleOp } from "../lifecycle-dispatch.js";
 
 /**
- * @file ADR-042 closed-union-dispatch convention applied to entry publish/unpublish ops (this
+ * @file The closed-union-dispatch convention applied to entry publish/unpublish ops (this
  * dispatch).
  */
 

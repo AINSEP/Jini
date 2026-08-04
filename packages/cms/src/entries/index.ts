@@ -1,7 +1,7 @@
 /**
- * @file Public surface (barrel) for the `entries` library (ADR-029).
+ * @file Public surface (barrel) for the `entries` library.
  *
- * A module's public contract is its `index.ts` (ADR-009 §1) — deep imports from outside this
+ * A module's public contract is its `index.ts` — deep imports from outside this
  * directory should go through here.
  *
  * `entries` and `content-types` ship as two subpaths rather than one because they are two

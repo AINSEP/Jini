@@ -12,9 +12,9 @@ import { publishEntry, unpublishEntry, updateEntry } from "../write-service.js";
 import type { EntryRecord } from "../types.js";
 
 /**
- * @file REQ-28 (SPEC-020) — `updateEntry`/`publishEntry`/`unpublishEntry` vs. a non-active owning
+ * @file `updateEntry`/`publishEntry`/`unpublishEntry` vs. a non-active owning
  * content type: `tombstone` blocks all three; `deprecated` blocks none of them (the inverse of
- * REQ-10, which blocks only *new* entry creation).
+ * the rule that blocks only *new* entry creation).
  *
  * Covers: AC-44 (UPDATE_ENTRY rejected for tombstoned type), AC-45 (PUBLISH/UNPUBLISH rejected,
  * no outbox event), AC-46 (all three succeed normally for a deprecated owning type), EC-13, EC-14.
@@ -136,9 +136,9 @@ test("EC-13: UPDATE_ENTRY against a tombstoned owning type reports CONTENT_TYPE_
 });
 
 // ---------------------------------------------------------------------------
-// SPEC-043/ADR-047 Debate Fold-In Amendment 6 (REQ-44/45) — additive `bodyJson` support on
-// UPDATE_ENTRY, the real chokepoint `widgets/embed-service.ts`'s server-side document-mutation
-// command composes on top of (no second mutation path).
+// Additive `bodyJson` support on UPDATE_ENTRY, the real chokepoint
+// `widgets/embed-service.ts`'s server-side document-mutation command composes
+// on top of (no second mutation path).
 // ---------------------------------------------------------------------------
 
 function entryWithBody(bodyJson: unknown) {

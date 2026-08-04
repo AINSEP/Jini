@@ -1,14 +1,14 @@
 /**
- * @file Entries' half of ADR-049 Decision 4: maps `agent-tools.ts`'s 5 catalog entries onto
- * `write-service.ts`'s create/update/publish/unpublish and `list.ts`'s read, as `ToolRegistration`s.
- * The entire catalog is wired — there is no delete/purge function to exclude and no cleanup ceremony
- * in this domain (see `agent-tools.ts`'s own header for the 3 deliberate scope exclusions, none of
- * which withhold a whole tool).
+ * @file Entries' half of the shared agent-tool-registration convention: maps `agent-tools.ts`'s 5
+ * catalog entries onto `write-service.ts`'s create/update/publish/unpublish and `list.ts`'s read, as
+ * `ToolRegistration`s. The entire catalog is wired — there is no delete/purge function to exclude
+ * and no cleanup ceremony in this domain (see `agent-tools.ts`'s own header for the 3 deliberate
+ * scope exclusions, none of which withhold a whole tool).
  *
  * Authorization shape, mixed and deliberately so: `createEntry`/`updateEntry`/`publishEntry`/
  * `unpublishEntry` each call `deps.authorize({ permission: 'admin.collections.manage', ... })` as
  * their own first line (confirmed directly against `write-service.ts`), so those four handlers must
- * NOT re-check (ADR-021 §2 "one evaluator"). `listEntries` (`list.ts`) has no such call of its own —
+ * NOT re-check (the "one evaluator" rule). `listEntries` (`list.ts`) has no such call of its own —
  * its file header says so explicitly ("no authorization of its own; the caller route checks
  * `admin.collections.read` first") — so `collections_entry_list`'s handler performs that identical
  * inline check itself, mirroring `entries/list.ts`'s admin route.

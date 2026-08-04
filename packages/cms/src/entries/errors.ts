@@ -1,5 +1,5 @@
 /**
- * @file SPEC-020 — typed error surface for the `entries` package.
+ * @file Typed error surface for the `entries` package.
  *
  * `class X extends Error {}` does NOT give an instance a `.name` of `"X"` on this runtime unless
  * the constructor sets `this.name` explicitly — every class below sets it, matching the

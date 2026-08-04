@@ -69,7 +69,7 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
  * `features/content-types/repo.memory.ts`'s `toContentTypeOutbox`.
  *
  * `workspaceId` is REQUIRED and is declared on the wrapped port's event type on purpose. A real
- * `core/ports` `DomainEvent` carries `workspaceId` as a non-optional tenant boundary (ADR-007), and
+ * `core/ports` `DomainEvent` carries `workspaceId` as a non-optional tenant boundary, and
  * persistent adapters store it in a NOT NULL column. This wrapper previously under-declared the
  * wrapped port as `{id,name,occurredAt,payload}` and constructed an event without `workspaceId`, so
  * a host binding a SQLite outbox typechecked cleanly and then threw
