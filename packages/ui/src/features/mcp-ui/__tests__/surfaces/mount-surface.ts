@@ -52,8 +52,17 @@ export function mountSurface(html: string) {
     click(action: string) {
       button(action).dispatchEvent(new Event('click', { bubbles: true }));
     },
+    /**
+     * Clicks the submit button — deliberately NOT a synthetic "submit" `Event` on the form. The
+     * sandbox these documents actually render in (`allow-scripts`, no `allow-forms`) blocks native
+     * form submission before the "submit" event is ever dispatched, so a helper that fired that
+     * event directly could report every one of these specs green while the real click path stayed
+     * broken in production — which is exactly what happened before `form.ts`'s `runSubmit` moved off
+     * the "submit" event onto the button's "click". See `form.test.ts`'s "does not depend on the
+     * form's submit event" for the regression test this rewrite exists to make possible.
+     */
     submit() {
-      doc.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      button('submit').dispatchEvent(new Event('click', { bubbles: true }));
     },
     status(): string {
       return doc.getElementById('mcpui-status')?.textContent ?? '';

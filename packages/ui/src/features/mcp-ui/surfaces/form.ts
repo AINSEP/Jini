@@ -81,8 +81,10 @@ const FORM_ELEMENT_ID = 'mcpui-form';
  */
 export function renderFormDocument(spec: FormSurfaceSpec): string {
   const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+  // Not `type: 'submit'` — see the runtime script below for why a submit-typed button inside this
+  // particular `<form>` cannot work at all in production.
   const actions: SurfaceAction[] = [
-    { id: 'submit', label: spec.submitLabel, variant: spec.danger === true ? 'danger' : 'primary', type: 'submit' },
+    { id: 'submit', label: spec.submitLabel, variant: spec.danger === true ? 'danger' : 'primary' },
   ];
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
 
@@ -145,8 +147,16 @@ ${SURFACE_SCRIPT_PRELUDE}
     return value === "";
   }
 
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
+  // NOT wired to the form's "submit" event. Per the WHATWG form submission algorithm, the
+  // sandboxed-forms browsing-context check runs BEFORE that event is ever dispatched, so in the
+  // real target sandbox (MCP_UI_VIEW_SANDBOX grants "allow-scripts" and nothing else -- no
+  // "allow-forms") clicking a type=submit button never fires "submit" at all: the browser blocks
+  // the attempt at the point of activation and no listener sees it, cancelable or not. A
+  // preventDefault() in a "submit" handler is consequently dead code here, unreachable no matter
+  // how it is written. The submit button is type=button (see the actions array above) for exactly
+  // this reason, and this function is called directly from its "click" handler below -- "click" is
+  // unaffected by the sandboxed-forms flag, which only ever gates form submission.
+  function runSubmit() {
     var params = {};
     var key;
     for (key in BASE_PARAMS) if (Object.prototype.hasOwnProperty.call(BASE_PARAMS, key)) params[key] = BASE_PARAMS[key];
@@ -169,10 +179,29 @@ ${SURFACE_SCRIPT_PRELUDE}
       setBusy(false);
       setStatus(TEXT.failedPrefix + describeError(error), "failed");
     });
+  }
+
+  // Enter-to-submit, restored deliberately rather than left to the (equally dead, same root cause)
+  // native behavior a single-line text input gets inside a real form. Scoped to the same controls
+  // the browser would have honored it for -- type=text/type=number inputs -- so Enter still inserts
+  // a newline in a multi-line textarea and still just toggles a checkbox.
+  form.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter") return;
+    var target = event.target;
+    if (!target || target.tagName !== "INPUT") return;
+    var type = (target.getAttribute("type") || "text").toLowerCase();
+    if (type === "checkbox" || type === "radio") return;
+    event.preventDefault();
+    runSubmit();
   });
 
   for (var b = 0; b < actionButtons.length; b++) {
-    if (actionButtons[b].getAttribute("data-mcpui-action") !== "cancel") continue;
+    var action = actionButtons[b].getAttribute("data-mcpui-action");
+    if (action === "submit") {
+      actionButtons[b].addEventListener("click", runSubmit);
+      continue;
+    }
+    if (action !== "cancel") continue;
     actionButtons[b].addEventListener("click", function () {
       setBusy(true);
       if (CANCEL === null) {

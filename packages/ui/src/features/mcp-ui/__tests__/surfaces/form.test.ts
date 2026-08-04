@@ -157,11 +157,74 @@ describe('renderFormDocument', () => {
       renderFormDocument({ title: 'Rename', fields: [], submitLabel: 'Save', toolName: 'rename' }),
     );
     expect(doc.querySelectorAll('button[data-mcpui-action]')).toHaveLength(1);
-    expect(doc.querySelector('button[data-mcpui-action="submit"]')?.getAttribute('type')).toBe('submit');
+    // NOT "submit" — a type="submit" button inside this <form> would trigger native form
+    // submission on click, which the sandbox this document actually renders in (allow-scripts, no
+    // allow-forms) blocks before the "submit" event is even dispatched. See the "does not depend on
+    // the form's submit event" and "submits via a click" tests below for the behavior this guards.
+    expect(doc.querySelector('button[data-mcpui-action="submit"]')?.getAttribute('type')).toBe('button');
     expect(doc.querySelector('.mcpui-details')).toBeNull();
     expect(doc.querySelector('.mcpui-description')).toBeNull();
     expect(doc.querySelector('.mcpui-warning')).toBeNull();
     expect(doc.querySelector('button[data-mcpui-action="submit"]')?.className).toContain('mcpui-button-primary');
+  });
+
+  it('submits via a click on the submit button, the only path the target sandbox permits', () => {
+    const surface = mountSurface(renderFormDocument(SPEC));
+    surface.click('submit');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_schedule', {
+      id: 'p1',
+      confirmationToken: 'tok',
+      note: 'draft note',
+      delayHours: 2,
+      notify: true,
+      visibility: 'public',
+    });
+  });
+
+  it('does not depend on the form\'s submit event — this is the exact bug the click-based rewrite fixes', () => {
+    // A sandboxed iframe with `allow-scripts` and no `allow-forms` never dispatches "submit" at all
+    // (the WHATWG form-submission algorithm's sandboxed-forms check runs before that dispatch), so a
+    // real regression here would show up as: production stays broken while this spec, if it drove
+    // "submit" directly, stayed green. Firing "submit" here and asserting NOTHING happened is what
+    // proves the surface script no longer relies on an event the real target environment never
+    // sends — mount-surface.ts's `submit()` now drives the button's "click" for that same reason.
+    const surface = mountSurface(renderFormDocument(SPEC));
+    surface.doc.querySelector('form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.status()).toBe('');
+  });
+
+  it('submits on Enter in a single-line text field, restoring the parity a real <form> would have given away for free', () => {
+    const surface = mountSurface(renderFormDocument(SPEC));
+    const note = surface.doc.querySelector<HTMLInputElement>('input[name="note"]')!;
+    note.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_schedule', {
+      id: 'p1',
+      confirmationToken: 'tok',
+      note: 'draft note',
+      delayHours: 2,
+      notify: true,
+      visibility: 'public',
+    });
+  });
+
+  it('does not submit on Enter in a checkbox, matching what native implicit submission would have done', () => {
+    const surface = mountSurface(renderFormDocument(SPEC));
+    const notify = surface.doc.querySelector<HTMLInputElement>('input[name="notify"]')!;
+    notify.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+  });
+
+  it('does not submit on Enter in a multiline field, so a newline can still be typed', () => {
+    const surface = mountSurface(
+      renderFormDocument({
+        ...SPEC,
+        fields: [{ kind: 'string', name: 'note', label: 'Note', multiline: true }],
+      }),
+    );
+    const note = surface.doc.querySelector<HTMLTextAreaElement>('textarea[name="note"]')!;
+    note.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    expect(surface.api.callTool).not.toHaveBeenCalled();
   });
 
   it('renders the warning and the destructive variant when the form is itself a confirmation', () => {
