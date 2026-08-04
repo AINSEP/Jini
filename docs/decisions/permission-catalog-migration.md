@@ -29,14 +29,44 @@ is still in the expand phase (both strings registered, fan-out migration in plac
 
 ## Migrations currently represented in the catalog
 
+Not every row below is the same *kind* of migration. The first four are breaking grant migrations —
+the meaning or shape of the permission changed, existing grant data must be walked forward, and
+"complete" means the walk-forward is verified and the old string has reached its Point of No Return.
+The last two are a **terminology correction** — the permission's meaning and gating behavior are
+unchanged, only the string's spelling changed — and are broken out into their own subsection below so
+a reader doesn't conflate "renamed for clarity" with "grant data needs migrating."
+
+### Breaking grant migrations (old and new strings differ in meaning or shape)
+
 | Old string | New string(s) | Status | Point of No Return gate |
 |---|---|---|---|
 | `settings.write` | `settings.workspace.write` + `settings.definitions.manage` | Deprecated, fan-out registered | Data migration must map every existing `settings.write` grant to both new strings (including the admin-tier role) and be verified **before** `authorize()` begins gating settings writes on the new strings. Only then may `settings.write` be removed from the base catalog and seed data. |
 | `media.write` | Flat `media.*` set (`media.read`, `.upload`, `.update`, `.delete`, `.delete.force`, `.download_original`, `.upload_svg`) | Deprecated, fan-out registered | Same deprecate-not-delete contract; no removal until a follow-up confirms zero live dependence on the coarse string. |
 | `navigation.manage` | `admin.menus.*` (7-entry catalog: `.read`, `.create`, `.update`, `.delete`, `.delete.force`, `.assign`, `.manage`) | Deprecated, fan-out registered, route cutover done | Explicitly deferred pending (a) a persistent identity store shipping and a real deprecation window passing with observed zero reliance, which requires (b) `authorize()`'s decision reason being logged first so that reliance can actually be measured. Scheduling this follow-up is an explicit open item, not silently dropped. |
 | `integration.manage` | `admin.integrations.manage` | Deprecated, fan-out registered | Mirrors the `navigation.manage` contract: old grants are inert-but-not-deleted until a follow-up confirms zero live dependence. |
-| `storage.read` | `database.read` | Deprecated, fan-out registered | Renamed because "Storage" read as ambiguous next to the Media/Assets subsystem's own file/blob storage. Same deprecate-not-delete contract as the other entries in this table. |
-| `storage.migrate` | `database.migrate` | Deprecated, fan-out registered | Same rename and same contract as `storage.read` → `database.read`. |
+
+### Terminology correction (old and new strings mean exactly the same thing)
+
+| Old string | New string(s) | Status | Nature |
+|---|---|---|---|
+| `storage.read` | `database.read` | Deprecated, fan-out registered | Rename only — see below. |
+| `storage.migrate` | `database.migrate` | Deprecated, fan-out registered | Rename only — see below. |
+
+These two are carried through the same expand/fan-out/deprecate mechanism as the table above purely
+for catalog consistency (one convention for every superseded string), not because there is unresolved
+grant data to walk forward or a reliance measurement to take — a terminology-only rename has no
+"meaning drift" for a stale grant to fall into, so there is no fail-closed-lockout risk the way there
+is for the breaking migrations above. The source is the owner-authorized naming correction (2026-07-20)
+recorded in the "Storage" surface's originating architecture decision: the nav label, routes,
+`storage.read`/`storage.migrate` permissions, `features/storage`, the `storage-journal.db` sidecar, and
+`storage_write_watermark` were all renamed to their `database`-prefixed equivalents because "Storage"
+read as ambiguous next to the separate file/blob storage subsystem (Media/Assets). The decision record
+is explicit that this is **"a terminology correction, not a redesign"** — every mechanism the owning
+decision defines (the read-first Timeline, the single forward-migrate write op, snapshot-anchored
+restore points, the sidecar journal, the watermark) is unchanged; only the name changes. Because the
+underlying behavior never changed, "completion" for this pair means the old `storage.*` strings can be
+removed once callers have migrated to the `database.*` spelling — there is no data-migration gate to
+clear first, unlike the entries in the table above.
 
 ## Why this belongs here, not inline
 
