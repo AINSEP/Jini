@@ -146,14 +146,49 @@ function RenderComponent({
   }
 }
 
+/**
+ * What a host reports back after attempting to deliver an agent-directed action. Returned (not
+ * thrown) because a delivery failure here is routine, not exceptional — a closed exchange, a
+ * network blip, a stale tab — and every one of them is something the human needs to *see*, not
+ * something that should unwind a React event handler.
+ */
+export type A2uiAgentActionOutcome = { readonly ok: true } | { readonly ok: false; readonly reason: string };
+
+/**
+ * Duck-types `value` as a thenable rather than checking `instanceof Promise`. `onAgentAction`'s
+ * declared return type is `void | Promise<A2uiAgentActionOutcome>`, and TypeScript's structural
+ * typing means anything with a spec-shaped `then` — a hand-built thenable, a non-native promise
+ * library, a promise crossing a realm boundary (e.g. constructed inside an iframe) — satisfies
+ * `Promise<T>` at the call site without being `instanceof Promise` in *this* realm. An `instanceof`
+ * check would silently skip the await branch for any of those, dropping the delivery outcome on the
+ * floor — reintroducing, inside the fix for it, the exact silent-failure class this feature exists
+ * to remove. Do not "simplify" this back to `instanceof`.
+ *
+ * @complexity O(1).
+ * @overallScore 100
+ */
+function isThenable(value: unknown): value is PromiseLike<A2uiAgentActionOutcome> {
+  return typeof value === 'object' && value !== null && typeof (value as { then?: unknown }).then === 'function';
+}
+
 export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
   /**
    * Called when a rendered surface produces a `message`-shaped action meant for the agent (as
    * opposed to a `local` client-side function call, which this component already resolves and
    * displays itself). Omit to surface the module doc's honest "nowhere to send this yet" notice
    * instead of silently dropping the action.
+   *
+   * May return `void` — the original, still fully-supported contract; `examples/reference-web/src/
+   * A2uiLab.tsx` uses exactly this and needs no changes — or a `Promise<A2uiAgentActionOutcome>` for
+   * a host that can tell whether the message actually arrived (e.g. `createA2uiActionPoster`,
+   * Tovu-side, reporting the POST's outcome). When a promise is returned and it resolves
+   * `{ ok: false }` or rejects, the card shows a visible delivery-failure notice instead of leaving
+   * the human to wonder whether their click did anything. This is the same problem `refusalNotice`
+   * already solves for a *client-side* refusal (`buildAction` says no before anything is sent), one
+   * hop further out: the message left this component but never reached the agent. Both are needed —
+   * neither substitutes for the other.
    */
-  onAgentAction?: (runId: string | undefined, message: unknown) => void;
+  onAgentAction?: (runId: string | undefined, message: unknown) => void | Promise<A2uiAgentActionOutcome>;
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'a2ui'` name — see module doc. */
@@ -170,6 +205,7 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
   const [refusalNotice, setRefusalNotice] = useState<string | null>(null);
   const [pendingAgentAction, setPendingAgentAction] = useState<string | null>(null);
   const [localActionResult, setLocalActionResult] = useState<{ componentId: string; value: unknown } | null>(null);
+  const [deliveryFailureNotice, setDeliveryFailureNotice] = useState<string | null>(null);
 
   useEffect(() => interpreter.subscribe(() => forceRender((n) => n + 1)), [interpreter]);
 
@@ -218,7 +254,26 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
     }
     setLocalActionResult(null);
     if (onAgentAction) {
-      onAgentAction(runId, built.message);
+      // Clearing here, not just at the top of `handleAction`: a *previous* click's delivery failure
+      // must not linger next to a new attempt that has not resolved yet — same "stale notice beside
+      // a working control" concern `refusalNotice`'s own clearing already guards against.
+      setPendingAgentAction(null);
+      setDeliveryFailureNotice(null);
+      const outcome = onAgentAction(runId, built.message);
+      // `isThenable`, not `instanceof Promise` — see that helper's own doc for why.
+      if (isThenable(outcome)) {
+        void outcome.then(
+          (result) => {
+            if (!result.ok) setDeliveryFailureNotice(result.reason);
+          },
+          (error: unknown) => {
+            // A rejection is the host's transport breaking, not a message the host chose to report —
+            // still surfaced, so the human sees *something* rather than a click that silently did
+            // nothing.
+            setDeliveryFailureNotice(error instanceof Error ? error.message : String(error));
+          },
+        );
+      }
     } else {
       setPendingAgentAction(JSON.stringify(built.message));
     }
@@ -252,6 +307,15 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
       {pendingAgentAction ? (
         <div className="a2ui-surface-notice a2ui-surface-notice-unwired" role="status">
           {t('This action is meant for the agent, but this host has not wired up a live agent-action relay yet.')}
+        </div>
+      ) : null}
+      {deliveryFailureNotice ? (
+        // Deliberately its own notice, not folded into `refusalNotice` above: that one fires
+        // *before* anything is sent (the interpreter said no); this one fires *after* — the message
+        // left this component but the host reports it never arrived. Conflating them would tell the
+        // human the wrong half of the story.
+        <div className="a2ui-surface-notice a2ui-surface-notice-delivery-failed" role="status">
+          {t('This action could not be delivered: {reason}', { reason: deliveryFailureNotice })}
         </div>
       ) : null}
       {localActionResult ? (

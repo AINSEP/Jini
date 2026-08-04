@@ -63,7 +63,9 @@ export type { ConversationListProps, ConversationListItem } from './components/C
 export { ToolCard } from './components/ToolCard.js';
 export type { ToolCardProps } from './components/ToolCard.js';
 export { A2uiSurfaceCard } from './components/A2uiSurfaceCard.js';
-export type { A2uiSurfaceCardProps } from './components/A2uiSurfaceCard.js';
+// `A2uiAgentActionOutcome` is public on `A2uiSurfaceCardProps.onAgentAction`'s return type but was
+// not itself exported, so a host implementing that handler had no way to name its own return type.
+export type { A2uiAgentActionOutcome, A2uiSurfaceCardProps } from './components/A2uiSurfaceCard.js';
 /**
  * Moved from `@jini-ai/ui`'s `react/mcp-ui/` 2026-08-03 (see `McpUiSurfaceCard.tsx`'s own file
  * doc) — the same `kind: 'ext'` extensibility seam as `A2uiSurfaceCard` above, just for MCP-UI

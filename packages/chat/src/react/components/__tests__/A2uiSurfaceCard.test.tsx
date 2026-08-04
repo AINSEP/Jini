@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/agentic/a2ui';
@@ -87,6 +87,114 @@ describe('A2uiSurfaceCard', () => {
       'run-42',
       expect.objectContaining({ action: expect.objectContaining({ name: 'continue', surfaceId: 's1', sourceComponentId: 'root' }) }),
     );
+  });
+
+  it('still behaves exactly as before for a void-returning onAgentAction host — the original contract, unchanged', async () => {
+    // Pins backward compatibility for `A2uiLab.tsx`, which passes a plain `void`-returning callback
+    // and must keep working exactly as it did before `onAgentAction` grew a response channel.
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'continue' } } },
+        { id: 'label', component: 'Text', text: 'Continue' },
+      ]),
+    ];
+    const onAgentAction = vi.fn(() => undefined);
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onAgentAction).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/could not be delivered/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/has not wired up/)).not.toBeInTheDocument();
+  });
+
+  it('recognizes a hand-built thenable that is not `instanceof Promise` and still shows its failure', async () => {
+    // The point of this test: a real `Promise` (via `mockResolvedValue`) would pass an `instanceof
+    // Promise` check too, so it can't tell duck-typing apart from that alternative. A hand-built
+    // `{ then }` object can — it stands in for what a non-native promise library or a cross-realm
+    // promise (e.g. one constructed inside an iframe) would return, which `instanceof Promise` fails
+    // to recognize in this realm even though it is a legitimate thenable per the return type.
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'continue' } } },
+        { id: 'label', component: 'Text', text: 'Continue' },
+      ]),
+    ];
+    const thenable = {
+      then(onFulfilled: (value: { ok: false; reason: string }) => void) {
+        onFulfilled({ ok: false, reason: 'hand-built thenable failure' });
+      },
+    };
+    expect(thenable).not.toBeInstanceOf(Promise);
+    const onAgentAction = vi.fn(() => thenable as unknown as Promise<{ ok: false; reason: string }>);
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('This action could not be delivered: hand-built thenable failure')).toBeInTheDocument();
+  });
+
+  it('shows a delivery-failure notice when onAgentAction resolves { ok: false }', async () => {
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'continue' } } },
+        { id: 'label', component: 'Text', text: 'Continue' },
+      ]),
+    ];
+    const onAgentAction = vi.fn().mockResolvedValue({ ok: false, reason: 'this surface is no longer waiting for a response' });
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(
+      await screen.findByText('This action could not be delivered: this surface is no longer waiting for a response'),
+    ).toBeInTheDocument();
+    // Still rendered — a delivery failure is a notice, not a replacement for the surface, same
+    // posture `refusalNotice` already takes.
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
+  });
+
+  it('shows a delivery-failure notice when onAgentAction rejects', async () => {
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'continue' } } },
+        { id: 'label', component: 'Text', text: 'Continue' },
+      ]),
+    ];
+    const onAgentAction = vi.fn().mockRejectedValue(new Error('network down'));
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('This action could not be delivered: network down')).toBeInTheDocument();
+  });
+
+  it('shows no delivery-failure notice when onAgentAction resolves { ok: true }', async () => {
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'continue' } } },
+        { id: 'label', component: 'Text', text: 'Continue' },
+      ]),
+    ];
+    const onAgentAction = vi.fn().mockResolvedValue({ ok: true });
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(onAgentAction).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(/could not be delivered/)).not.toBeInTheDocument();
+  });
+
+  it('clears a stale delivery-failure notice as soon as a later attempt is made', async () => {
+    // Cleared at the start of the next `onAgentAction` call, not only on success — the same "no
+    // stale notice beside a working control" concern `refusalNotice`'s own clearing already guards
+    // against (see the "clears a previous refusal notice" test above).
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'continue' } } },
+        { id: 'label', component: 'Text', text: 'Continue' },
+      ]),
+    ];
+    const onAgentAction = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, reason: 'timed out' })
+      .mockResolvedValueOnce({ ok: true });
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('This action could not be delivered: timed out')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.queryByText(/could not be delivered/)).not.toBeInTheDocument();
   });
 
   it('shows the honest "not wired up" notice for an agent-directed action when onAgentAction is omitted', async () => {
