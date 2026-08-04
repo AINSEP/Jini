@@ -1,5 +1,5 @@
 /**
- * @file Content-types' half of ADR-049 Decision 4: maps `agent-tools.ts`'s catalog entries onto the
+ * @file Content-types' half of the agent-tool authorization wiring: maps `agent-tools.ts`'s catalog entries onto the
  * `write-service.ts`/`lifecycle.ts` functions the admin HTTP routes call, as `ToolRegistration`s.
  *
  * Colocated with the domain rather than in `assistant/`, so the knowledge this file depends on —
@@ -8,12 +8,12 @@
  *
  * Scope: 6 of 7 entries are wired — the 5 non-cleanup mutations plus the read-only
  * `collections_content_type_list`. `collections_plan_cleanup`/`collections_execute_cleanup` are
- * declared unwired — the destructive token-gated ceremony, whose mapping is deferred per ADR-049's
- * own deferred list. `ToolRegistry.list()` will not show them, which is intentional: no silent stub
+ * declared unwired — the destructive token-gated ceremony, whose mapping is deferred per this
+ * catalog's own deferred list. `ToolRegistry.list()` will not show them, which is intentional: no silent stub
  * registrations that could look like a bug if ever actually invoked.
  *
  * `ToolPolicy.authorize` is a pass-through for every entry here (see `buildDomainRegistrations`).
- * For the five mutations, that is ADR-021 §2 "one evaluator": each domain entrypoint —
+ * For the five mutations, that is the "one evaluator" rule: each domain entrypoint —
  * `registerContentType`, `updateContentTypeFields` (`write-service.ts`), `deprecateContentType`,
  * `reactivateContentType`, `tombstoneContentType` (`lifecycle.ts`) — opens with an
  * `await deps.authorize({ permission: 'admin.collections.manage', ... })` that returns

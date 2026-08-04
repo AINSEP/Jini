@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { deprecateContentType, reactivateContentType, tombstoneContentType } from "../lifecycle.js";
 
 /**
- * @file REQ-09/10/11/12 (SPEC-020) — content-type lifecycle state machine `active ⇄ deprecated →
+ * @file REQ-09/10/11/12 — content-type lifecycle state machine `active ⇄ deprecated →
  * tombstone` (C-404; INV-06).
  *
  * Covers: AC-13 (active<->deprecated reversible), AC-14 (tombstone terminal), AC-17 (tombstone

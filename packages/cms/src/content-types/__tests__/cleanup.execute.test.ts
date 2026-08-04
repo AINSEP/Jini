@@ -5,12 +5,12 @@ import { executeCleanup } from "../cleanup.js";
 import type { Result } from "../types.js";
 
 /**
- * @file REQ-21 (SPEC-020) — a successful cleanup `execute()` permanently and atomically removes
+ * @file REQ-21 — a successful cleanup `execute()` permanently and atomically removes
  * the target `content_types` row and every scoped `entries`/`entry_revisions`/
  * `content_type_revisions` row, in one transaction (C-405; INV-07).
  *
  * Covers: AC-34 (atomic multi-table removal), EC-10 (second execute() attempt against an
- * already-cleaned-up token is rejected per SPEC-016's own token/plan-staleness rules — this
+ * already-cleaned-up token is rejected per the gated-mutation gateway's own token/plan-staleness rules — this
  * package does not re-implement that rejection, only proves it forwards to the gateway
  * correctly and never attempts a second removal locally).
  *
@@ -80,7 +80,7 @@ test("INV-07: executeCleanup never runs its destructive removal against a conten
   const repo = fakeMultiTableRepo({ contentTypeKey: "recipe", entryCount: 3, entryRevisionCount: 3, contentTypeRevisionCount: 1 });
   // Simulates the gateway's own execute() re-checking plan freshness and finding the content type
   // was concurrently reactivated between plan() and execute() — PLAN_STALE is the observable
-  // rejection surface per ADR-PIPE-020's onBeforeCleanupExecute hook description.
+  // rejection surface per the gateway's onBeforeCleanupExecute hook description.
   const gateway = fakeGateway({ ok: false, error: { code: "PLAN_STALE" } });
 
   const result = await executeCleanup({

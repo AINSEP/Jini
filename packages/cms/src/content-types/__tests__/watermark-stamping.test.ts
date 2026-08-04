@@ -5,9 +5,9 @@ import { registerContentType } from "../write-service.js";
 import { createEntry } from "../../entries/write-service.js";
 
 /**
- * @file REQ-07/08/16/17 (SPEC-020) — same-transaction watermark stamping (INV-08) and composite
+ * @file REQ-07/08/16/17 — same-transaction watermark stamping (INV-08) and composite
  * actor-identity propagation (`delegatedByWorkspaceId`/`delegatedById`) on BOTH write chokepoints
- * (SPEC-016 REQ-01/REQ-02/REQ-16's `ActorIdentityRef` shape).
+ * (REQ-01/REQ-02/REQ-16's `ActorIdentityRef` shape).
  *
  * Covers: AC-11 (content-type commit advances the watermark by exactly 1), AC-12 (revision row
  * in the same transaction), AC-26 (entry commit advances the watermark by exactly 1), AC-47

@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { resolveFieldIndexTransition } from "../index-provisioning.js";
 
 /**
- * @file CIC U-003 (SPEC-020) — field-update index-provisioning composition (C-403; REQ-27, REQ-29,
+ * @file CIC U-003 — field-update index-provisioning composition (C-403; REQ-27, REQ-29,
  * REQ-30; INV-09, INV-10).
  *
  * Binding constraint U-003-B1: for every field in an `UPDATE_CONTENT_TYPE_FIELDS` full-replace

@@ -4,8 +4,8 @@ import { test } from "vitest";
 import { planCleanup } from "../cleanup.js";
 
 /**
- * @file REQ-20 (SPEC-020) — the destructive cleanup ceremony's `plan()` eligibility gate (C-405),
- * instantiating SPEC-016's gated-mutation gateway (`domain="collections"`, `action="cleanup"`).
+ * @file REQ-20 — the destructive cleanup ceremony's `plan()` eligibility gate (C-405),
+ * instantiating the gated-mutation gateway (`domain="collections"`, `action="cleanup"`).
  *
  * Covers: AC-31 (not-tombstoned rejection), AC-32 (retention window not elapsed), AC-33 (eligible
  * plan returned), EC-09 (deprecated, never tombstoned), behavior.spec.md §2.3's fixed eligibility

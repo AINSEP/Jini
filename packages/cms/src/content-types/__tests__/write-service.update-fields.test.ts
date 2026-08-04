@@ -5,7 +5,7 @@ import { VersionConflictError } from "../errors.js";
 import { updateContentTypeFields } from "../write-service.js";
 
 /**
- * @file CIC U-004 (SPEC-020) — `expectedVersion`-checked-first ordering (C-402; REQ-26, AC-56).
+ * @file CIC U-004 — `expectedVersion`-checked-first ordering (C-402; REQ-26, AC-56).
  *
  * Binding constraint U-004-B1: `expectedVersion` match is evaluated BEFORE the `fields_empty`
  * check and before any per-field guard. A stale `expectedVersion` combined with `fields: []` must

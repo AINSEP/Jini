@@ -165,7 +165,7 @@ test("the published schemas reuse the single sources for the field-kind enum and
   assert.ok(fieldSchema.kind, "the field schema must publish a `kind` property");
   assert.ok(fieldSchema.name, "the field schema must publish a `name` property");
   assert.deepEqual(fieldSchema.kind.enum, [...CONTENT_TYPE_FIELD_KINDS], "a hand-copied enum would drift the moment CONTENT_TYPE_FIELD_KINDS changes");
-  assert.equal(fieldSchema.name.pattern, IDENTIFIER_GRAMMAR_PATTERN, "GOV-ADR-003 makes this grammar load-bearing — it must have exactly one definition");
+  assert.equal(fieldSchema.name.pattern, IDENTIFIER_GRAMMAR_PATTERN, "a cross-cutting single-source-of-truth rule makes this grammar load-bearing — it must have exactly one definition");
 });
 
 test("every wired tool publishes an inputSchema; the two deliberately-unwired cleanup tools need not", () => {

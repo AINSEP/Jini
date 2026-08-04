@@ -11,7 +11,7 @@ import {
 import { registerContentType } from "../write-service.js";
 
 /**
- * @file CIC U-002 (SPEC-020) — fixed definition-time guard order (C-401; REQ-24, AC-38), plus
+ * @file CIC U-002 — fixed definition-time guard order (C-401; REQ-24, AC-38), plus
  * REQ-01/02/03/04/05/07/08's registration-path behavior.
  *
  * Binding constraint U-002-B1: the five guards (key grammar -> reserved-key -> field-name grammar

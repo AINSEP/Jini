@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { CONTENT_TYPE_LIFECYCLE_OPS, parseContentTypeLifecycleOp } from "../lifecycle-dispatch.js";
 
 /**
- * @file ADR-042 closed-union-dispatch convention applied to content-type lifecycle ops (this
+ * @file the closed-union-dispatch convention applied to content-type lifecycle ops (this
  * dispatch). Mirrors `features/settings/__tests__`'s equivalent coverage for
  * `definitions-dispatch.ts`.
  */

@@ -1,6 +1,6 @@
 /**
- * @file REQ-22/REQ-23 (SPEC-020) — the Collections content-types agent-tool catalog, instantiating
- * SPEC-016 REQ-22's naming/callability convention (mirrors `features/database/agent-tools.ts`'s
+ * @file REQ-22/REQ-23 — the Collections content-types agent-tool catalog, instantiating
+ * a REQ-22 naming/callability convention (mirrors `features/database/agent-tools.ts`'s
  * shape for this domain).
  *
  * Purpose:
@@ -13,11 +13,11 @@
  * `admin.collections.manage` and restricted to `confirmer-must-equal-own-delegatedBy`. There is
  * deliberately no `collections_confirm_cleanup` tool and no tool description implying an agent can
  * perform the confirm() step — confirmation of a destructive cleanup is human-UI-only (mirrors
- * ADR-041 §6's "Restore is a Recovery tool, not a Database tool" discipline: a lever an agent must
+ * the Database library's "Restore is a Recovery tool, not a Database tool" discipline: a lever an agent must
  * never be handed directly).
  *
  * How it relates to the project:
- * The server-side tool filter (ADR-014) consumes this catalog to decide which tool names an agent
+ * The server-side tool filter consumes this catalog to decide which tool names an agent
  * session may even see; `authorize()` and the confirmation-token gateway (`core/gated-mutations`)
  * enforce the actual permission/actor-class checks at call time — this module only declares the
  * catalog shape, it performs no I/O and no enforcement itself.

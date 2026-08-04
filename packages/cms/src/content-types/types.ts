@@ -1,5 +1,5 @@
 /**
- * @file SPEC-020 (ADR-022 §1-4, ADR-043) — shared vocabulary for the `content-types` package.
+ * @file Shared vocabulary for the `content-types` package.
  *
  * Purpose:
  * The closed field-kind enum, the content-type record shape, and the generic `Result<T,E>`
@@ -9,7 +9,7 @@
  * without pulling in any adapter.
  *
  * How it relates to the project:
- * ADR-022 §3's expression-index query surface requires the field-kind enum to be closed and
+ * The expression-index query surface requires the field-kind enum to be closed and
  * mapped through a fixed lookup table (`index-provisioning.ts`), never interpolated — this file
  * is that enum's single source of truth so the write-service's validation and the index
  * provisioner's CAST-mapping can never drift apart.
@@ -18,7 +18,7 @@
  * `features/content-types` domain vocabulary. No dependencies.
  */
 
-/** ADR-022 §3 / CIC U-001-B1 — the closed, 5-entry field-kind enum. Never extend ad hoc. */
+/** CIC U-001-B1 — the closed, 5-entry field-kind enum. Never extend ad hoc. */
 export const CONTENT_TYPE_FIELD_KINDS = ["text", "integer", "real", "boolean", "datetime"] as const;
 
 export type ContentTypeFieldKind = (typeof CONTENT_TYPE_FIELD_KINDS)[number];
@@ -43,7 +43,7 @@ export interface ContentTypeFieldDef {
 
 export type ContentTypeStatus = "active" | "deprecated" | "tombstone";
 
-/** ADR-043 §5 sample schema, expressed as the package's in-memory record shape (repo-agnostic). */
+/** Sample schema, expressed as the package's in-memory record shape (repo-agnostic). */
 export interface ContentTypeRecord {
   workspaceId: string;
   key: string;
@@ -62,7 +62,7 @@ export interface ContentTypeRecord {
  */
 export type ActorPrincipalKind = "user" | "agent" | "api_key" | "system";
 
-/** The actor-identity envelope every chokepoint write in this package accepts (SPEC-016 REQ-01/02/16). */
+/** The actor-identity envelope every chokepoint write in this package accepts (REQ-01/02/16). */
 export interface ActorIdentityInput {
   actorId: string;
   /**

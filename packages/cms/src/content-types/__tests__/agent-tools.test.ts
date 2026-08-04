@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { contentTypesAgentToolCatalog } from "../agent-tools.js";
 
 /**
- * @file REQ-22 (SPEC-020) — Collections' content-types agent-tool catalog contract (C-406).
+ * @file REQ-22 — Collections' content-types agent-tool catalog contract (C-406).
  *
  * Covers: AC-35 (collections_plan_cleanup + collections_execute_cleanup present and
  * agent-callable; no collections_confirm_cleanup tool or any confirm()-performing tool exists).
@@ -28,14 +28,14 @@ test("AC-35/INV-06-equivalent: no tool named collections_confirm_cleanup exists,
   );
 });
 
-test("collections_plan_cleanup requires only admin.collections.read and has sideEffects:'none' (SPEC-016 REQ-09)", () => {
+test("collections_plan_cleanup requires only admin.collections.read and has sideEffects:'none' (REQ-09)", () => {
   const tool = contentTypesAgentToolCatalog.find((t) => t.name === "collections_plan_cleanup");
   assert.ok(tool);
   assert.equal(tool?.authorization.permission, "admin.collections.read");
   assert.equal(tool?.sideEffects, "none");
 });
 
-test("collections_execute_cleanup requires admin.collections.manage and carries the confirmer-must-equal-own-delegatedBy actor-class rule (SPEC-016 REQ-13)", () => {
+test("collections_execute_cleanup requires admin.collections.manage and carries the confirmer-must-equal-own-delegatedBy actor-class rule (REQ-13)", () => {
   const tool = contentTypesAgentToolCatalog.find((t) => t.name === "collections_execute_cleanup");
   assert.ok(tool);
   assert.equal(tool?.authorization.permission, "admin.collections.manage");

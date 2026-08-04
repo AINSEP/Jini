@@ -4,16 +4,16 @@ import type { AuthorizeFn } from "./write-service.js";
 import type { Result } from "./types.js";
 
 /**
- * @file REQ-20/REQ-21 (SPEC-020) — the destructive cleanup ceremony, instantiating SPEC-016's
+ * @file REQ-20/REQ-21 — the destructive cleanup ceremony, instantiating the
  * gated-mutation gateway (`domain="collections"`, `action="cleanup"`) around a tombstoned content
- * type's final, irreversible removal (ADR-043 §6 item 2's disable -> tombstone -> cleanup
+ * type's final, irreversible removal (the disable -> tombstone -> cleanup
  * lifecycle).
  *
  * Purpose:
  * `planCleanup` is the eligibility gate (C-405): a content type must be `status='tombstone'`, its
  * retention window (30 days since `tombstonedAt`, inclusive) must have elapsed, and an
  * `exportReference` must be present — checked in that fixed order, stopping at the first failure
- * (behavior.spec.md §2.3), before the actual SPEC-016 `plan()` is ever reached. `executeCleanup`
+ * (behavior.spec.md §2.3), before the actual gated-mutation `plan()` is ever reached. `executeCleanup`
  * forwards straight to the gated-mutation gateway's own `execute()` (token redemption, actor-class
  * check, plan-staleness re-check all live there — this module does not re-implement them) and
  * only performs the actual multi-table removal after the gateway confirms the token; a rejected
@@ -22,7 +22,7 @@ import type { Result } from "./types.js";
  * How it relates to the project:
  * `deps.gateway` in `planCleanup`/`executeCleanup` is intentionally two different narrow port
  * shapes (`plan`-only, `execute`-only) rather than one shared gateway interface — each function
- * only ever calls the one method it needs, matching how a real SPEC-016 `core/gated-mutations`
+ * only ever calls the one method it needs, matching how a real gated-mutation gateway's `core/gated-mutations`
  * composition would be split per call site.
  *
  * Architectural role:
@@ -53,7 +53,7 @@ export interface PlanCleanupRequired {
 /**
  * REQ-20 — the fixed-order eligibility gate: `status==='tombstone'` -> retention window elapsed
  * (>=30 days since `tombstonedAt`, inclusive lower bound) -> `exportReference` present. Only once
- * all three pass does this call reach the real SPEC-016 `gateway.plan()`.
+ * all three pass does this call reach the real `gateway.plan()`.
  *
  * @complexity O(1) — one repo read, one date diff, one delegated gateway call at most.
  * @overallScore 100

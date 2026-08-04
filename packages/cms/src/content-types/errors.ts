@@ -1,5 +1,5 @@
 /**
- * @file SPEC-020 — typed error surface for the `content-types` package.
+ * @file Typed error surface for the `content-types` package.
  *
  * Purpose:
  * Every rejection this package's write-service/lifecycle/cleanup/index-provisioning modules

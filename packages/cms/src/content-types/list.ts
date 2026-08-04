@@ -25,7 +25,7 @@ import type { ContentTypeRecord } from "./types.js";
 
 export interface ContentTypeListPort {
   /** Every content type registered for `workspaceId`, in no particular guaranteed order (the
-   * route layer is free to sort for display; ADR-043 does not specify a canonical list order). */
+   * route layer is free to sort for display; the original design does not specify a canonical list order). */
   listByWorkspace(params: { workspaceId: string }): Promise<ContentTypeRecord[]>;
 }
 

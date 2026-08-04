@@ -27,7 +27,7 @@
  * and stop-at-first-failure behavior are pinned by
  * `__tests__/unit/write-service.register.unit.test.ts` (AC-38). Duplicating any of those here
  * would either reorder that chain for boundary callers or create a second source of truth for a
- * rule GOV-ADR-003 requires to have exactly one.
+ * rule that must have exactly one definition.
  *
  * The one exception is `kind`, and it is a reuse rather than a restatement: this module calls the
  * same `isContentTypeFieldKind` predicate guard 4 calls and raises the same

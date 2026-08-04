@@ -21,8 +21,8 @@ import {
 } from "./types.js";
 
 /**
- * @file SPEC-020 write-service — `registerContentType`/`updateContentTypeFields`, the single write
- * chokepoint for the `content_types` registry (ADR-022 §1/§4, ADR-043 §4).
+ * @file Write-service — `registerContentType`/`updateContentTypeFields`, the single write
+ * chokepoint for the `content_types` registry.
  *
  * Purpose:
  * The ONLY path that creates or full-replaces a content type's field schema. Every export here:
@@ -37,8 +37,8 @@ import {
  * `VALIDATION_ERROR(fields_empty)`.
  *
  * How it relates to the project:
- * `deps.watermark` (SPEC-016 REQ-01/INV-08) and the actor-identity delegation fields
- * (`delegatedByWorkspaceId`/`delegatedById`, SPEC-016 REQ-16) are both optional/additive — every
+ * `deps.watermark` (REQ-01/INV-08) and the actor-identity delegation fields
+ * (`delegatedByWorkspaceId`/`delegatedById`, REQ-16) are both optional/additive — every
  * pre-existing call site that omits them is unaffected; `watermark-stamping.integration.test.ts`
  * exercises both.
  *
@@ -96,7 +96,7 @@ export interface OutboxPort {
   enqueue(event: { name: string; payload: Record<string, unknown> }): Promise<void>;
 }
 
-/** Optional (SPEC-016 REQ-01/INV-08) — advances `database_write_watermark` by exactly 1 when supplied. */
+/** Optional (REQ-01/INV-08) — advances `database_write_watermark` by exactly 1 when supplied. */
 export interface WatermarkPort {
   stampWatermark(input: { workspaceId: string }): Promise<number>;
 }
@@ -111,10 +111,10 @@ export interface ContentTypeWriteServiceDeps {
   watermark?: WatermarkPort;
 }
 
-/** Reserved forever for the legacy `posts` table (ADR-043 §4) — an operator Collection can never take these keys. */
+/** Reserved forever for the legacy `posts` table — an operator Collection can never take these keys. */
 const RESERVED_CONTENT_TYPE_KEYS = new Set(["post", "page"]);
 
-/** Per-type cap on `queryable` fields (ADR-022 "Failure modes" — queryable-index sprawl mitigation). */
+/** Per-type cap on `queryable` fields (queryable-index sprawl mitigation). */
 const QUERYABLE_FIELD_CAP = 20;
 
 function countQueryableFields(fields: ContentTypeFieldDef[]): number {
@@ -158,7 +158,7 @@ export async function registerContentType(
   }
   // Guard 2: reserved key.
   if (RESERVED_CONTENT_TYPE_KEYS.has(input.key)) {
-    return { ok: false, error: new ReservedContentTypeKeyError(`key '${input.key}' is permanently reserved for the legacy 'posts' table (ADR-043 §4)`) };
+    return { ok: false, error: new ReservedContentTypeKeyError(`key '${input.key}' is permanently reserved for the legacy 'posts' table`) };
   }
   // Guard 3: field-name grammar (every field, before any kind/cap check).
   for (const field of input.fields) {

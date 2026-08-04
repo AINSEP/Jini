@@ -4,14 +4,14 @@ import { InvalidFieldKindError, InvalidFieldNameGrammarError, InvalidKeyGrammarE
 import { CONTENT_TYPE_FIELD_KINDS, type ContentTypeFieldKind, isContentTypeFieldKind } from "./types.js";
 
 /**
- * @file CIC U-001 (SPEC-020) — the `kind`->`CAST` fixed lookup table, the identifier grammar
+ * @file CIC U-001 — the `kind`->`CAST` fixed lookup table, the identifier grammar
  * gate, the workspace-scoped queryable-index naming scheme, and the before/after index-transition
- * resolver (ADR-022 §3, ADR-043 §4's round-3/round-5 grammar-and-workspace-scoping folds).
+ * resolver (grammar-and-workspace-scoping folds).
  *
  * Purpose:
  * THIS IS THE HIGHEST-SECURITY-SEVERITY MODULE IN THE 5-PACKAGE PIPELINE — every value that ends
  * up inside a `CREATE INDEX ... CAST(json_extract(fields,'$.ext.{ns}.{field}') AS {type})`
- * statement (ADR-022 §3) is produced here, and only here:
+ * statement is produced here, and only here:
  *   - `mapFieldKindToCast` never interpolates an operator-supplied string — it is a fixed,
  *     hardcoded 5-entry table (U-001-B1).
  *   - `validateIdentifierGrammar`/`buildQueryableFieldIndexName` gate every `key`/field name
@@ -19,7 +19,7 @@ import { CONTENT_TYPE_FIELD_KINDS, type ContentTypeFieldKind, isContentTypeField
  *     literal (U-001-B2), and join grammar-gated segments with `/` — a delimiter outside the
  *     grammar's own alphabet `[a-z0-9_]`, closing the namespace-injectivity collision class
  *     (U-001-B3) — and fold in a workspace-derived segment so two workspaces defining the same
- *     `(key, field)` pair never collide on index identity (ADR-043 §4 round-5 fold).
+ *     `(key, field)` pair never collide on index identity.
  *
  * How it relates to the project:
  * `write-service.ts`'s `registerContentType`/`updateContentTypeFields` call
@@ -36,7 +36,7 @@ import { CONTENT_TYPE_FIELD_KINDS, type ContentTypeFieldKind, isContentTypeField
 /**
  * U-001-B2 — the closed identifier grammar every `content_types.key` and field name must satisfy,
  * as a pattern string so the agent-facing JSON Schemas in `agent-tools.ts` can publish the very
- * same grammar instead of restating it. GOV-ADR-003 makes this grammar load-bearing for DDL
+ * same grammar instead of restating it. A cross-cutting single-source-of-truth governance rule makes this grammar load-bearing for DDL
  * safety, so it must have exactly one definition; {@link IDENTIFIER_GRAMMAR} is compiled from this
  * string rather than written twice.
  */

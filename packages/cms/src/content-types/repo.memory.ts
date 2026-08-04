@@ -4,7 +4,7 @@ import type { ContentTypeListPort } from "./list.js";
 import type { ContentTypeRecord } from "./types.js";
 
 /**
- * @file In-memory adapters for the `content-types` package's write/list ports (ADR-006 rule-of-two
+ * @file In-memory adapters for the `content-types` package's write/list ports (port/adapter rule-of-two
  * "one being built now" half). Backs `server/app.ts`'s hermetic test/dev composition AND, until a
  * real SQLite adapter is built for this domain (a disclosed gap — see this dispatch's handoff),
  * `server/deps.ts`'s real running-server composition too — the same precedent `mediaRepo`/
@@ -82,7 +82,7 @@ export function toContentTypeOutbox(deps: {
   };
   clock: { nowIso(): string };
   idGen: { newId(): string };
-  /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale (ADR-007
+  /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale (workspace
    * tenant boundary, NOT NULL in persistent adapters, previously under-declared and omitted). */
   workspaceId: string;
 }): OutboxPort {

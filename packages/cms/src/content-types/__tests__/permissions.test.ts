@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { registerContentType } from "../write-service.js";
 
 /**
- * @file REQ-23 (SPEC-020) — every Collections route/tool is gated by exactly one of
+ * @file REQ-23 — every Collections route/tool is gated by exactly one of
  * `admin.collections.read` (read-class operations) or `admin.collections.manage` (mutating
  * operations).
  *

@@ -4,8 +4,8 @@ import type { AuthorizeFn, ContentTypeRepoPort, OutboxPort } from "./write-servi
 import type { ActorPrincipalKind, ContentTypeRecord, Result } from "./types.js";
 
 /**
- * @file REQ-09..12 (SPEC-020) — the content-type lifecycle state machine `active ⇄ deprecated ->
- * tombstone` (ADR-043 §4/§6, INV-06).
+ * @file REQ-09..12 — the content-type lifecycle state machine `active ⇄ deprecated ->
+ * tombstone` (INV-06).
  *
  * Purpose:
  * `deprecateContentType`/`reactivateContentType` are the reversible `active <-> deprecated` pair
@@ -14,8 +14,8 @@ import type { ActorPrincipalKind, ContentTypeRecord, Result } from "./types.js";
  * entered from `deprecated` (EC-09, "must deprecate first") and never left (INV-06) — both
  * `reactivateContentType` and `deprecateContentType` reject unconditionally against a tombstoned
  * row (the property `operationTests INV-06` case). Tombstoning tears down every queryable-field
- * index the type ever provisioned (AC-17) and enqueues the ADR-009 same-call outbox event the
- * ADR-043 §4 amendment requires for `content_type.deprecated`/`content_type.tombstoned`.
+ * index the type ever provisioned (AC-17) and enqueues the same-call outbox event
+ * required for `content_type.deprecated`/`content_type.tombstoned`.
  *
  * How it relates to the project:
  * `reactivateContentType` deliberately does not accept `outbox`/`indexProvisioner` deps — no
@@ -174,7 +174,7 @@ export interface TombstoneContentTypeRequired {
  * `deprecated` (any other status, including an already-tombstoned row, is rejected with the same
  * "must deprecate first" guard — EC-09/INV-06 collapse to one check). Tears down every queryable-
  * field index the type ever provisioned BEFORE persisting the status flip, and enqueues
- * `content_type.tombstoned` in the same call (ADR-043 §4).
+ * `content_type.tombstoned` in the same call.
  *
  * @complexity O(1) plus one repo read, one index-teardown call, one same-tx write pair, and one
  * outbox enqueue.
