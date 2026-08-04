@@ -2,13 +2,13 @@ import type { UUID } from "../core/ports.js";
 import type { SettingDefinitionRecord, SettingRevisionRecord, SettingValueRecord } from "./types.js";
 
 /**
- * @file Port contract for the `settings` library (SPEC-007, ADR-028 §8, ADR-PIPE-007).
+ * @file Port contract for the `settings` library.
  *
  * Purpose:
- * Dependency-inversion seam (ADR-006 rule-of-two) for the 5 settings tables.
+ * Dependency-inversion seam (port/adapter rule-of-two) for the 5 settings tables.
  * Deliberately does NOT declare a principal-lookup method — REQ-13's
  * target-principal check reuses `identity.PrincipalRepoPort.findById`
- * directly (ADR-PIPE-007 Pattern Evaluation: reuse, not a new port).
+ * directly (reuse, not a new port).
  *
  * `transaction` gives `write-service.ts`/`purge-service.ts` the same-tx
  * guarantee INV-01/INV-06 depend on (value/definition row + its revision row
@@ -44,8 +44,8 @@ export interface SettingsRepoPort {
   listUserValues(required: { workspaceId: UUID; principalId: UUID }): Promise<SettingValueRecord[]>;
   /**
    * Every `setting_values_user` row for a workspace, across ALL principals
-   * (not just one) — needed by `purge-service.ts`'s full-tenant teardown path
-   * (ADR-028 §5), which must clear the FK-blocking `setting_values_user` rows
+   * (not just one) — needed by `purge-service.ts`'s full-tenant teardown path,
+   * which must clear the FK-blocking `setting_values_user` rows
    * for every principal in the workspace, not just one caller-known id.
    */
   listUserValuesByWorkspace(required: { workspaceId: UUID }): Promise<SettingValueRecord[]>;

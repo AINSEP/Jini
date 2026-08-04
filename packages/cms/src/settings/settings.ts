@@ -12,7 +12,7 @@ import {
 
 /**
  * @file The settings resolver + pure definition-registration validation
- * (SPEC-007 REQ-02, REQ-03, REQ-09; ADR-028 §8's "one evaluator").
+ * (REQ-02, REQ-03, REQ-09; "one evaluator").
  *
  * Purpose:
  * `validateDefinitionInput` is pure (no I/O) — the write-side chokepoint in

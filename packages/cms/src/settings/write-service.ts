@@ -22,14 +22,13 @@ import {
 import { SCOPE_BIT, type SettingDefinitionRecord, type SettingScope, type SettingValueSchema } from "./types.js";
 
 /**
- * @file `SettingsWriteService` — the single write chokepoint (SPEC-007 REQ-04;
- * ADR-028 §4; ADR-PIPE-007).
+ * @file `SettingsWriteService` — the single write chokepoint (REQ-04).
  *
  * Purpose:
  * The ONLY value/definition-mutation path. Repo write methods
  * (`saveDefinition`/`save*Value`/`appendRevision`/`delete*Value`) must never
  * be called from outside this file (Code Review enforces this as a file-
- * boundary check, ADR-PIPE-007 Enforcement).
+ * boundary check).
  *
  * Every export here: `authorize()` first (fail-closed, INV-07) -> validate ->
  * write value/definition row + revision in one transaction (INV-01).
@@ -54,7 +53,7 @@ export interface SettingsWriteServiceDeps {
   clock: ClockPort;
   ids: IdGeneratorPort;
   authorize: AuthorizeFn;
-  /** REQ-13 — reused directly from `identity`, not duplicated (ADR-PIPE-007 Pattern Evaluation). */
+  /** REQ-13 — reused directly from `identity`, not duplicated. */
   principals: PrincipalRepoPort;
 }
 
@@ -259,7 +258,7 @@ function assertTargetWorkspaceMatchesAuth(input: {
 /**
  * REQ-13/INV-09 — for scope=user writes targeting another principal, verify
  * that principal resolves to an active user whose own `workspace_id` equals
- * the request's `workspaceId` (ADR-007 structural scoping — a principal
+ * the request's `workspaceId` (structural scoping — a principal
  * belongs to exactly one workspace, not a membership join).
  */
 async function assertTargetPrincipalInWorkspace(
@@ -376,7 +375,7 @@ export interface ClearValueRequired {
     workspaceId?: UUID | undefined;
     principalId?: UUID | undefined;
     callerPrincipalId: UUID;
-    /** Set by `resetNamespace` when looping `clear()` in its own reset-authorized context (ADR-028 §7 R3-01) — bypasses the inner authorize() re-check, still writes a normal revision. */
+    /** Set by `resetNamespace` when looping `clear()` in its own reset-authorized context (R3-01) — bypasses the inner authorize() re-check, still writes a normal revision. */
     skipAuthorize?: boolean | undefined;
     /** Set by a caller that has ALREADY opened a transaction around this write —
      *  see `resetNamespace`. Explicit rather than an ambient depth counter,
@@ -486,7 +485,7 @@ export interface ResetNamespaceRequired {
 }
 
 /**
- * EC-09/ADR-028 §7 R3-01 — an explicit, human-invoked orchestrator: authorize
+ * EC-09/R3-01 — an explicit, human-invoked orchestrator: authorize
  * the matching `settings.reset.*` permission once, then loop `clear()` for
  * every setting in the namespace in the reset-authorized internal context
  * (`skipAuthorize: true`) — the outer reset permission is sufficient on its
@@ -561,7 +560,7 @@ export async function resetNamespace(
 }
 
 /**
- * ADR-028 §3/§7 — the single authorization gate shared by every definition-
+ * The single authorization gate shared by every definition-
  * lifecycle op (rename/retype/deprecate/tombstone), matching
  * `registerDefinitions`'s own `settings.definitions.manage` check (same
  * permission also gates `purge`/`coerce` per §7 — high privilege, human-only).
@@ -620,7 +619,7 @@ export interface RenameDefinitionRequired {
 }
 
 /**
- * ADR-028 §3 rename mechanism (AC-09, EC-06): a same-tx pair —
+ * The rename mechanism (AC-09, EC-06): a same-tx pair —
  * (1) UPDATE the active definition row's `(namespace,key)` to the new name,
  * same `setting_id`/`version` (ledgered `op='alias'`); (2) INSERT a fresh v1
  * alias marker at the OLD name pointing at the new name. Because identity
@@ -633,7 +632,7 @@ export interface RenameDefinitionRequired {
  *
  * Never touches `schema`/`defaultValue`/`scopes` -- a pure rename can never
  * trigger `RENAME_RETYPE_CONFLICT` by construction; that guard lives in
- * `retypeDefinition` (ADR-028 §3's "no rename+retype in one op").
+ * `retypeDefinition` ("no rename+retype in one op").
  */
 export async function renameDefinition(
   required: RenameDefinitionRequired
@@ -745,7 +744,7 @@ export interface RetypeDefinitionRequired {
     /** A total coercer id/tag (EC-08 registry in `settings.ts`) for reading values recorded under any prior version. */
     coercionTag: string;
     /**
-     * Present only to detect a combined rename+retype request (ADR-028 §3);
+     * Present only to detect a combined rename+retype request;
      * retype never actually moves `(namespace,key)` -- if provided and it
      * differs from the current name while `schema` also differs, the whole
      * op is rejected `RENAME_RETYPE_CONFLICT` rather than silently doing
@@ -759,7 +758,7 @@ export interface RetypeDefinitionRequired {
 }
 
 /**
- * ADR-028 §3 retype mechanism (AC-10, EC-05): a same-tx pair --
+ * The retype mechanism (AC-10, EC-05): a same-tx pair --
  * (1) UPDATE the prior active version's `status` to `deprecated` FIRST (else
  * the insert in step 2 collides with the one-active-row-per-slot
  * invariant); (2) INSERT the new `version+1` row as `active`, same
@@ -782,7 +781,7 @@ export async function retypeDefinition(
   const schemaChanged = JSON.stringify(input.schema) !== JSON.stringify(current.schema);
   if (namespaceOrKeyChanged && schemaChanged) {
     throw new RenameRetypeConflictError(
-      `cannot rename and retype '${input.namespace}.${input.key}' in the same operation (ADR-028 §3); submit the rename and the retype as two separate chokepoint calls`
+      `cannot rename and retype '${input.namespace}.${input.key}' in the same operation; submit the rename and the retype as two separate chokepoint calls`
     );
   }
 
@@ -790,7 +789,7 @@ export async function retypeDefinition(
     const priorVersion = await deps.repo.findDefinitionBySettingId({ settingId: current.settingId, version });
     if (!priorVersion || priorVersion.coercionTag == null) {
       throw new DefinitionInvalidError(
-        `retype of '${input.namespace}.${input.key}' rejected: version ${version} does not carry a total coercer (ADR-028 §3)`
+        `retype of '${input.namespace}.${input.key}' rejected: version ${version} does not carry a total coercer`
       );
     }
   }
@@ -880,7 +879,7 @@ export interface ReconcileDefinitionDefaultRequired {
  * definitions are operator-owned — silently overwriting those would destroy a
  * deliberate choice, so they are rejected rather than reconciled.
  *
- * Why this is NOT a `retype` (ADR-028 §3):
+ * Why this is NOT a `retype`:
  * `retype` deprecates the active row and inserts `version+1` because a changed
  * SCHEMA means every stored value needs a total coercer. A changed DEFAULT
  * needs none — the schema is untouched, so every stored value stays valid and
@@ -967,7 +966,7 @@ export interface TombstoneDefinitionRequired {
 }
 
 /**
- * ADR-042 item 2: `deprecateDefinition`/`tombstoneDefinition` were a jaccard-1.0
+ * `deprecateDefinition`/`tombstoneDefinition` were a jaccard-1.0
  * duplicate pair (same authorize -> resolve -> same-tx status flip + revision
  * shape, differing only in the target status string). This is that shape,
  * written once; both thin exports below just name their target status.
