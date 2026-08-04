@@ -11,9 +11,9 @@ import type { ClockPort, UUID } from "../core/ports.js";
 
 /**
  * Legacy hardcoded theme ids. Retained as the fallback allowlist when no
- * discovered theme set is injected (keeps pure unit tests hermetic). SPEC-004
- * replaces this with the ids of discovered `valid` themes, passed in via
- * `availableThemeIds` — see a host's own theme discovery and presentation routes.
+ * discovered theme set is injected (keeps pure unit tests hermetic). A host's
+ * own theme discovery and presentation routes replace this with the ids of
+ * discovered `valid` themes, passed in via `availableThemeIds`.
  */
 export const ALLOWED_THEME_IDS = ["paper", "atlas", "glassmorphic"] as const;
 export type ThemeId = (typeof ALLOWED_THEME_IDS)[number];
@@ -29,7 +29,7 @@ export interface PresentationSettingsRepoPort {
   findByWorkspaceId(workspaceId: UUID): Promise<PresentationSettingsRecord | null>;
   save(record: PresentationSettingsRecord): Promise<void>;
   /**
-   * SPEC-007 REQ-08 — every row across every workspace, for the one-time
+   * Every row across every workspace, for the one-time
    * `migrateLegacyPresentationSettings` brownfield migration (small row
    * count: one row per workspace). Added additively; does not change
    * `findByWorkspaceId`/`save`'s existing contract.

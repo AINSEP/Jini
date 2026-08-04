@@ -1,9 +1,9 @@
 /**
- * @file The cross-domain half of ADR-049 Decision 4's agent-tool wiring: everything a domain's own
+ * @file The cross-domain half of the agent-tool wiring split: everything a domain's own
  * `tool-registrations.ts` needs that is NOT specific to that domain.
  *
  * Why this file exists at all. Every domain's wiring repeats the same five moves — index its
- * catalog by id, read a handful of fields off `ctx.input`, run the tool's ADR-021 permission check,
+ * catalog by id, read a handful of fields off `ctx.input`, run the tool's permission check,
  * decorate a shape rejection with the published schema, and then loop the handler map into
  * `ToolRegistration`s behind a build-time risk/schema gate. Those five moves were previously copied
  * per domain inside one shared `assistant/tool-registrations.ts`, which is exactly why that file
@@ -18,7 +18,7 @@
  * that domain's handlers, so it is maintained where those handlers live), and its unwired-tool set.
  *
  * What is deliberately NOT abstracted here is the authorization DECISION. {@link requireToolPermission}
- * performs a check a caller asks for; it never decides that a check is needed. ADR-021 §2's "one
+ * performs a check a caller asks for; it never decides that a check is needed. The "one
  * evaluator" rule is a per-tool fact — some domains self-enforce inside their service function and
  * must NOT be double-checked here, others have no service-layer gate at all and must be checked at
  * the handler — and that judgement stays recorded in the domain file next to the handler it
@@ -68,7 +68,7 @@ export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "
  * own `AgentToolDefinition` without any of them having to import it.
  *
  * Deliberately a structural supertype rather than a single shared interface the twelve catalogs
- * would all import: those catalogs are domain-owned declarations (ADR-049), and a domain must stay
+ * would all import: those catalogs are domain-owned declarations, and a domain must stay
  * free to tighten its own copy — `identity/agent-tools.ts` makes `inputSchema` REQUIRED because
  * every one of its entries is wired, and adds `authorization.orPermission` because three of its
  * gates are genuinely an OR. Both remain assignable to this. Widening happens here, in the consumer,
@@ -233,7 +233,8 @@ export function fromResult<T>(fn: () => Promise<{ ok: true; value: T } | { ok: f
  * Runs the identical inline `authorize()` check the corresponding admin HTTP route performs, for a
  * tool whose own domain function carries no `authorize()` call to inherit.
  *
- * This is NOT a second evaluator alongside another check — ADR-021 §2's concern. For each tool that
+ * This is NOT a second evaluator alongside another check — that is exactly the single-evaluator
+ * rule's concern. For each tool that
  * calls it, this IS the only gate that tool's execution ever reaches, reached by an identical path
  * to the one a human clicking the same admin route reaches. Domains split cleanly on which kind
  * they are: content-types/Forms/Identity mutations and every Widgets write-service call self-enforce
@@ -393,7 +394,7 @@ export function assertToolIsWirable(params: {
  * hatch. Silence is never the outcome: an unwired entry either appears in `unwiredToolIds` with a
  * recorded reason next to it, or the build fails.
  *
- * `policy.authorize` is a pass-through `'allow'` for every registration, and that is ADR-021 §2
+ * `policy.authorize` is a pass-through `'allow'` for every registration, and that is by design
  * rather than an omission: each tool's permission is evaluated exactly once — inside its domain
  * function for the self-enforcing domains, or by the handler's own {@link requireToolPermission}
  * call for the domains whose gate lives in the route. A check here would be a SECOND evaluator of

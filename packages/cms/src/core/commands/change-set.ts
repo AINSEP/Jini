@@ -1,7 +1,7 @@
 import type { DomainEvent, ISODateTime, JsonObject, UUID } from "../ports.js";
 
 /**
- * @file Change-set vocabulary and persistence contract (ADR-008).
+ * @file Change-set vocabulary and persistence contract.
  *
  * Purpose:
  * Defines the durable rows that make every mutation auditable and revertible,
@@ -13,19 +13,15 @@ import type { DomainEvent, ISODateTime, JsonObject, UUID } from "../ports.js";
  * - `repo.memory.ts` provides the in-memory adapter for local dev/tests.
  *
  * Architectural role:
- * This is the storage shape ADR-008 requires to land with the first persistent
+ * This is the storage shape required to land with the first persistent
  * schema. SQLite/Postgres adapters must satisfy `ChangeSetRepoPort` unchanged.
  *
- * BR-04 resolution (ADR-046 Phase 1, 2026-07-16 swarm debate, full record:
- * `ADS-memory/reports/swarm-consensus/runs/20260716T-br04-outbox-seam-consensus-report.md`):
  * `insert()`'s optional third argument lets the caller pass the fully-formed outbox event through
  * the SAME call, so a durable adapter can co-persist it inside the same transaction as the header
- * + items — chosen over threading a transaction handle through `OutboxPort`/`mutation.execute()`
- * because Drizzle's better-sqlite3 `transaction()` is synchronous while both ports are async; an
- * async handle cannot be awaited inside a sync transaction callback without an unsafe held-open
- * transaction or a new, zero-consumer abstraction. This does NOT bring the domain write
- * (`mutation.execute()`) into the transaction — that remains covered by `executeCommand()`'s
- * existing compensating-rollback path until ADR-046 Phase 3.
+ * + items. This does NOT bring the domain write (`mutation.execute()`) into the transaction — that
+ * remains covered by `executeCommand()`'s existing compensating-rollback path. See
+ * `docs/decisions/change-set-outbox-transaction-boundary.md` for the full rationale, including why
+ * this shape was chosen over threading a transaction handle through `OutboxPort`/`mutation.execute()`.
  */
 export type ChangeSetStatus = "proposed" | "applied" | "reverted" | "discarded";
 
@@ -57,12 +53,12 @@ export interface ChangeSetItemRecord {
   entityType: string;
   entityId: UUID;
   operation: ChangeSetOperation;
-  /** Revision pointers for revisioned entity types (ADR-008). */
+  /** Revision pointers for revisioned entity types. */
   beforeRevisionId?: UUID | undefined;
   afterRevisionId?: UUID | undefined;
   /**
    * Inline inverse for non-revisioned entities. An item with neither revision
-   * pointers nor an inverse payload cannot be reverted — and per ADR-008 such
+   * pointers nor an inverse payload cannot be reverted — and such
    * entities must not be mutated by agents.
    */
   inversePayload?: JsonObject | undefined;

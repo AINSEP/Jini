@@ -9,7 +9,7 @@ import type {
 import type { ChangeSetOperation, ChangeSetRepoPort } from "./change-set.js";
 
 /**
- * @file The single mutation write path (ADR-008 §4).
+ * @file The single mutation write path.
  *
  * Purpose:
  * Every admin mutation — human save or AI tool call — runs through
@@ -46,7 +46,7 @@ export interface CommandEnvelope {
   /** Chat message / plan step that motivated this command. */
   intentRef?: string | undefined;
   /**
-   * The permission this mutation requires (SPEC-006 REQ-05), e.g.
+   * The permission this mutation requires, e.g.
    * `"content.write"`. Must be supplied together with `ExecuteCommandDeps.authorize`
    * — see that field's doc for the migration story. Optional only so gateway
    * callers not yet migrated to real identity/authorize wiring keep compiling.
@@ -87,7 +87,7 @@ export interface CommandMutation<TResult> {
 }
 
 /**
- * The shape of the SPEC-006 `authorize()` gate, kept generic here so
+ * The shape of the `authorize()` gate, kept generic here so
  * `core/commands` never imports the `identity` library (that would invert the
  * dependency direction — `features`/libraries depend on `core`, not the
  * reverse; see `identity/authorize.ts`'s file header). Composition roots
@@ -111,7 +111,7 @@ export interface ExecuteCommandDeps {
   /** When provided, `change-set.applied` is enqueued for async consumers. */
   outbox?: OutboxPort | undefined;
   /**
-   * SPEC-006 REQ-05 authorization gate. Must be supplied together with
+   * Authorization gate. Must be supplied together with
    * `CommandEnvelope.permission` — omitting one while supplying the other is a
    * wiring bug (see `executeCommand`'s guard) rather than something that
    * should silently allow or silently skip. Omitting BOTH is the legacy
@@ -146,7 +146,7 @@ export class DuplicateCommandError extends Error {
 }
 
 /**
- * Thrown when `authorize()` denies the caller (SPEC-006 REQ-05). Routes map
+ * Thrown when `authorize()` denies the caller. Routes map
  * this to 403 `FORBIDDEN`. Raised before the idempotency check (INV-04) — a
  * replayed command id from a denied caller therefore never produces
  * `DuplicateCommandError` either (EC-08).
@@ -175,15 +175,14 @@ export class ForbiddenError extends Error {
  * re-throws, so no change set and no outbox event survive (EC-08 / AC-17,
  * INV-01).
  *
- * BR-04 resolution (ADR-046 Phase 1, 2026-07-16 swarm debate — full record:
- * `ADS-memory/reports/swarm-consensus/runs/20260716T-br04-outbox-seam-consensus-report.md`):
- * the `change-set.applied` event is passed as `changeSets.insert()`'s third argument, not a
+ * The `change-set.applied` event is passed as `changeSets.insert()`'s third argument, not a
  * separate `deps.outbox.enqueue()` call afterward — a durable adapter co-persists it inside the
  * same transaction as the change-set record, so it can never land without a durable delivery
  * record (or vice versa). This still does NOT cover the domain mutation itself
  * (`mutation.execute()` stays outside any shared transaction, covered only by the compensating
- * rollback above), and it covers only this producer — see the linked report for the other direct
- * `OutboxPort.enqueue()` producers this resolution deliberately leaves untouched.
+ * rollback above), and it covers only this producer. See
+ * `docs/decisions/change-set-outbox-transaction-boundary.md` for the full rationale, including the
+ * other direct `OutboxPort.enqueue()` producers this decision deliberately leaves untouched.
  */
 export async function executeCommand<TResult>(
   required: ExecuteCommandRequired<TResult>,
@@ -191,14 +190,14 @@ export async function executeCommand<TResult>(
 ): Promise<{ result: TResult; changeSetId: UUID }> {
   const { deps, command, mutation } = required;
 
-  // SPEC-006 REQ-05/INV-04: authorize() runs BEFORE the idempotency check, so
+  // authorize() runs BEFORE the idempotency check, so
   // a denied caller never learns whether a replayed command id previously
   // succeeded (no DUPLICATE_COMMAND / changeSetId leak, EC-08). `permission`
   // and `authorize` are wired together or not at all (see ExecuteCommandDeps
   // doc) — partial wiring is a programming error, not a silent allow/skip.
   if (Boolean(deps.authorize) !== Boolean(command.permission)) {
     throw new Error(
-      "executeCommand: command.permission and deps.authorize must be supplied together (SPEC-006 REQ-05) " +
+      "executeCommand: command.permission and deps.authorize must be supplied together " +
         "— partial wiring would silently skip or misapply authorization"
     );
   }

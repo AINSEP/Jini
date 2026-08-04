@@ -45,18 +45,18 @@ export interface DomainEvent<TPayload = Record<string, unknown>> {
   aggregateId?: UUID;
   /**
    * Tenant/workspace boundary. Required: every domain event belongs to a
-   * workspace (ADR-007). Platform-level events must be a deliberate future
+   * workspace. Platform-level events must be a deliberate future
    * decision, not an omission.
    */
   workspaceId: UUID;
   /**
    * Principal (user or AI agent) that caused this event. Reserved change-set
-   * vocabulary (ADR-008); optional until the identity library lands.
+   * vocabulary; optional until the identity library lands.
    */
   actorId?: UUID;
   /**
    * Change set this event belongs to, enabling propose/preview/apply/revert
-   * grouping. Reserved change-set vocabulary (ADR-008).
+   * grouping. Reserved change-set vocabulary.
    */
   changeSetId?: UUID;
   /** Event-specific payload. */
@@ -85,8 +85,8 @@ export interface EventBusPort {
     handler: (event: DomainEvent<TPayload>) => Promise<void>
   ): Promise<() => Promise<void>>;
   /**
-   * Subscribe a handler to every event published on this bus, regardless of name (C-009,
-   * ADR-PIPE-015 Phase 0). Additive to `subscribe` — existing per-name callers are unaffected.
+   * Subscribe a handler to every event published on this bus, regardless of name. Additive to
+   * `subscribe` — existing per-name callers are unaffected.
    * The Integrations fan-out (`registerWebhookFanout`) is the first real consumer: it narrows
    * by topic itself rather than requiring a fixed list of event names up front.
    */
