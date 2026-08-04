@@ -1,5 +1,5 @@
 /**
- * @file Rendition resolution tests (ADR-027 §4) — `rendition-service.ts`.
+ * @file Rendition resolution tests — `rendition-service.ts`.
  * Covers: serve-if-exists, the frozen URL contract's lookup-by-triple
  * (assetId, transformName, version) behavior, the "latest version only"
  * anonymous-generation bound, single-flight dedup under concurrency, the
@@ -124,7 +124,7 @@ test("resolveMediaRendition: serve-if-exists — an already-generated rendition 
 });
 
 test("resolveMediaRendition: lookup ignores cosmetic slug/ext — the (assetId, transformName, version) triple is the only key", async () => {
-  // A route layer strips slug/ext before calling this service at all (ADR-027 §4: they are
+  // A route layer strips slug/ext before calling this service at all (they are
   // cosmetic and never part of any lookup) — this test proves the service's own input shape has
   // no slug/ext field to smuggle differing behavior through, by resolving the identical triple
   // twice and getting identical bytes regardless of what a caller might have put in the URL.

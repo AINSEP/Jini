@@ -1,6 +1,6 @@
 /**
  * @file Domain types + typed errors for the named transform registry and
- * rendition generation (ADR-027 §4 "Transforms and the immutable URL
+ * rendition generation ("Transforms and the immutable URL
  * contract").
  *
  * Purpose:
@@ -8,10 +8,10 @@
  * declarative, immutable, append-only named transform definition keyed
  * `(workspaceId, name, version)`. `TransformParams` is the small closed set
  * of resize/format parameters this build supports — deliberately NOT an
- * arbitrary `?w=&h=` query grammar (ADR-027 §4's explicit amplification /
+ * arbitrary `?w=&h=` query grammar (an explicit amplification /
  * URL-grammar-freeze decision).
  *
- * SCOPE NOTE (disclosed): ADR-027 §4 describes transforms as declarable by
+ * SCOPE NOTE (disclosed): the original design describes transforms as declarable by
  * "core + theme/plugin". This build only implements the core-declared path —
  * there is no theme/plugin declaration API here (out of scope for this task).
  * `owner` is kept as a plain string (not a hardcoded `"core"` literal type)
@@ -34,7 +34,7 @@ export type TransformFit = "cover" | "contain" | "fill" | "inside" | "outside";
 export type TransformFormat = "jpeg" | "png" | "webp" | "gif";
 
 /**
- * Declarative transform parameters (ADR-027 §4: named definitions only, never
+ * Declarative transform parameters (named definitions only, never
  * caller-supplied dimensions). `width`/`height` are optional so a
  * format-only re-encode (no resize) is a valid definition; `fit` only
  * matters when both `width` and `height` are given.
@@ -47,7 +47,7 @@ export interface TransformParams {
 }
 
 /**
- * `transform_registry` sidecar row (ADR-027 §4). Identity is
+ * `transform_registry` sidecar row. Identity is
  * `(workspaceId, name, version)`; a row, once inserted, is never updated or
  * removed — see `TransformDefinitionRepoPort.insert`'s append-only contract
  * in `ports.ts`. Redefining `name` mints a new row with `version` one higher
@@ -83,7 +83,7 @@ export function mimeForTransformFormat(format: TransformFormat): string {
 }
 
 /** Upper bound on a requested resize dimension — an output-side resource-use guard (not the
- * full ADR-027 §6 pixel-bomb ingest cap, which polices upload input; this polices the transform
+ * full pixel-bomb ingest cap, which polices upload input; this polices the transform
  * definition itself so a registered definition can't ask the image transformer to allocate an
  * absurd target canvas). */
 export const MAX_TRANSFORM_DIMENSION_PX = 8000;

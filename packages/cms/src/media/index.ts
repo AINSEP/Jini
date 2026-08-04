@@ -1,11 +1,11 @@
 /**
- * @file Public surface (barrel) for the `media` library (ADR-027).
+ * @file Public surface (barrel) for the `media` library.
  *
  * A module's public contract is its `index.ts` — deep imports from outside
  * this directory should go through here.
  *
  * See `types.ts` and `media-service.ts` file headers for the disclosed scope
- * adjustments this walking-skeleton build makes relative to the full ADR-027
+ * adjustments this walking-skeleton build makes relative to the full
  * design (bespoke table instead of generic entries; no origin isolation or
  * ingress policy). Blob GC (`blob-gc.ts`) IS built for real within its own
  * disclosed scope — see that file's header for what's still stubbed
@@ -81,7 +81,7 @@ export {
 } from "./media-service.js";
 
 // -----------------------------------------------------------------------------
-// Named transform registry + rendition generation (ADR-027 §4) — core-declared
+// Named transform registry + rendition generation — core-declared
 // transforms only, in-process lazy single-flight generation only (no eager
 // hot-set worker, no out-of-process generation, no theme/plugin declaration
 // API). See `transform-types.ts`, `transform-registry.ts`,

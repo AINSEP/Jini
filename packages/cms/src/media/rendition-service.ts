@@ -1,5 +1,5 @@
 /**
- * @file Rendition resolution service (ADR-027 §4) — "serve-if-exists +
+ * @file Rendition resolution service — "serve-if-exists +
  * bounded generate-if-defined", the read path behind the frozen public URL
  * contract `https://{mediaOrigin}/m/{assetId}/{transformName}.v{version}/{slug}.{ext}`.
  *
@@ -22,7 +22,7 @@
  * Explicitly OUT of scope for this task (named, not silently dropped):
  *  - Eager generation for a hot set via an outbox worker.
  *  - Out-of-process generation (a worker thread/process to protect the host
- *    from the transform's native work OOMing, ADR-027 §1/§4). This build
+ *    from the transform's native work OOMing). This build
  *    calls `ImageTransformerPort.transform` in-process, synchronously awaited
  *    within the request.
  *  - Origin-isolated serving (a second listener/process for the `/m/` route).
@@ -77,7 +77,7 @@ export type ResolveMediaRenditionResult =
   | { outcome: "not-found" };
 
 /**
- * DISCLOSED SIMPLIFICATION: ADR-027 §4 says a *purged* asset should 410. This
+ * DISCLOSED SIMPLIFICATION: the original design says a *purged* asset should 410. This
  * build's `purgeMedia` (`media-service.ts`) hard-deletes the `MediaRecord`
  * row with no tombstone, so a purged assetId is indistinguishable here from
  * one that never existed at all — both read as "no media row found". Rather
@@ -146,7 +146,7 @@ export async function resolveMediaRendition(
   const lockKey = `${media.source.sha256}:${input.transformName}:${input.version}`;
   const renditionRow = await withRenditionLock(lockKey, async () => {
     // Double-checked: another caller may have finished generating this exact rendition while we
-    // were queued for the lock (ADR-027 §4 single-flight) — reuse it instead of calling
+    // were queued for the lock (single-flight) — reuse it instead of calling
     // `imageTransformer.transform` a second time.
     const racedExisting = await deps.renditionRepo.findOne({
       workspaceId: input.workspaceId,

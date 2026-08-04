@@ -1,12 +1,12 @@
 /**
- * @file `media` write/read service (ADR-027) — walking-skeleton build.
+ * @file `media` write/read service — walking-skeleton build.
  *
  * Mirrors a `post`-style feature's shape: plain async functions taking
  * `{ deps, input }` (+ an optional second `options` object), typed domain
  * errors from `./types`.
  *
  * SCOPE — what this file deliberately does NOT build (disclosed, not silently
- * skipped; each deferred piece is named in ADR-027 itself):
+ * skipped; each deferred piece is named below):
  *
  *  1. **Blob GC** — now built for real (`blob-gc.ts`): a journaled,
  *     `withSha256Lock`-serialized tombstone -> delete-pass -> unlink-pass
@@ -31,7 +31,7 @@
  *     type derived at serve time by `content-type-sniffer.ts` rather than
  *     trusted from upload, since no real content type is stored anywhere —
  *     that route's own security model is a host concern. What is still NOT
- *     built, per the full ADR-027 §1/§6 design: a second, cookie-less media
+ *     built, per the full design: a second, cookie-less media
  *     origin/process, and signed mint-URLs (a `media.download_original`
  *     permission would reserve that capability for a future route).
  *     `Content-Disposition` rules DO now exist, but only the one such a route
@@ -45,10 +45,10 @@
  *     reference media by id in `bodyJson` yet. `purgeMedia`'s 409 guard uses
  *     "not yet trashed" as a stand-in for "referenced" (see its doc comment).
  *  6. Virus scanning, remote-URL upload, video pipeline, S3 adapter — all
- *     explicitly deferred by ADR-027 itself.
+ *     explicitly deferred by design.
  *
  * See `types.ts`'s file header for the other disclosed scope adjustment: the
- * bespoke `MediaRecord` table in place of ADR-027's generic-entries model.
+ * bespoke `MediaRecord` table in place of a generic-entries model.
  */
 import { createHash } from "node:crypto";
 
@@ -80,7 +80,7 @@ export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
 
 /**
  * Advisory MIME allowlist. SVG is deliberately EXCLUDED (not "TODO, forgot") —
- * ADR-027 §6 requires SVG to be sanitized at ingest before it's safe to store;
+ * SVG must be sanitized at ingest before it's safe to store;
  * that sanitizer is not built in this pass, so SVG upload is rejected rather
  * than accepted unsanitized.
  */
@@ -92,7 +92,7 @@ export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Enforces ADR-027 §2's "settable-once-from-absent" write-once rule for
+ * Enforces the "settable-once-from-absent" write-once rule for
  * `source.sha256`: absent -> set exactly once, then immutable.
  *
  * Not currently reachable through any exposed write path — `uploadMedia` only
@@ -137,7 +137,7 @@ export interface UploadMediaInput {
   alt?: string | undefined;
   caption?: string | undefined;
   credit?: string | undefined;
-  /** Attributed on the `asset_blobs` row (ADR-027 §2 required attribution). */
+  /** Attributed on the `asset_blobs` row (required attribution). */
   createdByPrincipal: string;
 }
 
@@ -162,7 +162,7 @@ export interface UploadMediaOptional {
 
 /**
  * Validates, hashes, dedups by `(workspaceId, sha256)`, and writes a new media
- * asset. Ordering (ADR-027 §5 INV-1a): bytes are written (or found already
+ * asset. Ordering (INV-1a): bytes are written (or found already
  * present via dedup) BEFORE the media row is saved — a media row never exists
  * without corresponding bytes.
  *
@@ -171,7 +171,7 @@ export interface UploadMediaOptional {
  * common CMS behavior) but writes the blob bytes only once. The dedup
  * check-then-act sequence runs inside {@link withSha256Lock} (`blob-gc-lock.ts`)
  * so it can't interleave with a concurrent `blob-gc.ts` delete-pass on the
- * same sha256 (ADR-027 §5's "Serialization" clause). If the existing blob row
+ * same sha256 (the "Serialization" invariant). If the existing blob row
  * is `tombstoned` (a pending GC candidate), this resurrects it back to
  * `active` in the same locked section instead of writing a duplicate blob —
  * the dedup rule's explicit resurrect case.
@@ -211,7 +211,7 @@ export async function uploadMedia(
     if (existingBlob) {
       if (existingBlob.status === "tombstoned") {
         // Resurrect: cancel the pending GC in the same locked section rather
-        // than writing a duplicate blob (ADR-027 §5 INV-1 dedup rule).
+        // than writing a duplicate blob (INV-1 dedup rule).
         await deps.blobRepo.save({ ...existingBlob, status: "active", tombstonedAt: undefined });
       }
       return existingBlob.storageKey;
@@ -295,7 +295,7 @@ export interface GetMediaByIdRequired {
 }
 
 /**
- * Fetches one media asset by id, scoped to its workspace (ADR-007).
+ * Fetches one media asset by id, scoped to its workspace.
  *
  * @complexity O(1).
  * @overallScore 100
@@ -335,7 +335,7 @@ export interface UpdateMediaMetadataRequired {
 
 /**
  * Updates editorial-only fields (title/alt/caption/credit). `source.sha256` is
- * write-once (ADR-027 §2) — this function's input type has no `sha256` field,
+ * write-once — this function's input type has no `sha256` field,
  * so there is no code path here that can touch it (see `resolveWriteOnceSource`
  * doc for the directly-tested invariant this relies on).
  *
@@ -364,7 +364,7 @@ export async function updateMediaMetadata(
 }
 
 // ---------------------------------------------------------------------------
-// trashMedia / purgeMedia (deletion ladder, ADR-027 §5)
+// trashMedia / purgeMedia (deletion ladder)
 // ---------------------------------------------------------------------------
 
 export interface TrashMediaDeps {
@@ -424,11 +424,11 @@ export interface PurgeMediaRequired {
 }
 
 /**
- * Hard delete. Deletion ladder (ADR-027 §5, mirrors `deleteMenu`): purge is
+ * Hard delete. Deletion ladder (mirrors `deleteMenu`): purge is
  * rejected with `MediaStillReferencedError` (409-style) unless the asset has
  * already been trashed first.
  *
- * SIMPLIFICATION (disclosed): the real ADR-027 §5 guard checks the derived
+ * SIMPLIFICATION (disclosed): the real design's guard checks the derived
  * `entry_refs` where-used index (any live reference from published content).
  * That index doesn't exist — posts don't reference media by id in `bodyJson`
  * yet — so this build uses "not yet trashed" as the stand-in referenced-check.
@@ -449,7 +449,7 @@ export interface PurgeMediaRequired {
  * explicit step — nothing schedules either automatically yet (see
  * `blob-gc.ts`'s file header). This is a real behavior change from this
  * function's prior "delete row, best-effort unlink immediately" shortcut,
- * which is exactly the ADR-027 §5 gap this task closes.
+ * which is exactly the gap this task closes.
  *
  * @complexity O(n) in the workspace's media row count, inherited from the
  * tombstone-pass's `isBlobUnreferenced` scan (see `blob-gc.ts`).
@@ -467,7 +467,7 @@ export async function purgeMedia(
     throw new MediaStillReferencedError(
       `media '${input.id}' must be trashed before it can be purged`,
       [
-        `media '${input.id}' is still active (stand-in for the real ADR-027 §5 entry_refs ` +
+        `media '${input.id}' is still active (stand-in for the real entry_refs ` +
           `where-used index, which is not implemented — see purgeMedia's doc comment)`,
       ]
     );

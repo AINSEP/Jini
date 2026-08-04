@@ -1,12 +1,12 @@
 /**
- * @file In-memory adapters for the `media` library's three record types
- * (ADR-027 §2): the bespoke `MediaRecord` table (see `types.ts` file header
+ * @file In-memory adapters for the `media` library's three record types:
+ * the bespoke `MediaRecord` table (see `types.ts` file header
  * for why it's bespoke rather than riding a not-yet-implemented generic
  * entries model) and the two core-owned sidecars, `asset_blobs` and
  * `asset_renditions`.
  *
  * Architectural role:
- * Adapters only — dumb collections scoped by `workspaceId` (ADR-007). No
+ * Adapters only — dumb collections scoped by `workspaceId`. No
  * validation or business rules live here (that's `media-service.ts`'s job).
  */
 import type { UUID } from "../core/ports.js";
@@ -139,7 +139,7 @@ export class InMemoryAssetRenditionRepo implements AssetRenditionRepoPort {
 }
 
 /**
- * In-memory `blob_gc_journal` adapter (ADR-027 §5 INV-1 two-phase protocol —
+ * In-memory `blob_gc_journal` adapter (INV-1 two-phase protocol —
  * see `blob-gc.ts`). Same disclosed limit as every other repo in this file:
  * rows do not survive a process restart, so a real crash between the
  * delete-pass and unlink-pass loses the journal entry in this build (a real
@@ -173,7 +173,7 @@ export class InMemoryBlobGcJournalRepo implements BlobGcJournalRepoPort {
 }
 
 /**
- * In-memory `transform_registry` adapter (ADR-027 §4). `insert` enforces the
+ * In-memory `transform_registry` adapter. `insert` enforces the
  * append-only contract defensively at the adapter boundary: a duplicate
  * `(workspaceId, name, version)` throws rather than silently overwriting —
  * the immutability guarantee should never be reachable via this adapter, not

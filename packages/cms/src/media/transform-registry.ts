@@ -1,5 +1,5 @@
 /**
- * @file Named transform registry service (ADR-027 §4) — the core-declared
+ * @file Named transform registry service — the core-declared
  * path only (no theme/plugin declaration API; see `transform-types.ts` file
  * header for that disclosed scope boundary).
  *
@@ -37,7 +37,7 @@ export interface RegisterTransformRequired {
 }
 
 /**
- * Registers a named transform definition. Append-only (ADR-027 §4):
+ * Registers a named transform definition. Append-only:
  * redefining an already-used `name` never mutates the prior version's row —
  * it inserts a new row at `version = (current max version for name) + 1`
  * (or `1` if `name` has never been registered). The read-max-then-insert
@@ -83,7 +83,7 @@ export async function registerTransform(
 }
 
 // ---------------------------------------------------------------------------
-// Queries used by the anonymous lazy-generation bound (ADR-027 §4)
+// Queries used by the anonymous lazy-generation bound
 // ---------------------------------------------------------------------------
 
 export interface GetLatestTransformDefinitionRequired {
@@ -113,7 +113,7 @@ export interface IsLatestTransformVersionRequired {
 
 /**
  * Answers "is `version` the current latest registered version of `name`?" —
- * the cheap half of ADR-027 §4's anonymous-generation bound ("latest
+ * the cheap half of the anonymous-generation bound ("latest
  * registry version of that name"). Used by `rendition-service.ts` to decide
  * whether an unauthenticated request may trigger lazy generation for an
  * as-yet-ungenerated rendition.
@@ -127,9 +127,9 @@ export async function isLatestTransformVersion(required: IsLatestTransformVersio
 }
 
 /**
- * STUB (disclosed) — the other half of ADR-027 §4's anonymous-generation
+ * STUB (disclosed) — the other half of the anonymous-generation
  * bound: "referenced by published content". The real check depends on
- * ADR-022's `entry_refs` where-used index, which is not implemented as
+ * the `entry_refs` where-used index, which is not implemented as
  * running code yet (same disclosed gap `blob-gc.ts`'s `hasLiveEntryRefs`
  * names for the same reason — see that file's header). Always reports "not
  * referenced", which is what makes {@link isLatestTransformVersion} alone

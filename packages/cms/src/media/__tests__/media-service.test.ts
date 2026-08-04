@@ -26,7 +26,7 @@ import { DEFAULT_GC_GRACE_MS, runBlobGcDeletePass, runBlobGcUnlinkPass } from ".
 const WORKSPACE_ID = "workspace-1";
 
 /**
- * Shared deps builder (ADR-027 §5 GC tests need a fast-forwardable clock —
+ * Shared deps builder (GC tests need a fast-forwardable clock —
  * same `setNow` closure pattern as `identity/__tests__/auth-service.test.ts`'s
  * `buildDeps`, so grace-period gating can be proven without a real sleep).
  */
@@ -290,7 +290,7 @@ test("purgeMedia 409s (MediaStillReferencedError) when the asset is not yet tras
   );
 });
 
-test("purgeMedia removes the media row immediately but only TOMBSTONES an unshared blob (ADR-027 §5: deletion is grace-gated, not immediate)", async () => {
+test("purgeMedia removes the media row immediately but only TOMBSTONES an unshared blob (deletion is grace-gated, not immediate)", async () => {
   const { deps, setNow } = makeDeps();
   const { media } = await uploadMedia({
     deps,

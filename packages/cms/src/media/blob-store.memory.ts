@@ -1,5 +1,5 @@
 /**
- * @file In-memory `BlobStorePort` test double (ADR-006 rule-of-two, second
+ * @file In-memory `BlobStorePort` test double (port/adapter rule-of-two, second
  * adapter alongside `blob-store.fs.ts`). Used by hermetic tests and any
  * host's default dev/test composition root.
  */

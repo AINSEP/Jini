@@ -1,7 +1,7 @@
 /**
- * @file Port contracts for the `media` library (ADR-027).
+ * @file Port contracts for the `media` library.
  *
- * Ports declared here (ADR-006 rule-of-two — each has a real second adapter in
+ * Ports declared here (port/adapter rule-of-two — each has a real second adapter in
  * this build):
  *  - `MediaRepoPort` / `AssetBlobRepoPort` / `AssetRenditionRepoPort` — in-memory
  *    now; a SQLite adapter is a host concern (composition roots bind their own
@@ -11,14 +11,14 @@
  *    filesystem (`blob-store.fs.ts`, real for this build) + in-memory test
  *    double (`blob-store.memory.ts`).
  *
- * `BlobStorePort`'s surface is deliberately narrower than ADR-027 §1's full
+ * `BlobStorePort`'s surface is deliberately narrower than the full
  * design: no `capabilities()`/`createPresignedUpload()` (the presign surface is
  * explicitly deferred by this task's scope). It has one method beyond the
  * task's stated minimal 3 (`put`/`get`/`exists`): `remove()`. That addition is
  * necessary to implement `purgeMedia`'s explicitly-requested "best-effort blob
  * unlink" (see `media-service.ts`) — without a way to delete bytes, purge could
  * only ever delete rows, never reclaim storage. This is disclosed here, not
- * silently smuggled in: it is still far short of the real ADR-027 §5 journaled
+ * silently smuggled in: it is still far short of the real journaled
  * GC protocol (no epochs, no `BEGIN IMMEDIATE`, no crash-safety guarantee).
  *
  * Interfaces only — no feature logic.
@@ -44,7 +44,7 @@ export interface AssetBlobRepoPort {
 }
 
 /**
- * `blob_gc_journal` repo (ADR-027 §5 INV-1 two-phase protocol). See
+ * `blob_gc_journal` repo (INV-1 two-phase protocol). See
  * {@link BlobGcJournalEntry} for what a row represents.
  */
 export interface BlobGcJournalRepoPort {
@@ -56,7 +56,7 @@ export interface BlobGcJournalRepoPort {
 export interface AssetRenditionRepoPort {
   listByAsset(required: { workspaceId: UUID; assetId: UUID }): Promise<AssetRenditionRecord[]>;
   /**
-   * Exact lookup by the frozen public URL contract's key (ADR-027 §4):
+   * Exact lookup by the frozen public URL contract's key:
    * `(assetId, transformName, version)` only — `slug`/`ext` are cosmetic and
    * never participate in any lookup.
    */
@@ -71,7 +71,7 @@ export interface AssetRenditionRepoPort {
 }
 
 /**
- * `transform_registry` repo (ADR-027 §4). Append-only: `insert` must never
+ * `transform_registry` repo. Append-only: `insert` must never
  * update or remove an existing `(workspaceId, name, version)` row — see
  * `InMemoryTransformDefinitionRepo` for the enforced version of that
  * contract.
@@ -96,7 +96,7 @@ export interface PutBlobInput {
 }
 
 /**
- * Content-addressed byte storage (ADR-027 §1/§3). Storage keys are
+ * Content-addressed byte storage. Storage keys are
  * workspace-prefixed and sha256-sharded: `ws/{workspaceId}/blobs/{sha256[0..1]}/{sha256}`
  * (see `blob-key.ts`). No per-generation epoch in this build (that machinery
  * belongs to the deferred journaled-GC protocol — see `media-service.ts`).

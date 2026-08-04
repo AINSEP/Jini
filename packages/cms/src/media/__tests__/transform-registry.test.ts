@@ -1,5 +1,5 @@
 /**
- * @file Named transform registry tests (ADR-027 §4) — `transform-registry.ts`
+ * @file Named transform registry tests — `transform-registry.ts`
  * / `transform-types.ts`. Covers: registering a definition, append-only
  * immutability across redefinition (old version rows never mutated), version
  * numbering, validation, and the `isLatestTransformVersion` query the

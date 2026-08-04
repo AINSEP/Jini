@@ -1,5 +1,5 @@
 /**
- * @file `ImageTransformerPort` (ADR-006 rule-of-two) — the seam between
+ * @file `ImageTransformerPort` (port/adapter rule-of-two) — the seam between
  * rendition generation (`rendition-service.ts`) and the actual pixel
  * operation. Two adapters:
  *  - `InMemoryImageTransformer` (this file) — deterministic test double, no
@@ -24,7 +24,7 @@ export interface TransformImageOutput {
 
 /**
  * Runs one named transform's declared parameters against source bytes,
- * producing re-encoded output bytes (ADR-027 §4: "renditions are always
+ * producing re-encoded output bytes ("renditions are always
  * re-encoded"). Implementations are expected to be pure with respect to
  * `input` (same bytes + same params -> same output), which is what makes the
  * content-addressed rendition storage key (`rendition-service.ts`) sound.

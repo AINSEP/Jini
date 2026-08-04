@@ -1,5 +1,5 @@
 /**
- * @file Blob-GC protocol (ADR-027 §5 "References, deletion, and GC
+ * @file Blob-GC protocol ("References, deletion, and GC
  * (never-brick)", INV-1) — the audited tombstone -> delete-pass -> unlink-pass
  * design, scoped to what an in-memory-repo build can actually run today.
  *
@@ -27,13 +27,13 @@
  *
  * Deliberately NOT built (disclosed, matches this task's explicit scope):
  *  - **`entry_refs` where-used index** ({@link hasLiveEntryRefs}) — belongs to
- *    ADR-022's generic entries model, which is accepted design only, not
+ *    the generic entries model, which is accepted design only, not
  *    running code yet (see `types.ts`'s file header on `MediaRecord` being a
  *    bespoke table for the same reason). Stubbed to always return `false`
  *    ("no live refs found").
  *  - **Retained-snapshot conjunct** ({@link getOldestRetainedSnapshotAgeMs}) —
  *    owned by a pending Storage/Backups snapshot primitive, which doesn't
- *    exist yet either (ADR-027 §5 says so explicitly). Stubbed to always
+ *    exist yet either. Stubbed to always
  *    return `undefined` ("no retained snapshot").
  *  - **Monthly orphan sweep** ({@link runMonthlyOrphanSweepStub}) — the fourth
  *    protocol phase, reconciling bytes on disk with no `asset_blobs` row at
@@ -42,7 +42,7 @@
  *    and is never called.
  *  - **Cross-process safety** — `withSha256Lock` only serializes within one
  *    Node process. A real multi-instance deployment needs the real DB
- *    transaction ADR-027 specifies, which a host's own persistence adapter
+ *    transaction the original design specifies, which a host's own persistence adapter
  *    would supply; this build has no multi-writer story for media at all yet
  *    (in-memory repo), so that gap is inherited, not new.
  */
@@ -54,13 +54,13 @@ import { withSha256Lock } from "./blob-gc-lock.js";
 export const DEFAULT_GC_GRACE_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // ---------------------------------------------------------------------------
-// Disclosed stubs — ADR-027 §5 conjuncts this build cannot evaluate for real
+// Disclosed stubs — conjuncts this build cannot evaluate for real
 // yet. Both are named, not silently folded into `true`/`false` inline, so a
 // future implementation has an obvious seam to replace.
 // ---------------------------------------------------------------------------
 
 /**
- * STUB — ADR-022's derived `entry_refs` where-used index (TipTap image nodes
+ * STUB — the derived `entry_refs` where-used index (TipTap image nodes
  * + registry `ref` fields) does not exist as running code yet (see this
  * file's header). Always reports no live references, which is what lets
  * {@link isBlobUnreferenced} degrade to the sha256-uniqueness check alone.
@@ -100,7 +100,7 @@ function getOldestRetainedSnapshotAgeMs(_input: { workspaceId: UUID; sha256: str
 
 /**
  * `gc_grace = max(configured default, age of the oldest retained snapshot at
- * delete-pass time)` (ADR-027 §5). The snapshot half is always `0` in this
+ * delete-pass time)`. The snapshot half is always `0` in this
  * build (see {@link getOldestRetainedSnapshotAgeMs}), so this currently
  * always resolves to {@link DEFAULT_GC_GRACE_MS} — structured so a real
  * snapshot-age input replaces that `?? 0` later without touching callers.
@@ -114,7 +114,7 @@ export function resolveGcGraceMs(input: { workspaceId: UUID; sha256: string }): 
 }
 
 // ---------------------------------------------------------------------------
-// "Unreferenced" predicate (ADR-027 §5, normative)
+// "Unreferenced" predicate (normative)
 // ---------------------------------------------------------------------------
 
 export interface IsBlobUnreferencedRequired {
@@ -124,8 +124,8 @@ export interface IsBlobUnreferencedRequired {
 
 /**
  * The real "unreferenced" check this file replaces `purgeMedia`'s old
- * sibling-scan-and-immediately-delete shortcut with. Normative definition
- * (ADR-027 §5): no media entry in the workspace in any non-purged state
+ * sibling-scan-and-immediately-delete shortcut with. Normative definition:
+ * no media entry in the workspace in any non-purged state
  * (active or trashed — purged rows are physically removed by `purgeMedia`,
  * so `mediaRepo.list` already excludes them by construction) references this
  * sha256, AND no live `entry_refs` targets it, AND no retained snapshot
@@ -221,7 +221,7 @@ export interface RunBlobGcDeletePassRequired {
  * {@link isBlobUnreferenced} predicate one more time before acting (a
  * resurrect between tombstone-pass and delete-pass already flips status back
  * to `active`, which the tombstoned-status check below catches first, but the
- * re-check is what ADR-027 §5 calls for and is what future non-stub
+ * re-check is what the protocol calls for and is what future non-stub
  * entry_refs/snapshot conjuncts would need). On success: writes the
  * `blob_gc_journal` entry and removes the `asset_blobs` row, in that order,
  * inside the same locked section — INV-1a's "unlinked only after the row
@@ -286,7 +286,7 @@ export interface RunBlobGcUnlinkPassRequired {
  * done either way). If no row exists, the bytes are genuinely orphaned and
  * are removed.
  *
- * This re-check-under-lock is this build's substitute for ADR-027 §3's
+ * This re-check-under-lock is this build's substitute for the design's
  * per-generation storage-key epochs (deferred — see `blob-key.ts`'s file
  * header): instead of tagging storage keys with a generation suffix so a
  * stale unlink physically cannot address live bytes, the sha256 lock plus
@@ -374,7 +374,7 @@ export async function runBlobGcCycle(
 // ---------------------------------------------------------------------------
 
 /**
- * STUB — ADR-027 §5's fourth GC phase, a periodic/monthly orphan sweep that
+ * STUB — the protocol's fourth GC phase, a periodic/monthly orphan sweep that
  * reconciles bytes physically present in the blob store with no
  * corresponding `asset_blobs` row at all (e.g. bytes from a crash before any
  * GC protocol existed, or before this build's ordering guarantee was in

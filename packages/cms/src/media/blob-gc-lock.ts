@@ -1,15 +1,15 @@
 /**
- * @file In-process, per-sha256 mutex for the blob-GC protocol (ADR-027 §5
- * INV-1's "Serialization" clause).
+ * @file In-process, per-sha256 mutex for the blob-GC protocol
+ * (INV-1's "Serialization" clause).
  *
  * Purpose:
- * The real ADR-027 protocol serializes every `asset_blobs` state transition
+ * The real protocol serializes every `asset_blobs` state transition
  * under `BEGIN IMMEDIATE` (SQLite) / `SELECT … FOR UPDATE` (Postgres) so a
  * dedup "skip write" decision and a concurrent GC delete can never observe
  * inconsistent state. This library's media persistence is in-memory only (see
  * `repo.memory.ts` file headers), so there is no database transaction to
  * borrow. JS is single-threaded, but `async` functions still interleave at
- * `await` points — that is exactly where the race the ADR describes would
+ * `await` points — that is exactly where the race the original design describes would
  * happen: an uploader's dedup lookup and a GC delete-pass's row removal can
  * both be mid-flight on the same sha256 at the same time. `withSha256Lock`
  * closes that race for a single process by chaining critical sections keyed

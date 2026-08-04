@@ -1,6 +1,6 @@
 /**
  * @file Real `ImageTransformerPort` adapter — calls `sharp` to actually
- * resize/re-encode pixels (ADR-027 §4/§6: renditions are always re-encoded,
+ * resize/re-encode pixels (renditions are always re-encoded,
  * never passed through unmodified).
  *
  * `sharp` is an OPTIONAL runtime dependency of this package (mirrors
@@ -75,11 +75,11 @@ function loadSharpFactory(): SharpFactory {
  * Real `ImageTransformerPort` adapter. Applies `params.width`/`height`
  * (via `sharp().resize(...)`, only when at least one is set) then
  * `params.format` (via `sharp().toFormat(...)`, always — re-encode is
- * unconditional per ADR-027 §4/§6).
+ * unconditional).
  *
  * @complexity O(pixels) — dominated by `sharp`'s native resize/encode work,
  * outside this function's control. Runs IN-PROCESS in this build (the
- * out-of-process worker ADR-027 §4 calls for to protect the host from
+ * out-of-process worker the original design calls for to protect the host from
  * `sharp` OOMing is explicitly out of scope for this task — see
  * `rendition-service.ts`'s file header).
  * @overallScore 90

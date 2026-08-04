@@ -1,5 +1,5 @@
 /**
- * @file The Media agent-tool catalog (ADR-027) — this domain's instance of the per-domain
+ * @file The Media agent-tool catalog — this domain's instance of the per-domain
  * `agent-tools.ts` convention Forms/Identity already use.
  *
  * Purpose:

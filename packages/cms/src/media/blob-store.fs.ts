@@ -1,6 +1,6 @@
 /**
- * @file Local-filesystem `BlobStorePort` adapter (ADR-006 rule-of-two "one
- * being built now" half; ADR-012 `uploads/` convention).
+ * @file Local-filesystem `BlobStorePort` adapter (port/adapter rule-of-two "one
+ * being built now" half; the `uploads/` convention).
  *
  * Purpose:
  * Writes/reads blob bytes under a configurable root directory, keyed by
@@ -8,7 +8,7 @@
  * running server; the in-memory adapter (`blob-store.memory.ts`) is what
  * hermetic tests and a default dev composition use instead.
  *
- * Deliberately NOT built: the S3 adapter (ADR-027 §8 deferred), the presign
+ * Deliberately NOT built: the S3 adapter (deferred), the presign
  * surface, per-generation storage epochs (see `blob-key.ts` file header).
  */
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";

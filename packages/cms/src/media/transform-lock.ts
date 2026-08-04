@@ -1,6 +1,6 @@
 /**
  * @file Generic in-process keyed mutex factory, extracted from
- * `blob-gc-lock.ts`'s `withSha256Lock` shape (ADR-027 §5 INV-1's
+ * `blob-gc-lock.ts`'s `withSha256Lock` shape (INV-1's
  * "Serialization" clause) so the same FIFO-per-key critical-section pattern
  * can back two independent lock namespaces this domain needs:
  *
@@ -9,7 +9,7 @@
  *    name)`, so two concurrent registrations of the same name can't both
  *    read the same "current max" and mint a colliding version.
  *  - `withRenditionLock` — serializes lazy rendition generation per
- *    `(sha256, transformName, version)` (ADR-027 §4 "single-flight"), so two
+ *    `(sha256, transformName, version)` ("single-flight"), so two
  *    concurrent requests for the same not-yet-generated rendition never run
  *    the image transformer twice.
  *

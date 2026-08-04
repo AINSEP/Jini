@@ -1,5 +1,5 @@
 /**
- * @file Blob-GC protocol tests (ADR-027 §5 INV-1) — `blob-gc.ts` /
+ * @file Blob-GC protocol tests (INV-1) — `blob-gc.ts` /
  * `blob-gc-lock.ts`. `media-service.test.ts` covers the `purgeMedia`-driven
  * happy path (tombstone -> grace-gated delete-pass -> unlink-pass end to
  * end); this file drills into the protocol's own invariants directly:

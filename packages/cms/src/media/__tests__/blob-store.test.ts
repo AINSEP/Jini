@@ -10,7 +10,7 @@ import { LocalFsBlobStore } from "../blob-store.fs.js";
 import { computeBlobStorageKey } from "../blob-key.js";
 
 /**
- * One contract exercised against both `BlobStorePort` adapters (ADR-006
+ * One contract exercised against both `BlobStorePort` adapters (port/adapter
  * rule-of-two: the two adapters must be interchangeable from a caller's point
  * of view). Mirrors the "same test, two adapters" shape used to demonstrate
  * real rule-of-two swappability elsewhere in this repo (e.g. repo ports).

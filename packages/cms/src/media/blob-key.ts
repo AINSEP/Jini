@@ -1,6 +1,6 @@
 /**
- * @file Shared storage-key derivation for `BlobStorePort` adapters (ADR-027 §3,
- * ADR-012 workspace-prefixed keys).
+ * @file Shared storage-key derivation for `BlobStorePort` adapters
+ * (workspace-prefixed keys).
  *
  * Purpose:
  * Both `blob-store.fs.ts` and `blob-store.memory.ts` must derive the same key
@@ -8,7 +8,7 @@
  * stored key looks like. Kept as one small pure function rather than
  * duplicated inline in each adapter.
  *
- * No per-generation epoch suffix (contrast ADR-027 §3's
+ * No per-generation epoch suffix (contrast the original design's
  * `{sha256}-{storage_epoch}`) — epochs exist to make the journaled 2-phase GC
  * race-proof, and that protocol is explicitly deferred in this build (see
  * `media-service.ts` file header). A future epoch-aware rewrite would change
