@@ -2,19 +2,19 @@ import type { UUID } from "../core/ports.js";
 import { WorkspaceLastRemainingError, WorkspaceNotFoundError, type WorkspaceRepoPort } from "./create.js";
 
 /**
- * @file `DELETE_WORKSPACE` (SPEC-044 REQ-05/INV-03) — hard-delete a workspace, guarded so the
+ * @file `DELETE_WORKSPACE` — hard-delete a workspace, guarded so the
  * install is never left with zero workspace rows.
  *
  * Purpose:
- * Because a v1 install always has exactly one workspace row (SPEC-044's Architectural Finding — a
- * host's `workspaceId` is fixed at process composition, so no request can ever address a second,
- * even-if-present workspace row today), `deleteWorkspace` **always refuses in v1**. That is correct,
+ * Because a v1 install always has exactly one workspace row (a host's `workspaceId` is fixed at
+ * process composition, so no request can ever address a second, even-if-present workspace row
+ * today), `deleteWorkspace` **always refuses in v1**. That is correct,
  * guarded behavior, not a stub: the precondition, the atomicity, and the typed refusal all exist and
  * are exercised by tests now, so the day a second, genuinely addressable workspace exists, delete
  * works without further design.
  *
  * Architectural role:
- * Ordinary slice function (ADR-006) — not a port. `deps.repo.list()` is the count source; the guard
+ * Ordinary slice function — not a port. `deps.repo.list()` is the count source; the guard
  * check and the delete happen inside one `async` function body with no `await` yielded to another
  * caller in between the count read and the delete write, which — under a single Node.js
  * event-loop, no-concurrent-DB-transaction execution model (the same "atomic by construction"

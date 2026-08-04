@@ -9,16 +9,17 @@ import {
 } from "./create.js";
 
 /**
- * @file `UPDATE_WORKSPACE` (SPEC-044 REQ-04) — rename a workspace's `name` and/or `slug`.
+ * @file `UPDATE_WORKSPACE` — rename a workspace's `name` and/or `slug`.
  *
  * Purpose:
- * The one mutating transition SPEC-044 adds beyond create/delete. Mirrors `create.ts`'s
- * validate -> check-constraints -> persist shape (no domain event is enqueued here — REQ-04 doesn't
- * ask for one, and no consumer subscribes to a workspace-renamed topic yet; add one the same way
- * `createWorkspace` does if a real consumer appears, rather than emitting a speculative event now).
+ * The one mutating transition this feature adds beyond create/delete. Mirrors `create.ts`'s
+ * validate -> check-constraints -> persist shape (no domain event is enqueued here — the
+ * requirement doesn't ask for one, and no consumer subscribes to a workspace-renamed topic yet; add
+ * one the same way `createWorkspace` does if a real consumer appears, rather than emitting a
+ * speculative event now).
  *
  * Architectural role:
- * Ordinary slice function, not a port (ADR-006) — one implementation, ADR-006's rule-of-two doesn't
+ * Ordinary slice function, not a port — one implementation, the rule-of-two doesn't
  * apply to business logic, only to the repo/outbox seams it calls through `WorkspaceRepoPort`.
  */
 

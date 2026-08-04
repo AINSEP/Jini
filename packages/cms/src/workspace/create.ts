@@ -6,14 +6,14 @@ import type { ClockPort, DomainEvent, IdGeneratorPort, OutboxPort, UUID } from "
  * Purpose:
  * Encapsulates business rules for creating a workspace. Also owns the shared
  * `WorkspaceRepoPort` contract and record shape for the whole feature slice
- * (SPEC-044 `update.ts`/`delete.ts` import from here rather than duplicating
+ * (`update.ts`/`delete.ts` import from here rather than duplicating
  * the port) — mirrors `identity/types.ts`+`identity/ports.ts` owning the
  * shared shapes their sibling transition files (`grant-service.ts`) import.
  *
  * How it relates to the package:
  * - Imports abstractions from `../core/ports.js` (no framework/db coupling).
  * - Uses `WorkspaceRepoPort` for persistence and `OutboxPort` for event enqueue.
- * - Is invoked by a host's own admin create-workspace route (SPEC-044 REQ-01 — moved off the
+ * - Is invoked by a host's own admin create-workspace route (moved off the
  *   original unauthenticated `POST /workspaces` route in the host's composition root).
  * - Is verified by tests in `./__tests__`.
  *
@@ -29,28 +29,27 @@ export interface WorkspaceRecord {
 }
 
 /**
- * Workspace persistence contract for this slice. `findById`/`list`/`update`/`delete` are SPEC-044
- * REQ-08 additions (both adapters — this package's `repo.memory.ts` and a host's own SQLite
+ * Workspace persistence contract for this slice. `findById`/`list`/`update`/`delete` were
+ * later additions (both adapters — this package's `repo.memory.ts` and a host's own SQLite
  * adapter — implement all seven methods; `insert`/`findBySlug`'s existing contract is unchanged).
  */
 export interface WorkspaceRepoPort {
   insert(record: WorkspaceRecord): Promise<void>;
   findBySlug(slug: string): Promise<WorkspaceRecord | null>;
-  /** SPEC-044 REQ-08. */
   findById(id: UUID): Promise<WorkspaceRecord | null>;
-  /** SPEC-044 REQ-08/REQ-02 — a v1 install always has exactly one row (see `delete.ts`'s header);
+  /** A v1 install always has exactly one row (see `delete.ts`'s header);
    * the port itself is not limited to one. */
   list(): Promise<WorkspaceRecord[]>;
-  /** SPEC-044 REQ-08/REQ-04. Replaces the full record (id/createdAt immutable by convention — see
+  /** Replaces the full record (id/createdAt immutable by convention — see
    * `update.ts`, which never changes them). */
   update(record: WorkspaceRecord): Promise<void>;
-  /** SPEC-044 REQ-08/REQ-05. Callers (see `delete.ts`) must apply the INV-03 last-workspace guard
+  /** Callers (see `delete.ts`) must apply the last-workspace guard
    * themselves — this port method performs the row deletion only, no business rule. */
   delete(id: UUID): Promise<void>;
 }
 
 /**
- * Shared `name`/`slug` validation (SPEC-044 REQ-01/REQ-04) — used by both `createWorkspace` below
+ * Shared `name`/`slug` validation — used by both `createWorkspace` below
  * and `updateWorkspace` (`update.ts`) so the two transitions can never drift on what counts as a
  * valid name/slug. Returns the normalized (trimmed name, trimmed+lowercased slug) pair; throws
  * `WorkspaceValidationError` on either being invalid.
@@ -102,14 +101,14 @@ export class WorkspaceValidationError extends Error {}
 /** Thrown when uniqueness constraints are violated. */
 export class WorkspaceConflictError extends Error {}
 
-/** SPEC-044 REQ-03/REQ-04/REQ-05 — thrown when a `:workspaceId` does not resolve to a row. */
+/** Thrown when a `:workspaceId` does not resolve to a row. */
 export class WorkspaceNotFoundError extends Error {}
 
 /**
- * SPEC-044 REQ-05/INV-03 — thrown when `deleteWorkspace` (`delete.ts`) would remove the install's
+ * Thrown when `deleteWorkspace` (`delete.ts`) would remove the install's
  * last remaining workspace row. Named distinctly from `WorkspaceConflictError` (a 409, same as this
  * maps to) so a caller can tell "duplicate slug" apart from "would brick the install" without
- * string-matching the message — mirrors SPEC-006's `GrantExceedsIssuerError` being kept distinct
+ * string-matching the message — mirrors this codebase's `GrantExceedsIssuerError` being kept distinct
  * from `IdentityForbiddenError` for the identical reason (typed-reason clarity).
  */
 export class WorkspaceLastRemainingError extends Error {}
