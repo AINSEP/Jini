@@ -9,11 +9,11 @@ import type {
 import type { PolicyPermissionRecord } from "./types.js";
 
 /**
- * @file `authorize()` — the RBAC evaluator (REQ-04, ADR-021 §2/§8).
+ * @file `authorize()` — the RBAC evaluator (REQ-04).
  *
  * Purpose:
- * Ordinary core function, deliberately NOT a port (ADR-006: one evaluator —
- * "no PolicyPort"). The SPEC-001 command gateway calls this before every
+ * Ordinary core function, deliberately NOT a port (one evaluator —
+ * "no PolicyPort"). The command gateway calls this before every
  * mutation (REQ-05); it is deterministic and side-effect free given the
  * repo snapshot (state.spec §4).
  *
@@ -27,7 +27,7 @@ import type { PolicyPermissionRecord } from "./types.js";
  * Architectural role:
  * Implements the matcher precedence in behavior.spec §1.1 exactly:
  * disabled-principal short-circuit > owner wildcard > exact matching row >
- * fail-closed default. Fail-closed extensibility (ADR-021 §8): a non-null
+ * fail-closed default. Fail-closed extensibility: a non-null
  * `constraintJson` is never treated as unconstrained, and a `resourceType`
  * mismatch/absence is never treated as a global grant.
  */

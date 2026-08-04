@@ -8,7 +8,7 @@ import { authorize } from "../authorize.js";
 import { Argon2PasswordHasher } from "../hasher.js";
 import { migrateDeprecatedPermissionGrants } from "../permission-migrations.js";
 // Side-effect import: registers the real BASE_CATALOG + the real integration.manage ->
-// admin.integrations.manage migration pair (ADR-PIPE-015 Phase 3) before the T025 test below runs.
+// admin.integrations.manage migration pair before the T025 test below runs.
 import "../permissions";
 import {
   InMemoryPolicyPermissionRepo,
@@ -168,7 +168,7 @@ test("integration: the seeded owner is authorized for a permission a feature reg
   assert.deepEqual(result, { allowed: true, reason: "owner_wildcard" });
 });
 
-test("ADR-PIPE-015 Phase 3 T025: a policy holding the deprecated integration.manage also gains admin.integrations.manage after migration, idempotently", async () => {
+test("T025: a policy holding the deprecated integration.manage also gains admin.integrations.manage after migration, idempotently", async () => {
   const deps = buildDeps();
   await seedIdentity({ deps, input: { workspaceId: WORKSPACE, ownerPassword: SEED_OWNER_PASSWORD } });
 

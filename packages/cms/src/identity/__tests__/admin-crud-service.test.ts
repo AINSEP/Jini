@@ -48,7 +48,7 @@ import {
 } from "../types.js";
 
 /**
- * @file SPEC-006 0.6.0 amendment — AC-27..32, EC-14..17.
+ * @file Admin CRUD amendment — AC-27..32, EC-14..17.
  * Mirrors `grant-service.test.ts`'s exact harness (`buildSeededDeps`/`seedBarePrincipal`).
  */
 

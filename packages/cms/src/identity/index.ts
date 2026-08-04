@@ -1,7 +1,7 @@
 /**
- * @file Public surface (barrel) for the `identity` library (ADR-021 / SPEC-006).
+ * @file Public surface (barrel) for the `identity` library.
  *
- * A module's public contract is its `index.ts` (ADR-009 §1) — deep imports
+ * A module's public contract is its `index.ts` — deep imports
  * from outside this directory should go through here.
  */
 export type {
@@ -90,7 +90,7 @@ export {
   assignRole,
   attachPolicy,
   /** Exported so the assistant's read-only identity tools gate on the SAME caller-permission
-   * helper the mutating transitions use, rather than re-implementing the OR gate (ADR-021 §2). */
+   * helper the mutating transitions use, rather than re-implementing the OR gate. */
   assertCallerHasAnyPermission,
 } from "./grant-service.js";
 
@@ -102,7 +102,7 @@ export {
 } from "./agent-tools.js";
 export { parseIdentityToolInput, type IdentityToolInputResult } from "./agent-tool-input.js";
 
-/** SPEC-006 0.6.0 — the users/roles/policies admin CRUD-completion amendment. */
+/** The users/roles/policies admin CRUD-completion amendment. */
 export {
   disablePrincipal,
   enablePrincipal,
@@ -133,10 +133,11 @@ export {
 } from "./permissions.js";
 
 /**
- * ADR-PIPE-012: the shared deprecate-old/grant-new permission migration
- * mechanism. Sibling remediation ADRs (Members/Analytics/Integrations)
+ * The shared deprecate-old/grant-new permission migration
+ * mechanism (see `docs/decisions/permission-catalog-migration.md`). Sibling
+ * remediation efforts (Members/Analytics/Integrations)
  * register their own `{from, to}` pair via `registerPermissionMigration`
- * rather than hand-rolling a divergent copy (ADR-PIPE-012 Enforcement).
+ * rather than hand-rolling a divergent copy.
  */
 export {
   registerPermissionMigration,

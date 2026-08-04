@@ -1,10 +1,10 @@
 /**
- * @file Identity's half of ADR-049 Decision 4 (ADR-021): maps `agent-tools.ts`'s fifteen catalog
+ * @file Identity's half of the agent-tool authorization wiring: maps `agent-tools.ts`'s fifteen catalog
  * entries onto the users/roles/policies transitions `grant-service.ts`/`admin-crud-service.ts`
  * export, plus the three repo-backed reads, as `ToolRegistration`s.
  *
  * `ToolPolicy.authorize` is a pass-through for all fifteen (see `buildDomainRegistrations`) for the
- * ADR-021 §2 "one evaluator" reason: the gate is the domain layer's, reached identically by every
+ * "one evaluator" reason: the gate is the domain layer's, reached identically by every
  * tool kind — mutations through their own service function, which opens with the check, and reads
  * through {@link assertIdentityReadAllowed}, which calls the domain's own exported
  * `assertCallerHasAnyPermission` rather than re-deriving an OR gate. A second check here would be a
@@ -224,7 +224,7 @@ function identityPermissionsFor(toolId: string): string[] {
  * from — `identity` exports grant-writing transitions, not read wrappers, which is why
  * `routes/admin/users/list.ts` also gates in the route and then reads the repo ports directly.
  * This calls the domain's own exported helper rather than re-deriving an OR gate (and rather than
- * the kit's generic `requireToolPermission`, which cannot express an OR), so ADR-021 §2's single
+ * the kit's generic `requireToolPermission`, which cannot express an OR), so the single
  * evaluator is reached by an identical path from both tool kinds.
  */
 async function assertIdentityReadAllowed(routeDeps: IdentityToolDeps, toolId: string, callerPrincipalId: string): Promise<void> {

@@ -3,15 +3,16 @@ import type { PolicyPermissionRepoPort, PolicyRepoPort } from "./ports.js";
 
 /**
  * @file Shared deprecate-old/grant-new permission migration mechanism
- * (ADR-PIPE-012 C-001/C-002, generalized from the `settings.write` ->
+ * (generalized from the `settings.write` ->
  * `settings.definitions.manage` precedent already shipped ad hoc in
- * `identity/seed.ts`/`identity/permissions.ts`).
+ * `identity/seed.ts`/`identity/permissions.ts`; see
+ * `docs/decisions/permission-catalog-migration.md`).
  *
  * Purpose:
  * A permission-string rename/split after real grants exist is a breaking
- * migration (`sweep-crosscutting-decisions-20260710.md` §E). This module is
+ * migration. This module is
  * the one place that fan-out runs, so Menus/Members/Analytics/Integrations
- * remediation ADRs each register their own `{from, to}` pair here instead of
+ * remediation efforts each register their own `{from, to}` pair here instead of
  * hand-rolling a fourth divergent copy of the same fix.
  *
  * How it relates to the project:
@@ -28,13 +29,12 @@ import type { PolicyPermissionRepoPort, PolicyRepoPort } from "./ports.js";
  *   `identity/permissions.ts`) register their own pairs.
  *
  * Architectural role:
- * Security-adjacent domain logic (ADR-PIPE-012 Quality Attribute Scorecard,
- * security axis 3/5) — a bug here could fail-open (grant more than intended)
- * or fail-closed (a policy silently missing a needed grant) across every
- * feature that reuses it. The additive-only design bounds the fail-closed
+ * Security-adjacent domain logic (a bug here could fail-open (grant more than
+ * intended) or fail-closed (a policy silently missing a needed grant) across every
+ * feature that reuses it). The additive-only design bounds the fail-closed
  * direction to "a required new permission is missing," never "an existing
  * permission is removed." See `__tests__/permission-migrations.test.ts` for
- * the dedicated fixture-driven certification this ADR requires before any
+ * the dedicated fixture-driven certification required before any
  * caller wires this into a live boot path.
  */
 
@@ -90,7 +90,7 @@ export function listPermissionMigrations(): PermissionMigration[] {
  *
  * Safe to call on every boot (idempotent): a rerun with nothing new to add
  * returns `migratedGrantCount: 0` (mirrors `migrateLegacyPresentationSettings`'s
- * boot-safety precedent, ADR-PIPE-007).
+ * boot-safety precedent).
  *
  * @complexity O(p * m) where p = policies in the workspace, m = registered
  * migration pairs; both are small, bounded collections in this app's shape.

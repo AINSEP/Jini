@@ -18,7 +18,7 @@ import {
 } from "./types.js";
 
 /**
- * @file SPEC-006 0.6.0 amendment — completes the users/roles/policies admin CRUD surface
+ * @file An amendment that completes the users/roles/policies admin CRUD surface
  * (feature.spec.md REQ-11/REQ-15..19).
  *
  * Purpose:
@@ -33,7 +33,7 @@ import {
  * duplicating it.
  *
  * Architectural role:
- * Ordinary core functions (ADR-006) — same shape as `grant-service.ts`: one exported async
+ * Ordinary core functions — same shape as `grant-service.ts`: one exported async
  * function per transition, plain `Error` subclasses for control flow, the caller-permission gate
  * enforced here (not pushed to the route layer).
  */

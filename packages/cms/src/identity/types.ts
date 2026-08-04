@@ -1,7 +1,7 @@
 import type { ISODateTime, UUID } from "../core/ports.js";
 
 /**
- * @file Core domain types for the `identity` library (ADR-021 / SPEC-006).
+ * @file Core domain types for the `identity` library.
  *
  * Purpose:
  * Type-only definitions for the principal-centric identity & authorization
@@ -16,7 +16,7 @@ import type { ISODateTime, UUID } from "../core/ports.js";
  * ISSUE_API_KEY, ASSIGN_ROLE, ATTACH_POLICY, WRITE_POLICY_PERMISSION,
  * DISABLE_PRINCIPAL) are OUT of scope for this pass (deferred — see the
  * Programmer handoff). The `kind` enum and table shapes are still built to
- * the full ADR-021 §9 target schema so those transitions are additive later,
+ * the full target schema so those transitions are additive later,
  * not a repaint.
  */
 
@@ -144,8 +144,8 @@ export class IdentityValidationError extends Error {}
 /** Raised when a referenced principal/user/role/policy is not found. */
 export class IdentityNotFoundError extends Error {}
 /**
- * Raised on a unique-constraint clash (duplicate `username` in a workspace, AC-19). SPEC-006 0.6.0:
- * also raised by `deleteRole`/`deletePolicy` (`admin-crud-service.ts`) when the target still has
+ * Raised on a unique-constraint clash (duplicate `username` in a workspace, AC-19). Also
+ * raised by `deleteRole`/`deletePolicy` (`admin-crud-service.ts`) when the target still has
  * live references (INV-09, AC-31) — the same 409 `RESOURCE_CONFLICT` shape, a `details.field`
  * distinguishes the two cases at the route layer (errors.spec.md §3).
  */
@@ -154,7 +154,7 @@ export class IdentityConflictError extends Error {}
 export class AuthInvalidCredentialsError extends Error {}
 
 /**
- * SPEC-006 0.6.0 (REQ-11/INV-08) — raised by `disablePrincipal` when the target is the seeded owner
+ * REQ-11/INV-08 — raised by `disablePrincipal` when the target is the seeded owner
  * principal, or when disabling would drop the workspace's active owner-`*` count to zero. Maps to
  * 409 `OWNER_REQUIRED` (errors.spec.md §2) — a pre-existing registered code that had no HTTP
  * emission site until this amendment gave `DISABLE_PRINCIPAL` a route.
@@ -162,7 +162,7 @@ export class AuthInvalidCredentialsError extends Error {}
 export class OwnerRequiredError extends Error {}
 
 /**
- * SPEC-006 0.6.0 (REQ-03/INV-07) — raised by `writePolicyPermission` when the permission string is
+ * REQ-03/INV-07 — raised by `writePolicyPermission` when the permission string is
  * not in the registered catalog. Maps to 400 `PERMISSION_UNKNOWN` (errors.spec.md §2) — kept
  * distinct from `IdentityValidationError` (plain `VALIDATION_ERROR`) so the route can emit the
  * correct typed code without string-matching the message.

@@ -16,7 +16,7 @@
  * Purpose:
  * Permissions are flat dotted strings validated against a code-side
  * registered catalog, not a DB enum (REQ-03) — the anti-hook-soup rule
- * (ADR-005/SPEC-005) applied to authZ. Core owns the base vocabulary;
+ * applied to authZ. Core owns the base vocabulary;
  * features may register more at startup.
  *
  * Scope note (core path): a "permissions list" CLI surface (REQ-12) has no
@@ -24,16 +24,15 @@
  * operator is a host concern. `listPermissions()` is the capability such a
  * surface wires to; it is exercised directly by tests instead.
  *
- * ADR-PIPE-012 (Menus remediation, D-1/D-2/D-9): `navigation.manage` below is
- * renamed/split into the `admin.menus.*` 7-entry catalog. `navigation.manage`
- * itself stays registered (deprecated, not deleted — see its own doc comment)
- * until the Point of No Return; `permission-migrations.ts`'s
+ * `navigation.manage` below is renamed/split into the `admin.menus.*` 7-entry
+ * catalog. `navigation.manage` itself stays registered (deprecated, not deleted — see its own doc
+ * comment) until the Point of No Return described in
+ * `docs/decisions/permission-catalog-migration.md`; `permission-migrations.ts`'s
  * `migrateDeprecatedPermissionGrants()` is the fan-out mechanism that keeps
  * any policy holding the old string from being silently narrowed by the
  * split. NOTE: registration only — wiring the migration call into
- * `seed.ts`'s live boot path is gated on a real `/audit-work` pass
- * (ADR-PIPE-012 Constitution Check, security axis) and is deliberately NOT
- * done in this pass; see `seed.ts`'s own doc comment.
+ * `seed.ts`'s live boot path is gated on a dedicated security-focused audit
+ * pass and is deliberately NOT done in this pass; see `seed.ts`'s own doc comment.
  */
 import { registerPermissionMigration } from "./permission-migrations.js";
 
@@ -56,10 +55,11 @@ const BASE_CATALOG: readonly PermissionDescriptor[] = [
     id: "media.write",
     owner: "core",
     description:
-      "DEPRECATED (ADR-027 §7, SPEC-021 REQ-40/OQ-02) — superseded by the flat media.* permission " +
+      "DEPRECATED — superseded by the flat media.* permission " +
       "set registered below. Retained (not deleted) — see the media.* registration block's own " +
-      "comment for the same Migration Safety gating this repo's other permission renames " +
-      "(navigation.manage, integration.manage) have used. Do not register a new dependency on this string.",
+      "comment and docs/decisions/permission-catalog-migration.md for the same migration contract " +
+      "this repo's other permission renames (navigation.manage, integration.manage) have used. " +
+      "Do not register a new dependency on this string.",
   },
   { id: "theme.set", owner: "core", description: "Change the active theme/presentation settings." },
   {
@@ -83,10 +83,10 @@ const BASE_CATALOG: readonly PermissionDescriptor[] = [
     id: "settings.write",
     owner: "core",
     description:
-      "DEPRECATED (ADR-028 §7) — superseded by the fine-grained settings.* catalog below. Retained until the data migration that maps existing grants to settings.workspace.write + settings.definitions.manage completes and is verified; do not reuse this string for anything else afterward.",
+      "DEPRECATED — superseded by the fine-grained settings.* catalog below. Retained until the data migration that maps existing grants to settings.workspace.write + settings.definitions.manage completes and is verified; do not reuse this string for anything else afterward. See docs/decisions/permission-catalog-migration.md for the migration's completion criteria.",
   },
   { id: "apikey.manage", owner: "core", description: "Issue and revoke API keys." },
-  // SPEC-007 settings.* catalog (ADR-028 §7, core-only subset).
+  // settings.* catalog (core-only subset).
   { id: "settings.global.write", owner: "settings", description: "Set/clear a setting's global-layer value." },
   {
     id: "settings.workspace.write",
@@ -115,7 +115,7 @@ const BASE_CATALOG: readonly PermissionDescriptor[] = [
     id: "settings.definitions.manage",
     owner: "settings",
     description:
-      "Register/rename/retype/deprecate/tombstone setting definitions; also gates the purge service and authorizes the background coerce repair job (ADR-028 §7).",
+      "Register/rename/retype/deprecate/tombstone setting definitions; also gates the purge service and authorizes the background coerce repair job.",
   },
   { id: "settings.reset.global", owner: "settings", description: "Reset a namespace's global-layer values to defaults." },
   {
@@ -128,12 +128,12 @@ const BASE_CATALOG: readonly PermissionDescriptor[] = [
   {
     id: "settings.read.raw",
     owner: "settings",
-    description: "Read per-layer raw setting values. Reserved for a future API surface (ADR-028 §7 RD2-02).",
+    description: "Read per-layer raw setting values. Reserved for a future API surface.",
   },
   {
     id: "settings.read.revisions",
     owner: "settings",
-    description: "Read the setting_revisions ledger. Reserved for a future API surface (ADR-028 §7 RD2-02).",
+    description: "Read the setting_revisions ledger. Reserved for a future API surface.",
   },
   {
     id: "settings.read.definitions",
@@ -210,13 +210,14 @@ registerPermissionMigration({
 
 /**
  * Feature-registered permissions beyond the core BASE_CATALOG (REQ-03), added while wiring
- * `authorize()` into the admin routes for the `navigation` (ADR-029) and `integrations` (ADR-036)
- * libraries. Both ADRs' own text separately floats a namespaced `admin.<section>.manage` string in
- * a "decisions" convention note — that convention has no implementation behind it anywhere in this
- * codebase. This registers the flat two-segment `domain.verb` shape instead (ADR-021 §3's "one
- * permission language", the pattern every other catalog entry above and every currently-gated route
- * already uses) so menus/integrations authorization is checked with real, tested code rather than a
- * convention that exists only as ADR prose. See the Programmer handoff for the full disclosure.
+ * `authorize()` into the admin routes for the `navigation` and `integrations`
+ * libraries. Both libraries' own early design notes separately floated a namespaced
+ * `admin.<section>.manage` string in a "decisions" convention note — that convention had no
+ * implementation behind it anywhere in this codebase at the time. This registers the flat
+ * two-segment `domain.verb` shape instead ("one permission language" — the pattern every other
+ * catalog entry above and every currently-gated route already uses) so menus/integrations
+ * authorization is checked with real, tested code rather than a convention that existed only as
+ * design-note prose.
  *
  * One permission per domain (not split into `.read`/`.write`) mirrors `member.manage`/`user.manage`
  * above — no finer split was directed, and neither library's routes distinguish read/write access
@@ -226,19 +227,18 @@ registerPermission({
   id: "navigation.manage",
   owner: "navigation",
   description:
-    "DEPRECATED (ADR-PIPE-012 D-1/D-2/D-9) — superseded by the admin.menus.* catalog below. " +
-    "Retained (not deleted) until the Point of No Return: the identity SQLite adapter shipping " +
+    "DEPRECATED — superseded by the admin.menus.* catalog below. " +
+    "Retained (not deleted) until the Point of No Return: a persistent identity store shipping " +
     "plus a real deprecation window with observed zero reliance on this string, gated on " +
-    "authorize()-decision logging existing first to measure that (ADR-PIPE-012 Migration Safety). " +
-    "Do not register a new dependency on this string.",
+    "authorize()-decision logging existing first to measure that. See " +
+    "docs/decisions/permission-catalog-migration.md. Do not register a new dependency on this string.",
 });
 /**
- * ADR-PIPE-012 D-1/D-2/D-9: the `admin.menus.*` 7-entry catalog that replaces
+ * The `admin.menus.*` 7-entry catalog that replaces
  * `navigation.manage` above. Split by action (force-purge is now gated
- * separately from ordinary edits — the D-1 fix) and renamed to the frozen
- * `admin.<section>.<action>` convention (`sweep-crosscutting-decisions-20260710.md`
- * §E) that `navigation.manage` predates. Values must stay in lockstep with
- * `navigation/contracts.ts`'s `NAVIGATION_PERMISSIONS`.
+ * separately from ordinary edits) and renamed to the frozen
+ * `admin.<section>.<action>` convention that `navigation.manage` predates. Values must stay in
+ * lockstep with `navigation/contracts.ts`'s `NAVIGATION_PERMISSIONS`.
  */
 registerPermission({
   id: "admin.menus.read",
@@ -264,8 +264,8 @@ registerPermission({
   id: "admin.menus.delete.force",
   owner: "navigation",
   description:
-    "Force-purge a menu past the dangling-location-binding guard (ADR-PIPE-012 D-1 — split from " +
-    "admin.menus.delete so force-purge is not reachable with only the ordinary delete grant).",
+    "Force-purge a menu past the dangling-location-binding guard — split from " +
+    "admin.menus.delete so force-purge is not reachable with only the ordinary delete grant.",
 });
 registerPermission({
   id: "admin.menus.assign",
@@ -288,24 +288,25 @@ registerPermissionMigration({
     "admin.menus.assign",
   ],
   reason:
-    "ADR-PIPE-012 D-1/D-2/D-9: navigation.manage split into per-action admin.menus.* strings; " +
+    "navigation.manage split into per-action admin.menus.* strings; " +
     "every policy holding the old flat permission must not be silently narrowed by the split.",
 });
 registerPermission({
   id: "integration.manage",
   owner: "integrations",
   description:
-    "DEPRECATED (ADR-PIPE-015 Phase 3) — superseded by admin.integrations.manage below, " +
-    "mirroring ADR-PIPE-012's navigation.manage -> admin.menus.* precedent. Retained (not " +
-    "deleted) — see admin.integrations.manage's own comment for the same Migration Safety " +
-    "gating this repo's other permission renames have used.",
+    "DEPRECATED — superseded by admin.integrations.manage below, " +
+    "mirroring the navigation.manage -> admin.menus.* precedent. Retained (not " +
+    "deleted) — see admin.integrations.manage's own comment and " +
+    "docs/decisions/permission-catalog-migration.md for the same migration contract " +
+    "this repo's other permission renames have used.",
 });
 /**
- * ADR-PIPE-015 Phase 3 (T027): the single umbrella permission superseding the flat
- * `integration.manage` above, renamed to the frozen `admin.<section>.<action>` convention
- * (`sweep-crosscutting-decisions-20260710.md` §E) — mirrors ADR-PIPE-012's identical
- * navigation.manage -> admin.menus.* rename. One permission (not split by action) because
- * `integration.manage` itself was never split and no finer split was directed for this pass.
+ * The single umbrella permission superseding the flat
+ * `integration.manage` above, renamed to the frozen `admin.<section>.<action>` convention —
+ * mirrors the identical navigation.manage -> admin.menus.* rename. One permission (not split
+ * by action) because `integration.manage` itself was never split and no finer split was
+ * directed for this pass.
  */
 registerPermission({
   id: "admin.integrations.manage",
@@ -316,17 +317,16 @@ registerPermissionMigration({
   from: "integration.manage",
   to: ["admin.integrations.manage"],
   reason:
-    "ADR-PIPE-015 Phase 3: integration.manage renamed to admin.integrations.manage; every " +
+    "integration.manage renamed to admin.integrations.manage; every " +
     "policy holding the old flat permission must not be silently locked out by the rename.",
 });
 /**
- * SPEC-008 / ADR-PIPE-008 Decision §8 (T011): a single umbrella permission
+ * A single umbrella permission
  * gating all 6 SEO admin routes (both reads and writes — no self-vs-other
  * branching to get wrong, matching `theme.set`'s single-permission-per-domain
- * precedent, api.spec.md §2). Uses the frozen `admin.<section>.<action>`
+ * precedent). Uses the frozen `admin.<section>.<action>`
  * convention directly (unlike `navigation.manage`/`integration.manage` above,
- * which predate it) — Coordinator-confirmed 2026-07-13 (state.spec.md §5 item
- * 2) as the owner-frozen shape new admin sections should register under.
+ * which predate it) as the owner-frozen shape new admin sections should register under.
  */
 registerPermission({
   id: "admin.seo.manage",
@@ -352,11 +352,11 @@ registerPermission({
   description: "Read and change the visitor-facing AI assistant's settings, including its master on/off switch.",
 });
 /**
- * FEAT-014 / ADR-PIPE-014 §1: closes the standing Article VI gap on the analytics
+ * Closes a standing security-by-default gap on the analytics
  * `recent-hits` admin route (previously zero `authorize()` call at all). Flat
  * `domain.verb` shape, matching `navigation.manage`/`integration.manage` above rather
- * than the never-implemented `admin.analytics.view` string floated in ADR-035/ADR-INDEX
- * prose — see ADR-PIPE-014 Decision §1/Rationale for the full disclosure.
+ * than the never-implemented `admin.analytics.view` string floated in early design
+ * prose.
  */
 registerPermission({
   id: "analytics.read",
@@ -364,14 +364,14 @@ registerPermission({
   description: "Read recent ingested analytics hits.",
 });
 /**
- * SPEC-009 / ADR-PIPE-009 REQ-12: gates all 7 admin `redirects` endpoints
- * (list/get/create/update/tombstone/import/hit-read). Flagged deviation
- * (per spec-manifest.md, ADR-PIPE-009 File Map): this is the FIRST
+ * Gates all 7 admin `redirects` endpoints
+ * (list/get/create/update/tombstone/import/hit-read). A flagged, disclosed deviation:
+ * this is the FIRST
  * `admin.<section>.<action>`-prefixed permission in the catalog — every
  * other entry above (`navigation.manage`, `integration.manage`,
  * `analytics.read`, ...) uses the flat `domain.verb` shape and explicitly
- * rejected the `admin.<section>.<action>` convention floated only in ADR
- * prose. This one is used exactly as SPEC-009/ADR-PIPE-009 directs, not
+ * rejected the `admin.<section>.<action>` convention floated only in early design
+ * prose. This one is used exactly as the redirects feature's own spec directs, not
  * silently normalized to match the flat-string precedent — a real,
  * disclosed inconsistency in the catalog, not an oversight.
  */
@@ -381,12 +381,12 @@ registerPermission({
   description: "Create, update, tombstone, import, and read hit stats for redirect rules.",
 });
 /**
- * SPEC-010 / ADR-PIPE-010 (Forms, Tier-1 sample plugin): the three `admin.forms.*` capability
- * strings, verbatim per `api.spec.md` §2 and `manifest.ts`'s `FORMS_CAPABILITIES` data. Unlike
+ * The three `admin.forms.*` capability
+ * strings, verbatim per this plugin's own manifest data. Unlike
  * `navigation.manage`/`integration.manage` above, Forms deliberately splits into three (not one
  * flat `forms.manage`) — submission data is visitor-supplied PII, so an admin who manages form
  * definitions need not automatically see or delete submission content, and vice versa (mirrors the
- * `webhooks.read` vs `webhooks.redeliver` granularity precedent in ADR-036 §6).
+ * `webhooks.read` vs `webhooks.redeliver` granularity precedent in the integrations library).
  */
 registerPermission({
   id: "admin.forms.manage",
@@ -404,10 +404,10 @@ registerPermission({
   description: "Permanently delete a form submission.",
 });
 /**
- * SPEC-011 (Newsletter, ADR-PIPE-011 REQ-25 Agent Directive, AC-42). Namespaced `admin.newsletter.*`
+ * Namespaced `admin.newsletter.*`
  * shape (unlike `navigation.manage`/`integration.manage`/`analytics.read` above) — matches
- * api.spec.md §2's per-endpoint auth-profile table exactly (8 strings actually gate a route this
- * pass) and SPEC-009's `admin.redirects.manage` naming precedent. `admin.newsletter.settings.manage`/
+ * this feature's own per-endpoint auth-profile table exactly (8 strings actually gate a route this
+ * pass) and `admin.redirects.manage`'s naming precedent. `admin.newsletter.settings.manage`/
  * `admin.newsletter.manage` are registered but not yet gate any route — reserved for a future API
  * surface, same disclosed convention as `settings.read.raw`/`settings.read.revisions` above.
  */
@@ -462,9 +462,10 @@ registerPermission({
   description: "Umbrella newsletter permission. Reserved for a future API surface (no route uses this yet).",
 });
 /**
- * ADR-041 §6 (Database Timeline, renamed from "Storage" per its own naming-correction note —
- * "Storage" read as ambiguous next to the Media/Assets subsystem's file/blob storage) / ADR-045
- * (Backups/Recovery) — the house-style flat `domain.verb` permissions both ADRs' own text names
+ * Database Timeline permissions (renamed from "Storage" per a naming-correction note —
+ * "Storage" read as ambiguous next to the Media/Assets subsystem's file/blob storage), plus
+ * Backups/Recovery — the house-style flat `domain.verb` permissions this feature's own design
+ * notes name
  * directly (matching `navigation.manage`/`integration.manage`/`analytics.read`'s shape, not the
  * `admin.<section>.<action>` convention). Only `database.read` gates a route this pass
  * (`routes/admin/database/timeline.ts`); the rest are registered now — matching this catalog's
@@ -476,45 +477,47 @@ registerPermission({
   id: "storage.read",
   owner: "database",
   description:
-    "DEPRECATED (ADR-041 naming-correction note, 2026-07-20) — superseded by database.read below, " +
+    "DEPRECATED — superseded by database.read below, " +
     "mirroring this catalog's integration.manage -> admin.integrations.manage precedent. Retained " +
-    "(not deleted) — see database.read's own comment for the same Migration Safety gating this " +
-    "repo's other permission renames have used.",
+    "(not deleted) — see database.read's own comment and " +
+    "docs/decisions/permission-catalog-migration.md for the same migration contract " +
+    "this repo's other permission renames have used.",
 });
 registerPermission({ id: "database.read", owner: "database", description: "Read the Database Timeline, schema drift status, and restore points." });
 registerPermissionMigration({
   from: "storage.read",
   to: ["database.read"],
   reason:
-    "ADR-041 naming-correction note (2026-07-20): storage.read renamed to database.read; every " +
+    "Naming-correction: storage.read renamed to database.read; every " +
     "policy holding the old flat permission must not be silently locked out by the rename.",
 });
-/** ADR-046 Phase 2 (SPEC-030) — gates `GET /api/admin/v1/system/module-status`. */
+/** Gates `GET /api/admin/v1/system/module-status`. */
 registerPermission({ id: "system.read", owner: "server", description: "Read boot/readiness module lifecycle status." });
 registerPermission({
   id: "storage.migrate",
   owner: "database",
   description:
-    "DEPRECATED (ADR-041 naming-correction note, 2026-07-20) — superseded by database.migrate below, " +
+    "DEPRECATED — superseded by database.migrate below, " +
     "mirroring this catalog's integration.manage -> admin.integrations.manage precedent. Retained " +
-    "(not deleted) — see database.migrate's own comment for the same Migration Safety gating this " +
-    "repo's other permission renames have used.",
+    "(not deleted) — see database.migrate's own comment and " +
+    "docs/decisions/permission-catalog-migration.md for the same migration contract " +
+    "this repo's other permission renames have used.",
 });
 registerPermission({ id: "database.migrate", owner: "database", description: "Plan, confirm, and execute a forward schema migration." });
 registerPermissionMigration({
   from: "storage.migrate",
   to: ["database.migrate"],
   reason:
-    "ADR-041 naming-correction note (2026-07-20): storage.migrate renamed to database.migrate; every " +
+    "Naming-correction: storage.migrate renamed to database.migrate; every " +
     "policy holding the old flat permission must not be silently locked out by the rename.",
 });
 registerPermission({ id: "backup.read", owner: "recovery", description: "Read restore points and this site's restore capability." });
 registerPermission({ id: "backup.create", owner: "recovery", description: "Mint a restore point independent of any migration." });
 registerPermission({ id: "backup.restore", owner: "recovery", description: "Confirm and execute a restore to a prior restore point." });
-/** ADR-031 §6 (SPEC-033) — flat `comments.*` strings, one catalog, mirroring `analytics.read`'s
+/** Flat `comments.*` strings, one catalog, mirroring `analytics.read`'s
  * shape (not the `admin.<section>.<action>` convention). Public/anonymous submission is
  * ingress-governed (`CommentIngressPolicy`), not `authorize()`-gated — `comments.submit` exists
- * for a future member-only mode, not the anonymous path this spec's route uses. */
+ * for a future member-only mode, not the anonymous path this feature's route uses. */
 registerPermission({ id: "comments.read", owner: "comments", description: "Read comments and the moderation queue." });
 registerPermission({ id: "comments.moderate", owner: "comments", description: "Approve, mark spam, or restore a comment." });
 registerPermission({ id: "comments.reply", owner: "comments", description: "Post an operator reply to a comment thread." });
@@ -523,13 +526,13 @@ registerPermission({ id: "comments.delete.force", owner: "comments", description
 registerPermission({ id: "comments.submit", owner: "comments", description: "Reserved for a future member-only submission gate; the anonymous path is ingress-governed, not authorize()-gated." });
 registerPermission({ id: "comments.configure", owner: "comments", description: "Change Comments settings (moderation defaults, spam threshold, depth cap)." });
 /**
- * Admin-UI backend-gap closure session (2026-07-15, progress-ledger.md "Session 5") wired 18 new
+ * An admin-UI backend-gap closure pass wired 18 new
  * admin routes over the content-types/entries/taxonomy domains gated by these three strings, but
- * registering them in this catalog was out of that session's own scope-file list — they worked
+ * registering them in this catalog was out of that pass's own scope-file list — they worked
  * anyway via the seeded owner's `"*"` wildcard grant (`isKnownPermission()` is not consulted by
  * `authorize()` on the runtime path). This closes that disclosed catalog-completeness gap; no
  * route or authorize() behavior changes as a result (`isKnownPermission` has no caller in the
- * authorize path today, confirmed by the same grep Session 5 already ran).
+ * authorize path today).
  */
 registerPermission({
   id: "admin.collections.read",
@@ -544,18 +547,18 @@ registerPermission({
 registerPermission({
   id: "admin.taxonomy.manage",
   owner: "taxonomy",
-  description: "Read and write taxonomies, terms, and term assignments (ADR-044 registers one permission for this whole domain, no .read/.write split).",
+  description: "Read and write taxonomies, terms, and term assignments (one permission for this whole domain, no .read/.write split).",
 });
 /**
- * SPEC-021 (Media/Assets) / ADR-027 §7 — the flat `media.*` permission set the ADR names verbatim,
+ * The flat `media.*` permission set, verbatim per this feature's own design notes,
  * superseding the single, broader `media.write` above (mirrors `navigation.manage` ->
  * `admin.menus.*` and `integration.manage` -> `admin.integrations.manage`: deprecate-not-delete the
  * old flat string, register the new set, fan out via `registerPermissionMigration` below so no
  * existing `media.write` grant is silently narrowed). Wired into the 5 admin media routes this
  * pass (`routes/admin/media/{list,upload,update,trash,delete}.ts`); `media.download_original` and
- * `media.upload_svg` are registered for catalog completeness per the ADR but gate no route yet (no
- * original-download route exists, and SVG upload is already rejected outright rather than gated —
- * see the Programmer handoff). `media.manage` is the ADR's umbrella/admin-override grant, also
+ * `media.upload_svg` are registered for catalog completeness per those notes but gate no route yet
+ * (no original-download route exists, and SVG upload is already rejected outright rather than
+ * gated). `media.manage` is the umbrella/admin-override grant, also
  * registered but not checked as an alternate by any route — no existing umbrella-as-alternate
  * precedent was found in this catalog to extend (unlike `admin.menus.manage`, which is likewise
  * registered but unused by any route), so one specific permission per route was kept, not invented.
@@ -573,12 +576,12 @@ registerPermission({
   id: "media.download_original",
   owner: "media",
   description:
-    "Mint a short-TTL signed URL to download a media asset's original bytes (ADR-027 §6). Reserved for a future API surface — no route uses this yet.",
+    "Mint a short-TTL signed URL to download a media asset's original bytes. Reserved for a future API surface — no route uses this yet.",
 });
 registerPermission({
   id: "media.upload_svg",
   owner: "media",
-  description: "Upload an SVG asset (sanitized at ingest, served origin-isolated per ADR-027 §6).",
+  description: "Upload an SVG asset (sanitized at ingest, served origin-isolated).",
 });
 registerPermission({
   id: "media.manage",
@@ -589,17 +592,17 @@ registerPermissionMigration({
   from: "media.write",
   to: ["media.read", "media.upload", "media.update", "media.delete", "media.delete.force", "media.download_original", "media.upload_svg"],
   reason:
-    "ADR-027 §7 / SPEC-021 REQ-40/OQ-02: media.write replaced by the flat media.* permission set; " +
+    "media.write replaced by the flat media.* permission set; " +
     "every policy holding the old flat permission must not be silently narrowed by the split.",
 });
 
 /**
- * SPEC-043 (Widgets, ADR-047 §5/§8, Debate Fold-In Amendment 5/6) — flat `widgets.*` permissions,
+ * Flat `widgets.*` permissions,
  * matching `comments.*`'s shape (flat `domain.verb`, not the `admin.<section>.<action>`
  * convention). `.place` is split from `.update` (mirrors `admin.menus.assign`'s split from
  * `admin.menus.update`): placing a widget onto the live site is higher-trust than editing an
  * off-site instance's config. `.delete`/`.delete.force` mirrors `media.delete`/`media.delete.force`
- * (REQ-42/43's trash -> purge-blocked -> force-purge ladder).
+ * (the trash -> purge-blocked -> force-purge ladder).
  */
 registerPermission({ id: "widgets.read", owner: "widgets", description: "Read widget instances, widget_area regions, and their revision history." });
 registerPermission({ id: "widgets.create", owner: "widgets", description: "Create a new widget instance." });
@@ -617,14 +620,14 @@ registerPermission({
 });
 
 /**
- * SPEC-044 (Workspace Administration) — a distinct grant, not reused from `settings.write`:
+ * Workspace Administration — a distinct grant, not reused from `settings.write`:
  * workspace identity (rename, eventual multi-tenant delete) is a higher-blast-radius operation than
- * a settings-ledger value edit, worth auditing independently (feature.spec.md REQ-06).
+ * a settings-ledger value edit, worth auditing independently.
  */
 registerPermission({
   id: "workspace.manage",
   owner: "workspace",
-  description: "List/view/rename/delete the workspace (SPEC-044).",
+  description: "List/view/rename/delete the workspace.",
 });
 
 /** Enumerate the full registered catalog (REQ-12 core capability; CLI wiring is N/A, see file header). */

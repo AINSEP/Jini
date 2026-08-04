@@ -45,7 +45,7 @@ import { validatePasswordPolicy } from "./password-policy.js";
 
 /**
  * Assemble the `AuthorizeDeps` bag `authorize()`/`resolveEffectivePermissions()` expect from the
- * flat `IdentityRepos` bag. Exported (SPEC-006 0.6.0) so `admin-crud-service.ts`'s new transitions
+ * flat `IdentityRepos` bag. Exported so `admin-crud-service.ts`'s new transitions
  * (`ENABLE_PRINCIPAL`/`UPDATE_USER`/`RESET_USER_PASSWORD`/`UPDATE_ROLE`/`UPDATE_POLICY`/
  * `DELETE_ROLE`/`DELETE_POLICY`/`WRITE_POLICY_PERMISSION`/`DISABLE_PRINCIPAL`) reuse the identical
  * gate/clamp logic rather than duplicating it — same file-split reasoning `auth-service.ts` and
@@ -197,7 +197,7 @@ async function findAssignableTargetOrThrow(required: {
  * principal) holds regardless, because `principalId` is generated inline and
  * the password is hashed before either row is written, so a hashing failure
  * leaves no orphan principal. A future SQLite adapter wraps both writes in
- * one real transaction (ADR-015 rule-of-two) without changing this contract.
+ * one real transaction (port/adapter rule-of-two) without changing this contract.
  *
  * @complexity O(1) — one permission check, one username lookup, one hash,
  * two saves.

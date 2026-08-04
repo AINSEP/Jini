@@ -9,7 +9,7 @@ import { normalizeUsername } from "./username.js";
  * Seeds, in one idempotent pass: a `system` principal; a disabled legacy
  * `user-local` principal (REQ-09/EC-09 — so any pre-existing `change_sets`
  * stamped `actorId='user-local'` satisfy the composite FK without rewriting
- * history, ADR-021 §5); four built-in roles (`owner`/`admin`/`editor`/
+ * history); four built-in roles (`owner`/`admin`/`editor`/
  * `viewer`) each 1:1 with a built-in policy; and the initial `owner` user.
  *
  * How it relates to the project:
@@ -47,7 +47,7 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   "member.manage",
   "settings.write",
   "apikey.manage",
-  // SPEC-021 (ADR-027 §7 migration clause, mirrors the admin.menus.*/admin.integrations.manage
+  // Migration clause (mirrors the admin.menus.*/admin.integrations.manage
   // precedent above): every freshly-seeded workspace's admin role gets the concrete media.* working
   // actions directly, so it never depends on migrateDeprecatedPermissionGrants(). The umbrella
   // "media.manage" is deliberately not included here (mirrors admin.menus.manage's exclusion
@@ -60,7 +60,7 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   "media.delete.force",
   "media.download_original",
   "media.upload_svg",
-  // ADR-PIPE-012 (Menus remediation, D-1/D-2/D-9 migration clause): every freshly-seeded
+  // Menus remediation migration clause: every freshly-seeded
   // workspace gets the 6 new admin.menus.* CRUD strings directly, so it never depends on
   // migrateDeprecatedPermissionGrants() for its own built-in role grants. The now-legacy
   // "navigation.manage" is deliberately dropped from THIS seed list only — the string itself
@@ -68,19 +68,19 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   // now IS wired into live boot (identity/wiring.ts, chained right after seedIdentity resolves)
   // so any pre-existing policy still holding navigation.manage/integration.manage also gains
   // the new string(s) — this fresh-seed list just doesn't need to depend on that fan-out for its
-  // own built-in role grants. See ADR-PIPE-012 tasks.md T013/T014.
+  // own built-in role grants.
   "admin.menus.read",
   "admin.menus.create",
   "admin.menus.update",
   "admin.menus.delete",
   "admin.menus.delete.force",
   "admin.menus.assign",
-  // ADR-PIPE-015 Phase 3 migration clause (mirrors the admin.menus.* precedent immediately
+  // Migration clause (mirrors the admin.menus.* precedent immediately
   // above): every freshly-seeded workspace gets admin.integrations.manage directly, so it never
   // depends on migrateDeprecatedPermissionGrants(). "integration.manage" is deliberately dropped
   // from THIS seed list only — the string stays registered (deprecated) in permissions.ts.
   "admin.integrations.manage",
-  // SPEC-007 (ADR-028 §7 migration clause): every settings.write holder also
+  // Migration clause: every settings.write holder also
   // gets settings.definitions.manage, so the admin role isn't left
   // fail-closed-locked-out of definition-lifecycle operations it previously
   // reached through the coarse settings.write grant. No separate migration
@@ -105,7 +105,7 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   "settings.read.raw",
   "settings.read.revisions",
   "settings.read.definitions",
-  // SPEC-008 (ADR-PIPE-008 Decision §8): every freshly-seeded workspace's built-in admin role
+  // Every freshly-seeded workspace's built-in admin role
   // gets the one SEO umbrella permission directly, mirroring the admin.menus.* precedent above.
   "admin.seo.manage",
   // The AI Assistant section's umbrella permission, granted directly here for the same reason
@@ -114,7 +114,7 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   // the public assistant ON is still a deliberate act — the SETTING defaults to off
   // (`assistant/public-assistant-settings.ts`); this only grants the ability to flip it.
   "admin.assistant.manage",
-  // SPEC-044 (Workspace Administration, feature.spec.md REQ-06): admin gets workspace.manage
+  // Workspace Administration: admin gets workspace.manage
   // directly at seed — a distinct grant from settings.write, not owner-only (unlike user.manage/
   // role.manage below).
   "workspace.manage",
@@ -126,11 +126,11 @@ const BUILTIN_EDITOR_PERMISSIONS: readonly string[] = [
   "content.write",
   "content.publish",
   "content.delete",
-  // SPEC-021 (ADR-027 §7 migration clause): editor gets the ordinary media working actions
+  // Migration clause: editor gets the ordinary media working actions
   // (read/upload/update/trash) but, unlike admin above, NOT media.delete.force (destructive
   // hard-purge), media.download_original (mint-only access to sensitive originals), or
   // media.upload_svg (XSS-risk-gated capability) — mirrors the Forms admin.forms.manage vs
-  // admin.forms.submissions.* PII-split precedent (ADR-PIPE-010 §6) rather than granting editor
+  // admin.forms.submissions.* PII-split precedent rather than granting editor
   // everything admin.write's single flat string previously implied. "media.write" is deliberately
   // dropped from THIS seed list only — the string stays registered (deprecated) in
   // identity/permissions.ts. Still a subset of admin's media.* set above (AC-12's owner ⊇ admin ⊇
@@ -255,7 +255,7 @@ export async function seedIdentity(required: {
   });
 
   // REQ-09/EC-09: disabled legacy actor so historical `actorId='user-local'`
-  // change-sets resolve without rewriting history (ADR-021 §5).
+  // change-sets resolve without rewriting history.
   await deps.repos.principals.save({
     id: LEGACY_USER_LOCAL_PRINCIPAL_ID,
     workspaceId,

@@ -1,5 +1,5 @@
 /**
- * @file The identity (users/roles) agent-tool catalog — the ADR-021 domain's instance of the
+ * @file The identity (users/roles) agent-tool catalog — this domain's instance of the
  * per-domain `agent-tools.ts` convention already used by `features/content-types`,
  * `features/database`, and `features/recovery`.
  *
@@ -8,12 +8,12 @@
  * each one carries. `assistant/tool-registrations.ts` maps these entries onto handlers that call
  * `grant-service.ts` / `admin-crud-service.ts` — the SAME functions the human admin routes under
  * `server/routes/admin/users/` call. There is deliberately no path from a tool to the database
- * that skips those functions, because they are where ADR-021's gates live.
+ * that skips those functions, because they are where the domain's authorization gates live.
  *
- * WHAT THIS CATALOG DELIBERATELY OMITS, and why (ADR-021 makes identity the escalation-dense
+ * WHAT THIS CATALOG DELIBERATELY OMITS, and why (identity is the escalation-dense
  * surface, so the omissions are part of the design rather than a backlog):
  *
- *   - `resetUserPassword` (SPEC-006 REQ-17). The one identity transition that sets a credential on
+ *   - `resetUserPassword` (REQ-17). The one identity transition that sets a credential on
  *     an account the caller does not own, and — unlike `ASSIGN_ROLE`/`ATTACH_POLICY` — it carries
  *     NO INV-07 grant-authority clamp. A `user.manage` holder may reset the OWNER's password and
  *     then authenticate as owner, so it is a full account-takeover primitive rather than a
@@ -21,7 +21,7 @@
  *     content (a form submission, a comment) in a way a human clicking the admin button is not.
  *     Left human-UI-only, mirroring `features/content-types/agent-tools.ts`'s reasoning for never
  *     exposing the destructive-cleanup confirm() step to an agent.
- *   - `writePolicyPermission` (SPEC-006 0.6.0, INV-07). This is the one policy transition still
+ *   - `writePolicyPermission` (INV-07). This is the one policy transition still
  *     deliberately excluded, and on different grounds than the five wired below: unlike
  *     `identity_role_assign`/`identity_policy_attach`, which each confer whatever a role/policy
  *     ALREADY carries onto exactly one named target principal, `writePolicyPermission` MUTATES a

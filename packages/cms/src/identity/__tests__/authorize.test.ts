@@ -12,7 +12,7 @@ import {
 import type { AuthorizeDeps } from "../authorize.js";
 
 /**
- * @file `authorize()` matcher precedence (behavior.spec §1.1, REQ-04, ADR-021 §8).
+ * @file `authorize()` matcher precedence (behavior.spec §1.1, REQ-04).
  *
  * Certifies, in isolation, each rule in precedence order: disabled short-
  * circuit > owner wildcard > exact matching row > fail-closed default — plus

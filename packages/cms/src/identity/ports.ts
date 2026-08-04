@@ -1,8 +1,8 @@
 /**
- * @file Port contracts for the `identity` library (ADR-021 / SPEC-006).
+ * @file Port contracts for the `identity` library.
  *
  * Purpose:
- * Dependency-inversion seams (ADR-006 rule-of-two) for the identity/RBAC
+ * Dependency-inversion seams (port/adapter rule-of-two) for the identity/RBAC
  * tables, plus `PasswordHasherPort` — the hashing seam behind which argon2id
  * lives (feature.spec.md Dependencies table: "behind a HasherPort, rule-of-two
  * candidate"). Only an in-memory adapter for each repo port ships this pass
@@ -10,7 +10,7 @@
  * analytics — see `src/server/deps.ts` comments); a SQLite adapter is a later
  * step, not a gap introduced here.
  *
- * `authorize()` itself is deliberately NOT a port (ADR-006/ADR-021 §2 — one
+ * `authorize()` itself is deliberately NOT a port (one
  * evaluator) — see `authorize.ts`. `AuthorizeDeps` there is a plain repo bag,
  * not declared here.
  *
@@ -50,7 +50,7 @@ export interface SessionRepoPort {
   save(record: SessionRecord): Promise<void>;
   /** Server-side revocation (logout, disable-cascade). Idempotent. */
   revoke(required: { workspaceId: UUID; id: UUID; revokedAt: ISODateTime }): Promise<void>;
-  /** SPEC-006 0.6.0 REQ-17 — every session bound to a principal, active or not (`RESET_USER_PASSWORD`
+  /** REQ-17 — every session bound to a principal, active or not (`RESET_USER_PASSWORD`
    * revokes each active one; unlike `DISABLE_PRINCIPAL`, which needs no session enumeration because
    * `validateSession`'s status check already invalidates every session for a disabled principal). */
   listByPrincipalId(required: { workspaceId: UUID; principalId: UUID }): Promise<SessionRecord[]>;
@@ -61,9 +61,9 @@ export interface RoleRepoPort {
   findByName(required: { workspaceId: UUID; name: string }): Promise<RoleRecord | null>;
   list(required: { workspaceId: UUID }): Promise<RoleRecord[]>;
   save(record: RoleRecord): Promise<void>;
-  /** SPEC-006 0.6.0 REQ-19 (INV-09). Callers must apply the is_builtin + zero-reference guards
+  /** REQ-19 (INV-09). Callers must apply the is_builtin + zero-reference guards
    * themselves (see `admin-crud-service.ts`'s `deleteRole`) — this method performs the row deletion
-   * only, no business rule (mirrors SPEC-044's `WorkspaceRepoPort.delete` convention). */
+   * only, no business rule (mirrors `WorkspaceRepoPort.delete`'s convention). */
   delete(required: { workspaceId: UUID; id: UUID }): Promise<void>;
 }
 
@@ -72,7 +72,7 @@ export interface PolicyRepoPort {
   findByName(required: { workspaceId: UUID; name: string }): Promise<PolicyRecord | null>;
   list(required: { workspaceId: UUID }): Promise<PolicyRecord[]>;
   save(record: PolicyRecord): Promise<void>;
-  /** SPEC-006 0.6.0 REQ-19 (INV-09). See `RoleRepoPort.delete`'s doc — same "no business rule here"
+  /** REQ-19 (INV-09). See `RoleRepoPort.delete`'s doc — same "no business rule here"
    * contract. */
   delete(required: { workspaceId: UUID; id: UUID }): Promise<void>;
 }
@@ -80,7 +80,7 @@ export interface PolicyRepoPort {
 export interface PolicyPermissionRepoPort {
   listByPolicyId(required: { workspaceId: UUID; policyId: UUID }): Promise<PolicyPermissionRecord[]>;
   save(record: PolicyPermissionRecord): Promise<void>;
-  /** SPEC-006 0.6.0 REQ-19 — cascades a `DELETE_POLICY` to the deleted policy's OWN
+  /** REQ-19 — cascades a `DELETE_POLICY` to the deleted policy's OWN
    * `policy_permissions` rows only (never a different policy's rows, state.spec §3's `DELETE_POLICY`
    * row). */
   deleteByPolicyId(required: { workspaceId: UUID; policyId: UUID }): Promise<void>;
@@ -89,7 +89,7 @@ export interface PolicyPermissionRepoPort {
 export interface RolePolicyRepoPort {
   listByRoleId(required: { workspaceId: UUID; roleId: UUID }): Promise<RolePolicyRecord[]>;
   save(record: RolePolicyRecord): Promise<void>;
-  /** SPEC-006 0.6.0 REQ-19 — the policy-side reference check `deletePolicy` needs (F-053-02: no
+  /** REQ-19 — the policy-side reference check `deletePolicy` needs (F-053-02: no
    * writer creates such a row for a non-built-in policy today, but the guard checks for real —
    * defensive against that constraint ever being lifted, not a assumption baked into the guard). */
   listByPolicyId(required: { workspaceId: UUID; policyId: UUID }): Promise<RolePolicyRecord[]>;
@@ -98,14 +98,14 @@ export interface RolePolicyRepoPort {
 export interface PrincipalRoleRepoPort {
   listByPrincipalId(required: { workspaceId: UUID; principalId: UUID }): Promise<PrincipalRoleRecord[]>;
   save(record: PrincipalRoleRecord): Promise<void>;
-  /** SPEC-006 0.6.0 REQ-19 — the reference check `deleteRole` needs (INV-09). */
+  /** REQ-19 — the reference check `deleteRole` needs (INV-09). */
   listByRoleId(required: { workspaceId: UUID; roleId: UUID }): Promise<PrincipalRoleRecord[]>;
 }
 
 export interface PrincipalPolicyRepoPort {
   listByPrincipalId(required: { workspaceId: UUID; principalId: UUID }): Promise<PrincipalPolicyRecord[]>;
   save(record: PrincipalPolicyRecord): Promise<void>;
-  /** SPEC-006 0.6.0 REQ-19 — the reference check `deletePolicy` needs (INV-09); this is the
+  /** REQ-19 — the reference check `deletePolicy` needs (INV-09); this is the
    * reference source that matters in practice (`ATTACH_POLICY` does write these rows for
    * non-built-in policies, unlike `role_policies`). */
   listByPolicyId(required: { workspaceId: UUID; policyId: UUID }): Promise<PrincipalPolicyRecord[]>;

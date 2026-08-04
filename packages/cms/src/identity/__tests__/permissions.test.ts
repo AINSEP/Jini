@@ -40,7 +40,7 @@ test("the owner wildcard '*' is deliberately excluded from the registrable catal
   assert.equal(isKnownPermission("*"), false);
 });
 
-test("FEAT-014/ADR-PIPE-014: analytics.read is registered (analytics recent-hits authz gate)", () => {
+test("analytics.read is registered (analytics recent-hits authz gate)", () => {
   assert.equal(isKnownPermission("analytics.read"), true);
 });
 

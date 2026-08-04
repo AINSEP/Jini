@@ -22,7 +22,7 @@ import type {
 } from "./ports.js";
 
 /**
- * @file In-memory adapters for the `identity` repo ports (ADR-021 / SPEC-006).
+ * @file In-memory adapters for the `identity` repo ports.
  *
  * Purpose:
  * Test/dev implementations of the nine identity repo ports. Mirrors the exact
