@@ -1,8 +1,7 @@
 /**
- * @file The Taxonomy agent-tool catalog (SPEC-018/ADR-044) — this domain's instance of the
- * per-domain `agent-tools.ts` convention `features/content-types/agent-tools.ts`,
- * `features/database/agent-tools.ts`, and every other domain catalog already use (ADR-049
- * Decision 4).
+ * @file The Taxonomy agent-tool catalog — this domain's instance of the per-domain
+ * `agent-tools.ts` convention `features/content-types/agent-tools.ts`,
+ * `features/database/agent-tools.ts`, and every other domain catalog already use.
  *
  * Purpose:
  * A static, in-process catalog describing every agent-callable tool this domain exposes. Every
@@ -10,11 +9,11 @@
  * (`createTaxonomy`, `createTerm`, `renameTerm`, `assignTerms`); the one read maps onto
  * `features/taxonomy/list.ts`'s `listTaxonomiesWithTerms`.
  *
- * `mergeTerm` (SPEC-018 C-207, `merge-term.ts`) — read carefully, treated with the same scrutiny
- * Database's `migrate-forward` and Recovery's `restore` ceremonies got:
+ * `mergeTerm` (`merge-term.ts`) — read carefully, treated with the same scrutiny Database's
+ * `migrate-forward` and Recovery's `restore` ceremonies got:
  * Merge is destructive and can silently lose pre-merge `entry_terms` assignment history for content
- * already assigned to both terms (`merge-term.ts`'s own file header: "ADR-044's 'Destructive term
- * merge' failure mode"). That is why it alone, of every taxonomy mutation, gets a plan/confirm/
+ * already assigned to both terms (`merge-term.ts`'s own file header: "Destructive term
+ * merge" failure mode). That is why it alone, of every taxonomy mutation, gets a plan/confirm/
  * execute ceremony through `core/gated-mutations` rather than an ordinary authorize-then-write.
  * Reading `core/gated-mutations/gateway.ts` directly settles what is and is not safe to hand an
  * agent:
@@ -28,9 +27,9 @@
  *     'agent') throw new ForbiddenError('agent principals may not confirm a gated mutation', ...)"
  *     — before any permission check even runs. No `taxonomy_confirm_merge_term`-equivalent tool
  *     exists in this catalog, and no description below may even imply that step (mirrors
- *     `features/recovery/agent-tools.ts`'s own INV-06 discipline for `backup_execute_restore`: "the
- *     human confirmation step is exactly the one act SPEC-016's gateway reserves for kind='user'/
- *     api_key principals").
+ *     `features/recovery/agent-tools.ts`'s own discipline for `backup_execute_restore`: "the
+ *     human confirmation step is exactly the one act the gated-mutations gateway reserves for
+ *     kind='user'/api_key principals").
  *   - `execute()` needs a confirmation token a human already minted through the admin UI's own
  *     ceremony (`server/routes/admin/taxonomy/merge-term.ts`'s `/merge/confirm` route) — the same
  *     `confirmer-must-equal-own-delegatedBy` actor-class rule `database_execute_migrate_forward`/
@@ -41,7 +40,7 @@
  *     refusal, not just an absent handler) but is NEVER wired by `tool-registrations.ts`.
  *
  * Naming: `taxonomy_*`, matching this package's own name — distinct from `features/content-types`'
- * `collections_*` prefix (a different ADR-043 pairing) and from `features/entries`' own
+ * `collections_*` prefix (a different pairing) and from `features/entries`' own
  * `collections_entry_*` prefix.
  *
  * How it relates to the project:
@@ -89,7 +88,7 @@ const TERM_ID_SCHEMA = {
 const CONTENT_TYPE_SCHEMA = {
   type: "string",
   enum: [...TAXONOMY_ALLOWED_CONTENT_TYPES],
-  description: "The content kind the target row actually is. Only 'post' and 'page' are eligible for term assignment (ADR-044's permanent allow-list) — any other value is rejected before anything is written.",
+  description: "The content kind the target row actually is. Only 'post' and 'page' are eligible for term assignment (a permanent allow-list) — any other value is rejected before anything is written.",
 } as const;
 
 /** The Taxonomy domain's fixed agent-tool catalog: 6 wired (1 read, 4 ordinary writes, 1 gated-plan

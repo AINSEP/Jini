@@ -1,32 +1,28 @@
 /**
- * @file SPEC-018 C-208 / CIC U-001 / U-002 — the fixed taxonomy validation chains.
+ * @file The fixed taxonomy validation chains.
  *
  * Purpose:
  * Two pure, order-critical decision functions:
  *  - `validateContentJoin` — the allow-list -> workspace -> lens chain that gates every
- *    `entry_terms` write (ADR-044 §4's "opt-in per content type" + the round-1/round-3
- *    `/audit-work` workspace/lens folds).
+ *    `entry_terms` write ("opt-in per content type" plus the workspace/lens folds a security
+ *    audit added).
  *  - `validateHierarchyAssignment` — the hierarchical-mode -> same-taxonomy -> cycle chain
- *    that gates every `parentId` write (ADR-044's "parentId hierarchy validation" fold).
+ *    that gates every `parentId` write.
  *
- * Both chains were the exact unit three separate Red-Team rounds (RT-001, RT-011, RT-012) found
- * real ordering defects in — a combined-failure case must always report the FIRST-in-order
- * failure, never a later one that also happens to apply. Every test in
- * `validation-chain.unit.test.ts` replays one of those regressions or a compound-failure case
- * to lock the order in place.
+ * Both chains were the exact unit three separate Red-Team rounds found real ordering defects in —
+ * a combined-failure case must always report the FIRST-in-order failure, never a later one that
+ * also happens to apply. Every test in `validation-chain.unit.test.ts` replays one of those
+ * regressions or a compound-failure case to lock the order in place.
  *
- * `wouldCreateCycle` (CIC U-002) is the full ancestor-chain walk `validateHierarchyAssignment`'s
- * cycle check ultimately calls — kept exported separately since it has its own certified property
- * tests (depth 1-10 chains) independent of the chain that wraps it.
+ * `wouldCreateCycle` is the full ancestor-chain walk `validateHierarchyAssignment`'s cycle check
+ * ultimately calls — kept exported separately since it has its own certified property tests
+ * (depth 1-10 chains) independent of the chain that wraps it.
  *
  * How it relates to the project:
  * Consumed directly by `write-service.ts`'s `createTerm`/`renameTerm`/`assignTerms` (and would be
  * consumed by a future `reparentTerm`, not yet built — no certified test in this slice exercises
  * it). Reuses no port/dep — these are pure functions over caller-resolved data, never performing
  * their own repo lookups, so the ordering guarantee holds regardless of how a caller wires them.
- *
- * Architectural role:
- * This IS the CIC U-001 unit (ADR-PIPE-018 implementation-outline.md).
  */
 
 export class TaxonomyNotApplicableError extends Error {

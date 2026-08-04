@@ -4,8 +4,7 @@ import { test } from "vitest";
 import { onContentDeleted } from "../write-service.js";
 
 /**
- * @file SPEC-018 C-206 / W-203 / REQ-18 / REQ-19 / INV-07 / AC-27 / AC-28 / AC-29 — the
- * content-deletion event subscriber and orphan-tolerant reverse lookup.
+ * @file The content-deletion event subscriber and orphan-tolerant reverse lookup.
  *
  * Assumed seam design:
  *

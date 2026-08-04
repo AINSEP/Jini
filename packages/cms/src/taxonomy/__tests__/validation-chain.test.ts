@@ -14,9 +14,8 @@ import {
 } from "../validation-chain.js";
 
 /**
- * @file SPEC-018 C-208 / CIC U-001 / REQ-06–REQ-11 / behavior.spec.md §2.1 — the fixed
- * validation-chain ordering. This is the single unit three separate Red-Team rounds found real
- * ordering defects in (RT-001, RT-011, RT-012) — every regression case is replayed here as a
+ * @file The fixed validation-chain ordering. This is the single unit three separate Red-Team
+ * rounds found real ordering defects in — every regression case is replayed here as a
  * first-class test, not just an example.
  *
  * Assumed seam design:

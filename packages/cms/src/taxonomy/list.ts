@@ -10,8 +10,8 @@ import type { Taxonomy, Term } from "./write-service.js";
  */
 
 export interface TaxonomyListPort {
-  /** Every taxonomy in the workspace (v1 has exactly 2 seeded rows, `category`/`tag` — ADR-044 §1
-   * — but this port stays general rather than hard-coding that count). */
+  /** Every taxonomy in the workspace (v1 has exactly 2 seeded rows, `category`/`tag` — but this
+   * port stays general rather than hard-coding that count). */
   list(): Promise<Taxonomy[]>;
 }
 

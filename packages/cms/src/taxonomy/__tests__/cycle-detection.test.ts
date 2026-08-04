@@ -4,8 +4,7 @@ import { test } from "vitest";
 import { wouldCreateCycle } from "../validation-chain.js";
 
 /**
- * @file SPEC-018 C-203 / CIC U-002 / INV-03 / REQ-11 / EC-05 / EC-05a / EC-05b — the
- * cycle-detection algorithm.
+ * @file The cycle-detection algorithm.
  *
  * Assumed seam design:
  *

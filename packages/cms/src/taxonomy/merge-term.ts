@@ -1,21 +1,20 @@
 /**
- * @file SPEC-018 C-207 / REQ-15 / REQ-15a / REQ-16 / INV-06 / INV-08 — `mergeTerm`'s gated-mutation
- * instantiation via `core/gated-mutations` (ADR-044's one gated mutation).
+ * @file `mergeTerm`'s gated-mutation instantiation via `core/gated-mutations` — the one gated
+ * mutation in this domain.
  *
  * Purpose:
  * Merge is destructive and can silently lose pre-merge `entry_terms` assignment history for
- * content already assigned to both terms (ADR-044's "Destructive term merge" failure mode) — it
- * gets the plan/confirm/execute ceremony every other taxonomy mutation does not. This file owns
- * only this domain's OWN wrapping logic: the structural self-merge guard (REQ-15a — rejected
- * BEFORE any overlap computation, so a forged confirmation token for a self-merge can never even
- * exist, INV-08) and the plan's overlap-loss disclosure (REQ-16). The plan/confirm/execute
- * ordering itself, token TTL, and actor-class rule are SPEC-016's own certified contract
- * (`core/gated-mutations/__tests__/unit/gateway.unit.test.ts`) — consumed here via injected
- * `gatewayPlan`/`gatewayConfirm`/`gatewayExecute` closures a composition root binds to the real
- * `core/gated-mutations.plan/confirm/execute`, never re-tested here.
+ * content already assigned to both terms — it gets the plan/confirm/execute ceremony every other
+ * taxonomy mutation does not. This file owns only this domain's OWN wrapping logic: the structural
+ * self-merge guard (rejected BEFORE any overlap computation, so a forged confirmation token for a
+ * self-merge can never even exist) and the plan's overlap-loss disclosure. The plan/confirm/execute
+ * ordering itself, token TTL, and actor-class rule are `core/gated-mutations`' own certified
+ * contract (`core/gated-mutations/__tests__/unit/gateway.unit.test.ts`) — consumed here via
+ * injected `gatewayPlan`/`gatewayConfirm`/`gatewayExecute` closures a composition root binds to the
+ * real `core/gated-mutations.plan/confirm/execute`, never re-tested here.
  *
- * AC-21 (certified): no export beyond this plan/confirm/execute trio may perform a merge
- * directly — enforced by `merge-term.unit.test.ts`'s own export-surface inspection.
+ * Certified: no export beyond this plan/confirm/execute trio may perform a merge directly —
+ * enforced by `merge-term.unit.test.ts`'s own export-surface inspection.
  */
 
 export class SameTermMergeError extends Error {
@@ -89,8 +88,8 @@ export interface ConfirmMergeTermRequired {
 }
 
 /** Delegates to the injected `core/gated-mutations.confirm()` binding — no domain logic of its
- * own beyond forwarding, since SPEC-016 already owns the confirm-time actor-class rule
- * (agents may never confirm) and token minting. */
+ * own beyond forwarding, since `core/gated-mutations` already owns the confirm-time actor-class
+ * rule (agents may never confirm) and token minting. */
 export async function confirmMergeTerm(
   required: ConfirmMergeTermRequired,
   _optional: Record<string, never> = {}
@@ -105,7 +104,7 @@ export interface ExecuteMergeTermRequired {
   gatewayExecute: (params: { confirmationToken: string }) => Promise<{ mergedCount: number }>;
 }
 
-/** Delegates to the injected `core/gated-mutations.execute()` binding — SPEC-016's fixed
+/** Delegates to the injected `core/gated-mutations.execute()` binding — its fixed
  * check-sequence (authorize -> token state -> actor-class -> plan-hash -> redeem-then-mutate)
  * runs entirely inside that binding; this function performs no independent redemption logic. */
 export async function executeMergeTerm(

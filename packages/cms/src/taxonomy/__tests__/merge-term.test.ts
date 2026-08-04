@@ -4,12 +4,11 @@ import { test } from "vitest";
 import { planMergeTerm } from "../merge-term.js";
 
 /**
- * @file SPEC-018 C-207 / REQ-15 / REQ-15a / REQ-16 / INV-06 / INV-08 — `mergeTerm`'s gated-mutation
- * instantiation via `core/gated-mutations`.
+ * @file `mergeTerm`'s gated-mutation instantiation via `core/gated-mutations`.
  *
- * This suite tests only this domain's OWN wrapping logic (the self-merge guard REQ-15a, and the
- * plan's overlap-loss disclosure REQ-16) — the plan/confirm/execute ordering itself, token TTL,
- * and actor-class rule are SPEC-016's own certified contract (see
+ * This suite tests only this domain's OWN wrapping logic (the self-merge guard, and the
+ * plan's overlap-loss disclosure) — the plan/confirm/execute ordering itself, token TTL,
+ * and actor-class rule are `core/gated-mutations`' own certified contract (see
  * `src/core/gated-mutations/__tests__/unit/gateway.unit.test.ts`), consumed here via a fake
  * `core/gated-mutations.plan()` seam, not re-tested.
  *

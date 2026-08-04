@@ -2,36 +2,33 @@ import { ForbiddenError } from "../core/commands/command.js";
 import { validateContentJoin, validateHierarchyAssignment } from "./validation-chain.js";
 
 /**
- * @file SPEC-018 C-201-C-206 — the taxonomy write-service's ordinary (non-gated) mutations
- * (ADR-044).
+ * @file The taxonomy write-service's ordinary (non-gated) mutations.
  *
  * Purpose:
- * The single write chokepoint for `taxonomies`/`terms`/`entry_terms` (ADR-022 discipline, applied
- * to this domain): `authorize()` first (REQ-17, fail-closed) -> validate -> write + revision +
- * watermark + outbox, all attributed to the same mutation. `assignTerms` is the one deliberate
- * exception (INV-05): term-assignment membership is explicitly narrowed out of ADR-022 §4a's
- * general revisioning rule (ADR-044 "entry_terms revisioning" fold) — high-churn relational
- * state whose historical audit trail is judged low-value, the same disclosed-loss basis
- * `redirect_hits`/`asset_renditions` already use.
+ * The single write chokepoint for `taxonomies`/`terms`/`entry_terms` (the same discipline applied
+ * to every other domain's write-service in this codebase): `authorize()` first (fail-closed) ->
+ * validate -> write + revision + watermark + outbox, all attributed to the same mutation.
+ * `assignTerms` is the one deliberate exception: term-assignment membership is explicitly narrowed
+ * out of the general revisioning rule — high-churn relational state whose historical audit trail is
+ * judged low-value, the same disclosed-loss basis `redirect_hits`/`asset_renditions` already use.
  *
- * `mergeTerm` (SPEC-018 C-207, ADR-044's one gated mutation) is deliberately NOT here — it lives
- * in the sibling `merge-term.ts`, isolated because it alone touches `core/gated-mutations`.
+ * `mergeTerm` (the one gated mutation) is deliberately NOT here — it lives in the sibling
+ * `merge-term.ts`, isolated because it alone touches `core/gated-mutations`.
  *
- * ADR-041/043/044/045 re-audit (2026-07-16, TM-adr041-043-044-045-audit-001, Finding 1 — hard
- * blocker fix): `assignTerms` now invokes `validation-chain.ts`'s `validateContentJoin`
- * (allow-list -> workspace -> lens, fixed order) before writing any `entry_terms` row. The prior
- * "disclosed gap" comment this replaces undersold the live risk — the missing check meant
- * `assignTerms` (a live, `admin.taxonomy.manage`-gated route) would silently accept a nonexistent
- * `termId`, a `contentId` that doesn't exist, or a caller-claimed `contentType` that doesn't match
- * the target's real kind, with zero server-side verification. `ContentLookupPort` below is the
- * "content repo port" the old comment said this needed; `TAXONOMY_ALLOWED_CONTENT_TYPES` is
- * ADR-044's own "hardcoded post/page taxonomy allow-list (permanent, not conditional on
- * ADR-043)". `resolvedTermWorkspaceId`/`resolvedContentWorkspaceId` both resolve to the SAME
- * value as `callerWorkspaceId` by construction in this codebase's real adapters (`SqliteTermRepo`/
- * `SqliteEntryTermRepo` are workspace-BOUND at construction, single-workspace-per-`content.db` —
- * ADR-046's own "single-node remains target" line), so the workspace-mismatch branch is currently
- * unreachable via those adapters specifically; it stays load-bearing for any future adapter that
- * is not workspace-bound, and the check costs nothing to keep.
+ * A past security re-audit (finding: a hard blocker) established that `assignTerms` must invoke
+ * `validation-chain.ts`'s `validateContentJoin` (allow-list -> workspace -> lens, fixed order)
+ * before writing any `entry_terms` row. The prior "disclosed gap" comment this replaces undersold
+ * the live risk — the missing check meant `assignTerms` (a live, `admin.taxonomy.manage`-gated
+ * route) would silently accept a nonexistent `termId`, a `contentId` that doesn't exist, or a
+ * caller-claimed `contentType` that doesn't match the target's real kind, with zero server-side
+ * verification. `ContentLookupPort` below is the "content repo port" the old comment said this
+ * needed. `resolvedTermWorkspaceId`/`resolvedContentWorkspaceId` both resolve to the SAME value as
+ * `callerWorkspaceId` by construction in this codebase's real adapters (`SqliteTermRepo`/
+ * `SqliteEntryTermRepo` are workspace-BOUND at construction, single-workspace-per-`content.db`), so
+ * the workspace-mismatch branch is currently unreachable via those adapters specifically; it stays
+ * load-bearing for any future adapter that is not workspace-bound, and the check costs nothing to
+ * keep. See `docs/decisions/taxonomy-content-type-allow-list.md` for why both this branch and
+ * `TAXONOMY_ALLOWED_CONTENT_TYPES` below are permanent design choices, not stopgaps.
  *
  * How it relates to the project:
  * Mirrors `src/features/settings/write-service.ts`'s chokepoint shape (authorize -> validate ->
@@ -87,15 +84,16 @@ export interface EntryTermRepoPort {
  * port" `validateContentJoin` needs to verify a caller's claimed `contentType` actually matches
  * the target row, and that the target exists at all. `null` = not found. Implementations for
  * `contentType` values on {@link TAXONOMY_ALLOWED_CONTENT_TYPES} resolve against `posts`; a
- * future ADR-043 `entries`-backed content type would extend this port, not replace it.
+ * future content-type this port grows to cover would extend it, not replace it.
  */
 export interface ContentLookupPort {
   resolve(params: { contentType: string; contentId: string }): Promise<{ workspaceId: string; kind: string } | null>;
 }
 
-/** ADR-044's own "hardcoded post/page taxonomy allow-list (permanent, not conditional on
- * ADR-043)" — every taxonomy is applicable to `post`/`page` content; no other content type is
- * eligible for term assignment until a future ADR extends this. */
+/** The hardcoded post/page taxonomy allow-list (permanent, see
+ * `docs/decisions/taxonomy-content-type-allow-list.md`) — every taxonomy is applicable to
+ * `post`/`page` content; no other content type is eligible for term assignment until this is
+ * deliberately extended. */
 export const TAXONOMY_ALLOWED_CONTENT_TYPES: ReadonlySet<string> = new Set(["post", "page"]);
 
 export function isContentTypeOnAllowList(contentType: string): boolean {
@@ -162,8 +160,8 @@ export class ContentRecordNotFoundError extends Error {
   }
 }
 
-/** ADR-044 permissions section: `admin.taxonomy.manage` (ADR-021 flat-string convention). REQ-17
- * — must run before any other side effect of every write-service export in this file. */
+/** `admin.taxonomy.manage` (the flat-string permission convention) — must run before any other
+ * side effect of every write-service export in this file. */
 async function authorizeTaxonomyManage(deps: WriteServiceDeps, principalId: string): Promise<void> {
   const result = await deps.authorize({ principalId, permission: "admin.taxonomy.manage" });
   if (!result.allowed) {
@@ -182,9 +180,8 @@ export interface CreateTaxonomyRequired {
   hierarchical: boolean;
 }
 
-/** AC-01/AC-26: creates a taxonomy row (hierarchical=true -> "category"-shaped, false ->
- * "tag"-shaped — same shared table per ADR-044 §1). Ordinary mutation, no plan()/confirmation
- * ceremony. */
+/** Creates a taxonomy row (hierarchical=true -> "category"-shaped, false -> "tag"-shaped — same
+ * shared table). Ordinary mutation, no plan()/confirmation ceremony. */
 export async function createTaxonomy(
   required: CreateTaxonomyRequired,
   _optional: Record<string, never> = {}
@@ -400,10 +397,10 @@ export interface OnContentDeletedRequired {
   entryTerms: EntryTermsCleanupPort;
 }
 
-/** SPEC-018 C-206/W-203/REQ-18/REQ-19/INV-07 — content-deletion event subscriber. Best-effort
- * (a missed event leaves an orphaned `entry_terms` row that is inert on read, per ADR-044's
- * Failure modes; a periodic/boot reconciliation sweep — modeled by re-invoking this same
- * function for the orphan — is the backstop, never a hard failure). A no-op for content with no
+/** Content-deletion event subscriber. Best-effort (a missed event leaves an orphaned
+ * `entry_terms` row that is inert on read; a periodic/boot reconciliation sweep — modeled by
+ * re-invoking this same function for the orphan — is the backstop, never a hard failure). A
+ * no-op for content with no
  * assigned terms, never an error. */
 export async function onContentDeleted(
   required: OnContentDeletedRequired,

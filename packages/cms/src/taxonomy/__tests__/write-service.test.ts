@@ -10,8 +10,7 @@ import {
 import { ForbiddenError } from "../../core/commands/command.js";
 
 /**
- * @file SPEC-018 C-201/C-202/C-204 / REQ-01–REQ-05, REQ-12–REQ-14, REQ-17 — the taxonomy
- * write-service's ordinary (non-gated) mutations.
+ * @file The taxonomy write-service's ordinary (non-gated) mutations.
  *
  * Assumed seam design (mirrors `core/commands/command.ts`'s established two-object,
  * authorize-then-write-then-revise-then-stamp-then-outbox pattern used elsewhere in this repo):
