@@ -176,6 +176,15 @@ export interface SidebarProps {
    *  supply it rather than strand every operator's saved preference behind this package's
    *  default. */
   railStorageKey?: string;
+  /**
+   * Rail state for an operator who has **no stored preference yet**. A host whose admin is
+   * icon-first by design passes `true`; every existing host omits it and keeps the expanded
+   * default. Never overrides a real stored choice — once the operator has toggled the rail even
+   * once, their preference wins on every later load.
+   *
+   * @default false
+   */
+  railDefaultCollapsed?: boolean;
   /** Accessible name for the `<nav>` landmark. @default "Admin" */
   label?: string;
   /** Extra class names appended to `.cms-nav`. */
@@ -186,7 +195,7 @@ export interface SidebarProps {
 }
 
 function SidebarRoot(props: SidebarProps) {
-  const rail = useSidebarRail(props.railStorageKey);
+  const rail = useSidebarRail(props.railStorageKey, props.railDefaultCollapsed);
   const [tooltip, setTooltip] = useState<TooltipTarget | null>(null);
   const open = props.open ?? false;
   const base = props.base ?? DEFAULT_ADMIN_BASE;
