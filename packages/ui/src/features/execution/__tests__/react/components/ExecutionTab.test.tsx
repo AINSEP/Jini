@@ -83,6 +83,40 @@ describe('ExecutionTab', () => {
     });
   });
 
+  it('forwards apiKeyFooter/apiKeyStoredExternally/apiKeyPlaceholder to the internal ByokProviderForm', () => {
+    render(
+      <ExecutionTab
+        config={config({ byok: { ...config().byok, apiKey: '' } })}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort()}
+        presets={PRESETS}
+        apiKeyFooter={<div data-testid="host-footer">Save key</div>}
+        apiKeyStoredExternally
+        apiKeyPlaceholder="••••abcd"
+      />,
+    );
+    // The footer slot renders where the host put it.
+    expect(screen.getByTestId('host-footer')).toBeInTheDocument();
+    // `apiKeyStoredExternally` keeps the empty key field out of the "missing required field"
+    // state — "Test connection" must not be permanently disabled next to a stored credential.
+    expect(screen.getByRole('button', { name: 'Test connection' })).toBeEnabled();
+    // The masked placeholder shows which key is stored, without ever pre-filling a value.
+    const keyInput = screen.getByPlaceholderText('••••abcd') as HTMLInputElement;
+    expect(keyInput.value).toBe('');
+  });
+
+  it('renders nothing extra when the footer/stored-key props are omitted, matching every existing caller', () => {
+    render(
+      <ExecutionTab
+        config={config()}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort()}
+        presets={PRESETS}
+      />,
+    );
+    expect(screen.queryByTestId('host-footer')).not.toBeInTheDocument();
+  });
+
   it('disables Local CLI with the host-supplied reason when it is unavailable', () => {
     render(
       <ExecutionTab
@@ -326,7 +360,13 @@ describe('ExecutionTab', () => {
     expect(screen.getByRole('button', { name: 'Test connection' })).toBeDisabled();
   });
 
-  it('discovers models on mount and offers them as suggestions', async () => {
+  it('discovers models on mount and offers them in the model picker', async () => {
+    // Asserted through the picker rather than through `<datalist><option>` because a live
+    // discovery result now renders `SearchableModelSelect`, not a text field with autocomplete —
+    // the datalist was invisible until the operator typed, so a successful 40-model discovery
+    // showed an empty box. Same intent as before ("the discovered models are offered"); the
+    // previous assertion had simply pinned the mechanism.
+    const user = userEvent.setup();
     render(
       <ExecutionTab
         config={config()}
@@ -335,8 +375,30 @@ describe('ExecutionTab', () => {
         presets={PRESETS}
       />,
     );
-    await waitFor(() => expect(document.querySelector('option[value="claude-opus-4-5"]')).not.toBeNull());
-    expect(document.querySelector('option[value="claude-haiku-4-5"]')).not.toBeNull();
+    await waitFor(() => expect(screen.getByTestId('jini-byok-model-select')).toBeInTheDocument());
+    await user.click(screen.getByTestId('jini-byok-model-select'));
+    const offered = screen.getAllByRole('option').map((o) => o.textContent);
+    expect(offered).toContain('claude-opus-4-5');
+    expect(offered).toContain('claude-haiku-4-5');
+  });
+
+  it('re-discovers models when Test Connection is clicked, so a stale discovery failure does not outlive a key the operator just confirmed works', async () => {
+    // Reproduces the reported bug: discovery ran once (e.g. before a key was
+    // ever saved for this preset) and failed; nothing besides protocol/
+    // baseUrl/providerId changing re-triggers the mount effect, so without
+    // this the error would sit on screen forever even after Test Connection
+    // goes green with the very same config.
+    const port = createFakeExecutionPort({ models: ['example-model-large'] });
+    const listModelsSpy = vi.spyOn(port, 'listModels');
+    render(
+      <ExecutionTab config={config()} onConfigChange={() => {}} port={port} presets={PRESETS} />,
+    );
+    await waitFor(() => expect(listModelsSpy).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+
+    await waitFor(() => expect(listModelsSpy).toHaveBeenCalledTimes(2));
+    expect(listModelsSpy).toHaveBeenLastCalledWith(config().byok);
   });
 
   it('surfaces a model-discovery failure as a non-blocking inline hint, and the field stays usable with the preset\'s suggestions', async () => {

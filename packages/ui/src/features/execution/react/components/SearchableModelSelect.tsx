@@ -24,6 +24,10 @@ export interface SearchableModelSelectProps {
    *  options. Origin: `SearchableModelSelect`'s `minSearchableOptions`. */
   minSearchableOptions?: number;
   className?: string | undefined;
+  /** Forwarded to the menu element itself. The menu portals to `document.body`, so a caller that
+   *  opens it from inside its own stacking context has no other way to reach it — the chat
+   *  package's runtime popover needs this to stack the menu above the popover. */
+  menuClassName?: string | undefined;
   testId?: string | undefined;
   searchInputTestId?: string | undefined;
 }
@@ -53,6 +57,7 @@ export function SearchableModelSelect({
   additionalOptions,
   minSearchableOptions = 8,
   className,
+  menuClassName,
   testId,
   searchInputTestId,
 }: SearchableModelSelectProps) {
@@ -92,6 +97,7 @@ export function SearchableModelSelect({
         onChange={onChange}
         ariaLabel={ariaLabel}
         className={className}
+        {...(menuClassName === undefined ? {} : { menuClassName })}
         onOpenChange={handleOpenChange}
         menuHeader={
           shouldShowSearch ? (

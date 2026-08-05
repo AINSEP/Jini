@@ -468,11 +468,33 @@ export function CustomSelect({
     onMenuKeyDown,
   } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
 
+  /**
+   * The theme of the place this menu was opened FROM.
+   *
+   * A portalled menu is a child of `document.body`, so it escapes any `data-theme` set on an ancestor
+   * of the trigger — and this package's theming works precisely by declaring `--jini-*` tokens on
+   * `[data-theme='light']` / `[data-theme='dark']`. A host that pins a theme on a WRAPPER rather than
+   * on `document.documentElement` therefore gets a correctly-themed control and a menu themed by
+   * whatever the document happens to be.
+   *
+   * Measured in a host admin that is light-only and pins `data-theme="light"` on its panel wrapper:
+   * on a machine set to dark, the trigger rendered light and its own dropdown rendered dark — one
+   * control, two themes, four pixels apart. The host cannot fix that from CSS either, because the
+   * tokens resolve on the portal node's ancestors, which it has no way to select.
+   *
+   * So the menu carries its origin's theme with it. Read from the trigger's nearest `[data-theme]`
+   * ancestor; `null` when there is none, which leaves document-level theming untouched and every
+   * existing caller byte-identical. Only applied when portalling — an inline menu is still inside the
+   * subtree and inherits correctly on its own.
+   */
+  const originTheme = buttonRef.current?.closest('[data-theme]')?.getAttribute('data-theme') ?? null;
+
   const menu = (
     <div
       ref={menuRef}
       id={`${idBase}-menu`}
       onKeyDown={onMenuKeyDown}
+      {...(portal && originTheme ? { 'data-theme': originTheme } : {})}
       className={[
         'jini-select-menu',
         portal ? 'portal' : 'inline',

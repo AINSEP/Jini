@@ -1235,6 +1235,24 @@ a.jini-button {
   z-index: 60;
   overflow-y: auto;
   background: var(--jini-bg-panel);
+  /* REQUIRED, not a tidy-up. `CustomSelect` renders this menu through
+     `createPortal(menu, document.body)`, so it is not a descendant of the
+     dialog and inherits `color` from the HOST's `<body>` — whatever that
+     happens to be. Setting only `background` left the two halves sourced from
+     different systems: this rule's `--jini-bg-panel` and the host's own text
+     colour.
+
+     Measured in a host admin, `prefers-color-scheme: dark`, pinned light via
+     `data-theme="light"` on a WRAPPER (which the portal escapes):
+       background  rgb(34, 33, 32)          <- Jini dark token
+       color       oklch(0.24 0.022 262)    <- the host's own --fg, also dark
+     i.e. dark text on a dark menu. Unreadable, and it reads as "the dropdown
+     is broken" rather than as a theming fault.
+
+     Every other property here already resolves through a `--jini-*` token; the
+     foreground was the one that did not, and portalling is exactly the case
+     where inheriting it stops being safe. */
+  color: var(--jini-text);
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);
   box-shadow: 0 8px 24px color-mix(in srgb, black 18%, transparent);

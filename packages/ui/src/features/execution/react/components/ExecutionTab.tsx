@@ -50,6 +50,24 @@ export interface ExecutionTabProps {
   localCliScopeLabel?: string;
   autoDetect?: boolean;
   ariaLabel?: string;
+  /**
+   * Pass-throughs to the internal `ByokProviderForm`'s identically-named props — see that
+   * component's own doc comments for the full contract (write-only credential display, the
+   * placeholder-never-a-value safety property, and the footer slot).
+   *
+   * Added here rather than only on `ByokProviderForm` because a host whose BYOK config is
+   * ALSO offering Local CLI (the common case — see `types.ts`'s `ExecutionMode`) has no way to
+   * reach `ByokProviderForm` directly: it is `ExecutionTab` that owns the mode switch and
+   * renders the BYOK section conditionally. Without these, a host storing its admin's own key
+   * server-side (as opposed to the visitor-key screen, which renders `ByokProviderForm` on its
+   * own because it has no Local CLI option to switch away from) would have to fork this
+   * component to add write-only display — exactly the mistake one host integration already made
+   * and reverted. Omitted by every existing caller, so the rendered output is byte-identical
+   * without them.
+   */
+  apiKeyFooter?: ReactNode;
+  apiKeyStoredExternally?: boolean;
+  apiKeyPlaceholder?: string;
 }
 
 /**
@@ -75,6 +93,9 @@ export function ExecutionTab({
   localCliScopeLabel,
   autoDetect = true,
   ariaLabel,
+  apiKeyFooter,
+  apiKeyStoredExternally,
+  apiKeyPlaceholder,
 }: ExecutionTabProps) {
   const t = useT();
   const {
@@ -96,19 +117,37 @@ export function ExecutionTab({
 
   const selectedPreset = resolveSelectedPreset(presets, config.byok);
 
+  /**
+   * Whether a key EXISTS, never what it is. Keyed on the boolean specifically so the effect below
+   * re-runs exactly once on the `false -> true` transition — a saved key hydrating from storage
+   * after first paint, or an operator finishing entry — and NOT once per character, which is what
+   * keying on `apiKey` itself would have done.
+   */
+  const hasApiKey = config.byok.apiKey.trim().length > 0;
+
   // Re-discover models whenever the selected endpoint changes (preset pick,
-  // manual protocol switch, or a typed base URL settling on a new value).
-  // Deliberately NOT keyed on `apiKey`/`model` — refetching on every
-  // keystroke would spam the provider. An operator who pastes a new key
-  // without touching the endpoint can still force a refresh via "Test
-  // connection" below; a dedicated "Refresh models" affordance is a
-  // reasonable follow-up, not required for the field to be usable and
-  // honest about failures now.
+  // manual protocol switch, or a typed base URL settling on a new value), and
+  // once a key first becomes available (`hasApiKey`).
+  //
+  // Still deliberately NOT keyed on `apiKey`'s VALUE or on `model` — refetching
+  // on every keystroke would spam the provider (and this catalog's own
+  // discovery has been observed tripping Gemini's per-minute "Model operations"
+  // rate limit, which then presents as an ordinary discovery failure).
+  //
+  // `hasApiKey` is what makes this effect self-healing. Before it, a discovery
+  // attempt that ran before any key existed left its error on screen forever —
+  // typing or saving a key changes none of `protocol`/`baseUrl`/`providerId`,
+  // so nothing re-triggered it, and the Model field silently fell back to the
+  // preset's short static `preferredModels` list while the operator's key could
+  // actually see far more. Reported live: the field defaulted to a stale
+  // `gemini-2.5-flash` even though `Test Key` — the one control that did force
+  // a fresh attempt, see `ByokProviderForm`'s `onTestConnection` below —
+  // returned 42 models.
   useEffect(() => {
     if (config.mode !== 'byok' || typeof port.listModels !== 'function') return;
     loadModels(config.byok);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config.mode, port, loadModels, config.byok.protocol, config.byok.baseUrl, config.byok.providerId]);
+  }, [config.mode, port, loadModels, config.byok.protocol, config.byok.baseUrl, config.byok.providerId, hasApiKey]);
   const { protocols, gateways } = groupPresets(presets);
   const configuredPresetIds = new Set(
     presets.filter((preset) => isProviderConfigured(config.byok, preset)).map((preset) => preset.id),
@@ -209,7 +248,19 @@ export function ExecutionTab({
             preset={selectedPreset}
             modelDiscovery={modelDiscovery}
             connectionTest={connectionTest}
-            onTestConnection={() => testConnection(config.byok)}
+            // Also re-runs discovery with the CURRENT byok config, not just the
+            // connectivity probe — see this file's model-discovery effect above
+            // for why that matters: a stale "could not load live models" error
+            // from before this key existed (or from any earlier transient
+            // failure) would otherwise never clear, even once Test Connection
+            // itself goes green with the same config.
+            onTestConnection={() => {
+              testConnection(config.byok);
+              if (typeof port.listModels === 'function') loadModels(config.byok);
+            }}
+            {...(apiKeyFooter !== undefined ? { apiKeyFooter } : {})}
+            {...(apiKeyStoredExternally !== undefined ? { apiKeyStoredExternally } : {})}
+            {...(apiKeyPlaceholder !== undefined ? { apiKeyPlaceholder } : {})}
           />
         </section>
       )}

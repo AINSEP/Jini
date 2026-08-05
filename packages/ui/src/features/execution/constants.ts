@@ -63,7 +63,12 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     title: 'Google Gemini',
     protocol: 'google',
     baseUrl: 'https://generativelanguage.googleapis.com',
-    preferredModels: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+    // Ordered newest-first: `rules.ts`'s `saved?.model ?? preset.preferredModels[0]` makes entry [0]
+    // the default for anyone who has never picked a model, so a stale head silently pins new users
+    // to an old generation. Reported live: the field defaulted to `gemini-2.5-flash` while the
+    // operator was actually running `gemini-3.6-flash`. This list is only a FALLBACK — the form
+    // prefers live `listModels` discovery and drops back here when that call fails.
+    preferredModels: ['gemini-3.6-flash', 'gemini-2.5-flash', 'gemini-2.5-pro'],
     kind: 'protocol',
   },
   {
