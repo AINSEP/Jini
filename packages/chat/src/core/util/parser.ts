@@ -8,6 +8,7 @@
  * swapped for a fuller one.
  */
 import { computeSkipRanges, FENCE_OPEN_RE, isRealArtifactOpenAt, rangeContains } from './markdown-context.js';
+import { parseQuotedAttrs } from './markup-attributes.js';
 
 export type ArtifactEvent =
   | { type: 'text'; delta: string }
@@ -25,21 +26,6 @@ interface ParserState {
   artifactType: string;
   title: string;
   content: string;
-}
-
-function parseAttrs(raw: string): Record<string, string> {
-  const re = /(\w+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  const out: Record<string, string> = {};
-  let m: RegExpExecArray | null = re.exec(raw);
-  while (m !== null) {
-    // The pattern's quote alternation means exactly one of group 2 (double-
-    // quoted) / group 3 (single-quoted) participates in any successful match
-    // — never both, never neither — so `m[2] ?? m[3]` is always defined; the
-    // cast just satisfies `noUncheckedIndexedAccess`.
-    out[m[1] as string] = (m[2] ?? m[3]) as string;
-    m = re.exec(raw);
-  }
-  return out;
 }
 
 type OpenTagMatch = { kind: 'complete'; start: number; end: number; attrs: string } | { kind: 'partial'; start: number } | { kind: 'none' };
@@ -198,7 +184,7 @@ export function createArtifactParser(): {
         if (open.start > 0) {
           yield { type: 'text', delta: state.buffer.slice(0, open.start) };
         }
-        const attrs = parseAttrs(open.attrs);
+        const attrs = parseQuotedAttrs(open.attrs);
         state.inside = true;
         state.identifier = attrs['identifier'] ?? '';
         state.artifactType = attrs['type'] ?? '';

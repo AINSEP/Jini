@@ -23,6 +23,7 @@
  * forms — so a host's message renderer can render the form inline.
  */
 import { parsePartialJson } from './partial-json.js';
+import { parseQuotedAttrs } from './util/markup-attributes.js';
 
 export type QuestionType =
   | 'radio'
@@ -163,7 +164,7 @@ export function splitOnQuestionForms(input: string): FormSegment[] {
       out.push({ kind: 'text', text: input.slice(cursor, openStart) });
     }
     const body = input.slice(openEnd, closeIdx);
-    const attrs = parseAttrs(rawAttrs);
+    const attrs = parseQuotedAttrs(rawAttrs);
     const form = tryParseForm(body, attrs);
     const blockEnd = closeIdx + closeTag.length;
     if (form) {
@@ -236,21 +237,6 @@ function findCloseTag(input: string, from: number, closeTag: string): number {
     }
   }
   return -1;
-}
-
-function parseAttrs(raw: string): Record<string, string> {
-  const re = /(\w+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  const out: Record<string, string> = {};
-  let m: RegExpExecArray | null = re.exec(raw);
-  while (m !== null) {
-    // The pattern's quote alternation means exactly one of group 2 (double-
-    // quoted) / group 3 (single-quoted) participates in any successful match
-    // — never both, never neither — so `m[2] ?? m[3]` is always defined; the
-    // cast just satisfies `noUncheckedIndexedAccess`.
-    out[m[1] as string] = (m[2] ?? m[3]) as string;
-    m = re.exec(raw);
-  }
-  return out;
 }
 
 function tryParseForm(body: string, attrs: Record<string, string>): QuestionForm | null {
@@ -356,7 +342,7 @@ export function parsePartialQuestionForm(input: string): QuestionForm | null {
   const { tagName, rawAttrs } = matchedTagAndAttrs(m);
   const closeTag = `</${tagName}>`;
   const openEnd = m.index + m[0].length;
-  const attrs = parseAttrs(rawAttrs);
+  const attrs = parseQuotedAttrs(rawAttrs);
   const closeIdx = findCloseTag(input, openEnd, closeTag);
   const rawBody = closeIdx === -1 ? input.slice(openEnd) : input.slice(openEnd, closeIdx);
   // Strip the fenced ```json wrapper some models emit. The opening fence is

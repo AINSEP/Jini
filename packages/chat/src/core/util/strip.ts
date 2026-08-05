@@ -5,6 +5,7 @@
  * counterpart that surfaces an in-flight (not-yet-closed) artifact block.
  */
 import { computeSkipRanges, isRealArtifactOpenAt, rangeContains, type Range } from './markdown-context.js';
+import { parseQuotedAttrs } from './markup-attributes.js';
 import {
   recoverHtmlArtifactFromPrecedingDocument,
   recoverHtmlDocumentFromMarkdownFence,
@@ -117,7 +118,7 @@ function findRecoverablePrecedingHtmlArtifact(sourceText: string): string | null
     const end = findUnskipped(sourceText, CLOSE, closeTag, ranges);
     if (end === -1) return null;
 
-    const attrs = parseArtifactAttrs(sourceText.slice(open, closeTag));
+    const attrs = parseQuotedAttrs(sourceText.slice(open, closeTag));
     const recovered = recoverHtmlArtifactFromPrecedingDocument({
       artifactHtml: sourceText.slice(closeTag + 1, end),
       identifier: attrs['identifier'],
@@ -162,21 +163,6 @@ export function stripRecoveredHtmlFallbackForDisplay(content: string, sourceText
   const fence = findSingleRecoverableHtmlFence(content);
   if (!fence) return content;
   return `${content.slice(0, fence.start)}${content.slice(fence.end)}`.trim();
-}
-
-function parseArtifactAttrs(raw: string): Record<string, string> {
-  const re = /(\w+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  const out: Record<string, string> = {};
-  let m: RegExpExecArray | null = re.exec(raw);
-  while (m !== null) {
-    // The pattern's quote alternation means exactly one of group 2 (double-
-    // quoted) / group 3 (single-quoted) participates in any successful match
-    // — never both, never neither — so `m[2] ?? m[3]` is always defined; the
-    // cast just satisfies `noUncheckedIndexedAccess`.
-    out[m[1] as string] = (m[2] ?? m[3]) as string;
-    m = re.exec(raw);
-  }
-  return out;
 }
 
 /**
@@ -291,7 +277,7 @@ export function summarizeArtifactsForTranscript(content: string, persistedFiles:
       result += tail;
       break;
     }
-    const attrs = parseArtifactAttrs(tail.slice(open, gt));
+    const attrs = parseQuotedAttrs(tail.slice(open, gt));
     const persisted = matchPersistedArtifactFile(attrs, persistedFiles);
     result += persisted
       ? tail.slice(0, open) + artifactTranscriptSummary(attrs, persisted)
@@ -356,7 +342,7 @@ export function splitStreamingArtifact(content: string): { head: string; live: S
   }
   // A matching close means the block is complete; defer to stripArtifact.
   if (findUnskipped(content, CLOSE, gt, ranges) !== -1) return { head: content, live: null };
-  const attrs = parseArtifactAttrs(content.slice(open, gt));
+  const attrs = parseQuotedAttrs(content.slice(open, gt));
   const artifactType = attrs['type'] ?? '';
   // Only HTML/text artifacts read as code. An unknown type (attrs not fully
   // parsed, or omitted) is treated as code-eligible since the dominant case
