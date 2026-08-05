@@ -33,11 +33,24 @@ interface ToolCatalogSearchResponse {
 export const searchToolsTool: McpToolDef = {
   name: 'search_tools',
   description:
-    'Search the durable tool catalog by keyword. Returns ranked {id, description, source, score} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool.',
+    'Search the durable tool catalog. Returns ranked {id, description, source, score} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool.',
   inputSchema: {
     type: 'object',
     properties: {
-      query: { type: 'string', description: 'Keywords to search for, e.g. "navigate page" or "fill form". Required.' },
+      // Descriptive phrasing, NOT keywords — and the example matters as much as the instruction.
+      // The catalog is matched on tool *descriptions* (BM25 over description text), so a query
+      // written in the register of a description retrieves far better than a keyword bag. Measured
+      // on an independent n=130 blind set: terse keywords 25% top-1, descriptive phrasing 72%.
+      // This field previously read 'Keywords to search for, e.g. "navigate page" or "fill form"',
+      // which is the 25% form — and because a two-word example is a stronger signal than any prose
+      // instruction, it also silently overrode the descriptive guidance a host server may inject
+      // upstream (Tovu's agent-daemon systemOverlay did exactly that, and lost). Keep the example
+      // long-form; shortening it re-creates the bug.
+      query: {
+        type: 'string',
+        description:
+          'Describe what the tool you need DOES, the way its own documentation would describe it — a full phrase, not a keyword bag. Name the thing being acted on and the action, and include likely synonyms for both. Example: for a request like "how many people visited last week", write "retrieve site traffic and visitor analytics counts for a date range" rather than "visitors last week". Descriptive phrasing retrieves substantially better than terse keywords, because the catalog is matched on tool descriptions. Required.',
+      },
       // Bounds mirror `packages/http-kit/src/tool-catalog.ts`'s `parseSearchInput`
       // exactly (`MAX_SEARCH_LIMIT = 25`, `DEFAULT_SEARCH_LIMIT = 10`, integers only,
       // `>= 1`). Declared rather than left as a bare `number` so MCP validation and the
