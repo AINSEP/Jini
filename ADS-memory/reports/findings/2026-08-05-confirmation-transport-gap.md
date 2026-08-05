@@ -68,6 +68,8 @@ The first version of this section listed three CMS tools as equally blocked by t
 
 **Honest total: a confirmation transport alone unblocks one CMS tool (`collections_execute_cleanup`), one chat capability (`chat.reset_conversation`), and one E2E (`a7c0f8b5`) — not three CMS tools.** Still a real case for doing the work; materially smaller than the first version of this document implied.
 
+**Note for anyone who reaches this via the commit log instead of this document:** Tovu's `95a6886` (`feat(assistant): wire 6 safe chat.* verbs into agent frontend control`) carries the pre-correction phrasing — "which is why 3 CMS tools are deliberately left unwired" — in its own commit message. That figure was accurate to what was known when `95a6886` was written, and correctly wasn't amended after the fact (a corrective commit whose only purpose is annotating another commit's prose was judged not worth the noise, on a branch two other sessions are actively reading). This document's §3 above is the corrected, canonical figure: **one** CMS tool blocked by the confirmation-transport gap alone, not three.
+
 ## 4. The three options, as costed when this was traced, with the decision recorded
 
 - **(a) New engine-level work: a real, generic confirmation transport.** Something `createToolExecutor`'s `delegate.onConfirm` (or a route calling `resumeConfirmation`) can use, generic across any tool that sets `requiresConfirmation`. Nothing like this exists anywhere in the engine today — confirmed by §2's build-time guard, which exists specifically because no such thing has been built yet.
