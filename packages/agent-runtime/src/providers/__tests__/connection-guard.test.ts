@@ -1,8 +1,10 @@
+import * as http from 'node:http';
 import { describe, expect, it, vi } from 'vitest';
 import {
   defaultDnsLookup,
   isBlockedExternalApiHostname,
   isLoopbackApiHost,
+  pinnedFetch,
   redactSecrets,
   validateBaseUrl,
   validateBaseUrlResolved,
@@ -180,6 +182,184 @@ describe('validateBaseUrlResolved', () => {
     });
     const result = await validateBaseUrlResolved('https://unresolvable.example.com/v1', lookup);
     expect(result.error).toBeUndefined();
+    expect(result.pinnedAddress).toBeUndefined();
+  });
+
+  // `pinnedAddress` is the address `pinnedFetch` dials directly, instead of the transport
+  // re-resolving DNS independently when it connects — see `pinnedFetch`'s own tests below for the
+  // rebinding scenario this exists to close.
+  describe('pinnedAddress', () => {
+    it('is set to the first resolved address when DNS resolution actually happens', async () => {
+      const lookup = vi.fn(async (): Promise<DnsLookupAddress[]> => [
+        { address: '203.0.113.10', family: 4 },
+        { address: '203.0.113.11', family: 4 },
+      ]);
+      const result = await validateBaseUrlResolved('https://api.example.com/v1', lookup);
+      expect(result.error).toBeUndefined();
+      expect(result.pinnedAddress).toEqual({ address: '203.0.113.10', family: 4 });
+    });
+
+    it('is unset for a loopback-literal hostname, which skips DNS resolution entirely', async () => {
+      const lookup = vi.fn();
+      const result = await validateBaseUrlResolved('http://localhost:11434', lookup);
+      expect(result.error).toBeUndefined();
+      expect(result.pinnedAddress).toBeUndefined();
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('is unset for an IP-literal hostname, which skips DNS resolution entirely', async () => {
+      const lookup = vi.fn();
+      const result = await validateBaseUrlResolved('https://8.8.8.8/v1', lookup);
+      expect(result.error).toBeUndefined();
+      expect(result.pinnedAddress).toBeUndefined();
+      expect(lookup).not.toHaveBeenCalled();
+    });
+
+    it('is unset when the resolved address is blocked (the request never gets a pin because it never gets a pass)', async () => {
+      const lookup = vi.fn(async (): Promise<DnsLookupAddress[]> => [{ address: '10.0.0.5', family: 4 }]);
+      const result = await validateBaseUrlResolved('https://internal.example.com/v1', lookup);
+      expect(result.error).toBe('Internal IPs blocked');
+      expect(result.pinnedAddress).toBeUndefined();
+    });
+  });
+});
+
+describe('pinnedFetch', () => {
+  // THE rebinding proof, done against real infrastructure rather than a mocked transport (ESM
+  // built-ins like `node:http` reject `vi.spyOn` — "Cannot redefine property" — and a mock would
+  // invite the objection that the mock, not `pinnedFetch`, is what behaved). `example.com` is a
+  // real, publicly resolvable domain that is certainly NOT this test's loopback server. `pinned`
+  // points at that server instead. `validateBaseUrlResolved` validates one address and hands it to
+  // `pinnedFetch` as `pinnedAddress`; the TOCTOU this closes is a transport that re-resolves the
+  // hostname ITSELF when it dials — a second, independent DNS lookup a rebinding attacker can
+  // answer differently from the first. If the request reaches THIS server, `pinnedFetch` never
+  // consulted DNS for `example.com` at all — a real second resolution would have gone anywhere but
+  // here. The Host header the server actually receives is asserted too: still `example.com`, not
+  // the pinned IP — the "pin, not a redirect to a different origin" half of the same claim.
+  it('dials the pinned address directly, never the real DNS answer for the URL\'s own hostname — closing the rebinding TOCTOU', async () => {
+    const server = http.createServer((req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ host: req.headers.host, method: req.method, path: req.url }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      const response = await pinnedFetch(
+        `http://example.com:${port}/v1/chat`,
+        { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"hi":1}' },
+        { address: '127.0.0.1', family: 4 },
+      );
+      expect(response.ok).toBe(true);
+      expect(response.status).toBe(200);
+      const parsed = JSON.parse(await response.text());
+      expect(parsed).toEqual({ host: `example.com:${port}`, method: 'POST', path: '/v1/chat' });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  // The other side of the same contract: when `validateBaseUrlResolved` never ran a lookup (the
+  // loopback-literal / IP-literal skip — see its doc), `pinnedAddress` is `undefined` and
+  // `pinnedFetch` must still work as a normal, unpinned request rather than erroring or hanging.
+  it('when pinnedAddress is undefined, connects normally with no lookup override', async () => {
+    const server = http.createServer((req, res) => {
+      res.statusCode = 200;
+      res.end(JSON.stringify({ host: req.headers.host }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      const response = await pinnedFetch(`http://127.0.0.1:${port}/v1`, { method: 'POST', headers: {}, body: '{}' }, undefined);
+      expect(response.ok).toBe(true);
+      const parsed = JSON.parse(await response.text());
+      expect(parsed).toEqual({ host: `127.0.0.1:${port}` });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('drains the body and reports ok:false for a non-2xx response', async () => {
+    const server = http.createServer((req, res) => {
+      res.statusCode = 503;
+      res.end('upstream unavailable');
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      const response = await pinnedFetch(
+        `http://svc.invalid:${port}/v1`,
+        { method: 'POST', headers: {}, body: '{}' },
+        { address: '127.0.0.1', family: 4 },
+      );
+      expect(response.ok).toBe(false);
+      expect(response.status).toBe(503);
+      expect(await response.text()).toBe('upstream unavailable');
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('exposes the response body as an async-iterable of chunks, for SSE/NDJSON stream decoding', async () => {
+    const server = http.createServer((req, res) => {
+      res.statusCode = 200;
+      res.write('data: chunk-one\n\n');
+      res.end('data: chunk-two\n\n');
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      const response = await pinnedFetch(
+        `http://svc.invalid:${port}/v1`,
+        { method: 'POST', headers: {}, body: '{}' },
+        { address: '127.0.0.1', family: 4 },
+      );
+      expect(response.body).not.toBeNull();
+      const decoder = new TextDecoder();
+      let collected = '';
+      for await (const piece of response.body!) {
+        collected += decoder.decode(piece as Uint8Array, { stream: true });
+      }
+      expect(collected).toBe('data: chunk-one\n\ndata: chunk-two\n\n');
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('destroys the request when the signal aborts', async () => {
+    const server = http.createServer((_req, res) => {
+      // Deliberately never responds — the abort has to be what ends the request.
+      void res;
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+    const controller = new AbortController();
+
+    try {
+      const pending = pinnedFetch(
+        `http://svc.invalid:${port}/v1`,
+        { method: 'POST', headers: {}, body: '{}', signal: controller.signal },
+        { address: '127.0.0.1', family: 4 },
+      );
+      controller.abort();
+      await expect(pending).rejects.toThrow();
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });
 
