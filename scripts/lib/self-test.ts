@@ -267,6 +267,15 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
         'export const ChatPane = { PublicThing, PrivateThing, PublicType, PrivateType, Bar, Baz, LocalHelper };',
       ].join('\n') + '\n',
     );
+    // A __tests__/ file reaching for a non-public name via an escaping import must NOT be
+    // flagged — a package's own test suite reaching for a shared test double (e.g. a fake
+    // transport) answers a different question than "does ChatPane's production code do
+    // something a consumer can't." See check-chatpane-public-surface.ts's own module doc.
+    write(
+      root,
+      'r10-fixtures/chat-pane/__tests__/ChatPane.test.tsx',
+      "import { PrivateTestOnlyThing } from '../../public/test-only.js';\nexport { PrivateTestOnlyThing };\n",
+    );
 
     const engineViolations = await checkEngineBoundaries({ repoRoot: root });
     const protocolViolations = await checkProtocolPurity({ repoRoot: root });
@@ -391,6 +400,10 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [
         !chatPaneViolations.some((v) => v.reason.includes('"LocalHelper"')),
         'R10 must NOT flag a relative import that stays inside the privileged subtree, even when the name is not in the barrel',
+      ],
+      [
+        !chatPaneViolations.some((v) => v.file.endsWith('__tests__/ChatPane.test.tsx')),
+        'R10 must NOT flag an escaping import from a __tests__/ file, even when the name is not in the barrel',
       ],
     ];
 

@@ -14,14 +14,16 @@
  * (tsconfig.json vs. tsconfig.dom.json), not an import-graph or string-content rule like the
  * other two — see its own module doc for why source-scanning would be the wrong tool here.
  *
- * `checkChatPanePublicSurface` (R10, added 2026-08-05 for REF-001 Step D) is a fourth check,
- * currently REPORTING-ONLY — see its own module doc's "Why shipped disabled". It still runs every
- * `pnpm guard` invocation and still prints what it finds, so its findings are visible immediately,
- * but its violations are deliberately NOT spread into the `violations` array below, so they cannot
- * fail the build yet. Its self-test (in `runGuardSelfTest`) proves the checker itself is correct
- * regardless of enforcement status. To enable enforcement once features/chat-pane/** has
- * stabilized and REF-001 §1 (does ChatPane stay in the generic barrel at all) is settled: move the
- * `chatPaneSurfaceViolations` line from the reporting block into the `results` array below.
+ * `checkChatPanePublicSurface` (R10, added 2026-08-05 for REF-001 Step D) is a fourth check —
+ * ENFORCING as of 2026-08-05, having shipped disabled/reporting-only for one review cycle first
+ * (see its own module doc). Landed disabled while `features/chat-pane/**` was still mid-restructure
+ * by a concurrent agent and REF-001 §1 (does `ChatPane` stay in the generic barrel at all) was still
+ * open; both settled the same day. Its first real run found 3 genuine findings across 8 call sites
+ * — one (`createFakeChatTransport`) was a scope bug in the check itself (flagging a test file
+ * reaching for a documented test-only double; fixed by excluding `__tests__/**` from the scan) and
+ * two (`definedProps`, `useLatestOperation`) were real gaps, resolved by exporting both from
+ * `index.ts` rather than narrowing scope — see ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md
+ * §9 for the reasoning on each.
  *
  * Fail-closed guarantee: before trusting any check against the real repo, `runGuardSelfTest`
  * runs all four against known-bad fixtures and refuses to report "ok" on the real repo unless the
@@ -54,21 +56,13 @@ async function main() {
     await checkEngineBoundaries(),
     await checkProtocolPurity(),
     await checkAgenticDomPurity(),
+    await checkChatPanePublicSurface(),
     // TODO: vocabulary-firewall check (foundry/automation/** must not import engine domain types) —
     // genuinely unimplemented, not covered by either check above (both are scoped to packages/).
     // TODO: residual-JS allowlist — genuinely unimplemented; scope not yet specified precisely
     // enough to build without guessing.
   ];
   const violations = results.flat();
-
-  // R10 — REPORTING-ONLY (see this file's module doc). Runs and prints every invocation; not
-  // spread into `violations`, so it cannot fail the build yet. Flip on by moving this into
-  // `results` above once features/chat-pane/** has stabilized and REF-001 §1 is settled.
-  const chatPaneSurfaceViolations = await checkChatPanePublicSurface();
-  if (chatPaneSurfaceViolations.length) {
-    console.log(`\n[guard] R10-chatpane-public-surface: ${chatPaneSurfaceViolations.length} finding(s) (reporting-only, not enforced):`);
-    for (const v of chatPaneSurfaceViolations) console.log(`[guard][report-only] ${v.rule} ${v.file}: ${v.reason}`);
-  }
 
   if (violations.length) {
     for (const v of violations) console.error(`[guard] ${v.rule} ${v.file}: ${v.reason}`);
@@ -77,10 +71,7 @@ async function main() {
   }
   console.log(
     '[guard] ok — self-test passed (checks proven against known-bad fixtures) and zero violations' +
-      ' found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.' +
-      (chatPaneSurfaceViolations.length
-        ? ` R10 (chat-pane public surface) found ${chatPaneSurfaceViolations.length} reporting-only finding(s) above — not currently enforced.`
-        : ' R10 (chat-pane public surface, reporting-only) found zero findings.'),
+      ' found in packages/. Vocabulary-firewall and residual-JS-allowlist checks are still TODO.',
   );
 }
 main();

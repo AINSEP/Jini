@@ -1,5 +1,5 @@
 /**
- * R10 (REF-001 Step D, disabled/reporting-only — see guard.ts's wiring comment):
+ * R10 (REF-001 Step D — ENFORCING as of 2026-08-05; see guard.ts's wiring comment for the history):
  * `ChatPane` — the one product-like composition this package's otherwise-neutral React barrel
  * still exports (see `packages/chat/src/react/index.ts`'s own module doc and
  * `ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md` §1) — must not reach for
@@ -7,13 +7,25 @@
  * `ChatPane` can do something a consumer cannot do with the public API, that is a bug in the API,
  * not a privilege `ChatPane` is entitled to. This is the mechanical form of that invariant.
  *
- * **What this checks:** every relative import inside `features/chat-pane/**` whose resolved
- * target ESCAPES that directory (reaches a sibling module elsewhere under `src/react/**`, e.g.
+ * **What this checks:** every relative import inside `features/chat-pane/**`'s PRODUCTION files
+ * (`__tests__/**` and `*.test.ts(x)` are excluded — see below) whose resolved target ESCAPES that
+ * directory (reaches a sibling module elsewhere under `src/react/**`, e.g.
  * `../../components/Composer.js`) is a `ChatPane`-internal composition reaching outside its own
  * subtree. Every name pulled from that import must appear in the public barrel's export list
  * (currently `packages/chat/src/react/index.ts`; update `barrelPath` here when Step C moves
  * `ChatPane` to its own subpath and the barrel becomes whichever file re-exports the public
  * surface at that point).
+ *
+ * **Test files are excluded from the scan, deliberately, not merely `.gitignore`-style
+ * convenience.** First run against the real tree (2026-08-05) surfaced `createFakeChatTransport`
+ * (`hooks/testing/fake-transport.ts`) — its own module doc says outright "Not exported from the
+ * package's public barrel; import via the relative test path." That is `ChatPane`'s OWN TEST SUITE
+ * reaching for a shared test double, not `ChatPane`'s production code reaching for an
+ * undocumented capability — a different question from the one this check exists to answer. The
+ * other two findings from that same run (`definedProps`, `useLatestOperation`) WERE production
+ * reach into genuinely general-purpose, `ChatPane`-independent utilities, and were resolved by
+ * exporting them (see `index.ts`'s own comment at that export site) rather than by narrowing scope
+ * — the distinction is production-vs-test reach, not "every finding gets the same kind of fix."
  *
  * **What this deliberately does NOT check (documented scope limit, matching this codebase's own
  * regex-MVP-not-full-AST convention — see `lib/walk-imports.ts`'s module doc):**
@@ -27,12 +39,6 @@
  * - Type-only vs. value distinction. A type reached only for annotation purposes is still flagged
  *   if absent from the barrel, on the theory that a consumer implementing the same prop/callback
  *   shape needs to be able to name that type too.
- *
- * **Why shipped disabled:** `features/chat-pane/**` is mid-restructure by a concurrent agent as of
- * 2026-08-05 (see the same report's "Ordering" section) and Section 1 of that report — whether
- * `ChatPane` stays in the generic barrel at all — was still open when this was written. Running
- * this in reporting-only mode now proves the checker itself works without gating anyone's build on
- * an unsettled directory and an unconfirmed architecture call.
  */
 import { dirname, join, relative, resolve } from 'node:path';
 import type { Violation } from './check-engine-boundaries.js';
@@ -76,10 +82,16 @@ export interface CheckChatPanePublicSurfaceOptions {
   readonly barrelPath?: string;
 }
 
+/** `__tests__/**` directories and `*.test.ts(x)` files — a package's own tests reaching for a
+ * shared test double (e.g. a fake transport) are not the "ChatPane does something a consumer
+ * can't" question this check exists to answer. See this file's module doc. */
+function isTestFile(repoRelativePath: string): boolean {
+  return repoRelativePath.includes('/__tests__/') || /\.test\.tsx?$/.test(repoRelativePath);
+}
+
 /**
  * @param options Overrides so a self-test can run this against known-bad fixtures instead of the
- * real (as of 2026-08-05, concurrently-edited) `features/chat-pane/**` tree — see this file's own
- * module doc's "Why shipped disabled" note.
+ * real `features/chat-pane/**` tree — see this file's own module doc.
  */
 export async function checkChatPanePublicSurface(
   options: CheckChatPanePublicSurfaceOptions = {},
@@ -94,6 +106,7 @@ export async function checkChatPanePublicSurface(
 
   for (const absFile of listSourceFiles(chatPaneDir)) {
     const file = relative(root, absFile).split('\\').join('/');
+    if (isTestFile(file)) continue;
     const content = stripComments(readFileSync(absFile, 'utf8'));
 
     for (const m of content.matchAll(NAMED_IMPORT_RE)) {
