@@ -61,6 +61,20 @@ export const DAEMON_URL_ENV_VAR = 'JINI_DAEMON_URL';
  * here instead would be guessing at a policy this process cannot observe.
  */
 export const DAEMON_TOKEN_ENV_VAR = 'JINI_DAEMON_TOKEN';
+/**
+ * Overrides the delegated-tool request deadline (see `DEFAULT_DELEGATED_TOOL_TIMEOUT_MS`).
+ *
+ * **Optional.** This process is spawned as a subprocess by the daemon, so env is the only channel
+ * a host has to reach `CreateExecuteDelegatedToolToolOptions.delegatedToolTimeoutMs`; without this
+ * var that option would be unreachable in the real deployment path and the default would be the
+ * only value the system could ever run with.
+ *
+ * A host sets it to its own exchange total-lifetime ceiling plus headroom. An unset, non-numeric,
+ * or non-positive value means "use the default" rather than a startup failure — same posture as
+ * {@link DAEMON_TOKEN_ENV_VAR}, and for the same reason: this process cannot observe the host
+ * policy that would make a given number correct, so it must not refuse to boot over one.
+ */
+export const DELEGATED_TOOL_TIMEOUT_ENV_VAR = 'JINI_DELEGATED_TOOL_TIMEOUT_MS';
 
 const SERVER_NAME = 'jini-mcp';
 const SERVER_VERSION = '0.0.0';
@@ -126,6 +140,11 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
     createExecuteDelegatedToolTool({
       runId,
       ...(deps.generateToolUseId !== undefined ? { generateToolUseId: deps.generateToolUseId } : {}),
+      // Parsed, not validated: `createExecuteDelegatedToolTool` already rejects a non-finite or
+      // non-positive value back to the default, so `NaN` from a malformed env var lands there too.
+      ...(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR] !== undefined
+        ? { delegatedToolTimeoutMs: Number(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR]) }
+        : {}),
     }),
   ];
 

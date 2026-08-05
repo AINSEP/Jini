@@ -4,7 +4,7 @@ const hoisted = vi.hoisted(() => ({ postDaemonJson: vi.fn() }));
 const { postDaemonJson } = hoisted;
 vi.mock('../../daemon-client.js', () => hoisted);
 
-import { createExecuteDelegatedToolTool } from '../delegated-tool.js';
+import { createExecuteDelegatedToolTool, DEFAULT_DELEGATED_TOOL_TIMEOUT_MS } from '../delegated-tool.js';
 import type { McpToolContext } from '../../tool-protocol.js';
 
 const ctx: McpToolContext = { baseUrl: 'http://d.example', fetchImpl: fetch };
@@ -101,3 +101,57 @@ describe('createExecuteDelegatedToolTool', () => {
     expect(result).toEqual({ executionId: 'e1', status: 'denied' });
   });
 });
+
+describe('delegatedToolTimeoutMs (REF-002: the deadline is host policy, not engine policy)', () => {
+  const timeoutOf = (): number | undefined =>
+    ((postDaemonJson.mock.calls[0] as unknown[])[3] as { timeoutMs?: number }).timeoutMs;
+
+  it('exports the default as the same six minutes the route shipped with, so hoisting it changed no behaviour', () => {
+    expect(DEFAULT_DELEGATED_TOOL_TIMEOUT_MS).toBe(6 * 60 * 1000);
+  });
+
+  it('applies a host-supplied deadline instead of the default', async () => {
+    // The point of the change: the engine cannot know a given host's exchange total-lifetime
+    // ceiling, so the host supplies it. Before this option the six minutes was unreachable from
+    // outside the module and one host's number sat hard-coded in generic engine source.
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1', delegatedToolTimeoutMs: 90_000 });
+    await tool.handler({ toolId: 't1' }, ctx);
+    expect(timeoutOf()).toBe(90_000);
+  });
+
+  it('accepts a deadline longer than the default, since raising the multi-turn ceiling starts here', async () => {
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1', delegatedToolTimeoutMs: 20 * 60 * 1000 });
+    await tool.handler({ toolId: 't1' }, ctx);
+    expect(timeoutOf()).toBe(20 * 60 * 1000);
+  });
+
+  it('falls back to the default when the option is omitted', async () => {
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+    await tool.handler({ toolId: 't1' }, ctx);
+    expect(timeoutOf()).toBe(DEFAULT_DELEGATED_TOOL_TIMEOUT_MS);
+  });
+
+  // Each of these would otherwise arm a nonsensical timer. `0` and negatives are the dangerous
+  // pair: passed through, they make every human-in-the-loop call fail instantly — the exact
+  // 15s-default failure this route's deadline exists to prevent, but worse.
+  it.each([
+    ['zero', 0],
+    ['negative', -1],
+    ['NaN (a malformed env var parsed with Number)', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ])('falls back to the default rather than arming a %s deadline', async (_label, value) => {
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1', delegatedToolTimeoutMs: value });
+    await tool.handler({ toolId: 't1' }, ctx);
+    expect(timeoutOf()).toBe(DEFAULT_DELEGATED_TOOL_TIMEOUT_MS);
+  });
+});
+
+// REF-002's other half — the deadline's rationale used to name one host's file by product name in
+// generic engine source — is deliberately NOT asserted here. `pnpm guard`'s R5-neutrality rule
+// already scans every file under packages/**, and it flagged this exact file until the comment was
+// rewritten. Restating it as a unit test would mean writing the forbidden strings into this file to
+// match against, which trips that same repo-wide rule. The gate is `pnpm guard`.

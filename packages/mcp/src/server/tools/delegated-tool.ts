@@ -28,7 +28,7 @@ import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 
-/** Response shape `POST /api/delegated-tool-calls` (`packages/http/src/delegated-tools.ts`) returns. */
+/** Response shape `POST /api/delegated-tool-calls` (`packages/http-kit/src/delegated-tools.ts`) returns. */
 interface DelegatedToolExecuteResponse {
   readonly result: unknown;
 }
@@ -42,12 +42,15 @@ interface DelegatedToolExecuteResponse {
  * reading a dialog does not answer in fifteen seconds. Left at the default, every human-in-the-loop
  * tool call fails at 15 s regardless of what the human eventually clicks.
  *
- * Six minutes because the operative deadline lives elsewhere and is tighter: the exchange's own
- * total-lifetime ceiling (5.5 min in Tovu's `surface-exchanges.ts`) ends the call with an explicit
- * "no answer" outcome first. This is the backstop behind that, not the budget itself — half a minute
- * of headroom so the exchange is always what gives up. It stays inside every measured agent-CLI
- * ceiling (Claude Code 30 min idle, Gemini CLI 10 min), which is what makes hop #3 stop being the
- * binding constraint.
+ * Six minutes is a *backstop*, not a budget. It assumes the host runs a tighter total-lifetime
+ * ceiling on the exchange itself, which ends the call with an explicit "no answer" outcome first;
+ * the extra headroom here just guarantees the exchange is always what gives up. Six minutes also
+ * stays inside every measured agent-CLI ceiling (Claude Code 30 min idle, Gemini CLI 10 min),
+ * which is what keeps this hop from becoming the binding constraint.
+ *
+ * A host whose exchange ceiling differs should override it via `delegatedToolTimeoutMs` rather
+ * than have its number encoded here — the engine has no way to know a given host's exchange
+ * policy, and hard-coding one host's value in generic engine source is what this default replaced.
  *
  * This is also, transitively, the hard cap on a multi-turn human conversation driven from one tool
  * call: however many turns an exchange takes, they all happen inside this one request. Raising that
@@ -57,13 +60,24 @@ interface DelegatedToolExecuteResponse {
  * than fifteen seconds. The daemon-side alternative does not exist to lean on — `ToolDescriptor.timeoutMs`
  * is unset on every registration today, so `ToolExecutor` arms no timer of its own.
  */
-const DELEGATED_TOOL_TIMEOUT_MS = 6 * 60 * 1000;
+export const DEFAULT_DELEGATED_TOOL_TIMEOUT_MS = 6 * 60 * 1000;
 
 export interface CreateExecuteDelegatedToolToolOptions {
   /** The one run this MCP server process — and therefore this tool instance — is scoped to. */
   readonly runId: string;
   /** Generates each call's `toolUseId`. @default node:crypto randomUUID */
   readonly generateToolUseId?: () => string;
+  /**
+   * Request deadline for one delegated tool call, in milliseconds. Set this to match the host's
+   * own exchange total-lifetime ceiling plus headroom, so the exchange — not this request — is
+   * what ends a call the human never answers.
+   *
+   * Must be a finite number greater than zero; anything else falls back to the default rather
+   * than arming a nonsensical (or immediately-firing) timer.
+   *
+   * @default DEFAULT_DELEGATED_TOOL_TIMEOUT_MS (6 min)
+   */
+  readonly delegatedToolTimeoutMs?: number;
 }
 
 /**
@@ -75,6 +89,11 @@ export interface CreateExecuteDelegatedToolToolOptions {
 export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedToolToolOptions): McpToolDef {
   const { runId } = options;
   const generateToolUseId = options.generateToolUseId ?? randomUUID;
+  const requested = options.delegatedToolTimeoutMs;
+  const timeoutMs =
+    typeof requested === 'number' && Number.isFinite(requested) && requested > 0
+      ? requested
+      : DEFAULT_DELEGATED_TOOL_TIMEOUT_MS;
 
   return {
     name: 'execute_delegated_tool',
@@ -123,7 +142,7 @@ export function createExecuteDelegatedToolTool(options: CreateExecuteDelegatedTo
       };
       const data = await postDaemonJson<DelegatedToolExecuteResponse>(ctx.baseUrl, '/api/delegated-tool-calls', body, {
         ...daemonCallOptions(ctx),
-        timeoutMs: DELEGATED_TOOL_TIMEOUT_MS,
+        timeoutMs,
       });
       return data.result;
     },
