@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MutableRefObject,
 } from 'react';
-import { Icon } from './Icon';
+import { Icon } from './Icon.js';
 
 export type WorkingDirPlacement = 'down' | 'up';
 

@@ -6,7 +6,7 @@ import {
   injectBaseHref,
   isFullHtmlDocument,
   wrapFragmentAsDocument,
-} from '../sandboxed-document';
+} from '../sandboxed-document.js';
 
 describe('isFullHtmlDocument', () => {
   it('recognizes a doctype document', () => {

@@ -9,7 +9,7 @@
 // hook-testable in isolation.
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
-import { Icon } from './Icon';
+import { Icon } from './Icon.js';
 
 export type PaletteId =
   | 'coral'

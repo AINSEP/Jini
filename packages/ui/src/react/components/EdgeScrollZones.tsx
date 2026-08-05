@@ -3,7 +3,7 @@
 // visible/interactive when there is content to scroll toward (driven by
 // `edges`).
 import type { EdgeAutoScroll } from '../hooks/useEdgeAutoScroll.js';
-import { Icon } from './Icon';
+import { Icon } from './Icon.js';
 
 export function EdgeScrollZones({
   edges,

@@ -13,7 +13,7 @@ import {
   type MutableRefObject,
 } from 'react';
 
-import { Icon, type IconName } from './Icon';
+import { Icon, type IconName } from './Icon.js';
 
 export interface HeaderMenuAction {
   id: string;

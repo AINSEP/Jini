@@ -21,7 +21,7 @@ import {
   type MutableRefObject,
 } from 'react';
 
-import { Icon } from './Icon';
+import { Icon } from './Icon.js';
 
 export type ToastTone = 'default' | 'success' | 'error' | 'loading';
 export type ToastPlacement = 'bottom' | 'top';

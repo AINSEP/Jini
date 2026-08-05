@@ -1,6 +1,6 @@
-import { escapeHtmlAttribute } from './html-utils';
-import { buildSandboxedDocument } from './sandboxed-document';
-import type { SandboxedDocumentOptions } from './types';
+import { escapeHtmlAttribute } from './html-utils.js';
+import { buildSandboxedDocument } from './sandboxed-document.js';
+import type { SandboxedDocumentOptions } from './types.js';
 
 export interface NewTabPreviewOptions extends SandboxedDocumentOptions {
   /** Allow `window.showModalDialog`-style native modals (`alert`/`confirm`/`prompt`) inside the sandboxed frame. Defaults to `false`. */

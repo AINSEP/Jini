@@ -1,5 +1,5 @@
-import { escapeHtmlAttribute, injectAfterHeadOpen, injectBeforeHeadEnd } from './html-utils';
-import type { SandboxedDocumentOptions, SandboxedDocumentResult } from './types';
+import { escapeHtmlAttribute, injectAfterHeadOpen, injectBeforeHeadEnd } from './html-utils.js';
+import type { SandboxedDocumentOptions, SandboxedDocumentResult } from './types.js';
 
 /** Whether `html` already looks like a full document (starts with `<!doctype>` or `<html>`), vs. a bare fragment. */
 export function isFullHtmlDocument(html: string): boolean {

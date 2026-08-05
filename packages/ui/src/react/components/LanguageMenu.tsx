@@ -6,7 +6,7 @@ import {
   useState,
   type MutableRefObject,
 } from 'react';
-import { Icon } from './Icon';
+import { Icon } from './Icon.js';
 
 // Shape lives in `features/language/types.ts` (plain data, shared with the
 // settings Language tab); re-exported so existing importers of this module

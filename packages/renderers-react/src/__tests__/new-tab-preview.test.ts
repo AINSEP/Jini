@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildSandboxedPreviewPage, openSandboxedPreviewInNewTab } from '../new-tab-preview';
+import { buildSandboxedPreviewPage, openSandboxedPreviewInNewTab } from '../new-tab-preview.js';
 
 describe('buildSandboxedPreviewPage', () => {
   it('embeds the sandboxed document as the inner iframe srcdoc', () => {

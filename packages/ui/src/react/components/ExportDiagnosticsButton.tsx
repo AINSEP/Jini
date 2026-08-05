@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Icon } from './Icon';
+import { Icon } from './Icon.js';
 
 /**
  * Injectable bridge for a native (e.g. Electron) shell that can save the

@@ -4,7 +4,7 @@ import {
   injectAfterHeadOpen,
   injectBeforeBodyEnd,
   injectBeforeHeadEnd,
-} from '../html-utils';
+} from '../html-utils.js';
 
 describe('escapeHtmlAttribute', () => {
   it('escapes &, ", <, > in that order', () => {

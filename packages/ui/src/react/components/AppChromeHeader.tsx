@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { RemixIcon } from './RemixIcon';
+import { RemixIcon } from './RemixIcon.js';
 
 interface Props {
   actions?: ReactNode;

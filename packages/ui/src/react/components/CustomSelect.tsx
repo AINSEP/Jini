@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Icon } from './Icon';
+import { Icon } from './Icon.js';
 
 export interface CustomSelectOption {
   value: string;

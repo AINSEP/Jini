@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
-import type { SandboxBridgeHandler, SandboxBridgeMessage } from './types';
+import type { SandboxBridgeHandler, SandboxBridgeMessage } from './types.js';
 
 export interface UseSandboxBridgeOptions {
   /** Ref to the sandboxed iframe this bridge talks to. */

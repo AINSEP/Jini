@@ -1,8 +1,8 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { RefObject } from 'react';
-import { useSandboxBridge } from '../sandbox-bridge';
-import type { SandboxBridgeMessage } from '../types';
+import { useSandboxBridge } from '../sandbox-bridge.js';
+import type { SandboxBridgeMessage } from '../types.js';
 
 function makeFakeIframe(): HTMLIFrameElement {
   const postMessage = vi.fn();
