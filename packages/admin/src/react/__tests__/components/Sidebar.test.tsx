@@ -143,6 +143,25 @@ describe('Sidebar.Nav', () => {
     expect(within(soon as HTMLElement).getByText('Soon')).toBeInTheDocument();
   });
 
+  it('renders a `soon` + `soonPreviewable` item as a real link, badge kept', () => {
+    // Own fixture rather than the shared `panels`/`groups` above: adding a second `soon` item to
+    // the shared one would give the "override the soon badge text" test two "Coming soon" matches
+    // for a `getByText` that expects one.
+    const previewablePanels: AdminPanel<null>[] = [
+      { id: 'posts', render: null, nav: { label: 'Posts' } },
+      { id: 'deployment', render: null, nav: { label: 'Deployment', soon: true, soonPreviewable: true } },
+    ];
+    render(
+      <Sidebar activeId="posts">
+        <Sidebar.Nav groups={buildNav(previewablePanels)} />
+      </Sidebar>,
+    );
+    const link = screen.getByRole('link', { name: /Deployment/ });
+    expect(link).toHaveAttribute('href', '/admin/deployment');
+    expect(link).not.toHaveAttribute('aria-disabled');
+    expect(within(link).getByText('Soon')).toBeInTheDocument();
+  });
+
   it('tolerates a nav entry with no icon', () => {
     // `AdminNavEntry.icon` is optional so a panel can be listed before anyone has drawn it one.
     expect(() => renderSidebar()).not.toThrow();

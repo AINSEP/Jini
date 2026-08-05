@@ -323,7 +323,7 @@ function SidebarNav(props: SidebarNavProps) {
             if (props.renderItem) {
               return <Fragment key={item.id}>{props.renderItem(item, { active, href, collapsed })}</Fragment>;
             }
-            if (item.soon) {
+            if (item.soon && !item.soonPreviewable) {
               return (
                 <div className="cms-item is-soon" aria-disabled="true" key={item.id}>
                   <Icon markup={item.icon ?? ''} />
@@ -333,6 +333,24 @@ function SidebarNav(props: SidebarNavProps) {
                       color is what keeps the item reading as disabled once the badge is gone. */}
                   <span className="soon">{props.soonLabel ?? 'Soon'}</span>
                 </div>
+              );
+            }
+            if (item.soon) {
+              // `soonPreviewable`: same real `<a>` as a shipped row (active state, aria-current,
+              // rail tooltip, cmd-click/copy-link all work identically) with the `soon` badge kept
+              // alongside the label — the announcement stays honest, but the row is no longer inert.
+              return (
+                <a
+                  key={item.id}
+                  className={`cms-item is-soon${active ? ' active' : ''}`}
+                  href={href}
+                  aria-current={active ? 'page' : undefined}
+                  {...railTooltipProps(item.label)}
+                >
+                  <Icon markup={item.icon ?? ''} />
+                  <span>{item.label}</span>
+                  <span className="soon">{props.soonLabel ?? 'Soon'}</span>
+                </a>
               );
             }
             return (

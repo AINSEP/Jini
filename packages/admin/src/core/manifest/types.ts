@@ -90,6 +90,15 @@ export interface AdminNavEntry {
   readonly order?: number;
   /** Renders as a disabled row — announced but not yet built. */
   readonly soon?: boolean;
+  /**
+   * When `soon` is set, renders the row as a REAL link (not a disabled non-link) while still
+   * showing the `soon` badge, so an operator can click through and preview the unfinished screen
+   * instead of the row being inert. Ignored when `soon` is falsy — there is nothing to opt into on
+   * a shipped row. Opt-in rather than a `soon` behavior change: the existing "disabled non-link"
+   * shape stays the default for a panel author who has not deliberately decided the in-progress
+   * screen is safe to preview.
+   */
+  readonly soonPreviewable?: boolean;
 }
 
 /**
