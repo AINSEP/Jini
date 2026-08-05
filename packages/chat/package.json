@@ -37,7 +37,8 @@
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.js",
       "default": "./dist/react/index.js"
-    }
+    },
+    "./react/styles/reference.css": "./dist/react/styles/reference.css"
   },
   "files": [
     "dist",
