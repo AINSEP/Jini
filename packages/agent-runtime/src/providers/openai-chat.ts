@@ -67,7 +67,7 @@
  * reasoning.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupAddress } from './connection-guard.js';
 import { decodeSseStream } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -228,6 +228,8 @@ export interface OpenAiCompatibleRequestInit {
   readonly url: string;
   readonly headers: Record<string, string>;
   readonly body: Record<string, unknown>;
+  /** The address `validateBaseUrlResolved` validated for `url`'s hostname, forwarded verbatim to `pinnedFetch` so the connection dials it directly instead of re-resolving DNS. `undefined` for the loopback-literal / IP-literal hosts that skip resolution — see `pinnedFetch`'s doc. */
+  readonly pinnedAddress?: DnsLookupAddress;
   readonly signal?: AbortSignal;
   /** Secrets to strip out of any error message surfaced to the caller (e.g. the request's API key) — forwarded verbatim to `redactSecrets`'s `exactSecrets` parameter. */
   readonly redactSecretsList: ReadonlyArray<string | undefined | null>;
@@ -271,20 +273,26 @@ export async function runOpenAiCompatibleRequest(init: OpenAiCompatibleRequestIn
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = (await fetch(init.url, {
-      method: 'POST',
-      headers: init.headers,
-      body: JSON.stringify(init.body),
-      // The caller's SSRF check (`validateBaseUrlResolved`) only ever sees the
-      // ORIGINAL url. Following a redirect would let a public, guard-passing
-      // endpoint hand back a `302 -> http://169.254.169.254/...` and reach the
-      // address the guard exists to refuse — with the provider auth headers
-      // still attached. `model-catalog.ts`'s own fetch already refuses
-      // redirects for the same reason; a redirecting chat-completions endpoint
-      // is not a thing any supported provider does.
-      redirect: 'error',
-      ...(init.signal ? { signal: init.signal } : {}),
-    })) as unknown as typeof response;
+    response = await pinnedFetch(
+      init.url,
+      {
+        method: 'POST',
+        headers: init.headers,
+        body: JSON.stringify(init.body),
+        // The caller's SSRF check (`validateBaseUrlResolved`) only ever sees the
+        // ORIGINAL url. Following a redirect would let a public, guard-passing
+        // endpoint hand back a `302 -> http://169.254.169.254/...` and reach the
+        // address the guard exists to refuse — with the provider auth headers
+        // still attached. `model-catalog.ts`'s own fetch already refuses
+        // redirects for the same reason; a redirecting chat-completions endpoint
+        // is not a thing any supported provider does. `pinnedFetch` never
+        // follows one regardless (see its doc); `redirect: 'error'` here is
+        // self-documentation, not the mechanism.
+        redirect: 'error',
+        ...(init.signal ? { signal: init.signal } : {}),
+      },
+      init.pinnedAddress,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     onEvent({ type: 'error', message: redactSecrets(message, init.redactSecretsList) });
@@ -435,6 +443,7 @@ async function runSingleOpenAiRequest(
     url: openAiRequestUrl(options.baseUrl),
     headers: openAiHeaders(options),
     body: openAiRequestBody(options, messages),
+    ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
     redactSecretsList: [options.apiKey],
     guardMessageId: 'openai-turn',

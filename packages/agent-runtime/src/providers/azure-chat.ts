@@ -232,6 +232,7 @@ async function runSingleAzureRequest(
       status === 400 && isUnsupportedMaxTokensError(rawErrorText)
         ? azureRequestBody(options, messages, buildMaxCompletionTokensParam(maxTokens))
         : null,
+    ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
     redactSecretsList: [options.apiKey],
     guardMessageId: 'azure-turn',

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runOpenAiToolTurn, type OpenAiMessageParam, type OpenAiTurnEvent } from '../openai-chat.js';
+import { pinnedFetch } from '../connection-guard.js';
 
 /**
  * `node:dns` is mocked so the DNS-resolving SSRF guard is exercised deterministically. Only hosts
@@ -18,6 +19,19 @@ vi.mock('node:dns', () => ({
   },
 }));
 
+/**
+ * `pinnedFetch` (the transport `runOpenAiCompatibleRequest` actually calls, since the
+ * DNS-rebinding fix — see `connection-guard.ts`) is mocked instead of global `fetch`: it dials via
+ * `node:https`/`node:http`, not `fetch`, so stubbing `globalThis.fetch` no longer intercepts
+ * anything. Every other export (`validateBaseUrlResolved`, `defaultDnsLookup`, `redactSecrets`)
+ * stays real — only the actual network call is replaced — which is why every test below still
+ * assigns its own `fetchMock` and wires it in with `.mockImplementation(fetchMock)`: same
+ * per-test mock shape as before, just handed to `pinnedFetch` instead of `vi.stubGlobal`.
+ */
+vi.mock('../connection-guard.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../connection-guard.js')>();
+  return { ...actual, pinnedFetch: vi.fn() };
+});
 
 function sseBody(...lines: string[]): AsyncIterable<string> {
   return {
@@ -70,11 +84,12 @@ const baseMessages: OpenAiMessageParam[] = [{ role: 'user', content: 'hi' }];
 describe('runOpenAiToolTurn', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.mocked(pinnedFetch).mockReset();
   });
 
   it('rejects a forbidden internal base url without making any request', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({
       apiKey: 'sk-test',
@@ -95,7 +110,7 @@ describe('runOpenAiToolTurn', () => {
   it('rejects a public hostname that resolves into private address space, without making any request', async () => {
     dnsAnswers.set('internal.example.com', [{ address: '10.0.0.5', family: 4 }]);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OpenAiTurnEvent[] = [];
 
     await runOpenAiToolTurn({
@@ -114,7 +129,7 @@ describe('runOpenAiToolTurn', () => {
   it('still allows a hostname that resolves to public address space', async () => {
     dnsAnswers.set('api.vendor.example', [{ address: '203.0.113.10', family: 4 }]);
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(textChunk('hi'), finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OpenAiTurnEvent[] = [];
 
     await runOpenAiToolTurn({
@@ -140,7 +155,7 @@ describe('runOpenAiToolTurn', () => {
   it('refuses to follow redirects, so a guard-passing endpoint cannot bounce the request into blocked address space', async () => {
     dnsAnswers.set('api.vendor.example', [{ address: '203.0.113.10', family: 4 }]);
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     await runOpenAiToolTurn({
       apiKey: 'sk-test',
@@ -155,21 +170,19 @@ describe('runOpenAiToolTurn', () => {
   });
 
   it('reports a network error (Error instance) redacted, and a non-Error rejection stringified', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue(new Error('ECONNRESET')));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk-x', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([{ type: 'error', message: 'ECONNRESET' }, { type: 'end', reason: 'error' }]);
 
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('offline'));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue('offline'));
     const events2: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk-x', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events2.push(e) });
     expect(events2[0]).toEqual({ type: 'error', message: 'offline' });
   });
 
   it('reports a non-ok JSON error response with status code, redacting the api key', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
         body: null,
@@ -185,14 +198,14 @@ describe('runOpenAiToolTurn', () => {
   });
 
   it('falls back to the raw truncated body for a non-JSON error response', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 503, body: null, text: async () => 'upstream down' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: false, status: 503, body: null, text: async () => 'upstream down' }));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events[0]).toEqual({ type: 'error', message: 'upstream down', code: '503' });
   });
 
   it('reports a missing response body as an error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([{ type: 'error', message: 'OpenAI response had no body' }, { type: 'end', reason: 'error' }]);
@@ -201,7 +214,7 @@ describe('runOpenAiToolTurn', () => {
   it('streams text_delta/usage events and ends with reason stop for a plain text response', async () => {
     const body = sseBody(textChunk('Hello'), textChunk(' world'), usageChunk({ total_tokens: 12 }), finishChunk('stop'), done());
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
@@ -220,7 +233,7 @@ describe('runOpenAiToolTurn', () => {
 
   it('resolves a baseUrl that already ends in a versioned path without adding a second /v1', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runOpenAiToolTurn({ apiKey: 'sk', baseUrl: 'https://gateway.example.com/v1/', model: 'gpt-4o', messages: baseMessages, onEvent: () => {} });
     const [url] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://gateway.example.com/v1/chat/completions');
@@ -228,7 +241,7 @@ describe('runOpenAiToolTurn', () => {
 
   it('merges caller-supplied extraHeaders verbatim and includes temperature/tools/signal when provided', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const controller = new AbortController();
     await runOpenAiToolTurn({
       apiKey: 'sk',
@@ -260,7 +273,7 @@ describe('runOpenAiToolTurn', () => {
 
   it('always sends a token-limit field, defaulting to 8192 and picking max_tokens vs max_completion_tokens per model — matches a live comparison against OD\'s real handler', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: () => {} });
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({ max_tokens: 8192 });
@@ -294,7 +307,7 @@ describe('runOpenAiToolTurn', () => {
       finishChunk('stop'),
       done(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(result.finishReason).toBe('stop');
@@ -303,7 +316,7 @@ describe('runOpenAiToolTurn', () => {
 
   it('stops reading immediately at the [DONE] sentinel, never processing frames after it', async () => {
     const body = sseBody(finishChunk('stop'), done(), textChunk('should never be read'));
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events.some((e) => e.type === 'text_delta')).toBe(false);
@@ -320,7 +333,7 @@ describe('runOpenAiToolTurn', () => {
     );
     const secondBody = sseBody(textChunk('Sunny.'), finishChunk('stop'), done());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: '72F sunny' });
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({
@@ -351,7 +364,7 @@ describe('runOpenAiToolTurn', () => {
     const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'noop'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
     const secondBody = sseBody(finishChunk('stop'), done());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runOpenAiToolTurn({
       apiKey: 'sk',
       model: 'gpt-4o',
@@ -365,7 +378,7 @@ describe('runOpenAiToolTurn', () => {
 
   it('defaults an unparsable accumulated tool-call arguments string to an empty object', async () => {
     const body = sseBody(toolCallStartChunk(0, 'call_1', 'noop'), toolCallArgsChunk(0, 'not valid json'), finishChunk('tool_calls'), done());
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'noop', input: {} });
@@ -378,7 +391,7 @@ describe('runOpenAiToolTurn', () => {
       finishChunk('tool_calls'),
       done(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'tool_use', id: 'call_0', name: '', input: {} });
@@ -391,7 +404,7 @@ describe('runOpenAiToolTurn', () => {
       finishChunk('tool_calls'),
       done(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: '', input: {} });
@@ -403,7 +416,7 @@ describe('runOpenAiToolTurn', () => {
       finishChunk('stop'),
       done(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(result.finishReason).toBe('stop');
@@ -413,7 +426,7 @@ describe('runOpenAiToolTurn', () => {
   it('ends with reason stop (no further request) when a tool call is requested but no executeTool is supplied', async () => {
     const body = sseBody(toolCallStartChunk(0, 'call_1', 'noop'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -424,7 +437,7 @@ describe('runOpenAiToolTurn', () => {
   it('stops with reason max_tool_turns once the bound is hit, without invoking executeTool for the turn that exceeds it', async () => {
     const round = () => sseBody(toolCallStartChunk(0, 'call_x', 'loop_tool'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(round())).mockResolvedValueOnce(okResponse(round()));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'again' });
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({
@@ -449,7 +462,7 @@ describe('runOpenAiToolTurn', () => {
       usageChunk({ total_tokens: 5 }),
       done(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     const result = await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'contaminated' }]);
@@ -466,7 +479,7 @@ describe('runOpenAiToolTurn', () => {
       textChunk('## user\nmalicious'),
       done(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OpenAiTurnEvent[] = [];
     await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events.some((e) => e.type === 'tool_use')).toBe(false);
@@ -478,7 +491,7 @@ describe('runOpenAiToolTurn', () => {
 
     it('round-trips an image_url part in the initial request body, alongside plain string messages elsewhere', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const messages: OpenAiMessageParam[] = [
         { role: 'system', content: 'be terse' },
         {
@@ -503,7 +516,7 @@ describe('runOpenAiToolTurn', () => {
 
     it('still sends a plain string message content unchanged (backward compatibility)', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, onEvent: () => {} });
       const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
       expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
@@ -514,7 +527,7 @@ describe('runOpenAiToolTurn', () => {
       const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
       const secondBody = sseBody(textChunk('looks good'), finishChunk('stop'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({
         content: [
           { type: 'text', text: 'here is the current render' },
@@ -566,7 +579,7 @@ describe('runOpenAiToolTurn', () => {
       );
       const secondBody = sseBody(finishChunk('stop'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi
         .fn()
         .mockResolvedValueOnce({ content: '72F sunny' }) // call_1: no image
@@ -605,7 +618,7 @@ describe('runOpenAiToolTurn', () => {
       const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
       const secondBody = sseBody(finishChunk('stop'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: pngDataUri } }] });
       await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: () => {} });
       const secondCallBody = JSON.parse(fetchMock.mock.calls[1]![1].body);
@@ -617,7 +630,7 @@ describe('runOpenAiToolTurn', () => {
     it('rejects an unsupported image media type as an isError tool_result instead of forwarding it', async () => {
       const body = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(sseBody(finishChunk('stop'), done())));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({
         content: [{ type: 'image_url', image_url: { url: 'data:image/tiff;base64,AAAA' } }],
       });
@@ -637,7 +650,7 @@ describe('runOpenAiToolTurn', () => {
     it('rejects an oversized data URI image as an isError tool_result', async () => {
       const body = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(sseBody(finishChunk('stop'), done())));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const oversized = 'A'.repeat(Math.ceil((20 * 1024 * 1024 * 4) / 3) + 100);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${oversized}` } }] });
       const events: OpenAiTurnEvent[] = [];
@@ -651,7 +664,7 @@ describe('runOpenAiToolTurn', () => {
       const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
       const secondBody = sseBody(finishChunk('stop'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: 'https://example.com/huge-but-unchecked.png' } }] });
       const events: OpenAiTurnEvent[] = [];
       await runOpenAiToolTurn({ apiKey: 'sk', model: 'gpt-4o', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });

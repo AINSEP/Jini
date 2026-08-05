@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runAzureToolTurn, type AzureMessageParam, type AzureTurnEvent } from '../azure-chat.js';
+import { pinnedFetch } from '../connection-guard.js';
+
+/**
+ * `pinnedFetch` (the transport `runOpenAiCompatibleRequest` actually calls on Azure's behalf,
+ * since the DNS-rebinding fix — see `connection-guard.ts`) is mocked instead of global `fetch`: it
+ * dials via `node:https`/`node:http`, not `fetch`, so stubbing `globalThis.fetch` no longer
+ * intercepts anything. Every other export stays real — only the actual network call is replaced.
+ */
+vi.mock('../connection-guard.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../connection-guard.js')>();
+  return { ...actual, pinnedFetch: vi.fn() };
+});
 
 function sseBody(...lines: string[]): AsyncIterable<string> {
   return {
@@ -52,11 +64,12 @@ const baseMessages: AzureMessageParam[] = [{ role: 'user', content: 'hi' }];
 describe('runAzureToolTurn', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.mocked(pinnedFetch).mockReset();
   });
 
   it('rejects a forbidden internal base url without making any request', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AzureTurnEvent[] = [];
     const result = await runAzureToolTurn({
       apiKey: 'azure-key',
@@ -71,7 +84,7 @@ describe('runAzureToolTurn', () => {
   });
 
   it('reports a network error redacted', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue(new Error('ECONNRESET')));
     const events: AzureTurnEvent[] = [];
     await runAzureToolTurn({
       apiKey: 'azure-secret',
@@ -87,9 +100,7 @@ describe('runAzureToolTurn', () => {
   });
 
   it('reports a non-ok JSON error response with status code, redacting the api key', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
         body: null,
@@ -111,7 +122,7 @@ describe('runAzureToolTurn', () => {
   });
 
   it('reports a missing response body as an error, using the Azure OpenAI provider label', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
     const events: AzureTurnEvent[] = [];
     await runAzureToolTurn({
       apiKey: 'k',
@@ -129,7 +140,7 @@ describe('runAzureToolTurn', () => {
   it('builds the deployment URL with api-version, uses the api-key header (not Authorization), and streams text_delta/usage through to a stop end', async () => {
     const body = sseBody(textChunk('Hello'), usageChunk({ total_tokens: 12 }), finishChunk('stop'), done());
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AzureTurnEvent[] = [];
     const result = await runAzureToolTurn({
       apiKey: 'azure-key',
@@ -154,7 +165,7 @@ describe('runAzureToolTurn', () => {
 
   it('uses a caller-supplied apiVersion instead of the default, and merges extraHeaders with no hardcoded product-identity header', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runAzureToolTurn({
       apiKey: 'k',
       baseUrl: 'https://my-resource.openai.azure.com/',
@@ -172,7 +183,7 @@ describe('runAzureToolTurn', () => {
 
   it('always sends max_tokens (never max_completion_tokens, regardless of deployment name), defaulting to 8192 — matches a live comparison against OD\'s real azure handler', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} });
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({ max_tokens: 8192 });
@@ -192,7 +203,7 @@ describe('runAzureToolTurn', () => {
 
   it('forwards an explicit temperature and omits the field entirely when the caller sets none', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', temperature: 0.2, messages: baseMessages, onEvent: () => {} });
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body).temperature).toBe(0.2);
@@ -207,14 +218,14 @@ describe('runAzureToolTurn', () => {
   it('sends temperature 0 rather than treating it as absent', async () => {
     // `0` is the most useful value a caller can pick and the easiest to lose to a truthiness check.
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', temperature: 0, messages: baseMessages, onEvent: () => {} });
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body).temperature).toBe(0);
   });
 
   it('forwards a non-empty tools array verbatim, and omits the field for an empty one', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const tools = [{ type: 'function' as const, function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } } }];
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', tools, messages: baseMessages, onEvent: () => {} });
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body).tools).toEqual(tools);
@@ -227,7 +238,7 @@ describe('runAzureToolTurn', () => {
 
   it('passes a caller AbortSignal through to fetch so a cancelled turn actually cancels the request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const controller = new AbortController();
     await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'd', signal: controller.signal, messages: baseMessages, onEvent: () => {} });
     expect(fetchMock.mock.calls[0]![1].signal).toBe(controller.signal);
@@ -239,7 +250,7 @@ describe('runAzureToolTurn', () => {
       .fn()
       .mockResolvedValueOnce({ ok: false, status: 400, body: null, text: async () => unsupportedParamError })
       .mockResolvedValueOnce(okResponse(sseBody(textChunk('ok'), finishChunk('stop'), done())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const events: AzureTurnEvent[] = [];
     const result = await runAzureToolTurn({
@@ -275,7 +286,7 @@ describe('runAzureToolTurn', () => {
       .fn()
       .mockResolvedValueOnce({ ok: false, status: 400, body: null, text: async () => unsupportedParamError })
       .mockResolvedValueOnce({ ok: false, status: 400, body: null, text: async () => unsupportedParamError });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const events: AzureTurnEvent[] = [];
     await runAzureToolTurn({
@@ -295,7 +306,7 @@ describe('runAzureToolTurn', () => {
 
   it('does not retry on a 400 unrelated to the token-limit field', async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 400, body: null, text: async () => JSON.stringify({ error: { message: 'Invalid request' } }) });
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const events: AzureTurnEvent[] = [];
     await runAzureToolTurn({
@@ -323,7 +334,7 @@ describe('runAzureToolTurn', () => {
     );
     const secondBody = sseBody(textChunk('Sunny.'), finishChunk('stop'), done());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: '72F sunny' });
     const events: AzureTurnEvent[] = [];
     const result = await runAzureToolTurn({
@@ -345,7 +356,7 @@ describe('runAzureToolTurn', () => {
   it('stops with reason max_tool_turns once the bound is hit, without invoking executeTool for the turn that exceeds it', async () => {
     const round = () => sseBody(toolCallStartChunk(0, 'call_x', 'loop_tool'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(round())).mockResolvedValueOnce(okResponse(round()));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'again' });
     const events: AzureTurnEvent[] = [];
     const result = await runAzureToolTurn({
@@ -371,7 +382,7 @@ describe('runAzureToolTurn', () => {
       usageChunk({ total_tokens: 5 }),
       done(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: AzureTurnEvent[] = [];
     const result = await runAzureToolTurn({
       apiKey: 'k',
@@ -390,7 +401,7 @@ describe('runAzureToolTurn', () => {
   it('ends with reason stop (no further request) when a tool call is requested but no executeTool is supplied', async () => {
     const body = sseBody(toolCallStartChunk(0, 'call_1', 'noop'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AzureTurnEvent[] = [];
     const result = await runAzureToolTurn({
       apiKey: 'k',
@@ -412,7 +423,7 @@ describe('runAzureToolTurn', () => {
     // untouched — `azureRequestBody` never strips or transforms it.
     it('round-trips an image_url part into the Azure deployment request body unchanged', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const messages: AzureMessageParam[] = [
         {
           role: 'user',
@@ -435,7 +446,7 @@ describe('runAzureToolTurn', () => {
 
     it('still sends a plain string message content unchanged (backward compatibility)', async () => {
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       await runAzureToolTurn({ apiKey: 'k', baseUrl: 'https://my-resource.openai.azure.com', model: 'gpt-4o-deployment', messages: baseMessages, onEvent: () => {} });
       const body = JSON.parse(fetchMock.mock.calls[0]![1].body);
       expect(body.messages).toEqual([{ role: 'user', content: 'hi' }]);
@@ -445,7 +456,7 @@ describe('runAzureToolTurn', () => {
       const firstBody = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
       const secondBody = sseBody(textChunk('looks good'), finishChunk('stop'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({
         content: [
           { type: 'text', text: 'here is the current render' },
@@ -490,7 +501,7 @@ describe('runAzureToolTurn', () => {
     it('rejects an unsupported image media type as an isError tool_result instead of forwarding it', async () => {
       const body = sseBody(toolCallStartChunk(0, 'call_1', 'screenshot'), toolCallArgsChunk(0, '{}'), finishChunk('tool_calls'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(sseBody(finishChunk('stop'), done())));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi.fn().mockResolvedValue({ content: [{ type: 'image_url', image_url: { url: 'data:image/tiff;base64,AAAA' } }] });
       const events: AzureTurnEvent[] = [];
       await runAzureToolTurn({
@@ -519,7 +530,7 @@ describe('runAzureToolTurn', () => {
       );
       const secondBody = sseBody(finishChunk('stop'), done());
       const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-      vi.stubGlobal('fetch', fetchMock);
+      vi.mocked(pinnedFetch).mockImplementation(fetchMock);
       const executeTool = vi
         .fn()
         .mockResolvedValueOnce({ content: '72F sunny' })
