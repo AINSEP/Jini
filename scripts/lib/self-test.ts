@@ -89,7 +89,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
   const failures: SelfTestFailure[] = [];
 
   try {
-    for (const packageName of ['core', 'http-kit', 'server', 'daemon', 'protocol']) {
+    for (const packageName of ['core', 'http-kit', 'server', 'daemon', 'protocol', 'ui', 'agent-runtime']) {
       writePackage(root, packageName);
     }
     write(root, 'packages/missing-metadata/package.json', '{"name":"@jini-ai/missing-metadata"}\n');
@@ -136,6 +136,37 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       root,
       'packages/http-kit/src/bad-r2-agentic-other-subpath.ts',
       `import { x } from '@jini-ai/agentic/other';\nexport { x };\n`,
+    );
+    // R2 exception #4 (@jini-ai/ui/mcp-ui) — same shape: must NOT be flagged, but a DIFFERENT
+    // subpath of the same package must still be caught, proving the exact-literal, not-a-pattern
+    // property one more time.
+    write(root, 'packages/http-kit/src/ok-r2-ui-mcp-ui.ts', `import { x } from '@jini-ai/ui/mcp-ui';\nexport { x };\n`);
+    write(
+      root,
+      'packages/http-kit/src/bad-r2-ui-other-subpath.ts',
+      `import { x } from '@jini-ai/ui/other';\nexport { x };\n`,
+    );
+    // R2 exception #5 (endpoint-policy.parity.test.ts's relative reach into agent-runtime/src) —
+    // named on BOTH the exact file and the exact resolved target, not either alone. Three cases,
+    // two of them from THIS SAME real fixture file (can't duplicate the literal path, so the
+    // "different target" case is a second import statement in the one file that holds the exempt
+    // import): the real file+target combo (must NOT be flagged); the same file reaching a
+    // DIFFERENT target in the same other package (must still be flagged — the target is part of
+    // the gate, not just the file); and a DIFFERENT file making the identical reach (must still be
+    // flagged — the file is part of the gate, not just the target).
+    write(
+      root,
+      'packages/ui/src/__tests__/utils/endpoint-policy.parity.test.ts',
+      [
+        "import { x } from '../../../../agent-runtime/src/providers/connection-guard.js';",
+        "import { y } from '../../../../agent-runtime/src/some-other-file.js';",
+        'export { x, y };',
+      ].join('\n') + '\n',
+    );
+    write(
+      root,
+      'packages/ui/src/__tests__/utils/bad-r2-different-file-same-target.test.ts',
+      `import { x } from '../../../../agent-runtime/src/providers/connection-guard.js';\nexport { x };\n`,
     );
     // R5: product-identity string + OD_ prefix.
     write(root, 'packages/core/src/bad-r5-string.ts', `export const NAME = 'Open Design';\n`);
@@ -392,6 +423,20 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-dom.ts'), 'R2 must NOT flag the gated @jini-ai/agentic/dom import'],
       [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-a2ui.ts'), 'R2 must NOT flag the gated @jini-ai/agentic/a2ui import'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-agentic-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini-ai/agentic/<subpath> — the exemption is the exact literal, not a pattern'],
+      [!has(engineViolations, 'R2-deep-path', 'ok-r2-ui-mcp-ui.ts'), 'R2 must NOT flag the gated @jini-ai/ui/mcp-ui import'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-ui-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini-ai/ui/<subpath> — the exemption is the exact literal, not a pattern'],
+      [
+        !engineViolations.some((v) => v.file.endsWith('endpoint-policy.parity.test.ts') && v.reason.includes('connection-guard.js')),
+        'R2 must NOT flag endpoint-policy.parity.test.ts\'s documented relative reach into agent-runtime/src/providers/connection-guard.js',
+      ],
+      [
+        engineViolations.some((v) => v.file.endsWith('endpoint-policy.parity.test.ts') && v.reason.includes('some-other-file.js')),
+        'R2 should still catch the SAME file reaching a DIFFERENT target in agent-runtime — the exact resolved target is part of the gate, not just the file',
+      ],
+      [
+        has(engineViolations, 'R2-deep-path', 'bad-r2-different-file-same-target.test.ts'),
+        'R2 should still catch a DIFFERENT file making the identical reach into connection-guard.js — the exact file is part of the gate, not just the target',
+      ],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-string.ts'), 'R5 should catch a product-identity string'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-prefix.ts'), 'R5 should catch an OD_ prefixed identifier'],
       [has(engineViolations, 'R6-internal-leak', 'bad-r6.ts'), 'R6 should catch a value import of authorizeToolInvocation outside daemon'],

@@ -385,7 +385,20 @@ export async function checkEngineBoundaries(
         }
         if (topSegment === 'packages') {
           const targetPackage = packageNameOf(resolvedRel);
-          if (targetPackage && ownPackage && targetPackage !== ownPackage) {
+          // R2 exception #4 (2026-08-05, REF-001 review backlog): this ONE file, reaching for this
+          // ONE target, on purpose — not a pattern. `endpoint-policy.parity.test.ts`'s own header
+          // comment explains why: it holds @jini-ai/ui's endpoint-policy.ts and agent-runtime's
+          // connection-guard.ts in agreement by comparing them from SOURCE. Importing the built
+          // @jini-ai/agent-runtime package instead would compare against its (possibly stale) dist,
+          // silently defeating the one thing this test exists to catch — source-level drift between
+          // two independently-maintained copies of the same block-list logic. Gated on both the
+          // exact file AND the exact resolved target, not on "any relative reach from this file" or
+          // "any test file reaching into agent-runtime" — a second unrelated cross-package import
+          // added to this same file later would still be caught.
+          const isEndpointPolicyParitySourceComparison =
+            file === 'packages/ui/src/__tests__/utils/endpoint-policy.parity.test.ts' &&
+            resolvedRel === 'packages/agent-runtime/src/providers/connection-guard.js';
+          if (targetPackage && ownPackage && targetPackage !== ownPackage && !isEndpointPolicyParitySourceComparison) {
             violations.push({
               rule: 'R2-deep-path',
               file,
@@ -432,11 +445,22 @@ export async function checkEngineBoundaries(
             // only the A2UI protocol shouldn't have to pull in agentic's page-control vocabulary to
             // get it. @jini-ai/chat-react's A2uiSurfaceCard is the one real consumer today. Gated to
             // this exact literal, same as ./dom — no other subpath is exempted by this branch.
+          } else if (spec === '@jini-ai/ui/mcp-ui') {
+            // R2 exception #4 (2026-08-05, REF-001 review backlog): @jini-ai/ui ships a genuinely
+            // second entry point on purpose, same shape as @jini-ai/agentic's ./dom and ./a2ui above
+            // — checked before adding this branch, not assumed: @jini-ai/ui's root barrel
+            // (packages/ui/src/index.ts) does NOT re-export McpUiHost/parseUIResource/
+            // MCP_UI_MIME_TYPE/etc., and ./mcp-ui maps to a genuinely different built file
+            // (dist/react/mcp-ui/index.js) than "." (dist/index.js) — switching the three real
+            // consumers (packages/chat/src/react/components/McpUiSurfaceCard.tsx and its test, plus
+            // create-mcp-ui-tool-caller.ts) to the bare "@jini-ai/ui" specifier would not compile.
+            // Gated to this exact literal, same as the other three — no other @jini-ai/ui subpath is
+            // exempted by this branch.
           } else {
             violations.push({
               rule: 'R2-deep-path',
               file,
-              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui) is allowed`,
+              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed`,
             });
           }
         }
