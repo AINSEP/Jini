@@ -222,6 +222,29 @@ export {
   useArtifactRegistry,
 } from './hooks/context.js';
 
+/**
+ * REF-001 Step D (2026-08-05): both newly public. `ChatPane`'s own composition already depended
+ * on both — `useLatestOperation` for the "only the newest attempt may write state" guard every
+ * async hook in this package needs, `definedProps` for collapsing `exactOptionalPropertyTypes`
+ * prop-forwarding ternaries — which was itself the finding: a consumer building an equivalent
+ * custom async hook or an equivalent prop-forwarding composition could not reach either one, so
+ * `ChatPane` was doing something the published API didn't let anyone else do. Both are general
+ * building blocks with no `ChatPane`-specific coupling (see each module's own doc), not composition
+ * internals, so exporting them is a surface completion, not a leak. See
+ * `scripts/check-chatpane-public-surface.ts` (R10) and
+ * ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md §9.
+ */
+export {
+  normalizeOperationError,
+  useLatestOperation,
+} from './hooks/useLatestOperation.js';
+export type {
+  LatestOperation,
+  OperationToken,
+} from './hooks/useLatestOperation.js';
+export { definedProps } from './util/defined-props.js';
+export type { DefinedProps } from './util/defined-props.js';
+
 export { TodoCard } from './components/TodoCard.js';
 export type { TodoCardProps } from './components/TodoCard.js';
 /**

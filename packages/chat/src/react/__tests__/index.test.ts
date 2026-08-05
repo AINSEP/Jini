@@ -80,6 +80,13 @@ describe('index barrel', () => {
     expect('CREDENTIAL_STATUS_SORT_PRIORITY' in barrel).toBe(false);
   });
 
+  it('re-exports the two general-purpose utilities newly made public for REF-001 Step D (2026-08-05)', () => {
+    expect(typeof barrel.useLatestOperation).toBe('function');
+    expect(typeof barrel.normalizeOperationError).toBe('function');
+    expect(typeof barrel.definedProps).toBe('function');
+    expect(barrel.definedProps({ a: 1, b: undefined })).toEqual({ a: 1 });
+  });
+
   it('re-exports the self-contained chat-pane feature', () => {
     expect(typeof barrel.ChatPane).toBe('function');
     expect(typeof barrel.AgentRuntimePicker).toBe('function');
