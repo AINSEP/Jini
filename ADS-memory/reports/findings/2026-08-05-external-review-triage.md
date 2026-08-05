@@ -167,3 +167,36 @@ the delete landed server-side, otherwise the `null` check forces a self-correcti
 
 Options: a `flushing` flag deferring `schedule()` (changes the coalescing contract), or re-checking
 `pendingDelete` against `resolved` after the await (needs a decision on suppress-vs-reload).
+
+## New finding (2026-08-05) — MCP-level cancellation doesn't reach the daemon
+
+Surfaced while implementing abort propagation for the delegated-tool-calls HTTP route
+(client-disconnect → `packages/http-kit/src/delegated-tools.ts` → `delegated-tool-bridge.ts` →
+`packages/daemon/src/tool-executor.ts`, now fixed end to end for the triggers below). This is a
+separate, smaller gap, deliberately not opened as part of that fix.
+
+`packages/mcp/src/server/tool-server.ts`'s `McpServerLike.setRequestHandler` interface — the
+narrowed surface this package uses instead of the real `@modelcontextprotocol/sdk` `Server` type —
+declares its `CallToolRequestSchema` handler as `(request: {params}) => Promise<CallToolResult>`,
+discarding whatever second `extra`/`RequestHandlerExtra` argument (which carries a per-call
+`signal`) the real SDK `Server` actually supplies. `handleToolCall` (`tool-protocol.ts`) and
+`McpToolContext` (same file) don't carry a `signal` field either. So a real MCP-level
+`notifications/cancelled` from an actual client — e.g. a person hitting stop mid-tool-call in an
+MCP-aware host — cannot reach `execute_delegated_tool`'s handler
+(`packages/mcp/src/server/tools/delegated-tool.ts`) at all, and therefore never reaches
+`postDaemonJson`'s `signal` option (`daemon-client.ts`), even after the HTTP-layer fix.
+
+What the HTTP-layer fix DOES close without this: the MCP subprocess dying (its parent `claude` run
+killed) drops the TCP connection to the daemon mid-request, and `postDaemonJson`'s own request
+deadline (`DEFAULT_DELEGATED_TOOL_TIMEOUT_MS`, 6 minutes, or a host's `delegatedToolTimeoutMs`
+override) aborting the fetch — both are real "the requester is gone" triggers and both now
+propagate through `mountJsonRoute`'s `res.on('close')` wiring into `ToolExecutor`, including a
+still-pending confirmation. Only genuine per-call MCP cancellation (the requester is still there,
+still connected, but asked to stop this one call) is the piece that doesn't reach the daemon.
+
+Closing it needs: (1) widening `McpServerLike`'s declared handler type to accept the SDK's `extra`
+parameter, (2) threading a `signal` through `handleToolCall`/`McpToolContext` into
+`execute_delegated_tool`'s handler, and (3) passing it into `postDaemonJson`'s existing `signal`
+option (already supported, unused for this path — the same "consumer ready, producer missing"
+shape as the HTTP-layer gap itself). Not attempted here — out of the dispatched scope, and worth
+its own review given it changes a package-boundary type others may implement against.
