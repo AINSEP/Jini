@@ -23,6 +23,32 @@ export class InMemoryTaxonomyRepo implements TaxonomyRepoPort, TaxonomyListPort 
   async list(): Promise<Taxonomy[]> {
     return [...this.rows.values()].map((row) => ({ ...row }));
   }
+
+  /** `DeletableTaxonomyRepoPort` — additive capability for `deleteTaxonomy`, see
+   * `write-service.ts`'s doc comment on that interface. */
+  async delete(id: string): Promise<void> {
+    this.rows.delete(id);
+  }
+
+  /**
+   * `TransactionalRepoPort` — disclosed narrowing, not a silently-wrong implementation of a real
+   * capability (same disclosure style as `noopStampWatermark` below): a plain in-process `Map` has
+   * no rollback primitive to offer, and — unlike a real SQLite connection another OS process could
+   * also be writing to — nothing else can observe or mutate this `Map` between two `await`s of a
+   * single request's own call chain (Node drains the full microtask queue, including every
+   * already-scheduled continuation of THIS call, before it services a different macrotask/request;
+   * see `write-service.ts`'s `TransactionalRepoPort` doc for what this exists to prevent). So the
+   * TOCTOU risk that port exists to close cannot arise against this adapter specifically. What is
+   * NOT covered: a genuine mid-cascade exception (e.g. `deleteTaxonomy`'s second `terms.delete`
+   * throwing) leaves whatever this call chain already wrote — across this Map and its SIBLING
+   * `InMemoryTermRepo`/`InMemoryEntryTermRepo` instances — un-rolled-back, since no in-memory
+   * transaction spans multiple independent `Map`s. In-memory mode is dev/test-only (`server/
+   * app.ts`'s hermetic composition), never the host of a real workspace's real content, which is
+   * why this gap is accepted here rather than closed.
+   */
+  async transaction<T>(fn: () => Promise<T>): Promise<T> {
+    return fn();
+  }
 }
 
 export class InMemoryTermRepo implements TermRepoPort, TermListPort {
@@ -52,6 +78,24 @@ export class InMemoryTermRepo implements TermRepoPort, TermListPort {
    * future reparent route has a ready-made `TermTreeLookup` to inject. */
   getParentId(termId: string): string | null {
     return this.rows.get(termId)?.parentId ?? null;
+  }
+
+  /** `DeletableTermRepoPort` — additive capability for `deleteTerm`/`deleteTaxonomy`, see
+   * `write-service.ts`'s doc comment on that interface. */
+  async delete(id: string): Promise<void> {
+    this.rows.delete(id);
+  }
+
+  /** `DeletableTermRepoPort.countChildren` — direct children only (one level), matching
+   * `deleteTerm`'s guard (it does not recurse past the first level; a grandchild whose direct
+   * parent is itself already blocked from deletion is caught when that intermediate term's own
+   * delete is attempted). */
+  async countChildren(params: { parentId: string }): Promise<number> {
+    let count = 0;
+    for (const row of this.rows.values()) {
+      if (row.parentId === params.parentId) count += 1;
+    }
+    return count;
   }
 }
 
@@ -98,6 +142,12 @@ export class InMemoryEntryTermRepo implements EntryTermRepoPort {
     this.rows.length = 0;
     this.rows.push(...remaining);
     return { repointedCount: fromRows.length };
+  }
+
+  /** `AssignmentCountEntryTermRepoPort` — additive capability for `deleteTerm`/`deleteTaxonomy`'s
+   * content-assignment guard, see `write-service.ts`'s doc comment on that interface. */
+  async countByTerm(params: { termId: string }): Promise<number> {
+    return this.rows.filter((r) => r.termId === params.termId).length;
   }
 }
 
