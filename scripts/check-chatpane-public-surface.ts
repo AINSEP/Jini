@@ -12,9 +12,22 @@
  * directory (reaches a sibling module elsewhere under `src/react/**`, e.g.
  * `../../components/Composer.js`) is a `ChatPane`-internal composition reaching outside its own
  * subtree. Every name pulled from that import must appear in the public barrel's export list
- * (currently `packages/chat/src/react/index.ts`; update `barrelPath` here when Step C moves
- * `ChatPane` to its own subpath and the barrel becomes whichever file re-exports the public
- * surface at that point).
+ * (`packages/chat/src/react/index.ts`).
+ *
+ * **REF-001 Step C (2026-08-05) moved `ChatPane` itself to its own subpath**
+ * (`packages/chat/src/react/chat-pane.ts`, published as `@jini-ai/chat/react/chat-pane`), but
+ * `barrelPath` still defaults to `index.ts`, deliberately, not by oversight: `ChatPane`'s own
+ * internals reach for plenty of names that are NOT `ChatPane`-specific — `Composer`, `MessageList`,
+ * `useT`, `useComposer`, `ComposerSlots`, etc. — which live in the generic engine surface, not the
+ * new subpath. `index.ts` still re-exports all of those directly, AND re-exports every `chat-pane.ts`
+ * name too (as a deprecated alias — see that export site's own comment), so it remains the one file
+ * whose export list equals the full union of what a consumer can reach across both `./react` and
+ * `./react/chat-pane`. Pointing `barrelPath` at `chat-pane.ts` alone would under-report: that file's
+ * own export list is a strict subset (only the `ChatPane`-named symbols), so every one of
+ * `ChatPane`'s legitimate reaches into the generic engine surface would false-positive as a
+ * violation. Only repoint `barrelPath` if a future step removes the `index.ts` alias entirely (i.e.
+ * `ChatPane` becomes reachable ONLY from the new subpath) — at that point this check would need to
+ * validate against the union of both files' export lists, not a single swapped path.
  *
  * **Test files are excluded from the scan, deliberately, not merely `.gitignore`-style
  * convenience.** First run against the real tree (2026-08-05) surfaced `createFakeChatTransport`

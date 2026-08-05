@@ -94,6 +94,13 @@ export type {
 // the root barrel's re-export of it. A future consumer that genuinely needs it gets a real ADR-worthy
 // decision (its own subpath, most likely, following Step C's pattern) instead of a standing
 // "just in case" export nobody asked for.
+/**
+ * @deprecated REF-001 Step C (2026-08-05): `ChatPane` and its companions moved to their own
+ * subpath, `@jini-ai/chat/react/chat-pane` — import from there in new code. Re-exported here,
+ * unchanged, so every existing `import { ChatPane } from '@jini-ai/chat/react'` keeps working.
+ * This alias has no removal date scheduled yet; see `chat-pane.ts` for the canonical surface and
+ * the module doc there for why the split exists.
+ */
 export {
   AgentRuntimePicker,
   CHAT_PANE_AGENT_TOOLS,
@@ -107,7 +114,7 @@ export {
   useChatPaneAgentControl,
   useChatPaneRuntimeInventory,
   useChatPaneWorkingDirectory,
-} from './features/chat-pane/index.js';
+} from './chat-pane.js';
 export type {
   AgentRuntimePickerProps,
   ByokRuntimeSummary,
@@ -139,7 +146,7 @@ export type {
   UseChatPaneRuntimeInventoryResult,
   UseChatPaneWorkingDirectoryOptions,
   UseChatPaneWorkingDirectoryResult,
-} from './features/chat-pane/index.js';
+} from './chat-pane.js';
 
 export {
   useRunStream,

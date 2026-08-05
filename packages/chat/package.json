@@ -16,6 +16,7 @@
       ".": "universal",
       "./core": "universal",
       "./react": "browser",
+      "./react/chat-pane": "browser",
       "./react/styles/reference.css": "browser"
     }
   },
@@ -38,6 +39,11 @@
       "types": "./dist/react/index.d.ts",
       "import": "./dist/react/index.js",
       "default": "./dist/react/index.js"
+    },
+    "./react/chat-pane": {
+      "types": "./dist/react/chat-pane.d.ts",
+      "import": "./dist/react/chat-pane.js",
+      "default": "./dist/react/chat-pane.js"
     },
     "./react/styles/reference.css": "./dist/react/styles/reference.css"
   },
