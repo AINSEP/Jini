@@ -39,6 +39,32 @@ function makeRes() {
   };
 }
 
+/** A `res` double that, unlike `makeRes`'s plain `{status,json}` stub, behaves like a real
+ * `ServerResponse` closely enough to exercise `mountJsonRoute`'s disconnect wiring: it tracks
+ * `'close'` listeners and exposes `fireClose()` for a test to simulate the connection dropping
+ * mid-handle. Disconnect is observed on `res`, not `req` — see `adapter.ts`'s own comment for why
+ * (a real POST's body finishing being read fires `req`'s `'close'` long before any response is
+ * sent, with no disconnect having happened). */
+function makeClosableRes() {
+  const listeners = new Set<() => void>();
+  return {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+    on(event: string, listener: () => void) {
+      if (event === 'close') listeners.add(listener);
+    },
+    off(event: string, listener: () => void) {
+      if (event === 'close') listeners.delete(listener);
+    },
+    fireClose() {
+      for (const listener of listeners) listener();
+    },
+    get closeListenerCount() {
+      return listeners.size;
+    },
+  };
+}
+
 const adapter = { resolvedPortRef: { current: 7456 } };
 
 beforeEach(() => {
@@ -221,5 +247,76 @@ describe('http adapter', () => {
     const res = makeRes();
     await app.handlers['GET /deps']!({ body: {}, query: {}, params: {} }, res);
     expect(res.json).toHaveBeenCalledWith({ tag: 'injected' });
+  });
+
+  it('aborts the signal handed to `handle` when the request closes before a response is sent', async () => {
+    let capturedSignal: AbortSignal | undefined;
+    let releaseHandle: (() => void) | undefined;
+    const route = defineJsonRoute<void, unknown, unknown>({
+      method: 'get',
+      path: '/slow',
+      parse: () => ok(undefined),
+      handle: async (_input, _deps, signal) => {
+        capturedSignal = signal;
+        await new Promise<void>((resolve) => {
+          releaseHandle = resolve;
+        });
+        return ok({});
+      },
+    });
+    const app = makeApp();
+    mountJsonRoute(app as any, route, {}, adapter);
+    const req = { body: {}, query: {}, params: {} };
+    const res = makeClosableRes();
+    const handled = app.handlers['GET /slow']!(req, res);
+
+    await Promise.resolve();
+    expect(capturedSignal?.aborted).toBe(false);
+    res.fireClose();
+    expect(capturedSignal?.aborted).toBe(true);
+
+    releaseHandle!();
+    await handled;
+    // The client was gone before `handle` resolved — no response should have been written.
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it('does not misfire on a close observed only after the response has already been sent', async () => {
+    const route = defineJsonRoute<void, { ok: boolean }, unknown>({
+      method: 'get',
+      path: '/fast',
+      parse: () => ok(undefined),
+      handle: () => ok({ ok: true }),
+    });
+    const app = makeApp();
+    mountJsonRoute(app as any, route, {}, adapter);
+    const req = { body: {}, query: {}, params: {} };
+    const res = makeClosableRes();
+    await app.handlers['GET /fast']!(req, res);
+
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
+    // The listener is detached once `handle` settles, so a `close` firing afterward (the normal
+    // end-of-request event, not a disconnect) has nothing left to call.
+    expect(res.closeListenerCount).toBe(0);
+    expect(() => res.fireClose()).not.toThrow();
+  });
+
+  it('leaves no dangling close listener after a route that throws', async () => {
+    const route = defineJsonRoute<void, unknown, unknown>({
+      method: 'get',
+      path: '/boom-cleanup',
+      parse: () => ok(undefined),
+      handle: () => {
+        throw new Error('boom');
+      },
+    });
+    const app = makeApp();
+    mountJsonRoute(app as any, route, {}, adapter);
+    const req = { body: {}, query: {}, params: {} };
+    const res = makeClosableRes();
+    await app.handlers['GET /boom-cleanup']!(req, res);
+
+    expect(res.closeListenerCount).toBe(0);
   });
 });

@@ -224,6 +224,40 @@ describe('delegatedToolExecuteRoute.handle', () => {
     consoleErrorSpy.mockRestore();
   });
 
+  it('propagates a caller-supplied abort signal through the bridge into ToolExecutor, cancelling a pending confirmation', async () => {
+    // No `delegate.onConfirm` at all — `requestConfirmation` parks on an internal deferred (same
+    // as `tool-executor.test.ts`'s own "is resumable" tests), which is exactly the unbounded,
+    // human-in-the-loop wait a transport disconnect needs to be able to interrupt.
+    const registry = createToolRegistry();
+    registry.register({
+      descriptor: { id: 'needs-confirm', requiresConfirmation: true },
+      policy: { authorize: () => 'allow' },
+      handler: async () => 'should not run',
+    });
+    const toolExecutor = createToolExecutor({ registry });
+    const deps = makeDeps({ toolExecutor });
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    const controller = new AbortController();
+
+    const resultPromise = delegatedToolExecuteRoute.handle(
+      { runId: run.id, toolUseId: 'tu-1', toolId: 'needs-confirm' },
+      deps,
+      controller.signal,
+    );
+    // A small macrotask delay rather than a hand-counted number of microtask ticks — the exact hop
+    // count through `lifecycle.emit`, the bridge, and `authorizeToolInvocation` is an internal
+    // implementation detail of packages this test doesn't own; this just needs to be past all of it
+    // and into the parked confirmation before aborting.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    controller.abort();
+
+    const result = await resultPromise;
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.result.status).toBe('cancelled');
+    }
+  });
+
   it('SEC-005: redacts a thrown resolvePrincipal failure to a generic INTERNAL_ERROR with source resolve-principal', async () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({
@@ -276,6 +310,57 @@ describe('registerDelegatedToolRoutes', () => {
     expect(res.status).toHaveBeenCalledWith(200);
     const [body] = res.json.mock.calls[0]!;
     expect(body.result).toMatchObject({ status: 'completed', output: { echoed: 'hi' } });
+  });
+
+  it('a real HTTP request close (client disconnect) reaches ToolExecutor and cancels a pending confirmation, end to end through mountJsonRoute', async () => {
+    const registry = createToolRegistry();
+    registry.register({
+      descriptor: { id: 'needs-confirm', requiresConfirmation: true },
+      policy: { authorize: () => 'allow' },
+      handler: async () => 'should not run',
+    });
+    const toolExecutor = createToolExecutor({ registry });
+    const app = makeApp();
+    const deps = makeDeps({ toolExecutor });
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });
+    registerDelegatedToolRoutes(app as any, deps, adapter);
+    const req = { body: { runId: run.id, toolUseId: 'tu-1', toolId: 'needs-confirm' }, query: {}, params: {} };
+    // Disconnect is observed on `res`, not `req` — see `adapter.ts`'s own comment: a real POST's
+    // body is already fully read by the time this handler runs, which fires `req`'s `'close'`
+    // immediately (no disconnect at all), so `res`'s `'close'` is the one that's actually safe.
+    const listeners = new Set<() => void>();
+    const res = {
+      ...makeJsonRes(),
+      on(event: string, listener: () => void) {
+        if (event === 'close') listeners.add(listener);
+      },
+      off(event: string, listener: () => void) {
+        if (event === 'close') listeners.delete(listener);
+      },
+    };
+    const events: { kind: string; payload: { type: string; content?: string; isError?: boolean } }[] = [];
+    await deps.lifecycle.stream(run.id, (event) => events.push(event as (typeof events)[number]));
+
+    const handled = app.handlers['POST /api/delegated-tool-calls']!(req, res);
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(listeners.size).toBeGreaterThan(0);
+    for (const listener of listeners) listener();
+
+    await handled;
+    // The client already disconnected — `mountJsonRoute` deliberately withholds the response
+    // rather than writing to a socket nobody is reading from anymore.
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
+
+    // But the cancellation genuinely reached `ToolExecutor` through the whole chain: the run's own
+    // event stream — which the bridge writes to regardless of whether an HTTP response ever goes
+    // out — shows the pending confirmation ending as cancelled, not left parked forever.
+    const agentEvents = events.filter((e) => e.kind === 'agent');
+    expect(agentEvents.map((e) => e.payload.type)).toEqual(['tool_use', 'tool_result']);
+    const toolResult = agentEvents[1]!.payload;
+    expect(toolResult.content).toBe('Tool execution cancelled.');
+    expect(toolResult.isError).toBe(true);
   });
 
   it('mounted POST /api/delegated-tool-calls responds 404 for an unknown runId through the real Adapter pipeline', async () => {

@@ -132,7 +132,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
   path: '/api/delegated-tool-calls',
   requireSameOrigin: true,
   parse: parseDelegatedToolExecute,
-  handle: async (input, deps) => {
+  handle: async (input, deps, signal) => {
     const run = await deps.lifecycle.get(input.runId);
     if (run === undefined) {
       return err(createApiError('NOT_FOUND', `run "${input.runId}" was not found`));
@@ -147,12 +147,17 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
 
     const bridge = createDelegatedToolBridge({ lifecycle: deps.lifecycle, toolExecutor: deps.toolExecutor });
     try {
+      // `signal` carries the caller's HTTP connection dropping — see `mountJsonRoute`
+      // (`adapter.ts`). The bridge already combines it with the run's own cancellation
+      // (`DelegatedToolInvocation.signal`'s doc); this is the wire that was missing, not new
+      // behaviour in the bridge or `ToolExecutor`.
       const result = await bridge.execute({
         runId: input.runId,
         toolUseId: input.toolUseId,
         toolId: input.toolId,
         principal,
         input: input.input,
+        ...(signal !== undefined ? { signal } : {}),
       });
       return ok({ result });
     } catch (error) {

@@ -61,6 +61,23 @@ export function mountJsonRoute<Input, Output, Deps>(
   adapter: AdapterContext,
 ): void {
   app[spec.method](spec.path, async (req: Request, res: Response) => {
+    // The client-disconnect signal a `handle` can opt into via its 3rd param. Observed on `res`,
+    // not `req` — `sse.ts` already established why for this exact "detect a disconnect before
+    // ever writing a response" shape (its own doc: safe to register "before `open` is ever
+    // called"). `req`'s own `'close'` was tried first here and reverted: on a REAL socket, a
+    // POST's body is fully read by Express's body parser before this handler ever runs, and that
+    // finishes the *request* stream — firing `req`'s `'close'` immediately, long before any
+    // response is sent, with no disconnect having happened at all. `res`'s `'close'` isn't
+    // entangled with the request body's lifecycle, only with the response's own connection, so it
+    // doesn't share that false positive. Registered before anything awaits and unconditionally
+    // detached in `finally` below, so it never outlives one request.
+    const abortController = new AbortController();
+    const onResponseClose = () => abortController.abort();
+    // Optional-called rather than assumed present: a real Express `Response` always has `.on`, but
+    // several existing unit tests drive `mountJsonRoute` against a minimal `{status,json}` double
+    // that doesn't implement `EventEmitter` at all. Those callers simply never observe an abort,
+    // which is the correct behavior for a double that never fires `close` anyway.
+    res.on?.('close', onResponseClose);
     try {
       if (spec.requireSameOrigin) {
         const origin = guardSameOrigin(req, adapter);
@@ -74,7 +91,13 @@ export function mountJsonRoute<Input, Output, Deps>(
         sendApiError(res, statusForError(parsed.error), parsed.error);
         return;
       }
-      const result = await spec.handle(parsed.value, deps);
+      const result = await spec.handle(parsed.value, deps, abortController.signal);
+      // `abortController.signal` can only have been aborted by `onResponseClose` firing while the
+      // `await` above was pending — nothing here runs concurrently with it — so this unambiguously
+      // means the client was already gone before any response was sent. Writing one now would be
+      // wasted work at best and, worse, would route a benign disconnect into the SEC-005 catch
+      // below as a false internal error if the socket rejects the write.
+      if (abortController.signal.aborted) return;
       if (!result.ok) {
         sendApiError(res, statusForError(result.error), result.error);
         return;
@@ -92,6 +115,8 @@ export function mountJsonRoute<Input, Output, Deps>(
       const sink = adapter.onInternalError ?? defaultInternalErrorSink;
       sink({ method: spec.method, path: spec.path, correlationId, error: e });
       sendApiError(res, 500, createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
+    } finally {
+      res.off?.('close', onResponseClose);
     }
   });
 }

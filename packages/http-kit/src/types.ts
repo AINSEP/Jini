@@ -31,10 +31,18 @@ export interface RouteInputContext {
 /** Parses a `RouteInputContext` into a typed `Input`, or fails with an `ApiError`. */
 export type InputParser<Input> = (raw: RouteInputContext) => Result<Input>;
 
-/** Handles a parsed `Input` (plus injected `Deps`) and produces a `Result<Output>`. */
+/**
+ * Handles a parsed `Input` (plus injected `Deps`) and produces a `Result<Output>`.
+ *
+ * `signal` is optional and additive: it aborts if the underlying HTTP request's connection drops
+ * before the Adapter has written a response (see `mountJsonRoute` in `adapter.ts`) — a route with
+ * no long-running or delegated work has no reason to read it, and every existing 2-arg handler
+ * stays a valid `Handler` unchanged (TS accepts a callback that ignores trailing parameters).
+ */
 export type Handler<Input, Output, Deps> = (
   input: Input,
   deps: Deps,
+  signal?: AbortSignal,
 ) => Promise<Result<Output>> | Result<Output>;
 
 /** HTTP verbs the Adapter can mount a `JsonRouteSpec` under. */
