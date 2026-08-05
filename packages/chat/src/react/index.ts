@@ -76,40 +76,24 @@ export type {
   ExtEventRenderer,
 } from './ext-event-renderer-registry.js';
 
-// `features/model-picker/` is an independent slice (depends only on
-// `@jini-ai/protocol`, not this package's conversation/message state) —
-// re-exported here for a consumer that wants everything from one barrel.
-export {
-  CREDENTIAL_STATUS_SORT_PRIORITY,
-  CredentialStatusBadge,
-  DEFAULT_MIN_SEARCHABLE_OPTIONS,
-  ModelPicker,
-  defaultModelPickerPort,
-  filterModelGroups,
-  findSelectedModel,
-  firstAvailableModelId,
-  groupModelsByProvider,
-  isCustomModelId,
-  matchesModelQuery,
-  modelSubtitle,
-  useModelPicker,
-} from './features/model-picker/index.js';
-export type {
-  AgentDefinition,
-  AgentDiagnostic,
-  CredentialStatus,
-  CredentialStatusBadgeProps,
-  FetchProviderModelsInput,
-  FetchProviderModelsResult,
-  ModelOption,
-  ModelPickerController,
-  ModelPickerGroup,
-  ModelPickerPort,
-  ModelPickerProps,
-  ModelPickerSelection,
-  ModelProvider,
-  UseModelPickerOptions,
-} from './features/model-picker/index.js';
+// `features/model-picker/` (REF-001 Step B, 2026-08-05): NOT re-exported here. It was, on the
+// theory in the comment this replaced — "an independent slice... for a consumer that wants
+// everything from one barrel" — but that consumer never existed. Checked twice, once before and
+// once after the 2026-08-05 BYOK restructure of this directory: zero imports of any of its 27
+// symbols anywhere in this monorepo's other packages, Jini's own examples/, or the one real
+// external host consuming this package via a `file:` dependency, and zero internal use from
+// `ChatPane`'s own composition. Every apparent
+// name-collision hit (`AgentDefinition`, `AgentDiagnostic`, `CredentialStatus`, `ModelOption`,
+// `ModelProvider`, `matchesModelQuery`) traced back to an unrelated same-named symbol native to
+// `@jini-ai/protocol`/`@jini-ai/agent-runtime` or a same-named local helper in `@jini-ai/ui` — not
+// this package's re-export. See ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md
+// §2.4 for the full trace and §9 for the re-confirmation against the post-BYOK tree.
+//
+// The feature itself is not deleted — `./features/model-picker/index.js` still exists and still
+// works for anything inside this package that wants it (nothing currently does). This removes only
+// the root barrel's re-export of it. A future consumer that genuinely needs it gets a real ADR-worthy
+// decision (its own subpath, most likely, following Step C's pattern) instead of a standing
+// "just in case" export nobody asked for.
 export {
   AgentRuntimePicker,
   CHAT_PANE_AGENT_TOOLS,

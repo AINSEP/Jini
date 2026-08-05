@@ -61,20 +61,23 @@ describe('index barrel', () => {
     expect(new barrel.RendererRegistry().list()).toEqual([]);
   });
 
-  it('re-exports the model-picker feature', () => {
-    expect(typeof barrel.useModelPicker).toBe('function');
-    expect(typeof barrel.ModelPicker).toBe('function');
-    expect(typeof barrel.CredentialStatusBadge).toBe('function');
-    expect(typeof barrel.groupModelsByProvider).toBe('function');
-    expect(typeof barrel.filterModelGroups).toBe('function');
-    expect(typeof barrel.findSelectedModel).toBe('function');
-    expect(typeof barrel.isCustomModelId).toBe('function');
-    expect(typeof barrel.firstAvailableModelId).toBe('function');
-    expect(typeof barrel.modelSubtitle).toBe('function');
-    expect(typeof barrel.matchesModelQuery).toBe('function');
-    expect(barrel.defaultModelPickerPort).toEqual({});
-    expect(barrel.DEFAULT_MIN_SEARCHABLE_OPTIONS).toBe(8);
-    expect(barrel.CREDENTIAL_STATUS_SORT_PRIORITY).toEqual({ configured: 0, available: 1, unconfigured: 2 });
+  it('does NOT re-export the model-picker feature (REF-001 Step B, 2026-08-05)', () => {
+    // Regression test for the removal, not just an absence of an assertion: proves this is a
+    // deliberate narrowing rather than a symbol quietly falling off the barrel unnoticed. See
+    // index.ts's own comment at the removal site for the consumer-evidence trail.
+    expect('useModelPicker' in barrel).toBe(false);
+    expect('ModelPicker' in barrel).toBe(false);
+    expect('CredentialStatusBadge' in barrel).toBe(false);
+    expect('groupModelsByProvider' in barrel).toBe(false);
+    expect('filterModelGroups' in barrel).toBe(false);
+    expect('findSelectedModel' in barrel).toBe(false);
+    expect('isCustomModelId' in barrel).toBe(false);
+    expect('firstAvailableModelId' in barrel).toBe(false);
+    expect('modelSubtitle' in barrel).toBe(false);
+    expect('matchesModelQuery' in barrel).toBe(false);
+    expect('defaultModelPickerPort' in barrel).toBe(false);
+    expect('DEFAULT_MIN_SEARCHABLE_OPTIONS' in barrel).toBe(false);
+    expect('CREDENTIAL_STATUS_SORT_PRIORITY' in barrel).toBe(false);
   });
 
   it('re-exports the self-contained chat-pane feature', () => {
