@@ -4,6 +4,7 @@ import {
   type AnthropicMessageParam,
   type AnthropicTurnEvent,
 } from '../anthropic-messages.js';
+import { pinnedFetch } from '../connection-guard.js';
 
 /**
  * `node:dns` is mocked so the DNS-resolving SSRF guard is exercised deterministically. Only hosts
@@ -21,6 +22,17 @@ vi.mock('node:dns', () => ({
     },
   },
 }));
+
+/**
+ * `pinnedFetch` (the transport `runSingleAnthropicRequest` actually calls, since the DNS-rebinding
+ * fix — see `connection-guard.ts`) is mocked instead of global `fetch`: it dials via
+ * `node:https`/`node:http`, not `fetch`, so stubbing `globalThis.fetch` no longer intercepts
+ * anything. Every other export stays real — only the actual network call is replaced.
+ */
+vi.mock('../connection-guard.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../connection-guard.js')>();
+  return { ...actual, pinnedFetch: vi.fn() };
+});
 
 function sseBody(...lines: string[]): AsyncIterable<string> {
   return {
@@ -75,11 +87,12 @@ const baseMessages: AnthropicMessageParam[] = [{ role: 'user', content: 'hi' }];
 describe('runAnthropicToolTurn', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.mocked(pinnedFetch).mockReset();
   });
 
   it('rejects a forbidden internal base url without making any request', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AnthropicTurnEvent[] = [];
     const result = await runAnthropicToolTurn({
       apiKey: 'sk-ant-test',
@@ -101,7 +114,7 @@ describe('runAnthropicToolTurn', () => {
   it('rejects a public hostname that resolves into private address space, without making any request', async () => {
     dnsAnswers.set('internal.example.com', [{ address: '10.0.0.5', family: 4 }]);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AnthropicTurnEvent[] = [];
 
     await runAnthropicToolTurn({
@@ -121,7 +134,7 @@ describe('runAnthropicToolTurn', () => {
   it('still allows a hostname that resolves to public address space', async () => {
     dnsAnswers.set('api.vendor.example', [{ address: '203.0.113.10', family: 4 }]);
     const fetchMock = vi.fn().mockRejectedValue(new Error('ECONNRESET'));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AnthropicTurnEvent[] = [];
 
     await runAnthropicToolTurn({
@@ -140,7 +153,7 @@ describe('runAnthropicToolTurn', () => {
   });
 
   it('reports a network error (non-Error rejection) as a redacted error event and ends once', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('boom'));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue('boom'));
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
       apiKey: 'sk-ant-secret',
@@ -156,7 +169,7 @@ describe('runAnthropicToolTurn', () => {
   });
 
   it('reports a network error (real Error rejection) using its message', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('fetch failed: ECONNRESET')));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue(new Error('fetch failed: ECONNRESET')));
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -172,9 +185,7 @@ describe('runAnthropicToolTurn', () => {
   });
 
   it('reports a non-ok JSON error response with the status code and redacts the api key', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({
         ok: false,
         status: 401,
         body: null,
@@ -196,7 +207,7 @@ describe('runAnthropicToolTurn', () => {
   });
 
   it('falls back to the raw truncated body when the error response is not JSON', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, body: null, text: async () => 'gateway exploded' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: false, status: 500, body: null, text: async () => 'gateway exploded' }));
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -209,7 +220,7 @@ describe('runAnthropicToolTurn', () => {
   });
 
   it('reports a missing response body as an error', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -232,7 +243,7 @@ describe('runAnthropicToolTurn', () => {
       messageStop(),
     );
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AnthropicTurnEvent[] = [];
     const result = await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -259,7 +270,7 @@ describe('runAnthropicToolTurn', () => {
 
   it('merges caller-supplied extraHeaders verbatim (never a hardcoded product-identity header)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(messageStart(), textBlock(0, 'hi'), messageDelta('end_turn'), messageStop())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runAnthropicToolTurn({
       apiKey: 'sk-ant',
       model: 'claude-opus-4-8',
@@ -275,7 +286,7 @@ describe('runAnthropicToolTurn', () => {
 
   it('includes system/temperature/tools/custom apiVersion/baseUrl and forwards the abort signal when provided, and omits them when not', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(messageStart(), textBlock(0, 'hi'), messageDelta('end_turn'), messageStop())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const controller = new AbortController();
     await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -331,7 +342,7 @@ describe('runAnthropicToolTurn', () => {
       messageDelta('end_turn'),
       messageStop(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: AnthropicTurnEvent[] = [];
     const result = await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -357,7 +368,7 @@ describe('runAnthropicToolTurn', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(firstBody))
       .mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const events: AnthropicTurnEvent[] = [];
     const executeTool = vi.fn().mockResolvedValue({ content: '72F sunny' });
@@ -398,7 +409,7 @@ describe('runAnthropicToolTurn', () => {
     const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'fail_tool', {}), messageDelta('tool_use'), messageStop());
     const secondBody = sseBody(messageStart('m2'), textBlock(0, 'done'), messageDelta('end_turn'), messageStop());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'boom', isError: true });
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
@@ -417,7 +428,7 @@ describe('runAnthropicToolTurn', () => {
   it('ends with reason stop (no further request) when the model requests a tool but no executeTool is supplied', async () => {
     const body = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'get_weather', {}), messageDelta('tool_use'), messageStop());
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: AnthropicTurnEvent[] = [];
     const result = await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -434,7 +445,7 @@ describe('runAnthropicToolTurn', () => {
   it('stops the loop with reason max_tool_turns once the bound is hit, without invoking executeTool for the turn that exceeds it', async () => {
     const roundBody = () => sseBody(messageStart(), toolUseBlock(0, 'toolu_x', 'loop_tool', {}), messageDelta('tool_use'), messageStop());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(roundBody())).mockResolvedValueOnce(okResponse(roundBody()));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'again' });
     const events: AnthropicTurnEvent[] = [];
     const result = await runAnthropicToolTurn({
@@ -467,7 +478,7 @@ describe('runAnthropicToolTurn', () => {
       messageDelta('end_turn'),
       messageStop(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: AnthropicTurnEvent[] = [];
     const result = await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -495,7 +506,7 @@ describe('runAnthropicToolTurn', () => {
       messageDelta('end_turn'),
       messageStop(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
       apiKey: 'sk-ant-secret',
@@ -513,7 +524,7 @@ describe('runAnthropicToolTurn', () => {
 
   it('falls back to a generic message and omits the code field for an error frame with no nested error object', async () => {
     const body = sseBody(messageStart(), sseFrame('error', { type: 'error' }), messageStop());
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
       apiKey: 'sk-ant',
@@ -529,7 +540,7 @@ describe('runAnthropicToolTurn', () => {
     const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
     const secondBody = sseBody(messageStart('m2'), textBlock(0, 'looks right'), messageDelta('end_turn'), messageStop());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const imageBlock = {
       type: 'image' as const,
@@ -577,7 +588,7 @@ describe('runAnthropicToolTurn', () => {
     );
     const secondBody = sseBody(messageStart('m2'), textBlock(0, 'done'), messageDelta('end_turn'), messageStop());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const executeTool = vi.fn().mockImplementation(async (call: { name: string }) =>
       call.name === 'get_weather'
@@ -608,7 +619,7 @@ describe('runAnthropicToolTurn', () => {
     const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
     const secondBody = sseBody(messageStart('m2'), textBlock(0, 'ok'), messageDelta('end_turn'), messageStop());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const executeTool = vi.fn().mockResolvedValue({
       content: [{ type: 'image' as const, source: { type: 'base64' as const, media_type: 'image/heic' as never, data: 'abc' } }],
@@ -635,7 +646,7 @@ describe('runAnthropicToolTurn', () => {
     const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
     const secondBody = sseBody(messageStart('m2'), textBlock(0, 'ok'), messageDelta('end_turn'), messageStop());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const oversizedData = 'A'.repeat(Math.ceil((10 * 1024 * 1024 * 4) / 3) + 1);
     const executeTool = vi.fn().mockResolvedValue({
@@ -660,7 +671,7 @@ describe('runAnthropicToolTurn', () => {
     const firstBody = sseBody(messageStart(), toolUseBlock(0, 'toolu_1', 'take_screenshot', {}), messageDelta('tool_use'), messageStop());
     const secondBody = sseBody(messageStart('m2'), textBlock(0, 'ok'), messageDelta('end_turn'), messageStop());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
 
     const executeTool = vi.fn().mockResolvedValue({
       content: [{ type: 'image' as const, source: { type: 'url' as const, url: 'https://example.com/huge.png' } }],
@@ -692,7 +703,7 @@ describe('runAnthropicToolTurn', () => {
       messageDelta('tool_use'),
       messageStop(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: AnthropicTurnEvent[] = [];
     await runAnthropicToolTurn({
       apiKey: 'sk-ant',
