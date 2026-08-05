@@ -15,7 +15,8 @@
     "entries": {
       ".": "universal",
       "./core": "universal",
-      "./react": "browser"
+      "./react": "browser",
+      "./react/styles/reference.css": "browser"
     }
   },
   "type": "module",
