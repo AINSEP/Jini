@@ -608,3 +608,77 @@ Left as findings, not fixed — that decision belongs to whoever implements Step
   not applied; both are small, mechanical, and safe to dispatch independently whenever wanted.
 - **R10's transitive-reach gap and the `interleaveMessageBlocks` edge case** from the original
   proposal's §5 (Step D section) — still open, unaffected by shipping the guard disabled.
+
+## 9. Step B re-confirmation and Step D resolution — 2026-08-05
+
+Written after the fact, by the session that landed Step D. Three code comments already cited a "§9"
+that did not exist — `index.ts:90` (shipped in `03969c57`), plus `guard.ts` and `index.ts`'s new
+export site in the Step D work. This section is what they point at. Recording that the citations
+preceded the section is itself the point: a comment citing a section nobody wrote reads exactly like
+a comment citing a section that says what the comment claims.
+
+### 9.1 Step B — the re-confirmation `index.ts:90` cites
+
+The zero-consumer finding for the 27-symbol `features/model-picker/` re-export block was checked
+twice: once on the pre-BYOK tree during Phase 1, and again after the 2026-08-05 BYOK restructure
+moved files inside that directory. The second pass is the one that matters, because BYOK edited the
+model-picker tree itself — a consumer introduced by that feature would not have appeared in the
+first check. Result unchanged: zero imports of any of the 27 symbols across the monorepo's other
+packages, `examples/`, the one external `file:`-linked host, and `ChatPane`'s own composition. The
+apparent hits are same-named symbols native to `@jini-ai/protocol` / `@jini-ai/agent-runtime` or
+local helpers in `@jini-ai/ui`; §2.4 has the per-symbol trace.
+
+### 9.2 Step D — R10's 3 findings, and why they got two different kinds of fix
+
+R10's first real run produced 3 distinct findings across 8 call sites. They did **not** all get the
+same treatment, and the split is the substance of the decision:
+
+| Finding | Reached from | Disposition |
+|---|---|---|
+| `definedProps` (`util/defined-props.js`) | 3 production files | **Exported.** Real API gap. |
+| `useLatestOperation` (+ `normalizeOperationError`) (`hooks/useLatestOperation.js`) | 2 production files | **Exported.** Real API gap. |
+| `createFakeChatTransport` (`hooks/testing/fake-transport.js`) | `__tests__/` only | **Check narrowed** — `__tests__/**` and `*.test.ts(x)` excluded from the scan. |
+
+The two exports are genuine surface completion. Both are general-purpose building blocks with no
+`ChatPane`-specific coupling: `useLatestOperation` is the "only the newest attempt may write state"
+guard any async hook in this package needs, `definedProps` collapses `exactOptionalPropertyTypes`
+prop-forwarding ternaries. A consumer writing an equivalent async hook or an equivalent forwarding
+composition could not reach either — which is precisely the invariant R10 exists to enforce
+(`ChatPane` must not be able to do what the public API forbids).
+
+The exclusion is a scope correction, not finding-suppression, and the two are separable in evidence:
+
+- All 5 production call sites of `definedProps` / `useLatestOperation` are in production files
+  (`components/ChatPane.tsx`, `hooks/useChatPane*.hooks.ts`). **The test-file exclusion silences
+  none of them.** Had the exclusion been used to make findings disappear, exporting the two symbols
+  would have been unnecessary; it was not.
+- `fake-transport.ts`'s module doc has said "Not exported from the package's public barrel; import
+  via the relative test path" since well before R10 existed. It is a deliberate test-only double.
+  A package's own suite reaching for its own fake answers a different question than "can a consumer
+  build what `ChatPane` builds" — publishing a test double to satisfy a guard would have been the
+  actual wrong fix.
+
+The exclusion is pinned by its own self-test fixture (`r10-fixtures/chat-pane/__tests__/`), so a
+future edit that silently re-widens or re-narrows the scan trips the fail-closed self-test rather
+than changing the real repo's result quietly.
+
+### 9.3 R10 is now ENFORCING
+
+Flipped by moving `checkChatPanePublicSurface()` into `guard.ts`'s `results` array. Verified in this
+session, not relayed:
+
+- `pnpm guard` → **12 violations, exit 1** — the same 12 as before the flip, all pre-existing and
+  deliberately deferred (3 `@jini-ai/ui/mcp-ui`, 5 chat-pane `@jini-ai/chat/core` deep-path, 1
+  `ui`→`agent-runtime` relative, 1 R5-neutrality, counting repeat sites within a file). **R10
+  contributes zero.** The guard was switched on with no known-failing exceptions, which was the bar.
+- The self-test gate runs *before* any real-repo check and `process.exit(1)`s on failure, so a
+  12-violation report is itself proof the extended self-test — including the new `__tests__`
+  expectation — passed.
+- `packages/chat` `src/react/__tests__/index.test.ts` → 9/9 green, including a new assertion that
+  the three newly-public symbols are reachable from the barrel and that `definedProps` behaves.
+
+### 9.4 Still open after Step D
+
+- R10's transitive-reach gap and `interleaveMessageBlocks` (§5) — unchanged by the flip.
+- Step C (own subpath) — when it lands, `barrelPath` in `check-chatpane-public-surface.ts` must
+  point at whichever file becomes the public surface at that point.
