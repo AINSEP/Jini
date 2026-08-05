@@ -282,6 +282,16 @@ export interface PinnedFetchResponse {
 }
 
 /**
+ * Idle-socket safety net, applied to every `pinnedFetch` request regardless of `init.signal`.
+ * Plain `http(s).request` has NO default timeout at all — unlike `fetch`, which is backed by
+ * undici's `Agent` defaults (`headersTimeout`/`bodyTimeout`, both 300_000ms there). Without this,
+ * a truly silent/dead connection would hang forever where `fetch` previously would not have. This
+ * is a ceiling underneath a caller-supplied `AbortSignal`, not a replacement for one — whichever
+ * fires first wins; the number matches undici's default rather than inventing a new one.
+ */
+const PINNED_FETCH_IDLE_TIMEOUT_MS = 300_000;
+
+/**
  * `fetch()`-shaped POST that dials `pinnedAddress` directly instead of letting the transport
  * re-resolve DNS when it connects — see {@link validateBaseUrlResolved}'s doc for the TOCTOU this
  * closes and why `pinnedAddress` is the exact address that function already validated.
@@ -336,6 +346,11 @@ export async function pinnedFetch(
         // Paired with the `content-encoding` check below, which covers a server that compresses
         // unbidden anyway.
         headers: { 'accept-encoding': 'identity', ...init.headers },
+        // `servername` set explicitly to the ORIGINAL hostname (not `pinnedAddress`) is what SNI
+        // and certificate hostname validation actually run against — this is what makes it a pin
+        // rather than a redirect to a different origin. `rejectUnauthorized` is left at its
+        // `node:https` default (`true`, i.e. certificate validation stays ON); nothing in this
+        // function ever sets it, and it must stay that way.
         ...(isHttps ? { servername: parsed.hostname } : {}),
         ...(pinnedAddress
           ? {
@@ -415,6 +430,13 @@ export async function pinnedFetch(
         init.signal.addEventListener('abort', () => req.destroy(new Error('The operation was aborted')), { once: true });
       }
     }
+
+    // Fires on socket INACTIVITY (no bytes sent or received), covering connect hangs, a
+    // provider that accepts the connection and then never speaks, and a body that stalls
+    // mid-stream — not on total request duration, matching `setTimeout`'s own semantics.
+    req.setTimeout(PINNED_FETCH_IDLE_TIMEOUT_MS, () => {
+      req.destroy(new Error(`pinnedFetch: no activity for ${PINNED_FETCH_IDLE_TIMEOUT_MS}ms`));
+    });
 
     req.on('error', reject);
     req.end(init.body);

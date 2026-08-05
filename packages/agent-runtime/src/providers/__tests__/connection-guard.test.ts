@@ -327,6 +327,54 @@ describe('pinnedFetch', () => {
     }
   });
 
+  // `http(s).request` never auto-follows a redirect the way `fetch`'s default does, but "does not
+  // follow" alone is weaker than the `redirect: 'error'` callers ask for: real `fetch` THROWS on a
+  // 3xx. Resolving normally with `status: 302` would turn the guard's hard failure into a quiet
+  // `ok: false` — undermining the reviewer's original finding (a guard-passing endpoint 302'ing
+  // into blocked address space with auth headers attached). Asserted per redirect status code that
+  // `fetch` itself treats as a redirect.
+  it.each([301, 302, 303, 307, 308])('rejects a %i redirect rather than resolving it as an ordinary response', async (status) => {
+    const server = http.createServer((_req, res) => {
+      res.statusCode = status;
+      res.setHeader('location', 'http://169.254.169.254/latest/meta-data/');
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      await expect(
+        pinnedFetch(`http://127.0.0.1:${port}/v1`, { method: 'POST', headers: {}, body: '{}' }, undefined),
+      ).rejects.toThrow(new RegExp(`refused to follow a ${status} redirect`));
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  // 304 carries no `Location` header and no provider in this package sends conditional-request
+  // headers (`If-None-Match`/`If-Modified-Since`) that could ever produce one — confirms the
+  // redirect check is scoped to the five codes `fetch` treats as redirects, not "any 3xx".
+  it('does not reject a 304, which is not a redirect fetch would follow', async () => {
+    const server = http.createServer((_req, res) => {
+      res.statusCode = 304;
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      const response = await pinnedFetch(`http://127.0.0.1:${port}/v1`, { method: 'POST', headers: {}, body: '{}' }, undefined);
+      expect(response.status).toBe(304);
+      expect(response.ok).toBe(false);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('drains the body and reports ok:false for a non-2xx response', async () => {
     const server = http.createServer((req, res) => {
       res.statusCode = 503;
