@@ -34,6 +34,26 @@ export type ProviderModelsInput = ProviderModelsRequest & {
 };
 
 const PROVIDER_MODELS_TIMEOUT_MS = 12_000;
+
+// Every protocol `providerModelsUrl` resolves an endpoint for EXCEPT
+// `aihubmix` — its catalogue is public and `providerModelsHeaders` already
+// sends no `Authorization` for a blank key (see that function's own
+// comment). For the rest, an empty key is never a legitimate request: the
+// provider will reject it, but with a generic "no credential" error that
+// reads as a broken integration rather than a missing key. Failing fast
+// here, before any network access, turns that into a clear local message
+// instead — the same class of gap for every one of these protocols (not
+// just Google, where an operator first reported it).
+const PROTOCOLS_REQUIRING_API_KEY = new Set<ConnectionTestProtocol>(['openai', 'senseaudio', 'anthropic', 'google']);
+
+function missingApiKeyResponse(startedAt: number): ProviderModelsResponse {
+  return {
+    ok: false,
+    kind: 'auth_failed',
+    latencyMs: Date.now() - startedAt,
+    detail: 'No API key — model discovery needs the key from this browser.',
+  };
+}
 const BEDROCK_MODEL_OPTIONS: ProviderModelOption[] = [
   { id: 'anthropic.claude-3-5-sonnet-20241022-v2:0', label: 'Claude 3.5 Sonnet v2' },
   { id: 'anthropic.claude-3-5-haiku-20241022-v1:0', label: 'Claude 3.5 Haiku' },
@@ -313,6 +333,9 @@ export async function listProviderModels(
       models: BEDROCK_MODEL_OPTIONS,
       detail: 'AWS Bedrock uses a static seed until AWS credential-backed discovery is available.',
     };
+  }
+  if (PROTOCOLS_REQUIRING_API_KEY.has(input.protocol) && !input.apiKey.trim()) {
+    return missingApiKeyResponse(start);
   }
 
   let url: string;

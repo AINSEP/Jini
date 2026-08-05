@@ -55,9 +55,23 @@ export interface ConnectionTestResponse {
 }
 
 const SMOKE_PROMPT = 'Reply with only: ok';
-// Small but not tiny: a reasoning model can spend the first few dozen
-// tokens on hidden reasoning before producing a visible "ok".
-const CONNECTION_TEST_MAX_TOKENS = 64;
+/**
+ * Headroom for a reasoning model's hidden thinking, plus the two-character answer.
+ *
+ * Was 64, chosen with the right instinct ("a reasoning model can spend the first few dozen tokens
+ * on hidden reasoning") and the wrong number. On Gemini 2.5 models thinking tokens are billed
+ * against `maxOutputTokens`, and their dynamic thinking budget routinely exceeds 64 on its own — so
+ * the model spends the entire allowance thinking, stops at `finishReason: MAX_TOKENS`, and returns
+ * a 2xx candidate with NO `content.parts` at all. The operator sees "Provider returned a 2xx
+ * response without assistant text" against a key that provably works, which reads as a broken key.
+ *
+ * 512 rather than a thinking-disabling flag (`generationConfig.thinkingConfig.thinkingBudget: 0`)
+ * because that field is Gemini-2.5-only and the Gemini API rejects unknown `generationConfig`
+ * members outright — it would fix current models by breaking older ones. A larger ceiling is
+ * provider-agnostic, and it is a ceiling, not a spend: a model that answers "ok" in two tokens
+ * still costs two tokens.
+ */
+const CONNECTION_TEST_MAX_TOKENS = 512;
 const CONNECTION_TEST_TIMEOUT_MS = 12_000;
 const SAMPLE_MAX_CHARS = 120;
 
@@ -81,6 +95,28 @@ function truncateSample(text: unknown): string {
 
 function isSmokeOkReply(text: unknown): boolean {
   return typeof text === 'string' && text.trim().toLowerCase() === 'ok';
+}
+
+/**
+ * The provider's own reason for stopping, when a 2xx carried no usable text.
+ *
+ * Exists because "Provider returned a 2xx response without assistant text" is a true statement that
+ * tells the operator nothing they can act on — it names the symptom and hides the cause. Every
+ * supported protocol reports a stop reason under a different key, and the useful ones
+ * (`MAX_TOKENS`, `content_filter`, `safety`) each imply a different fix.
+ *
+ * Read defensively: any of these may be absent, and a missing reason must degrade to the old
+ * message rather than to `"undefined"`.
+ */
+function extractFinishReason(data: unknown): string {
+  const root = data as {
+    candidates?: Array<{ finishReason?: unknown }>;
+    choices?: Array<{ finish_reason?: unknown }>;
+    stop_reason?: unknown;
+  };
+  const raw =
+    root?.candidates?.[0]?.finishReason ?? root?.choices?.[0]?.finish_reason ?? root?.stop_reason;
+  return typeof raw === 'string' && raw.trim() ? raw.trim() : '';
 }
 
 function isLikelyAuthErrorText(text: string): boolean {
@@ -241,7 +277,14 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
           if (!Array.isArray(candidates) || candidates.length === 0) return '';
           const parts = (candidates[0] as { content?: { parts?: unknown } }).content?.parts;
           if (!Array.isArray(parts)) return '';
-          return parts.map((p: { text?: unknown }) => (typeof p?.text === 'string' ? p.text : '')).join('');
+          return parts
+            // Gemini 2.5 returns its hidden reasoning as ordinary parts flagged `thought: true`,
+            // interleaved with the real answer. Joining them all turns a correct "ok" into
+            // "<paragraph of reasoning>ok", which `isSmokeOkReply`'s exact match then rejects — a
+            // model that answered correctly reported as a failed connection. Only the answer counts.
+            .filter((p: { thought?: unknown }) => p?.thought !== true)
+            .map((p: { text?: unknown }) => (typeof p?.text === 'string' ? p.text : ''))
+            .join('');
         },
       };
     }
@@ -280,6 +323,23 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
       latencyMs: Date.now() - start,
       model,
       detail: `Connection test is not supported for protocol "${input.protocol}".`,
+    };
+  }
+
+  // Every supported protocol here (anthropic/openai/azure/google) puts the
+  // key straight into the outbound request (`buildProviderCall` below), so
+  // an empty key is never a legitimate probe — the provider would reject it
+  // with a generic "no credential" error indistinguishable from a broken
+  // integration. Same fail-fast rationale as `listProviderModels`'s
+  // `PROTOCOLS_REQUIRING_API_KEY` guard, checked first so a missing key
+  // short-circuits before any DNS/network access.
+  if (!input.apiKey.trim()) {
+    return {
+      ok: false,
+      kind: 'auth_failed',
+      latencyMs: Date.now() - start,
+      model,
+      detail: 'No API key — connection test needs the key from this browser.',
     };
   }
 
@@ -359,6 +419,10 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
         // audits reproduced that, each from a different call boundary; the
         // redaction was simply missing on this one branch.
         const sample = truncateSample(redactSecrets(text, [input.apiKey]));
+        // Naming the stop reason turns an unactionable "it returned nothing" into a diagnosis:
+        // `MAX_TOKENS` means the smoke budget was too small (usually a thinking model), a safety or
+        // content-filter reason means the probe was blocked, not that the endpoint is broken.
+        const finishReason = extractFinishReason(data);
         result = {
           ok: false,
           kind: 'unknown',
@@ -367,7 +431,9 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
           status: response.status,
           detail: sample
             ? `Expected smoke test reply "ok"; got "${sample}"`
-            : 'Provider returned a 2xx response without assistant text',
+            : finishReason
+              ? `Provider returned a 2xx response without assistant text (finish reason: ${finishReason})`
+              : 'Provider returned a 2xx response without assistant text',
         };
       }
     }

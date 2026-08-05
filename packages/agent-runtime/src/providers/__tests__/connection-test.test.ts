@@ -35,6 +35,29 @@ describe('testProviderConnection', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  // Every supported protocol puts the key straight into the outbound
+  // request, so an empty key must fail locally with a clear message rather
+  // than reach the provider and come back as a generic "no credential"
+  // error (e.g. Google's "Method doesn't allow unregistered callers").
+  for (const protocol of ['anthropic', 'openai', 'azure', 'google'] as const) {
+    it(`rejects an empty api key locally for ${protocol} before making any request`, async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await testProviderConnection(baseInput({ protocol, apiKey: '' }));
+      expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
+      expect(result.detail).toMatch(/no api key/i);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  }
+
+  it('rejects a whitespace-only api key locally, checked before the base-url guard', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await testProviderConnection(baseInput({ apiKey: '   ', baseUrl: 'not a url' }));
+    expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('reports forbidden for an internal base url without making any request', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -185,6 +208,71 @@ describe('testProviderConnection', () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toContain('gemini-2.5-flash');
     expect(init.headers).toMatchObject({ 'x-goog-api-key': 'sk-ant-test' });
+  });
+
+  // Reproduces the reported failure: a valid Gemini key whose model-discovery call listed 42
+  // models, but whose "Test connection" reported 'Provider returned a 2xx response without
+  // assistant text'. Both tests below FAIL against the pre-fix code (64-token budget, unfiltered
+  // parts) — that is what makes them worth keeping.
+  it('does not exhaust the token budget on a reasoning model before it can answer', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ candidates: [{ content: { parts: [{ text: 'ok' }] } }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    await testProviderConnection(
+      baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }),
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(String(init.body)) as { generationConfig: { maxOutputTokens: number } };
+    // Gemini 2.5's dynamic thinking budget alone routinely exceeds the old 64.
+    expect(body.generationConfig.maxOutputTokens).toBeGreaterThanOrEqual(512);
+  });
+
+  it('ignores Gemini thought parts, so hidden reasoning does not corrupt the smoke reply', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          candidates: [
+            {
+              finishReason: 'STOP',
+              content: {
+                parts: [
+                  { text: 'The user wants a literal two-letter answer, so I will reply ok.', thought: true },
+                  { text: 'ok' },
+                ],
+              },
+            },
+          ],
+        }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await testProviderConnection(
+      baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }),
+    );
+    // Unfiltered, the join produced "The user wants…ok", which the exact-match smoke check rejects.
+    expect(result).toMatchObject({ ok: true, kind: 'success' });
+  });
+
+  it('names the provider stop reason when a 2xx carried no text at all', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      // Exactly the shape Gemini returns when thinking consumed the whole budget: a candidate with
+      // a finish reason and no `content.parts` whatsoever.
+      text: async () => JSON.stringify({ candidates: [{ finishReason: 'MAX_TOKENS' }] }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const result = await testProviderConnection(
+      baseInput({ protocol: 'google', baseUrl: 'https://generativelanguage.googleapis.com', model: 'gemini-flash-latest' }),
+    );
+    expect(result.ok).toBe(false);
+    // The old message named only the symptom; an operator could not tell a too-small budget from a
+    // safety block from a broken endpoint.
+    expect(result.detail).toContain('MAX_TOKENS');
   });
 
   it('sends the Azure legacy deployment request shape with api-key header and api-version query param', async () => {

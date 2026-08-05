@@ -52,6 +52,46 @@ describe('listProviderModels', () => {
     expect(result).toMatchObject({ ok: false, kind: 'unsupported_protocol' });
   });
 
+  // An empty key sent to the provider produces a generic, provider-specific
+  // "no credential" error (e.g. Google's "Method doesn't allow unregistered
+  // callers") that reads as a broken integration rather than a missing key.
+  // These four protocols all put the key straight into the request the same
+  // way Anthropic/OpenAI/Google do — the guard below has to reject before
+  // any network access, not translate the provider's own response.
+  for (const protocol of ['openai', 'senseaudio', 'anthropic', 'google'] as const) {
+    it(`rejects an empty api key locally for ${protocol} before making any request`, async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await listProviderModels(baseInput({ protocol, apiKey: '' }));
+      expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
+      expect(result.detail).toMatch(/no api key/i);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it(`rejects a whitespace-only api key locally for ${protocol}`, async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+      const result = await listProviderModels(baseInput({ protocol, apiKey: '   ' }));
+      expect(result).toMatchObject({ ok: false, kind: 'auth_failed' });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  }
+
+  // AIHubMix's catalogue is public — `providerModelsHeaders` already omits
+  // auth for a blank key, so the guard must not block it (a real regression
+  // here would be silently converting "public catalog, no key needed" into
+  // "always fails without a key").
+  it('does not require an api key for aihubmix, whose catalogue is public', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({ ok: true, text: async () => JSON.stringify({ models: [] }) }),
+    );
+    const result = await listProviderModels(
+      baseInput({ protocol: 'aihubmix', apiKey: '', baseUrl: 'https://aihubmix.com' }),
+    );
+    expect(result.kind).not.toBe('auth_failed');
+  });
+
   it('fetches and normalizes an OpenAI model list, sorted and de-duplicated, excluding non-chat ids', async () => {
     vi.stubGlobal(
       'fetch',
