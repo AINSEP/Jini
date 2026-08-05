@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 
-import { CHAT_PANE_AGENT_TOOLS } from '../../agent-tools.js';
-import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../../types.js';
-import { definedProps } from '../../../../util/defined-props.js';
+import { CHAT_PANE_AGENT_TOOLS } from '../agent-tools.js';
+import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../types.js';
+import { definedProps } from '../../../util/defined-props.js';
 import type { UseChatPaneResult } from './useChatPane.hooks.js';
 
 export interface UseChatPaneAgentControlOptions {

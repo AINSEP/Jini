@@ -4,9 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { ChatMessage } from '@jini-ai/chat/core';
 import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
-import { createFakeChatTransport } from '../../../hooks/testing/fake-transport.js';
-import { ChatPane } from '../react/components/ChatPane.js';
-import type { ChatPaneActivity, ChatPaneAgent } from '../types.js';
+import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
+import { ChatPane } from '../../components/ChatPane.js';
+import type { ChatPaneActivity, ChatPaneAgent } from '../../types.js';
 
 const agents: ChatPaneAgent[] = [{
   id: 'codex',

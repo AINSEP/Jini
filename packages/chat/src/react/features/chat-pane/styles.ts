@@ -746,6 +746,31 @@ export const CHAT_PANE_STYLES = `
   border-radius: 8px;
 }
 /*
+ * The BYOK model, rendered as a value rather than a control — see RuntimeByokDetails for why it
+ * is not a disabled select. It occupies the same box the sibling selects do so the row still
+ * reads as part of the same list, but carries no border: a bordered box with no affordance is
+ * exactly the "looks editable, isn't" shape the plain text exists to avoid.
+ */
+/*
+ * The BYOK model list, which CustomSelect portals to document.body. runtimePopoverPosition puts
+ * the runtime popover at z-index 1000; the shared .jini-select-menu default is 60, which is right
+ * everywhere else and puts this menu behind the very popover that opened it. One above the
+ * popover, not far above: it must clear its own surface and nothing else.
+ */
+.jini-select-menu.jini-runtime-model-menu {
+  z-index: 1001;
+}
+.jini-runtime-byok-model strong {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 7px 10px;
+  color: var(--jini-chat-text);
+  font-weight: 600;
+  word-break: break-all;
+}
+/*
  * Tool-call cards (ToolCard.tsx) and the per-turn usage summary (MessageRow.tsx) ship no CSS of
  * their own — see this file's own header note on why the package supplies a default theme at all.
  * Collapsed by default (.op-card-head is the only always-visible part), so a run with a dozen tool

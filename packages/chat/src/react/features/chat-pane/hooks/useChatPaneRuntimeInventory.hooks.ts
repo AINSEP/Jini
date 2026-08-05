@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 
-import { useLatestOperation } from '../../../../hooks/useLatestOperation.js';
-import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '../../types.js';
+import { useLatestOperation } from '../../../hooks/useLatestOperation.js';
+import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '../types.js';
 
 const EMPTY_AGENTS: readonly ChatPaneAgent[] = [];
 

@@ -1,15 +1,15 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createFakeChatTransport } from '../../../hooks/testing/fake-transport.js';
-import { CHAT_PANE_AGENT_TOOLS } from '../agent-tools.js';
+import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
+import { CHAT_PANE_AGENT_TOOLS } from '../../agent-tools.js';
 import type {
   ChatPaneAgent,
   ChatPaneAgentBridgeAccess,
   ChatPaneAgentToolAction,
-} from '../types.js';
-import { useChatPane, type UseChatPaneResult } from '../react/hooks/useChatPane.hooks.js';
-import { useChatPaneAgentControl } from '../react/hooks/useChatPaneAgentControl.hooks.js';
+} from '../../types.js';
+import { useChatPane, type UseChatPaneResult } from '../../hooks/useChatPane.hooks.js';
+import { useChatPaneAgentControl } from '../../hooks/useChatPaneAgentControl.hooks.js';
 
 const agents: ChatPaneAgent[] = [
   { id: 'codex', name: 'Codex CLI', available: true },

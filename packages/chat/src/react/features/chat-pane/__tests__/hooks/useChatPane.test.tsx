@@ -1,9 +1,9 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createFakeChatTransport } from '../../../hooks/testing/fake-transport.js';
-import type { ChatPaneAgent } from '../types.js';
-import { useChatPane } from '../react/hooks/useChatPane.hooks.js';
+import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
+import type { ChatPaneAgent } from '../../types.js';
+import { useChatPane } from '../../hooks/useChatPane.hooks.js';
 
 const agents: ChatPaneAgent[] = [
   { id: 'codex', name: 'Codex CLI', available: true },

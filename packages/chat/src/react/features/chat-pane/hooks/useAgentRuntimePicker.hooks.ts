@@ -33,12 +33,13 @@ import {
   type RefObject,
 } from 'react';
 
-import { orderChatPaneAgents } from '../../rules.js';
+import { orderChatPaneAgents } from '../rules.js';
 import type {
+  ByokRuntimeSummary,
   ChatPaneAgent,
   ChatPaneAgentSelection,
   RuntimePickerPlacement,
-} from '../../types.js';
+} from '../types.js';
 
 /** Everything in the popover a roving/trapping key handler is allowed to move focus between. */
 const FOCUSABLE_CONTROLS = 'button:not(:disabled), select:not(:disabled), input:not(:disabled)';
@@ -151,12 +152,40 @@ export function runtimeSummaryText(
   return `${selectedAgent.name}${version} · ${modelLabel}`;
 }
 
+/**
+ * The head/trigger labels while `executionMode` is `'api'`.
+ *
+ * Separate from {@link runtimeSummaryText} rather than folded into it because the two describe
+ * different things and fail differently: that one names a detected CLI and its model, this one
+ * names a provider and the model the credential is configured for, and neither has a sensible
+ * fallback to the other. A missing provider label here is not "no agent selected" — the API path is
+ * still what will run — so the fallback is a generic mode name, never a CLI's.
+ *
+ * @complexity Time/space: O(1).
+ */
+export function byokSummaryText(
+  byokRuntime: ByokRuntimeSummary | undefined,
+  t: (key: string) => string,
+): { title: string; modelLabel: string; summary: string } {
+  const title = byokRuntime?.providerLabel?.trim() || t('API · BYOK');
+  const model = byokRuntime?.model?.trim();
+  const modelLabel = model || t('No model configured');
+  return { title, modelLabel, summary: `${title} · ${modelLabel}` };
+}
+
 export interface UseAgentRuntimePickerOptions {
   agents: readonly ChatPaneAgent[];
   value: ChatPaneAgentSelection;
   placement: RuntimePickerPlacement;
   /** Translator, injected rather than read from context so this hook is testable without a provider. */
   t: (key: string) => string;
+  /** Which runtime the labels below should describe. Defaults to `'local'`, preserving the
+   *  pre-BYOK behavior for every caller that does not pass one. */
+  executionMode?: 'local' | 'api';
+  /** Only read when `executionMode` is `'api'`. Explicitly `| undefined` because the package builds
+   *  under `exactOptionalPropertyTypes` and the component forwards its own optional prop straight
+   *  through. */
+  byokRuntime?: ByokRuntimeSummary | undefined;
 }
 
 export interface UseAgentRuntimePickerResult {
@@ -172,6 +201,26 @@ export interface UseAgentRuntimePickerResult {
   selectedAgent: ChatPaneAgent | undefined;
   modelLabel: string;
   runtimeSummary: string;
+  /** What the collapsed trigger names as the runtime — the selected CLI in `'local'`, the provider
+   *  in `'api'`. A separate field because the trigger must NOT fall back to `selectedAgent.name`
+   *  while an API turn is what would actually run. */
+  triggerTitle: string;
+  /**
+   * The `data-theme` of the place the popover was opened FROM, or `null` when the host pins none.
+   *
+   * The popover renders through `createPortal` into `document.body`, so it escapes any `data-theme`
+   * on an ancestor of the trigger — and `@jini-ai/ui` themes entirely through `[data-theme]` token
+   * blocks, with its DARK values on a bare `@media (prefers-color-scheme: dark) { :root { … } }`.
+   * The consequence is not hypothetical: measured in a host admin on a dark-mode machine, the
+   * popover itself looked right (the chat package's own `--jini-chat-*` tokens default light) while
+   * the `@jini-ai/ui` control inside it — the BYOK model select — resolved against that dark `:root`
+   * block and rendered dark-on-dark inside an all-light admin.
+   *
+   * So the popover carries its origin's theme with it, the same compensation `CustomSelect` already
+   * makes for its own portaled menu. `null` leaves document-level theming untouched, so a host that
+   * pins nothing is byte-identical to before.
+   */
+  originTheme: string | null;
   toggleOpen: () => void;
   handlePopoverKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
 }
@@ -187,6 +236,8 @@ export function useAgentRuntimePicker({
   value,
   placement,
   t,
+  executionMode = 'local',
+  byokRuntime,
 }: UseAgentRuntimePickerOptions): UseAgentRuntimePickerResult {
   const dialogId = useId();
   const [open, setOpen] = useState(false);
@@ -199,8 +250,21 @@ export function useAgentRuntimePicker({
     [agents],
   );
   const selectedAgent = orderedAgents.find((agent) => agent.id === value.agentId);
-  const modelLabel = runtimeOptionLabel(selectedAgent?.models, value.model, t('Default model'));
-  const runtimeSummary = runtimeSummaryText(selectedAgent, modelLabel, t);
+
+  // `selectedAgent` stays resolved in BOTH modes on purpose — the CLI selection is still the stored
+  // one, and switching back to Local CLI must not have silently lost it. What changes in `'api'` is
+  // only what gets DESCRIBED, because none of the CLI's labels are true of an API turn.
+  const localModelLabel = runtimeOptionLabel(selectedAgent?.models, value.model, t('Default model'));
+  const byok = byokSummaryText(byokRuntime, t);
+  const isApi = executionMode === 'api';
+  const modelLabel = isApi ? byok.modelLabel : localModelLabel;
+  const runtimeSummary = isApi ? byok.summary : runtimeSummaryText(selectedAgent, localModelLabel, t);
+  const triggerTitle = isApi ? byok.title : (selectedAgent?.name ?? t('Choose agent'));
+
+  // Read during render rather than in an effect: the popover only mounts once `open` is true, which
+  // is itself a re-render, and `triggerRef` is populated at the first commit — so by the time this
+  // value is used it is always resolved. See `originTheme` on the result type for why it exists.
+  const originTheme = triggerRef.current?.closest('[data-theme]')?.getAttribute('data-theme') ?? null;
 
   const focusTrigger = useCallback(() => {
     triggerRef.current?.focus();
@@ -217,6 +281,12 @@ export function useAgentRuntimePicker({
       if (
         triggerRef.current?.contains(target)
         || popoverRef.current?.contains(target)
+        // A control INSIDE the popover may itself portal its menu to `document.body` —
+        // `@jini-ai/ui`'s `CustomSelect` (and so `SearchableModelSelect`, which the BYOK model row
+        // uses) does exactly that. Such a menu is a descendant of neither ref, so without this the
+        // first mousedown on a model option would be read as an outside click and close the
+        // popover out from under the selection the operator was making.
+        || (target instanceof Element && target.closest('.jini-select-menu') !== null)
       ) return;
       setOpen(false);
       // Let the pointer's click complete before restoring focus. Otherwise the
@@ -291,6 +361,8 @@ export function useAgentRuntimePicker({
     selectedAgent,
     modelLabel,
     runtimeSummary,
+    triggerTitle,
+    originTheme,
     toggleOpen,
     handlePopoverKeyDown,
   };

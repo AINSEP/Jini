@@ -1,5 +1,6 @@
 export type {
   AgentRuntimePickerProps,
+  ByokRuntimeSummary,
   ChatPaneActivity,
   ChatPaneAgent,
   ChatPaneAgentBridgeAccess,
@@ -40,22 +41,22 @@ export {
   useChatPane,
   type UseChatPaneOptions,
   type UseChatPaneResult,
-} from './react/hooks/useChatPane.hooks.js';
+} from './hooks/useChatPane.hooks.js';
 export {
   useChatPaneAgentControl,
   type UseChatPaneAgentControlOptions,
-} from './react/hooks/useChatPaneAgentControl.hooks.js';
+} from './hooks/useChatPaneAgentControl.hooks.js';
 export {
   useChatPaneWorkingDirectory,
   type UseChatPaneWorkingDirectoryOptions,
   type UseChatPaneWorkingDirectoryResult,
-} from './react/hooks/useChatPaneWorkingDirectory.hooks.js';
+} from './hooks/useChatPaneWorkingDirectory.hooks.js';
 export {
   useChatPaneRuntimeInventory,
   type UseChatPaneRuntimeInventoryOptions,
   type UseChatPaneRuntimeInventoryResult,
-} from './react/hooks/useChatPaneRuntimeInventory.hooks.js';
+} from './hooks/useChatPaneRuntimeInventory.hooks.js';
 export {
   AgentRuntimePicker,
-} from './react/components/AgentRuntimePicker.js';
-export { ChatPane } from './react/components/ChatPane.js';
+} from './components/AgentRuntimePicker.js';
+export { ChatPane } from './components/ChatPane.js';

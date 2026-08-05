@@ -5,7 +5,7 @@ import {
   findChatPaneSendBlocker,
   resolveChatPaneSelection,
   type ChatPaneSendBlocker,
-} from '../../rules.js';
+} from '../rules.js';
 import type {
   ChatPaneActivity,
   ChatPaneAgent,
@@ -13,15 +13,15 @@ import type {
   ChatPaneAgentSelection,
   ChatPaneRunContext,
   ChatPaneWorkingDirectoryAccess,
-} from '../../types.js';
+} from '../types.js';
 import type { ChatAttachment, ChatMessage } from '@jini-ai/chat/core';
 import type { ChatTransport } from '@jini-ai/chat/core';
-import { definedProps } from '../../../../util/defined-props.js';
-import { useComposer, type UseComposerResult } from '../../../../hooks/useComposer.js';
+import { definedProps } from '../../../util/defined-props.js';
+import { useComposer, type UseComposerResult } from '../../../hooks/useComposer.js';
 import {
   useConversation,
   type UseConversationResult,
-} from '../../../../hooks/useConversation.js';
+} from '../../../hooks/useConversation.js';
 import {
   useChatPaneWorkingDirectory,
   type UseChatPaneWorkingDirectoryResult,

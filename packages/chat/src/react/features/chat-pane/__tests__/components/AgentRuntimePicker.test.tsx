@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,8 +7,8 @@ import {
   runtimeAgentStatus,
   runtimeOptionLabel,
   runtimePopoverPosition,
-} from '../react/components/AgentRuntimePicker.js';
-import type { ChatPaneAgent, ChatPaneAgentSelection } from '../types.js';
+} from '../../components/AgentRuntimePicker.js';
+import type { ChatPaneAgent, ChatPaneAgentSelection } from '../../types.js';
 
 const agents: ChatPaneAgent[] = [
   {
@@ -231,6 +231,208 @@ describe('AgentRuntimePicker', () => {
     expect(screen.getByText('Scanning PATH…')).toBeInTheDocument();
   });
 
+  /**
+   * The defect these cover: every label and control in the popover used to come from the detected
+   * CLI inventory regardless of `executionMode`, so an operator on BYOK saw a CLI marked
+   * "selected", a model reading "Default model", and a Rescan PATH button — none of which affects
+   * an API turn, and all of which named a runtime that was not going to answer.
+   */
+  describe('in API · BYOK mode', () => {
+    const renderApi = (byokRuntime?: { providerLabel?: string; model?: string; iconId?: string }) =>
+      render(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude', model: 'default' }}
+          onChange={() => {}}
+          onRescan={() => {}}
+          executionMode="api"
+          apiModeAvailable
+          {...(byokRuntime ? { byokRuntime } : {})}
+        />,
+      );
+
+    it('shows the BYOK model and none of the local-CLI controls', async () => {
+      renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' });
+      await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByText('gemini-2.5-flash-lite')).toBeInTheDocument();
+
+      // The four things that used to render here and describe the wrong runtime. `Claude Code` is
+      // still the stored CLI selection — it just must not be presented as what will run.
+      expect(within(dialog).queryByRole('radiogroup')).not.toBeInTheDocument();
+      expect(within(dialog).queryByText('Claude Code')).not.toBeInTheDocument();
+      expect(within(dialog).queryByRole('combobox')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Rescan PATH' })).not.toBeInTheDocument();
+    });
+
+    // AgentIcon's <img> is aria-hidden (it's decorative; the trigger's accessible name is its
+    // aria-label), so it has to be found by querySelector rather than role — same reason the
+    // reference structure test above (line ~161) queries agent-icon <img>s that way, not by role.
+    it('shows the provider brand mark on the trigger when byokRuntime supplies an iconId', async () => {
+      renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite', iconId: 'gemini' });
+      const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+      expect(trigger.querySelector('img[src="/agent-icons/gemini.svg"]')).toBeInTheDocument();
+    });
+
+    it('falls back to a generic link glyph when byokRuntime has no iconId', async () => {
+      renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' });
+      const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+      // No <img> at all — the fallback is the RemixIcon glyph, not a broken/missing brand asset.
+      expect(trigger.querySelector('img')).not.toBeInTheDocument();
+    });
+
+    it('names the provider and model on the collapsed trigger, not the selected CLI', async () => {
+      renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' });
+
+      const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+      expect(within(trigger).getByText('Google Gemini')).toBeInTheDocument();
+      expect(within(trigger).getByText('gemini-2.5-flash-lite')).toBeInTheDocument();
+      expect(within(trigger).queryByText('Claude Code')).not.toBeInTheDocument();
+      expect(within(trigger).queryByText('Default model')).not.toBeInTheDocument();
+    });
+
+    it('falls back to a generic mode name rather than to a CLI label when nothing is configured', async () => {
+      renderApi();
+      const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+      expect(within(trigger).getByText('API · BYOK')).toBeInTheDocument();
+      expect(within(trigger).getByText('No model configured')).toBeInTheDocument();
+      expect(within(trigger).queryByText('Claude Code')).not.toBeInTheDocument();
+    });
+
+    it('renders a real model picker when the host supplies a list and a writer', async () => {
+      const onByokModelChange = vi.fn();
+      render(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude' }}
+          onChange={() => {}}
+          executionMode="api"
+          apiModeAvailable
+          byokRuntime={{
+            providerLabel: 'Google Gemini',
+            model: 'gemini-2.5-flash-lite',
+            models: [
+              { id: 'gemini-2.5-flash-lite', label: 'gemini-2.5-flash-lite' },
+              { id: 'gemini-3.1-pro-preview', label: 'gemini-3.1-pro-preview' },
+            ],
+          }}
+          onByokModelChange={onByokModelChange}
+        />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+      await userEvent.click(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')!);
+      await userEvent.click(screen.getByRole('option', { name: 'gemini-3.1-pro-preview' }));
+
+      // The "stay in sync" contract: the picker reports the choice rather than owning it, so the
+      // host's stored config stays the single source both this and the settings screens read.
+      expect(onByokModelChange.mock.calls).toEqual([['gemini-3.1-pro-preview']]);
+    });
+
+    /**
+     * Theming here works by INHERITANCE, not by attribute-copying, and the difference is why this
+     * broke live.
+     *
+     * `settings-dialog.css` declares its dark tokens on a bare
+     * `@media (prefers-color-scheme: dark) { :root { … } }` and its light ones on
+     * `[data-theme='light']`. `SearchableModelSelect` does not ask `CustomSelect` to portal, so
+     * both the trigger and the menu stay inside this popover's subtree and simply inherit whatever
+     * `--jini-*` values are in scope. Measured in a host admin on a dark-mode machine: the dock had
+     * no `[data-theme]` ancestor at all, so the whole control resolved against the dark `:root`
+     * block and rendered dark inside an all-light admin. The host fix is `data-theme` on the dock
+     * element; what THIS package owns is keeping the control inside the subtree that carries it.
+     *
+     * Asserted structurally because jsdom applies no stylesheet — a computed-colour assertion here
+     * would pass against any CSS whatsoever, including none.
+     */
+    it('keeps the model control inside the themed subtree rather than portaling out of it', async () => {
+      render(
+        <div data-theme="light">
+          <AgentRuntimePicker
+            agents={agents}
+            value={{ agentId: 'claude' }}
+            onChange={() => {}}
+            executionMode="api"
+            apiModeAvailable
+            byokRuntime={{
+              providerLabel: 'Google Gemini',
+              model: 'gemini-2.5-flash-lite',
+              models: [{ id: 'gemini-2.5-flash-lite', label: 'gemini-2.5-flash-lite' }],
+            }}
+            onByokModelChange={() => {}}
+          />
+        </div>,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+      await userEvent.click(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')!);
+
+      // The POPOVER is what has to carry the theme: it portals to `document.body`, so the host's
+      // own `data-theme` element is not an ancestor of anything inside it.
+      const popover = document.querySelector('.jini-runtime-popover');
+      expect(popover?.getAttribute('data-theme')).toBe('light');
+
+      // The trigger rides inside the popover and inherits. The MENU portals again — `CustomSelect`
+      // defaults `portal` to true — so it is a sibling of the popover in `document.body` and has to
+      // carry the theme itself. Two hops, and both must hold: the popover copies from the host, and
+      // the menu copies from the popover. Break either and the control goes dark again.
+      const menu = document.querySelector('.jini-select-menu');
+      const trigger = document.querySelector('.jini-select-trigger');
+      expect(popover?.contains(trigger)).toBe(true);
+      expect(menu).not.toBeNull();
+      expect(menu?.getAttribute('data-theme')).toBe('light');
+    });
+
+    /** Opening that portaled menu is a mousedown on a node that is a descendant of neither the
+     *  trigger nor the popover, so the dismiss handler would read it as an outside click. */
+    it('does not close the popover when the portaled model menu is opened', async () => {
+      render(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude' }}
+          onChange={() => {}}
+          executionMode="api"
+          apiModeAvailable
+          byokRuntime={{
+            providerLabel: 'Google Gemini',
+            model: 'gemini-2.5-flash-lite',
+            models: [
+              { id: 'gemini-2.5-flash-lite', label: 'gemini-2.5-flash-lite' },
+              { id: 'gemini-3.1-pro-preview', label: 'gemini-3.1-pro-preview' },
+            ],
+          }}
+          onByokModelChange={() => {}}
+        />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+      await userEvent.click(document.querySelector('.jini-runtime-byok-model .jini-select-trigger')!);
+      await userEvent.click(screen.getByRole('option', { name: 'gemini-3.1-pro-preview' }));
+
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('still restores the whole local-CLI surface on a switch back', async () => {
+      const { rerender } = renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' });
+      await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+      rerender(
+        <AgentRuntimePicker
+          agents={agents}
+          value={{ agentId: 'claude', model: 'default' }}
+          onChange={() => {}}
+          onRescan={() => {}}
+          executionMode="local"
+          apiModeAvailable
+        />,
+      );
+
+      // The point: hiding the CLI surface in API mode must not have dropped the stored selection.
+      const dialog = screen.getByRole('dialog');
+      expect(within(dialog).getByRole('radiogroup')).toBeInTheDocument();
+      expect(within(dialog).getByText('Claude Code')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Rescan PATH' })).toBeInTheDocument();
+      expect(within(dialog).queryByText('gemini-2.5-flash-lite')).not.toBeInTheDocument();
+    });
+  });
+
   it('switches configured execution modes and describes an offline local runtime', async () => {
     const onExecutionModeChange = vi.fn();
     const { rerender } = render(
@@ -244,7 +446,9 @@ describe('AgentRuntimePicker', () => {
       />,
     );
     await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-    expect(screen.getByText('API · BYOK')).toBeInTheDocument();
+    // Scoped to the popover: with no `byokRuntime` supplied the trigger ALSO falls back to this
+    // same generic mode name, so an unscoped `getByText` now matches two nodes.
+    expect(within(screen.getByRole('dialog')).getByText('API · BYOK')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Use Local CLI' }));
     await userEvent.click(screen.getByRole('button', { name: 'Use API · BYOK' }));
     expect(onExecutionModeChange.mock.calls).toEqual([['local'], ['api']]);
@@ -364,7 +568,13 @@ describe('AgentRuntimePicker', () => {
       />,
     );
     await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
-    expect(screen.getByText('No available code agents')).toBeInTheDocument();
+    // API mode renders no CLI inventory at all, so the agent list's own empty state is not what
+    // shows here — the BYOK block's is. (`No available code agents` stays covered by the
+    // local-mode empty-state test above.) The premise this test needs is unchanged: neither mode
+    // button is enabled and the BYOK block contributes no control, so the popover still has zero
+    // focusable descendants.
+    expect(screen.getByText('Set a model in the BYOK settings before sending a message.')).toBeInTheDocument();
+    expect(screen.queryByText('No available code agents')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Use Local CLI/ })).toBeDisabled();
     expect(screen.getByRole('button', { name: /Use API · BYOK/ })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Rescan PATH' })).not.toBeInTheDocument();

@@ -2,7 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import type { DragEvent } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { useChatPaneFileDrop } from '../react/hooks/useChatPaneFileDrop.hooks.js';
+import { useChatPaneFileDrop } from '../../hooks/useChatPaneFileDrop.hooks.js';
 
 function fileDragEvent(overrides: {
   type?: string;

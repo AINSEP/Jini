@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { useLatestOperation } from '../../../../hooks/useLatestOperation.js';
-import type { ChatPaneWorkingDirectoryAccess } from '../../types.js';
+import { useLatestOperation } from '../../../hooks/useLatestOperation.js';
+import type { ChatPaneWorkingDirectoryAccess } from '../types.js';
 
 export interface UseChatPaneWorkingDirectoryOptions {
   workingDirectory?: string | null;

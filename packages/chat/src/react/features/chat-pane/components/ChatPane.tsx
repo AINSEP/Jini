@@ -1,18 +1,18 @@
 import type { ReactNode } from 'react';
 import { WorkingDirPicker } from '@jini-ai/ui';
 
-import { Composer } from '../../../../components/Composer.js';
-import { MessageList } from '../../../../components/MessageList.js';
-import { useT } from '../../../../hooks/context.js';
-import type { ComposerSlots } from '../../../../slots.js';
-import { definedProps } from '../../../../util/defined-props.js';
+import { Composer } from '../../../components/Composer.js';
+import { MessageList } from '../../../components/MessageList.js';
+import { useT } from '../../../hooks/context.js';
+import type { ComposerSlots } from '../../../slots.js';
+import { definedProps } from '../../../util/defined-props.js';
 import type {
   ChatPaneAgent,
   ChatPaneProps,
   ChatPaneRuntimeAccess,
   ChatPaneVariant,
   ChatPaneWorkingDirectoryAccess,
-} from '../../types.js';
+} from '../types.js';
 import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.js';
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
 import {
@@ -329,6 +329,8 @@ export function ChatPane({
   executionMode = 'local',
   apiModeAvailable = false,
   onExecutionModeChange,
+  byokRuntime,
+  onByokModelChange,
   initialDraft,
   placeholder,
   suggestions = [],
@@ -412,7 +414,7 @@ export function ChatPane({
         placement={runtimePickerPlacement}
         executionMode={executionMode}
         apiModeAvailable={apiModeAvailable}
-        {...definedProps({ onExecutionModeChange })}
+        {...definedProps({ onExecutionModeChange, byokRuntime, onByokModelChange })}
       />
     ),
   });

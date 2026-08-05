@@ -7,8 +7,8 @@ import {
   isCustomModelId,
   matchesModelQuery,
   modelSubtitle,
-} from './rules.js';
-import type { ModelOption, ModelPickerGroup, ModelProvider } from './types.js';
+} from '../rules.js';
+import type { ModelOption, ModelPickerGroup, ModelProvider } from '../types.js';
 
 const openai: ModelProvider = { id: 'openai', label: 'OpenAI', credentialsRequired: true };
 const local: ModelProvider = { id: 'local', label: 'Local', credentialsRequired: false };

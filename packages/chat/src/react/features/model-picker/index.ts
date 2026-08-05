@@ -6,7 +6,7 @@
  * this file. See `source-map.md` for provenance and `types.ts`'s header for
  * the `@jini-ai/protocol`-only dependency boundary.
  *
- * Where this belongs (2026-08-03 `@jini-ai/chat` consolidation): `foundry/docs/jini-port/recon/
+ * Where this belongs (2026-08-03 `@jini-ai/chat` consolidation): `ADS-memory/reports/jini-port/recon/
  * r4b-webui-design.md` §1 line 41 explicitly lists "model/agent picker" among the widgets that
  * belong behind a host-injected slot, not inside chat-react proper — picking which LLM/agent to
  * run is a provider concern, not a chat-domain one. This module doesn't import anything from
@@ -24,9 +24,9 @@ export * from './rules.js';
 export * from './ports.js';
 export { defaultModelPickerPort } from './dependencies.js';
 
-export { useModelPicker } from './react/hooks/useModelPicker.hooks.js';
-export type { UseModelPickerOptions, ModelPickerController } from './react/hooks/useModelPicker.hooks.js';
-export { ModelPicker } from './react/components/ModelPicker.js';
-export type { ModelPickerProps } from './react/components/ModelPicker.js';
-export { CredentialStatusBadge } from './react/components/CredentialStatusBadge.js';
-export type { CredentialStatusBadgeProps } from './react/components/CredentialStatusBadge.js';
+export { useModelPicker } from './hooks/useModelPicker.hooks.js';
+export type { UseModelPickerOptions, ModelPickerController } from './hooks/useModelPicker.hooks.js';
+export { ModelPicker } from './components/ModelPicker.js';
+export type { ModelPickerProps } from './components/ModelPicker.js';
+export { CredentialStatusBadge } from './components/CredentialStatusBadge.js';
+export type { CredentialStatusBadgeProps } from './components/CredentialStatusBadge.js';

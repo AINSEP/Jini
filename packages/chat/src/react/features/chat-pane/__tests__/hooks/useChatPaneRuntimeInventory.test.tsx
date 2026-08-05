@@ -2,8 +2,8 @@ import { act, renderHook } from '@testing-library/react';
 import { StrictMode, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '../types.js';
-import { useChatPaneRuntimeInventory } from '../react/hooks/useChatPaneRuntimeInventory.hooks.js';
+import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '../../types.js';
+import { useChatPaneRuntimeInventory } from '../../hooks/useChatPaneRuntimeInventory.hooks.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
