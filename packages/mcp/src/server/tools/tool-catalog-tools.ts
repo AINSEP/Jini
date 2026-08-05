@@ -42,10 +42,16 @@ export const searchToolsTool: McpToolDef = {
       // written in the register of a description retrieves far better than a keyword bag. Measured
       // on an independent n=130 blind set: terse keywords 25% top-1, descriptive phrasing 72%.
       // This field previously read 'Keywords to search for, e.g. "navigate page" or "fill form"',
-      // which is the 25% form — and because a two-word example is a stronger signal than any prose
-      // instruction, it also silently overrode the descriptive guidance a host server may inject
-      // upstream (a host's agent-daemon systemOverlay did exactly that, and lost). Keep the example
-      // long-form; shortening it re-creates the bug.
+      // which is the 25% form. It also directly contradicted the descriptive guidance a host server
+      // may inject upstream (a host's agent-daemon systemOverlay said the opposite), so a caller was
+      // given two conflicting instructions — with this one sitting on the parameter itself, read at
+      // the moment the query is composed.
+      //
+      // NOT measured: which instruction won. The hypothesis was that a two-word example outranks
+      // prose guidance, but the conflict was removed before anyone measured it, so treat that as
+      // untested rather than established. What IS measured, on the coherent state after this fix:
+      // 35/35 real search_tools calls across 24 live CLI sessions used descriptive phrasing.
+      // Keep the example long-form; shortening it re-creates the 25% form.
       query: {
         type: 'string',
         description:
