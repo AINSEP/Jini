@@ -785,3 +785,16 @@ reopen that earlier decision — which nothing here suggests.
 **Route recommendation:** (1) is Programmer-executable once approved — it's the same shape as the
 two Step D exports, no new judgment call. (2)/(3) are the Coordinator/Architect's call to route or
 defer, per instruction — no implementation from Refactor on either without that.
+
+### 10.5 Resolution — 2026-08-05
+
+Both approved by Coordinator. **(1) shipped:** `interleaveMessageBlocks` (value) and `MessageBlock`
+(type) exported from `index.ts`, right after the `definedProps`/`useLatestOperation` block, same
+comment style, citing this section. `tsc --noEmit` clean; `pnpm guard` unchanged at **7** — expected,
+since R10 never scanned transitively, so this was a documented gap, never a violation, and closing
+it doesn't move the guard. Scoped `packages/chat` tests (barrel + `features/chat-pane/**` +
+`MessageRow`/`MessageList`): **205/205 passed**, 14 files. **(2) Option A approved** — accept the
+documented scope limit; revisit only if a second, independently-discovered transitive instance
+appears. Option B (real module-graph walk) and Option C (move the reachable set under
+`features/chat-pane/**`, rejected — reverses §2.3(b)'s locked composability guarantee) are not
+being pursued. This closes §10.

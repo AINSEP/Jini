@@ -252,6 +252,23 @@ export type {
 export { definedProps } from './util/defined-props.js';
 export type { DefinedProps } from './util/defined-props.js';
 
+/**
+ * REF-001 §10 (2026-08-05): newly public, same reasoning as `definedProps`/`useLatestOperation`
+ * above. `MessageRow.tsx` (itself public) depends on `interleaveMessageBlocks` to reconstruct an
+ * assistant message's original event order — text and tool cards interleaved where they actually
+ * happened — from `ChatMessage.content` + `ChatMessage.events` (see `message-blocks.ts`'s own
+ * module doc for why this needs computing at all, and when it refuses rather than guesses). Zero
+ * `ChatPane`-specific coupling: it operates on core `AgentEvent`/message vocabulary, not anything
+ * `ChatPane`-shaped. A consumer building an equivalent custom message-row component, with its own
+ * tool-timeline data, faced the identical interleaving problem and could not reach this solution —
+ * the same API-gap finding as §9.2, just found one hop further out by §10's transitive-reach trace
+ * rather than by `ChatPane`'s own direct imports. See
+ * ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md §10.2: this export closes
+ * the one live instance §10 found of R10's documented transitive-reach scope limit.
+ */
+export { interleaveMessageBlocks } from './message-blocks.js';
+export type { MessageBlock } from './message-blocks.js';
+
 export { TodoCard } from './components/TodoCard.js';
 export type { TodoCardProps } from './components/TodoCard.js';
 /**
