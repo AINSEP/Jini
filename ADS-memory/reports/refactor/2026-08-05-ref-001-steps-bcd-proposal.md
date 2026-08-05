@@ -682,3 +682,106 @@ session, not relayed:
 - R10's transitive-reach gap and `interleaveMessageBlocks` (§5) — unchanged by the flip.
 - Step C (own subpath) — when it lands, `barrelPath` in `check-chatpane-public-surface.ts` must
   point at whichever file becomes the public surface at that point.
+
+## 10. R10's transitive-reach gap — proposal, not implemented (2026-08-05)
+
+**Mode: propose only, per explicit Coordinator instruction.** Nothing under `packages/` was edited
+for this section. Written after Step C landed (`2185f0a1`) and the two named guard exceptions
+(`2da8d0c0`), which is why `barrelPath` and the `@jini-ai/ui/mcp-ui`/parity-test items referenced
+below are already resolved, not open questions here.
+
+### 10.1 What "transitive reach" actually means, traced against the real tree, not asserted
+
+R10 only scans files physically inside `features/chat-pane/**` for imports that escape that
+directory. If `ChatPane` imports `MessageList` (public, one hop, R10 sees this) and `MessageList`
+itself privately imports something non-public (a second hop, outside `features/chat-pane/**`, so
+R10 never looks at `MessageList.tsx`'s own imports), that second-hop reach is invisible to the
+check today.
+
+**I traced every hop, rather than reasoning about it abstractly, because "how big is this gap"
+changes what it costs to close.** `ChatPane`'s one-hop dependencies (§2.3(b) of this report already
+named them): `MessageList`, `MessageRow`, `Composer`, `AttachmentTray`, `ExtEventErrorBoundary`,
+`Markdown`, `ToolCard`, `QuestionForm`, `useToolTimeline`, `useExtEventGroups`,
+`getExtEventRenderer`, `RendererRegistry`. I read every one of those files' own import statements
+(not grepped for keywords) to find every second-hop name:
+
+| Second-hop name | Reached from | Public via |
+|---|---|---|
+| `useT` | `MessageRow`, `Composer`, `AttachmentTray`, `ToolCard`, `QuestionForm` | `index.ts` (`hooks/context.js` export block) |
+| `getToolRenderer` | `ToolCard` | `index.ts` |
+| `splitOnQuestionForms`, `stripArtifact`, `isTerminalRunStatus`, `isTodoWriteToolName`, `parseTodoWriteInput`, `toRenderProps`, `formatFormAnswers`, `formOptionValueForLabel` | `MessageRow`, `MessageList`, `ToolCard`, `QuestionForm` | `@jini-ai/chat/core` — `src/core/index.ts` still uses `export * from` (never converted to explicit exports the way `react`'s barrel was), so these are genuinely reachable by any consumer importing the bare package or `./core`, even though none of them appear as a literal name in that file |
+| `interleaveMessageBlocks` | `MessageRow` (`../message-blocks.js`) | **Nowhere. Not in `index.ts`, not in `core/index.ts`. This is the one real, currently-live gap.** |
+
+Every other second-hop name resolves to something a real consumer can already reach, through one
+barrel or the other. **`interleaveMessageBlocks` is the entire empirical gap, today** — not a
+hypothetical class of bug, one specific instance of it. Third-hop check: `ExtEventErrorBoundary.tsx`
+and `Markdown.tsx` have zero relative imports; `ToolCard.tsx`/`QuestionForm.tsx`'s further imports
+are the `core` wildcard names and `useT`, already covered above. No third-hop surprises.
+
+### 10.2 `interleaveMessageBlocks` — same shape as Step D's `definedProps`/`useLatestOperation`, recommend the same fix
+
+Read `message-blocks.ts`'s own module doc (not inferred): it reconstructs an assistant message's
+original event-order (text interleaved with tool calls) from `ChatMessage.content` +
+`ChatMessage.events`, refusing rather than guessing when it can't prove the reconstruction is
+lossless. Zero `ChatPane`-specific coupling — it operates on `AgentEvent`/`ChatMessage`, core
+vocabulary, and has exactly one production consumer (`MessageRow.tsx`, itself a public,
+independently-composable component per §2.3(b)). A host building a custom message-row-like
+component with its own tool-timeline data faces the identical interleaving problem and cannot
+reach this solution today — the same "API gap, not a leak" finding Step D made for its two
+symbols.
+
+**Recommend: export it from `index.ts`, exactly like Step D did.** Low risk (additive), no
+architecture decision required, closes today's entire empirical gap. **Not implemented — holding
+per instruction**, but flagging that unlike the three options below, this one specific piece
+doesn't need Coordinator/Architect judgment, only a go-ahead.
+
+### 10.3 The general gap — three options, since the *next* undiscovered instance is the real question
+
+Closing today's one instance doesn't change whether a *second* one could exist tomorrow undetected.
+Three ways to answer that, with real costs:
+
+**Option A — Accept the documented scope limit; do nothing beyond §10.2.**
+Cost: zero. Risk: the next second-hop non-public reach (someone adds a new private helper to
+`MessageRow.tsx`, say) goes uncaught until found by hand — exactly how `interleaveMessageBlocks`
+itself was found. Precedent for accepting this: `lib/walk-imports.ts`'s own module doc already
+commits to "regex-MVP... not full AST... good enough to catch real violations; a future pass can
+upgrade... without changing either check's calling convention" as this codebase's stated policy for
+this whole check family, not just R10.
+
+**Option B — Real transitive module-graph walk.**
+Extend R10 (or a new check) to follow every import from `ChatPane`'s production files recursively —
+not just the one-hop escaping imports it checks today — resolving each hop's target file and
+checking *its* imports too, memoized against cycles, until every reachable symbol is checked against
+the public surface. Cost: real — this would be the first check in the `R1`–`R11` family that can't
+stay a single-file regex scan; it needs actual graph traversal (file resolution across `.ts`/`.tsx`,
+cycle detection, a real "have I visited this file" set) or the TS compiler API this report's own §3
+already reached for when regex genuinely wasn't enough. Benefit: durable — closes this gap and every
+future recurrence of it automatically, matching the guard system's fail-closed philosophy. Highest
+build and maintenance cost of the three.
+
+**Option C — Move the whole reachable set under `features/chat-pane/**`.**
+This report's own original §5 named this as an alternative mechanism. **I don't think it's live: it
+directly contradicts a decision this same report already locked.** §2.3(b) established that
+`MessageList`, `MessageRow`, `Composer`, `AttachmentTray`, etc. **must stay part of the generic
+public surface**, independent of `ChatPane`, specifically because they're meant to be
+independently composable — a host can use `MessageList` without `ChatPane` at all. Moving them
+under `features/chat-pane/**` would make them structurally private to `ChatPane` (R10's whole
+boundary is "that subtree is the privileged one"), reversing the composability guarantee rather
+than protecting it. Not recommending this option unless the Coordinator specifically wants to
+reopen that earlier decision — which nothing here suggests.
+
+### 10.4 Recommendation
+
+1. Export `interleaveMessageBlocks` now (§10.2) — closes 100% of today's actual exposure, same
+   pattern as two already-accepted Step D fixes.
+2. Take Option A for the general gap — the cost of Option B (real graph-walk tooling) isn't
+   justified against a gap that traces to **zero** live instances once (1) lands. Recommend
+   revisiting Option B only if a *second*, independently-discovered transitive violation shows up in
+   a future audit — two instances found by hand is the signal that hand-finding isn't scaling
+   anymore; one instance, now fixed, isn't.
+3. Option C: not recommended, for the reason in §10.3 — it reopens a settled decision rather than
+   closing an open one.
+
+**Route recommendation:** (1) is Programmer-executable once approved — it's the same shape as the
+two Step D exports, no new judgment call. (2)/(3) are the Coordinator/Architect's call to route or
+defer, per instruction — no implementation from Refactor on either without that.
