@@ -385,7 +385,7 @@ export async function checkEngineBoundaries(
         }
         if (topSegment === 'packages') {
           const targetPackage = packageNameOf(resolvedRel);
-          // R2 exception #4 (2026-08-05, REF-001 review backlog): this ONE file, reaching for this
+          // R2 exception #5 (2026-08-05, REF-001 review backlog): this ONE file, reaching for this
           // ONE target, on purpose — not a pattern. `endpoint-policy.parity.test.ts`'s own header
           // comment explains why: it holds @jini-ai/ui's endpoint-policy.ts and agent-runtime's
           // connection-guard.ts in agreement by comparing them from SOURCE. Importing the built
