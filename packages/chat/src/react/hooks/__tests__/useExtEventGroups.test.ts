@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@jini-ai/chat/core';
+import type { AgentEvent } from '../../../core/index.js';
 import { useExtEventGroups } from '../useExtEventGroups.js';
 
 describe('useExtEventGroups', () => {

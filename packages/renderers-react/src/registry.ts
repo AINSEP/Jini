@@ -10,8 +10,8 @@
  * {@link ArtifactRenderer} into the registry instance it constructs instead
  * of this package shipping one. See `source-map.md`.
  */
-import type { ArtifactManifest } from '@jini-ai/chat/core';
-import { inferLegacyManifest } from '@jini-ai/chat/core';
+import type { ArtifactManifest } from '@jini-ai/chat';
+import { inferLegacyManifest } from '@jini-ai/chat';
 import type { ArtifactFile } from './types.js';
 
 export interface ArtifactRendererContext {

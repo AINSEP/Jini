@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { AgentEvent } from '@jini-ai/chat/core';
+import type { AgentEvent } from '../../core/index.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';
 
 /**

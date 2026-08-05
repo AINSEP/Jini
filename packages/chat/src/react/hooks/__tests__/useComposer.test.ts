@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { ChatAttachment } from '@jini-ai/chat/core';
+import type { ChatAttachment } from '../../../core/index.js';
 import { useComposer } from '../useComposer.js';
 import type { ProjectContextValue } from '../../slots.js';
 

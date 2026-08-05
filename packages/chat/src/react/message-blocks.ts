@@ -39,7 +39,7 @@
  *
  * Artifacts are handled by the caller, not here — see `MessageRow.tsx`.
  */
-import type { AgentEvent } from '@jini-ai/chat/core';
+import type { AgentEvent } from '../core/index.js';
 
 /**
  * One rendered block. Consecutive tool cards are coalesced into a single `tools` block so they keep

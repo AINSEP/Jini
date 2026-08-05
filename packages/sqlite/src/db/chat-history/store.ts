@@ -28,7 +28,7 @@ import type {
   ChatOwnerScope,
   ChatTitleSource,
   CreateChatConversationInput,
-} from '@jini-ai/chat/core';
+} from '@jini-ai/chat';
 
 import type { DbRow, SqliteDb } from '../core/types.js';
 

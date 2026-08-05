@@ -9,7 +9,7 @@
  * user-facing string wrapped in `useT()`.
  */
 import { useState } from 'react';
-import type { TodoItem } from '@jini-ai/chat/core';
+import type { TodoItem } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
 

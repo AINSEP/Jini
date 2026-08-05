@@ -11,8 +11,8 @@
  * `TodoCard`'s `onDismiss` convention).
  */
 import { useCallback, useMemo, useState } from 'react';
-import type { ChatMessage, TodoItem } from '@jini-ai/chat/core';
-import { latestTodoWriteInputForPinnedCard, parseTodoWriteInput } from '@jini-ai/chat/core';
+import type { ChatMessage, TodoItem } from '../../core/index.js';
+import { latestTodoWriteInputForPinnedCard, parseTodoWriteInput } from '../../core/index.js';
 
 export interface UsePinnedTodosResult {
   todos: TodoItem[];

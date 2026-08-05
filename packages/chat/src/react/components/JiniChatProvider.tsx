@@ -19,7 +19,7 @@
  * without re-threading props through every layer.
  */
 import { createContext, useContext, type ReactNode } from 'react';
-import type { ChatTransport, OnFeedback } from '@jini-ai/chat/core';
+import type { ChatTransport, OnFeedback } from '../../core/index.js';
 import type { AnalyticsAdapter, AttachmentTraySlot, ComposerSlots, FilePreviewSlot, I18nAdapter, ModelAgentPickerSlot, AnnotationAdapter, ProjectContextValue } from '../slots.js';
 import type { RendererRegistry } from '../artifact-types.js';
 import { AnalyticsContext, ArtifactRegistryContext, ChatTransportContext, I18nContext, ProjectContext } from '../hooks/context.js';

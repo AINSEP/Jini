@@ -13,7 +13,7 @@
  * `@jini-ai/renderers-react`'s real exports.
  */
 import { useMemo } from 'react';
-import { parseArtifacts, splitStreamingArtifact } from '@jini-ai/chat/core';
+import { parseArtifacts, splitStreamingArtifact } from '../../core/index.js';
 import type { ArtifactFile, ArtifactRenderMatch, RendererRegistry } from '../artifact-types.js';
 
 export interface ArtifactStreamItem {

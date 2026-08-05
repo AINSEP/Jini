@@ -20,8 +20,8 @@
  * generic rendering for it.
  */
 import { useState, type ReactNode } from 'react';
-import type { AgentEvent } from '@jini-ai/chat/core';
-import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '@jini-ai/chat/core';
+import type { AgentEvent } from '../../core/index.js';
+import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { getToolRenderer } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';

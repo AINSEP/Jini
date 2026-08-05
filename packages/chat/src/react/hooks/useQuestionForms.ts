@@ -16,8 +16,8 @@
  * (`formatFormAnswers`).
  */
 import { useCallback, useMemo } from 'react';
-import type { ChatMessage, FormQuestion, QuestionForm } from '@jini-ai/chat/core';
-import { findFirstQuestionForm, formOptionValueForLabel, formatFormAnswers } from '@jini-ai/chat/core';
+import type { ChatMessage, FormQuestion, QuestionForm } from '../../core/index.js';
+import { findFirstQuestionForm, formOptionValueForLabel, formatFormAnswers } from '../../core/index.js';
 
 export type QuestionFormAnswers = Record<string, string | string[]>;
 

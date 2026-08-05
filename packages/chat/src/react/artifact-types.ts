@@ -18,7 +18,7 @@
  * `ArtifactRenderer`/`RendererRegistry` implementations. Do not block this
  * package's other work on that package landing first.
  */
-import type { ArtifactManifest } from '@jini-ai/chat/core';
+import type { ArtifactManifest } from '../core/index.js';
 
 /** Generic artifact-file shape a host's project/workspace file maps onto. */
 export interface ArtifactFile {

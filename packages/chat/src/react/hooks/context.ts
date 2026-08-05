@@ -16,7 +16,7 @@
  */
 import { createContext, useContext } from 'react';
 import type { AnalyticsAdapter, I18nAdapter, ProjectContextValue } from '../slots.js';
-import type { ChatTransport } from '@jini-ai/chat/core';
+import type { ChatTransport } from '../../core/index.js';
 import type { RendererRegistry } from '../artifact-types.js';
 
 const PASSTHROUGH_I18N: I18nAdapter = {

@@ -18,9 +18,9 @@
  * `react/`.
  */
 import type { ReactNode } from 'react';
-import type { ChatAttachment } from '@jini-ai/chat/core';
+import type { ChatAttachment } from '../core/index.js';
 import type { ArtifactFile } from './artifact-types.js';
-import type { FeedbackChange, OnFeedback } from '@jini-ai/chat/core';
+import type { FeedbackChange, OnFeedback } from '../core/index.js';
 
 export type { FeedbackChange, OnFeedback };
 

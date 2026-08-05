@@ -31,8 +31,8 @@
  * see that module's header for the conditions.
  */
 import React, { type ReactNode } from 'react';
-import type { AgentEvent, ChatAttachment, ChatMessage } from '@jini-ai/chat/core';
-import { splitOnQuestionForms, stripArtifact } from '@jini-ai/chat/core';
+import type { AgentEvent, ChatAttachment, ChatMessage } from '../../core/index.js';
+import { splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';

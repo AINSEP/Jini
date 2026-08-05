@@ -15,7 +15,7 @@
  * override or extend tool rendering without forking the component.
  */
 import type { ReactNode } from 'react';
-import type { ToolRenderProps } from '@jini-ai/chat/core';
+import type { ToolRenderProps } from '../core/index.js';
 
 /**
  * Tool render callback. Mirrors AG-UI's `({ status, args, result, ... })`

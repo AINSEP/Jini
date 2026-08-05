@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import type { ChatMessage, QuestionForm } from '@jini-ai/chat/core';
+import type { ChatMessage, QuestionForm } from '../../../core/index.js';
 import { parseSubmittedAnswers, useQuestionForms } from '../useQuestionForms.js';
 
 const FORM_CONTENT = `Let's clarify a few things.

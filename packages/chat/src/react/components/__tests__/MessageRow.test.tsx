@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatMessage } from '@jini-ai/chat/core';
+import type { ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';
 import { MessageRow } from '../MessageRow.js';
 

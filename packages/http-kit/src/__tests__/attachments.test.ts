@@ -31,7 +31,7 @@ import {
 } from 'node:fs/promises';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ChatAttachment } from '@jini-ai/chat/core';
+import type { ChatAttachment } from '@jini-ai/chat';
 import {
   ATTACHMENTS_ROUTE_PATH,
   AttachmentRejectedError,

@@ -33,7 +33,7 @@ export type {
   RunContext,
   RunHandlers,
   StartRunInput,
-} from '@jini-ai/chat/core';
+} from '../core/index.js';
 export {
   RendererRegistry,
 } from './artifact-types.js';

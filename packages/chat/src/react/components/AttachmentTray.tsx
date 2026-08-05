@@ -7,7 +7,7 @@
  * `renderItem` for exotic attachment kinds (screenshots, Figma frames, ...)
  * and this component falls back to the built-in chip otherwise.
  */
-import type { ChatAttachment } from '@jini-ai/chat/core';
+import type { ChatAttachment } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
 import type { AttachmentTraySlot } from '../slots.js';
