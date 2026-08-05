@@ -356,6 +356,59 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'timed-out']);
   });
 
+  /**
+   * A handler is handed a `signal`, not policed by one. One that ignores it and resolves normally
+   * after the timer fired used to reach the success path and be recorded `completed` — the
+   * timeout/abort state was only ever consulted in the `catch`. The caller had already been told
+   * the call was terminal, so the result and the audit trail disagreed about the same execution.
+   */
+  it('reports timed-out, not completed, when an uncooperative handler resolves after the timeout fired', async () => {
+    const registry = registryWith({
+      descriptor: { id: 'stubborn', timeoutMs: 10 },
+      // Deliberately ignores ctx.signal and resolves successfully well after the deadline.
+      handler: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        return 'finished anyway';
+      },
+      policy: allowAll(),
+    });
+    const executor = createToolExecutor({ registry });
+
+    const result = await executor.execute(principal, run, 'stubborn', {});
+    expect(result.status).toBe('timed-out');
+    expect(result.output).toBeUndefined();
+    const audit = executor.getAuditRecord(result.executionId);
+    expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'timed-out']);
+  });
+
+  /**
+   * An infrastructure failure in a gate — a policy that rejects, a confirmation transport that
+   * drops — used to escape `execute` entirely. That left the audit record open forever with no
+   * terminal transition, and carried the raw exception text outward to become tool-result content
+   * the model reads. Both halves are closed here: terminal, recorded, and generic.
+   */
+  it('records a terminal failure and hides the raw exception when the authorization gate itself throws', async () => {
+    const registry = registryWith({
+      descriptor: { id: 'guarded' },
+      handler: async () => 'never runs',
+      policy: {
+        authorize: () => {
+          throw new Error('policy backend at 10.0.0.7 refused: token f00dbeef expired');
+        },
+      },
+    });
+    const executor = createToolExecutor({ registry });
+
+    const result = await executor.execute(principal, run, 'guarded', {});
+    expect(result.status).toBe('failed');
+    expect(result.error).toBe('authorization failed');
+    // The internal detail must not travel outward — this string reaches an agent as tool output.
+    expect(result.error).not.toContain('10.0.0.7');
+    expect(result.error).not.toContain('f00dbeef');
+    const audit = executor.getAuditRecord(result.executionId);
+    expect(audit?.events.at(-1)?.phase).toBe('failed');
+  });
+
   it('cancels an in-flight call via cancel(executionId)', async () => {
     let executionId = '';
     const registry = registryWith({
@@ -484,6 +537,30 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     expect(result.status).toBe('completed');
     expect(result.truncated).toBe(true);
     expect(result.output).toBe('this ');
+  });
+
+  /**
+   * `maxOutputBytes` is a BYTE cap, but `String.length`/`String.slice` count UTF-16 code units, so
+   * non-ASCII output escaped it at up to ~3x — exactly what a byte cap exists to bound. Nine CJK
+   * characters are 27 UTF-8 bytes but only 9 code units, so the old check saw `9 <= 10` and
+   * truncated nothing at all.
+   */
+  it('measures maxOutputBytes in bytes, not UTF-16 code units, and leaves no split-sequence glyph', async () => {
+    const registry = registryWith({
+      descriptor: { id: 'multibyte', maxOutputBytes: 10 },
+      handler: async () => '日本語日本語日本語',
+      policy: allowAll(),
+    });
+    const executor = createToolExecutor({ registry });
+    const result = await executor.execute(principal, run, 'multibyte', {});
+
+    expect(result.truncated).toBe(true);
+    const output = result.output as string;
+    expect(Buffer.byteLength(output, 'utf8')).toBeLessThanOrEqual(10);
+    // The 10-byte cut lands mid-character; the partial sequence is dropped rather than emitted as a
+    // replacement glyph, so exactly three whole characters (9 bytes) survive.
+    expect(output).toBe('日本語');
+    expect(output).not.toContain('�');
   });
 
   it('does not truncate string output within the limit', async () => {

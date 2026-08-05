@@ -165,11 +165,24 @@ export interface CreateToolExecutorOptions {
   readonly now?: () => number;
 }
 
+/**
+ * Enforces `maxOutputBytes` in BYTES, which is what the option is named for.
+ *
+ * `String.length` and `String.slice` count UTF-16 code units, so this previously let any non-ASCII
+ * output through at up to ~3x the configured cap (CJK and emoji are 3–4 UTF-8 bytes per code unit)
+ * — precisely the case a byte cap exists to bound. Slicing by code units also cannot split a
+ * surrogate pair safely.
+ *
+ * The byte slice is decoded non-fatally and one trailing U+FFFD is dropped: cutting mid-sequence
+ * produces exactly one replacement character at the end, and emitting that as the last visible
+ * glyph of every truncated multi-byte output is worse than losing one already-truncated character.
+ */
 function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { output: unknown; truncated: boolean } {
-  if (!maxOutputBytes || typeof output !== 'string' || output.length <= maxOutputBytes) {
-    return { output, truncated: false };
-  }
-  return { output: output.slice(0, maxOutputBytes), truncated: true };
+  if (!maxOutputBytes || typeof output !== 'string') return { output, truncated: false };
+  const encoded = Buffer.from(output, 'utf8');
+  if (encoded.byteLength <= maxOutputBytes) return { output, truncated: false };
+  const decoded = new TextDecoder('utf-8', { fatal: false }).decode(encoded.subarray(0, maxOutputBytes));
+  return { output: decoded.endsWith('�') ? decoded.slice(0, -1) : decoded, truncated: true };
 }
 
 /**
@@ -317,7 +330,24 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     }
 
     const executionId = openAudit(principal, run, toolId);
-    const resolved = await authorize(principal, run, toolId, input);
+    // Both gates below can throw on INFRASTRUCTURE failure — a policy that rejects, a confirmation
+    // transport that drops. Those throws used to escape `execute` entirely, which cost two things:
+    // the audit record stayed open forever at `requested`/`authorized` with no terminal transition
+    // (the comment above only ever guarded against leaving NO record, not against leaving an
+    // unfinished one), and the raw exception text travelled outward to become tool-result content
+    // an agent reads — an authorization or transport internal surfaced to the model verbatim.
+    //
+    // Recorded terminal and returned as `failed` with a fixed message. `failed` is the right state:
+    // this execution ended, and it ended for an operational reason rather than a decision. The real
+    // exception stays server-side. Deliberately narrower than the `unknown tool` throw above, which
+    // stays a throw because it is a routing/programming error, not an execution outcome.
+    let resolved: Awaited<ReturnType<typeof authorize>>;
+    try {
+      resolved = await authorize(principal, run, toolId, input);
+    } catch {
+      appendEvent(executionId, 'failed', 'authorization failed');
+      return { executionId, status: 'failed', error: 'authorization failed' };
+    }
     // `registry.has(toolId)` above already confirmed the tool exists, and `ToolRegistry` is
     // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
     // resolving the same `toolId` against the same `registry` cannot come back `undefined` here.
@@ -335,7 +365,14 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     // cancels an in-flight execution after a fixed number of ticks and needs the handler to have
     // already started by then.
     if (descriptor.requiresConfirmation) {
-      const confirmation = await requestConfirmation({ executionId, principal, run, tool: descriptor, input });
+      let confirmation: ConfirmationDecision;
+      try {
+        confirmation = await requestConfirmation({ executionId, principal, run, tool: descriptor, input });
+      } catch {
+        // Same reasoning as the authorization gate above: terminal, recorded, and generic.
+        appendEvent(executionId, 'failed', 'confirmation failed');
+        return { executionId, status: 'failed', error: 'confirmation failed' };
+      }
       if (confirmation !== 'confirm') {
         appendEvent(executionId, 'confirmation-denied');
         return { executionId, status: 'confirmation-denied' };
@@ -373,6 +410,22 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
         signal: controller.signal,
         ...(emitSurface !== undefined ? { emitSurface } : {}),
       });
+      // A handler is not OBLIGED to honour `signal` — it is handed one, not policed by one. A
+      // handler that ignores it and resolves normally after the timer fired (or after `cancel`)
+      // used to land here and be recorded `completed`, because the timeout/abort state was only
+      // ever consulted in the `catch`. That reports success for a call the contract has already
+      // declared terminal in the other direction: the caller was told `timed-out`/`cancelled` is
+      // final (see this module's state-machine doc), the audit trail said `completed`, and the two
+      // disagreed. Whether the handler cooperated does not change what happened to the CALL.
+      if (timeout.timedOut() || controller.signal.aborted) {
+        cleanup();
+        return failureResult(
+          executionId,
+          new Error('handler resolved after the execution was already terminal'),
+          timeout.timedOut(),
+          controller.signal.aborted,
+        );
+      }
       const { output, truncated } = truncateOutput(rawOutput, descriptor.maxOutputBytes);
       appendEvent(executionId, 'completed');
       cleanup();
