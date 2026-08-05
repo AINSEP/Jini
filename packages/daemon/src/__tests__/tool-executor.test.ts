@@ -432,11 +432,21 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'cancelled']);
   });
 
-  it('honors an already-aborted external signal passed into execute()', async () => {
+  it('honors an already-aborted external signal passed into execute(), short-circuiting before authorization ever runs', async () => {
+    let authorizeCalled = false;
+    let handlerCalled = false;
     const registry = registryWith({
       descriptor: { id: 'cancellable' },
-      handler: abortAwareHandler(),
-      policy: allowAll(),
+      handler: (ctx: { signal: AbortSignal }) => {
+        handlerCalled = true;
+        return abortAwareHandler()(ctx);
+      },
+      policy: {
+        authorize: () => {
+          authorizeCalled = true;
+          return 'allow';
+        },
+      },
     });
     const executor = createToolExecutor({ registry });
     const controller = new AbortController();
@@ -444,6 +454,10 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
 
     const result = await executor.execute(principal, run, 'cancellable', {}, controller.signal);
     expect(result.status).toBe('cancelled');
+    expect(authorizeCalled).toBe(false);
+    expect(handlerCalled).toBe(false);
+    const audit = executor.getAuditRecord(result.executionId);
+    expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'cancelled']);
   });
 
   it('propagates a still-live external signal aborting mid-flight', async () => {
@@ -464,7 +478,47 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     expect(result.status).toBe('cancelled');
   });
 
-  it('cancel() cancelling a still-pending confirmation resolves it as denied', async () => {
+  it('an external signal aborting while authorization is still in flight resolves as cancelled, without running the handler', async () => {
+    let handlerCalled = false;
+    let releaseAuthorize: (() => void) | undefined;
+    const registry = registryWith({
+      descriptor: { id: 'slow-to-authorize' },
+      handler: async () => {
+        handlerCalled = true;
+        return 'should not run';
+      },
+      policy: {
+        authorize: () =>
+          new Promise<AuthorizationDecision>((resolve) => {
+            releaseAuthorize = () => resolve('allow');
+          }),
+      },
+    });
+    const executor = createToolExecutor({ registry });
+    const controller = new AbortController();
+
+    const resultPromise = executor.execute(principal, run, 'slow-to-authorize', {}, controller.signal);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(releaseAuthorize).toBeDefined();
+    controller.abort();
+    releaseAuthorize!();
+
+    const result = await resultPromise;
+    expect(result.status).toBe('cancelled');
+    expect(handlerCalled).toBe(false);
+    const audit = executor.getAuditRecord(result.executionId);
+    expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'cancelled']);
+  });
+
+  /**
+   * Deliberate behaviour change (audit-fidelity fix, not incidental): this used to assert
+   * `confirmation-denied`. That status asserts a human made a decision, which is false here —
+   * nobody was ever asked to decide, `cancel()` ended the wait. `cancelled` is the accurate
+   * outcome and was already in the status union; the tool didn't run in either case, so the
+   * safety property is unaffected — only the recorded REASON changes.
+   */
+  it('cancel() cancelling a still-pending confirmation resolves it as cancelled, not confirmation-denied', async () => {
     let capturedExecutionId = '';
     const registry = registryWith({
       descriptor: { id: 'confirm-me', requiresConfirmation: true },
@@ -484,7 +538,50 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     executor.cancel(capturedExecutionId);
 
     const result = await resultPromise;
-    expect(result.status).toBe('confirmation-denied');
+    expect(result.status).toBe('cancelled');
+    const audit = executor.getAuditRecord(result.executionId);
+    expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'cancelled']);
+  });
+
+  /**
+   * DIAGNOSTIC (pre-fix): `execute()`'s external `signal` param is only linked to an
+   * `AbortController` at the top of the handler-run phase — after `requiresConfirmation` has
+   * already parked. So today, a transport disconnect or a run-cancel signal arriving while a
+   * confirmation is pending has no listener to observe it at all: `execute()` never settles.
+   * This test pins the FIXED behavior (resolves promptly as `cancelled`); run unmodified, it
+   * must fail — either the assertion below fires, or the whole test hangs past its timeout,
+   * because the promise never settles.
+   */
+  it('an external signal aborting while a confirmation is pending terminates the call as cancelled, not left hanging', async () => {
+    let capturedExecutionId = '';
+    const registry = registryWith({
+      descriptor: { id: 'confirm-me', requiresConfirmation: true },
+      handler: async () => 'should not run',
+      policy: allowAll(),
+    });
+    const executor = createToolExecutor({
+      registry,
+      delegate: { onConfirm: (request) => { capturedExecutionId = request.executionId; } },
+    });
+    const controller = new AbortController();
+
+    const resultPromise = executor.execute(principal, run, 'confirm-me', {}, controller.signal);
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(capturedExecutionId).not.toBe('');
+    controller.abort();
+
+    const raced = await Promise.race([
+      resultPromise.then((result) => ({ settled: true as const, result })),
+      new Promise<{ settled: false }>((resolve) => setTimeout(() => resolve({ settled: false }), 50)),
+    ]);
+
+    expect(raced.settled).toBe(true);
+    if (raced.settled) {
+      expect(raced.result.status).toBe('cancelled');
+      const audit = executor.getAuditRecord(raced.result.executionId);
+      expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'cancelled']);
+    }
   });
 
   it('cancel() is a no-op for an unknown or already-terminal execution id', async () => {

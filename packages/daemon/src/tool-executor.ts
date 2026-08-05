@@ -23,6 +23,15 @@
  * to a per-execution, in-memory audit record retrievable via
  * `getAuditRecord`.
  *
+ * `cancelled` is reachable from more places than the diagram above shows at
+ * a glance: `execute()`'s optional `signal` (a transport disconnect, a run
+ * cancellation, or `cancel(executionId)` itself) is observed for the whole
+ * call, not only once a handler is running. Firing it while `authorized` is
+ * still being decided, or while a confirmation is still pending, also ends
+ * the call as `cancelled` — deliberately distinct from `confirmation-denied`,
+ * which asserts a human actually answered. Nobody answered; the requester
+ * left.
+ *
  * Confirmation is resumable: when a tool requires confirmation and the
  * injected `ExecutionDelegate.onConfirm` doesn't supply a decision
  * synchronously (or via a settled Promise), `execute()`'s returned Promise
@@ -207,6 +216,15 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
   const audits = new Map<string, ToolExecutionAuditRecord & { events: ToolExecutionAuditEvent[] }>();
   const pendingConfirmations = new Map<string, (decision: ConfirmationDecision) => void>();
   const activeControllers = new Map<string, AbortController>();
+  /**
+   * Marks a pending confirmation `cancel()` just resolved (as opposed to a genuine human `deny`),
+   * so `execute()`'s confirmation branch can report `cancelled` rather than `confirmation-denied`
+   * — the latter asserts a decision was made, which is false when nobody was ever asked or the
+   * requester vanished before answering. Set and consumed within the same execution's lifetime
+   * only; `execute()` always reads-and-clears it (`Set.delete`'s return value) right after
+   * `requestConfirmation()` settles, so it can never leak onto a later execution.
+   */
+  const cancelledConfirmations = new Set<string>();
 
   function appendEvent(executionId: string, phase: ToolExecutionPhase, detail?: string): void {
     // Every call site passes an `executionId` this same `execute()` call
@@ -260,16 +278,6 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
       input,
       onAuthorize ? { onAuthorize } : undefined,
     );
-  }
-
-  /** Mirrors an externally supplied `AbortSignal` onto this execution's own controller. */
-  function linkAbortSignal(controller: AbortController, signal: AbortSignal | undefined): void {
-    if (!signal) return;
-    if (signal.aborted) {
-      controller.abort();
-      return;
-    }
-    signal.addEventListener('abort', () => controller.abort(), { once: true });
   }
 
   /**
@@ -330,6 +338,28 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     }
 
     const executionId = openAudit(principal, run, toolId);
+
+    // Observes `signal` for this execution's ENTIRE remaining lifetime, not just the handler-run
+    // phase. `requestConfirmation()`'s wait below is unbounded — it settles only when a human
+    // answers or `resumeConfirmation`/`cancel` is called — so a transport disconnect or run-cancel
+    // that only reached a handler-phase `AbortController` (this file's previous design) had no way
+    // to end a still-parked confirmation; `execute()` simply never settled. Routed through the
+    // existing `cancel(executionId)` rather than a bespoke handler, so every trigger — an explicit
+    // `cancel()` call, a run cancellation, and now a transport disconnect — resolves a pending
+    // confirmation and an in-flight handler the exact same way.
+    let onTransportAbort: (() => void) | undefined;
+    function detachTransportAbort(): void {
+      if (onTransportAbort) signal?.removeEventListener('abort', onTransportAbort);
+    }
+    if (signal) {
+      if (signal.aborted) {
+        appendEvent(executionId, 'cancelled');
+        return { executionId, status: 'cancelled' };
+      }
+      onTransportAbort = () => cancel(executionId);
+      signal.addEventListener('abort', onTransportAbort, { once: true });
+    }
+
     // Both gates below can throw on INFRASTRUCTURE failure — a policy that rejects, a confirmation
     // transport that drops. Those throws used to escape `execute` entirely, which cost two things:
     // the audit record stayed open forever at `requested`/`authorized` with no terminal transition
@@ -345,8 +375,18 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     try {
       resolved = await authorize(principal, run, toolId, input);
     } catch {
+      detachTransportAbort();
       appendEvent(executionId, 'failed', 'authorization failed');
       return { executionId, status: 'failed', error: 'authorization failed' };
+    }
+    // `authorize()` isn't itself signal-aware — it's typically a fast policy check, not a
+    // human-in-the-loop wait — so this is a post-await check rather than a mid-flight abort, the
+    // same idiom the post-handler check below already uses: a signal that fired while `authorize()`
+    // was in flight is caught here, before its (now-moot) decision is acted on.
+    if (signal?.aborted) {
+      detachTransportAbort();
+      appendEvent(executionId, 'cancelled');
+      return { executionId, status: 'cancelled' };
     }
     // `registry.has(toolId)` above already confirmed the tool exists, and `ToolRegistry` is
     // append-only (no unregister — see `createToolRegistry`'s doc), so `authorizeToolInvocation`
@@ -354,6 +394,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     const { descriptor } = resolved!;
 
     if (resolved!.decision !== 'allow') {
+      detachTransportAbort();
       appendEvent(executionId, 'denied');
       return { executionId, status: 'denied' };
     }
@@ -370,10 +411,21 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
         confirmation = await requestConfirmation({ executionId, principal, run, tool: descriptor, input });
       } catch {
         // Same reasoning as the authorization gate above: terminal, recorded, and generic.
+        detachTransportAbort();
         appendEvent(executionId, 'failed', 'confirmation failed');
         return { executionId, status: 'failed', error: 'confirmation failed' };
       }
       if (confirmation !== 'confirm') {
+        detachTransportAbort();
+        // `cancel(executionId)` (called directly, or via the transport-abort listener above)
+        // resolves a pending confirmation the same way a human `deny` does, but the two are not the
+        // same OUTCOME: `confirmation-denied` asserts a decision was made, which is false when the
+        // requester vanished before answering. `cancelledConfirmations` distinguishes them so the
+        // audit trail never reports a decision nobody made.
+        if (cancelledConfirmations.delete(executionId)) {
+          appendEvent(executionId, 'cancelled');
+          return { executionId, status: 'cancelled' };
+        }
         appendEvent(executionId, 'confirmation-denied');
         return { executionId, status: 'confirmation-denied' };
       }
@@ -382,7 +434,11 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
 
     const controller = new AbortController();
     activeControllers.set(executionId, controller);
-    linkAbortSignal(controller, signal);
+    // `signal` doesn't need linking here — the listener registered above already reaches this
+    // controller via `cancel()`'s `activeControllers` branch as soon as `activeControllers.set`
+    // ran. A second direct link (this file used to have one, `linkAbortSignal`) was redundant for
+    // this phase and, worse, gave the impression `signal` was fully handled when it was only wired
+    // to the phase after the one that actually needed it — see the confirmation block above.
     const timeout = startTimeout(controller, descriptor.timeoutMs);
 
     // Cleanup (clear the timeout, drop the abort controller) is repeated at
@@ -419,6 +475,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
       // disagreed. Whether the handler cooperated does not change what happened to the CALL.
       if (timeout.timedOut() || controller.signal.aborted) {
         cleanup();
+        detachTransportAbort();
         return failureResult(
           executionId,
           new Error('handler resolved after the execution was already terminal'),
@@ -429,9 +486,11 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
       const { output, truncated } = truncateOutput(rawOutput, descriptor.maxOutputBytes);
       appendEvent(executionId, 'completed');
       cleanup();
+      detachTransportAbort();
       return { executionId, status: 'completed', output, truncated };
     } catch (err) {
       cleanup();
+      detachTransportAbort();
       return failureResult(executionId, err, timeout.timedOut(), controller.signal.aborted);
     }
   }
@@ -454,6 +513,7 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     const resolve = pendingConfirmations.get(executionId);
     if (resolve) {
       pendingConfirmations.delete(executionId);
+      cancelledConfirmations.add(executionId);
       resolve('deny');
     }
   }
