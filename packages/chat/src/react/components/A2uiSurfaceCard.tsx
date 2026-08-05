@@ -180,8 +180,8 @@ export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
    *
    * May return `void` — the original, still fully-supported contract; `examples/reference-web/src/
    * A2uiLab.tsx` uses exactly this and needs no changes — or a `Promise<A2uiAgentActionOutcome>` for
-   * a host that can tell whether the message actually arrived (e.g. `createA2uiActionPoster`,
-   * Tovu-side, reporting the POST's outcome). When a promise is returned and it resolves
+   * a host that can tell whether the message actually arrived (e.g. `createA2uiActionPoster`, a
+   * host-side implementation reporting the POST's outcome). When a promise is returned and it resolves
    * `{ ok: false }` or rejects, the card shows a visible delivery-failure notice instead of leaving
    * the human to wonder whether their click did anything. This is the same problem `refusalNotice`
    * already solves for a *client-side* refusal (`buildAction` says no before anything is sent), one
