@@ -44,7 +44,7 @@ export const searchToolsTool: McpToolDef = {
       // This field previously read 'Keywords to search for, e.g. "navigate page" or "fill form"',
       // which is the 25% form — and because a two-word example is a stronger signal than any prose
       // instruction, it also silently overrode the descriptive guidance a host server may inject
-      // upstream (Tovu's agent-daemon systemOverlay did exactly that, and lost). Keep the example
+      // upstream (a host's agent-daemon systemOverlay did exactly that, and lost). Keep the example
       // long-form; shortening it re-creates the bug.
       query: {
         type: 'string',
