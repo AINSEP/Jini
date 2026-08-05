@@ -13,6 +13,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkAgenticDomPurity } from '../check-agentic-dom-purity.js';
+import { checkChatPanePublicSurface } from '../check-chatpane-public-surface.js';
 import { checkEngineBoundaries } from '../check-engine-boundaries.js';
 import { checkProtocolPurity } from '../check-protocol-purity.js';
 
@@ -233,6 +234,40 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       compilerOptions: { lib: ['ES2023'] },
     });
 
+    // R10 (REF-001 Step D, disabled/reporting-only): synthetic barrel + synthetic privileged
+    // composition, deliberately OUTSIDE packages/ (like the R9 tsconfig fixtures above) so
+    // checkEngineBoundaries's own packages/ walk doesn't sweep these up as unrelated noise, and
+    // deliberately NOT the real (concurrently-edited) features/chat-pane/** tree — see
+    // check-chatpane-public-surface.ts's own module doc.
+    write(
+      root,
+      'r10-fixtures/public-barrel.ts',
+      [
+        "export { PublicThing } from './module.js';",
+        "export { Bar } from './aliased.js';",
+        "export type { PublicType } from './types.js';",
+      ].join('\n') + '\n',
+    );
+    write(
+      root,
+      'r10-fixtures/chat-pane/components/ChatPane.tsx',
+      [
+        // Escapes chat-pane/, both names public and non-public — proves per-name granularity
+        // within a single clause, not just per-import.
+        "import { PublicThing, PrivateThing } from '../../public/module.js';",
+        // Escapes chat-pane/, type-only clause.
+        "import type { PublicType, PrivateType } from '../../public/types.js';",
+        // Escapes chat-pane/, aliased import — the consumer-facing name (Bar) is public.
+        "import { Foo as Bar } from '../../public/aliased.js';",
+        // Escapes chat-pane/, aliased import — the consumer-facing name (Baz) is NOT public.
+        "import { Foo as Baz } from '../../public/aliased2.js';",
+        // Does NOT escape chat-pane/ — a same-subtree relative import, must never be flagged
+        // regardless of whether LocalHelper is in the barrel (it deliberately is not).
+        "import { LocalHelper } from '../local-helper.js';",
+        'export const ChatPane = { PublicThing, PrivateThing, PublicType, PrivateType, Bar, Baz, LocalHelper };',
+      ].join('\n') + '\n',
+    );
+
     const engineViolations = await checkEngineBoundaries({ repoRoot: root });
     const protocolViolations = await checkProtocolPurity({ repoRoot: root });
     const domPurityGood = await checkAgenticDomPurity({
@@ -254,6 +289,11 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     const domPurityBadDomLibMissing = await checkAgenticDomPurity({
       repoRoot: root,
       agenticDir: join(root, 'dom-purity-fixtures', 'bad-dom-lib-missing'),
+    });
+    const chatPaneViolations = await checkChatPanePublicSurface({
+      repoRoot: root,
+      chatPaneDir: join(root, 'r10-fixtures', 'chat-pane'),
+      barrelPath: join(root, 'r10-fixtures', 'public-barrel.ts'),
     });
 
     const has = (violations: { rule: string; file: string }[], rule: string, fileSuffix: string) =>
@@ -322,6 +362,35 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [
         domPurityBadDomLibMissing.some((v) => v.rule === 'R9-dom-purity' && v.file.endsWith('tsconfig.dom.json') && v.reason.includes('no longer includes a DOM entry')),
         'R9 should catch the DOM tsconfig losing its own DOM lib',
+      ],
+      [
+        has(chatPaneViolations, 'R10-chatpane-public-surface', 'ChatPane.tsx') &&
+          chatPaneViolations.filter((v) => v.file.endsWith('ChatPane.tsx') && v.reason.includes('"PrivateThing"')).length === 1,
+        'R10 should catch a non-public name reached from an escaping import, alongside a public name in the same clause',
+      ],
+      [
+        !chatPaneViolations.some((v) => v.reason.includes('"PublicThing"')),
+        'R10 must NOT flag a name that IS in the public barrel',
+      ],
+      [
+        chatPaneViolations.some((v) => v.reason.includes('"PrivateType"')),
+        'R10 should catch a non-public name in a type-only import clause',
+      ],
+      [
+        !chatPaneViolations.some((v) => v.reason.includes('"PublicType"')),
+        'R10 must NOT flag a public name in a type-only import clause',
+      ],
+      [
+        !chatPaneViolations.some((v) => v.reason.includes('"Bar"')),
+        'R10 must NOT flag an aliased import whose consumer-facing name IS in the public barrel',
+      ],
+      [
+        chatPaneViolations.some((v) => v.reason.includes('"Baz"')),
+        'R10 should catch an aliased import whose consumer-facing name is NOT in the public barrel',
+      ],
+      [
+        !chatPaneViolations.some((v) => v.reason.includes('"LocalHelper"')),
+        'R10 must NOT flag a relative import that stays inside the privileged subtree, even when the name is not in the barrel',
       ],
     ];
 
