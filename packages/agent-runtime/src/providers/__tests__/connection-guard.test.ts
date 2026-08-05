@@ -285,6 +285,48 @@ describe('pinnedFetch', () => {
     }
   });
 
+  // `fetch` transparently decompresses; `http(s).request` does not. Nothing downstream of
+  // `pinnedFetch` decompresses either, so a compressed body would be parsed as UTF-8 SSE and
+  // produce silent garbage — an "empty stream" or a JSON error nowhere near the cause. Asserted
+  // as a hard rejection because failing loudly is the whole point.
+  it('rejects a compressed response rather than handing back bytes nothing will decompress', async () => {
+    const server = http.createServer((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-encoding', 'gzip');
+      res.end(Buffer.from([0x1f, 0x8b, 0x08, 0x00])); // gzip magic; never decoded
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      await expect(
+        pinnedFetch(`http://127.0.0.1:${port}/v1`, { method: 'POST', headers: {}, body: '{}' }, undefined),
+      ).rejects.toThrow(/content-encoding "gzip"/);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it('asks for identity encoding, so a well-behaved server never compresses in the first place', async () => {
+    const server = http.createServer((req, res) => {
+      res.statusCode = 200;
+      res.end(JSON.stringify({ acceptEncoding: req.headers['accept-encoding'] }));
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (address === null || typeof address === 'string') throw new Error('expected an AddressInfo');
+    const { port } = address;
+
+    try {
+      const response = await pinnedFetch(`http://127.0.0.1:${port}/v1`, { method: 'POST', headers: {}, body: '{}' }, undefined);
+      expect(JSON.parse(await response.text())).toEqual({ acceptEncoding: 'identity' });
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
   it('drains the body and reports ok:false for a non-2xx response', async () => {
     const server = http.createServer((req, res) => {
       res.statusCode = 503;

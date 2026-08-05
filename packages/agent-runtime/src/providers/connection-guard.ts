@@ -328,7 +328,14 @@ export async function pinnedFetch(
         ...(parsed.port ? { port: Number(parsed.port) } : {}),
         path: `${parsed.pathname}${parsed.search}`,
         method: init.method,
-        headers: init.headers,
+        // `identity` is explicit, not incidental. `fetch` transparently decompresses a response;
+        // `http(s).request` does NOT, so a compressed body would reach a caller that parses it as
+        // UTF-8 SSE and produce silent garbage — surfacing far from the cause as an empty stream
+        // or a JSON parse error. Node sends no `Accept-Encoding` of its own, so this only makes
+        // the existing behaviour explicit and survives a caller that sets its own headers.
+        // Paired with the `content-encoding` check below, which covers a server that compresses
+        // unbidden anyway.
+        headers: { 'accept-encoding': 'identity', ...init.headers },
         ...(isHttps ? { servername: parsed.hostname } : {}),
         ...(pinnedAddress
           ? {
@@ -350,6 +357,42 @@ export async function pinnedFetch(
       },
       (res) => {
         const status = res.statusCode ?? 0;
+        // A server may compress despite `accept-encoding: identity`. Nothing downstream
+        // decompresses, so failing loudly here is strictly better than handing back bytes the
+        // caller will misparse: a hard error names the cause, silent garbage does not.
+        const encoding = res.headers['content-encoding'];
+        if (typeof encoding === 'string' && encoding.trim() !== '' && encoding.trim().toLowerCase() !== 'identity') {
+          res.resume(); // drain, so the socket is not left half-read
+          reject(
+            new Error(
+              `pinnedFetch: response used unsupported content-encoding "${encoding}". `
+              + 'This transport does not decompress; the request asked for identity.',
+            ),
+          );
+          return;
+        }
+        // `http(s).request` never auto-follows a redirect the way `fetch`'s default does, but
+        // that alone is a WEAKER posture than the `redirect: 'error'` callers ask for: real
+        // `fetch` THROWS on a 3xx, whereas simply not following one would resolve normally with
+        // `status: 302` and a likely-empty body — turning the guard's hard failure into a quiet
+        // `ok: false` a caller could half-handle as a generic upstream error. That undersells the
+        // reviewer's original finding: a guard-passing endpoint could 302 into blocked address
+        // space with auth headers still attached. So this rejects explicitly, matching `fetch`'s
+        // throw rather than merely approximating it by omission. Only the five redirect codes
+        // `fetch` itself treats as redirects (a `Location` header is what actually enables the
+        // rebinding hop) — NOT every 3xx: `304 Not Modified` carries no `Location` and no provider
+        // in this package sends conditional-request headers that could ever produce one.
+        if (status === 301 || status === 302 || status === 303 || status === 307 || status === 308) {
+          res.resume();
+          reject(
+            new Error(
+              `pinnedFetch: refused to follow a ${status} redirect`
+              + (typeof res.headers.location === 'string' ? ` to "${res.headers.location}"` : '')
+              + '. Matches fetch\'s redirect: \'error\' behavior — a guard-passing endpoint redirecting into blocked address space is the other half of the SSRF finding this transport closes.',
+            ),
+          );
+          return;
+        }
         resolve({
           ok: status >= 200 && status < 300,
           status,
