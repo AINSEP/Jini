@@ -461,3 +461,150 @@ inspection — it only starts protecting against regression once built.
   can be dispatched immediately and independently of everything else in this report.
 - Steps B/C/D → Refactor-proposed here; implementation dispatch to Programmer once Section 1
   resolves and BYOK's edit lands, per Section 6.
+
+---
+
+## 8. Phase 1 implementation results — 2026-08-05
+
+Team-lead independently verified the packaging and guard-breakdown claims above, ruled Section 1
+in favor of keep-and-guard (not re-opened here), and dispatched three Phase 1 deliverables —
+Section 0's packaging fix, Section 4's import-specifier fix (excluding `features/chat-pane/**` and
+`features/model-picker/**`, which BYOK owns), and a disabled/reporting-only Step D guard. Steps B
+and C remain **not implemented** — still blocked on BYOK landing and, for C specifically, on
+Section 1 being restated in the Step C/D dispatch per this report's own recommendation.
+
+**Baseline re-measured at start, not trusted from the proposal above:** BYOK had landed two more
+commits since this report was written (`98bf345d`, `3b5d648d`) and fixed 5 of the 6 `R5-neutrality`
+findings as a side effect. Fresh `pnpm guard`: **66** violations (61 `@jini-ai/chat/core` + 3
+`@jini-ai/ui/mcp-ui` + 1 `ui`→`agent-runtime` relative + 1 `R5-neutrality`) — same shape as Section
+4's analysis, confirmed unchanged by re-running the breakdown, not assumed.
+
+### Commits
+
+| SHA | Deliverable |
+|---|---|
+| `d5c5ac2d` | Packaging fix — added the missing `exports` entry for `dist/react/styles/reference.css` |
+| `e1e5f5da` | Follow-up: the packaging fix itself tripped a new guard rule (R8 — `jini.entries` must cover every `exports` subpath); fixed in its own commit rather than amending, per this worktree's no-amend policy |
+| `b8f18303` | Import-specifier fix — 40 files, `@jini-ai/chat/core` → correct specifier, `features/chat-pane/**` and `features/model-picker/**` excluded |
+| `74039843` | Step D guard (`R10-chatpane-public-surface`), shipped reporting-only, with fixture-based self-test |
+
+### Packaging fix (d5c5ac2d, e1e5f5da)
+
+Added `"./react/styles/reference.css": "./dist/react/styles/reference.css"` to `packages/chat`'s
+`exports`, plus the matching `jini.entries` key the addition itself required (R8 — a self-inflicted
+regression, fixed immediately, not folded into the same commit per the no-amend rule). Verified by
+actually resolving the subpath from **Tovu's real `file:` dependency** (`apps/admin`), not by
+inspection: `require.resolve('@jini-ai/chat/react/styles/reference.css', {paths:[...]})` failed
+with `ERR_PACKAGE_PATH_NOT_EXPORTED` before, resolved to the built file after. `chat` suite: 67/958
+green both before and after.
+
+### Import-specifier fix (b8f18303) — and a real bug found along the way
+
+40 files: 4 genuinely external (`renderers-react` ×2, `sqlite`, `http-kit`) switched to the bare
+`@jini-ai/chat` specifier; 36 files inside `packages/chat/src/react/**` switched from self-importing
+`@jini-ai/chat/core` by package name to a relative import into `../core/index.js` (depth computed
+per file, not hand-guessed).
+
+**The dual-instance question team-lead asked me to verify before claiming either way: confirmed
+real, but not the mechanism I'd have guessed going in.** Method: temporarily broke
+`isTerminalRunStatus` in `src/core/messages.ts` (`return true` unconditionally), then — without
+rebuilding `dist/` — imported it through the self-package specifier from a throwaway probe test.
+The probe saw the OLD (correct) behavior, not the edit. Conclusion: **`@jini-ai/chat/core` resolves
+through this package's OWN `exports` map to the BUILT `dist/core/index.js`, not live `src/core`**
+(confirmed separately: no `packages/chat/node_modules/@jini-ai/chat` self-link exists, so this goes
+through Node's package self-reference resolution, which respects `exports` unconditionally).
+
+That means: **not** a live two-instances-disagreeing-at-runtime bug — in production there is
+exactly one file on disk (`.` and `./core` are identical `exports` targets, confirmed in the
+original proposal), so a real consumer never sees two copies. The real hazard is at **dev/test
+time**: a source fix to `src/core` is invisible to anything importing it via the self-package
+specifier until `npm run build` reruns, and nothing wires that automatically (`package.json`'s
+`test` script is bare `vitest run`, no `pretest` hook). Concretely, in a single `vitest run` of this
+package, `src/core/__tests__/**` (relative imports, live source) and `src/react/**` (self-import,
+built dist) could validate against two different behaviors of the same logical function
+simultaneously, without either suite's own pass/fail being wrong on its own terms.
+
+Proved this with real negative verification, not the probe: broke `isTerminalRunStatus` again,
+ran `MessageList.test.tsx`'s scoped `it` **without rebuilding**, watched it fail through the new
+relative import (`../../core/index.js` → live source) — it would **not** have failed through the
+old self-import. Reverted, reconfirmed green. The relative-import conversion closes this gap as a
+side effect, not just a style fix.
+
+Suites: `chat` 67/958, `renderers-react` 28/450, `sqlite` 7/160, `http-kit`
+`attachments.test.ts` 59/59. All four packages typecheck clean.
+
+**One unrelated pre-existing failure found and ruled out, not swept under the rug:**
+`http-kit`'s full suite has 40 failing tests in `model-proxy.test.ts` (`/api/proxy/*/stream`
+routes) — confirmed via `git stash` (stashing every Phase 1 change, including files
+`model-proxy.test.ts` never touches) that the exact same 40 failures exist with none of this
+work applied. Not caused by, not fixed by, Phase 1.
+
+### The two report-only investigations (not implemented, per dispatch)
+
+**`packages/ui/src/__tests__/utils/endpoint-policy.parity.test.ts`'s relative `agent-runtime`
+import — deliberate, must NOT be "fixed."** The file's own header says so explicitly: *"Reached by
+relative path on purpose... unlike importing the built package, cannot pass against a stale
+`dist`. Both sides are compared from source."* This is the exact hazard the import-specifier fix
+above just proved is real — converting this to a bare `@jini-ai/agent-runtime` import would make
+the test compare against `agent-runtime`'s **built** output instead of live source, silently
+defeating the parity test's whole reason to exist (catching source-level drift between the UI's
+copy of the endpoint-blocklist logic and the runtime's). Recommend: leave the code as-is, and give
+the guard rule itself a fourth named literal exception for this one file, the same shape as the
+existing `@jini-ai/agentic/dom` / `@jini-ai/agentic/a2ui` carve-outs in
+`check-engine-boundaries.ts:418-434` — not implemented here, out of scope for this dispatch.
+
+**The 3 `@jini-ai/ui/mcp-ui` violations — bare `@jini-ai/ui` is the WRONG fix; recommend a gated
+exception instead.** Checked whether `@jini-ai/ui`'s root barrel (`packages/ui/src/index.ts`)
+re-exports what these three files need (`McpUiHost`, `parseUIResource`, `MCP_UI_MIME_TYPE`, etc.):
+it does not — `./mcp-ui` maps to a genuinely different file (`dist/react/mcp-ui/index.js`) than `.`
+(`dist/index.js`), unlike `@jini-ai/chat`'s `.`/`./core` pair, which were identical. Switching these
+three imports to bare `@jini-ai/ui` would not compile. This is architecturally the same shape as
+`@jini-ai/agentic/dom`/`@jini-ai/agentic/a2ui` — a deliberate second entry point, not an accidental
+duplicate — so the right fix is a third named literal exception in `check-engine-boundaries.ts`,
+not a specifier change. Not implemented here, out of scope for this dispatch.
+
+### Step D guard (74039843)
+
+`scripts/check-chatpane-public-surface.ts` (rule `R10-chatpane-public-surface`): flags any relative
+import inside `features/chat-pane/**` that resolves outside that subtree where the imported name
+is absent from `packages/chat/src/react/index.ts`'s public export list. Documented scope limit,
+matching this codebase's own regex-MVP convention (`lib/walk-imports.ts`'s module doc): direct
+escaping imports only, not the full transitive closure (flagged `interleaveMessageBlocks` in the
+original proposal as exactly this kind of gap — still open, still worth a decision, just not one
+this pass's scope covers).
+
+**Shipped disabled as instructed:** wired into `guard.ts` every run, prints findings, but its
+violations are not spread into the array that trips `process.exit(1)` — a one-line move (commented
+in `guard.ts`) flips it to enforcing. Confirmed the disabled state doesn't change the real guard's
+pass/fail: 12 violations before and after adding R10 (unrelated pre-existing ones from Section 4's
+untouched exclusions).
+
+**Tests are fixture-based, not against the live tree, as instructed** — extended
+`scripts/lib/self-test.ts` with a synthetic barrel + synthetic chat-pane directory (isolated
+tmpdir, same pattern the other three checks already use), covering: a non-public name reached
+through an escaping import (caught), a public name in the same import clause (not caught), a
+type-only clause with one public/one non-public name, an aliased import in both directions
+(`Foo as Bar` where `Bar` is public vs. not), and a same-subtree relative import that must never be
+flagged regardless of whether the name is public. **Proved the self-test itself actually enforces,
+not just asserts**, matching the quality bar's negative-verification requirement: temporarily
+disabled the checker's core condition, ran `pnpm guard`, confirmed it printed `SELF-TEST FAILED`
+with exactly the 3 expectations that should have broken, reverted, reconfirmed clean.
+
+**Run against the real (current, still mid-restructure) tree: 8 genuine findings**, reported but not
+blocking — `definedProps` (from `util/defined-props.js`), `useLatestOperation` (from
+`hooks/useLatestOperation.js`), and `createFakeChatTransport` (from `hooks/testing/fake-transport.js`)
+are all reached by files under `features/chat-pane/**` today and are genuinely absent from
+`index.ts` — spot-checked directly (`grep` on the barrel), not inferred from the tool's own output.
+Left as findings, not fixed — that decision belongs to whoever implements Step D for real once
+`features/chat-pane/**` stabilizes and Section 1 is confirmed.
+
+### What's still open
+
+- **Section 1** (keep-and-guard vs. move-to-examples) — resolved by team-lead's ruling; recorded
+  here as settled, not re-opened.
+- **Steps B and C** — not implemented. Both still wait on BYOK landing per Section 6; C additionally
+  needs its exact subpath shape decided at implementation time.
+- **The two report-only fixes above** (parity-test exception, `mcp-ui` gated exception) — diagnosed,
+  not applied; both are small, mechanical, and safe to dispatch independently whenever wanted.
+- **R10's transitive-reach gap and the `interleaveMessageBlocks` edge case** from the original
+  proposal's §5 (Step D section) — still open, unaffected by shipping the guard disabled.
