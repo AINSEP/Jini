@@ -94,7 +94,7 @@
  * tool-loop body and its test file's multi-tool-call image test).
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
 import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -307,12 +307,17 @@ async function runSingleGoogleRequest(
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = (await fetch(googleRequestUrl(options.baseUrl, options.model), {
-      method: 'POST',
-      headers: googleHeaders(options),
-      body: JSON.stringify(googleRequestBody(options, contents)),
-      ...(options.signal ? { signal: options.signal } : {}),
-    })) as unknown as typeof response;
+    response = await pinnedFetch(
+      googleRequestUrl(options.baseUrl, options.model),
+      {
+        method: 'POST',
+        headers: googleHeaders(options),
+        body: JSON.stringify(googleRequestBody(options, contents)),
+        redirect: 'error',
+        ...(options.signal ? { signal: options.signal } : {}),
+      },
+      baseUrlCheck.pinnedAddress,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     onEvent({ type: 'error', message: redactSecrets(message, [options.apiKey]) });
