@@ -7,6 +7,19 @@
  * This barrel is filled in incrementally as each layer lands (hooks first,
  * then presentational components, then the `<JiniChatProvider>` composition
  * root) — see source-map.md's "Status" section for what's shipped so far.
+ *
+ * ## Every export here is explicit. Do not reintroduce `export *`.
+ *
+ * This file used 15 `export * from` statements until 2026-08-05. That made the package's public
+ * API *implicit*: whatever any of those modules happened to export was public, so renaming an
+ * internal helper shipped a breaking change nobody reviewed, and no one could read this file and
+ * say what the package exports. It is also the likeliest reason consumers reach past this barrel
+ * into `@jini-ai/chat/core` deep paths — a grab-bag invites bypassing.
+ *
+ * The expansion was mechanical and provably surface-preserving: 193 symbols before and after,
+ * identical in name AND in value-vs-type kind. `features/chat-pane/index.ts` is the style model.
+ *
+ * When adding an export, add the name here deliberately. That edit IS the API review.
  */
 // The `ChatTransport` port moved to `@jini-ai/chat/core` on 2026-07-29 (it is pure types over
 // `AbortSignal`, so a non-React host should not need this package to name the seam it implements).
@@ -21,26 +34,201 @@ export type {
   RunHandlers,
   StartRunInput,
 } from '@jini-ai/chat/core';
-export * from './artifact-types.js';
-export * from './slots.js';
-export * from './tool-renderer-registry.js';
-export * from './ext-event-renderer-registry.js';
+export {
+  RendererRegistry,
+} from './artifact-types.js';
+export type {
+  ArtifactFile,
+  ArtifactRenderContext,
+  ArtifactRenderMatch,
+  ArtifactRenderer,
+} from './artifact-types.js';
+export type {
+  AgentOption,
+  AgentSelection,
+  AnalyticsAdapter,
+  AnnotationAdapter,
+  AttachmentTraySlot,
+  ComposerPlusItem,
+  ComposerSlots,
+  FilePreviewSlot,
+  I18nAdapter,
+  MentionResult,
+  MentionSource,
+  ModelAgentPickerSlot,
+  ProjectContextValue,
+} from './slots.js';
+export {
+  clearToolRenderers,
+  getToolRenderer,
+  registerToolRenderer,
+} from './tool-renderer-registry.js';
+export type {
+  ToolRenderer,
+} from './tool-renderer-registry.js';
+export {
+  clearExtEventRenderers,
+  getExtEventRenderer,
+  registerExtEventRenderer,
+} from './ext-event-renderer-registry.js';
+export type {
+  ExtEventRenderProps,
+  ExtEventRenderer,
+} from './ext-event-renderer-registry.js';
 
 // `features/model-picker/` is an independent slice (depends only on
 // `@jini-ai/protocol`, not this package's conversation/message state) —
 // re-exported here for a consumer that wants everything from one barrel.
-export * from './features/model-picker/index.js';
-export * from './features/chat-pane/index.js';
+export {
+  CREDENTIAL_STATUS_SORT_PRIORITY,
+  CredentialStatusBadge,
+  DEFAULT_MIN_SEARCHABLE_OPTIONS,
+  ModelPicker,
+  defaultModelPickerPort,
+  filterModelGroups,
+  findSelectedModel,
+  firstAvailableModelId,
+  groupModelsByProvider,
+  isCustomModelId,
+  matchesModelQuery,
+  modelSubtitle,
+  useModelPicker,
+} from './features/model-picker/index.js';
+export type {
+  AgentDefinition,
+  AgentDiagnostic,
+  CredentialStatus,
+  CredentialStatusBadgeProps,
+  FetchProviderModelsInput,
+  FetchProviderModelsResult,
+  ModelOption,
+  ModelPickerController,
+  ModelPickerGroup,
+  ModelPickerPort,
+  ModelPickerProps,
+  ModelPickerSelection,
+  ModelProvider,
+  UseModelPickerOptions,
+} from './features/model-picker/index.js';
+export {
+  AgentRuntimePicker,
+  CHAT_PANE_AGENT_TOOLS,
+  ChatPane,
+  createDaemonAttachmentUploader,
+  createMcpUiToolCaller,
+  defaultChatPaneSelection,
+  orderChatPaneAgents,
+  resolveChatPaneSelection,
+  useChatPane,
+  useChatPaneAgentControl,
+  useChatPaneRuntimeInventory,
+  useChatPaneWorkingDirectory,
+} from './features/chat-pane/index.js';
+export type {
+  AgentRuntimePickerProps,
+  ByokRuntimeSummary,
+  ChatPaneActivity,
+  ChatPaneAgent,
+  ChatPaneAgentBridgeAccess,
+  ChatPaneAgentControlOptions,
+  ChatPaneAgentOption,
+  ChatPaneAgentSelection,
+  ChatPaneAgentToolAction,
+  ChatPaneAgentToolDef,
+  ChatPaneAgentToolInputSchema,
+  ChatPaneAgentToolRisk,
+  ChatPaneAttachmentUploadOptions,
+  ChatPaneProps,
+  ChatPaneRunContext,
+  ChatPaneRunContextInput,
+  ChatPaneRuntimeAccess,
+  ChatPaneVariant,
+  ChatPaneWorkingDirectoryAccess,
+  CreateDaemonAttachmentUploaderOptions,
+  CreateMcpUiToolCallerOptions,
+  McpUiToolCallRequest,
+  RuntimePickerPlacement,
+  UseChatPaneAgentControlOptions,
+  UseChatPaneOptions,
+  UseChatPaneResult,
+  UseChatPaneRuntimeInventoryOptions,
+  UseChatPaneRuntimeInventoryResult,
+  UseChatPaneWorkingDirectoryOptions,
+  UseChatPaneWorkingDirectoryResult,
+} from './features/chat-pane/index.js';
 
-export * from './hooks/useRunStream.js';
-export * from './hooks/useConversation.js';
-export * from './hooks/useComposer.js';
-export * from './hooks/useToolTimeline.js';
-export * from './hooks/useExtEventGroups.js';
-export * from './hooks/usePinnedTodos.js';
-export * from './hooks/useQuestionForms.js';
-export * from './hooks/useArtifactStream.js';
-export * from './hooks/useChatFabDrag.js';
+export {
+  useRunStream,
+} from './hooks/useRunStream.js';
+export type {
+  RunStreamState,
+  RunStreamStatus,
+  StartRunOptions,
+  UseRunStreamResult,
+} from './hooks/useRunStream.js';
+export {
+  useConversation,
+} from './hooks/useConversation.js';
+export type {
+  SendMessageOptions,
+  UseConversationOptions,
+  UseConversationResult,
+} from './hooks/useConversation.js';
+export {
+  useComposer,
+} from './hooks/useComposer.js';
+export type {
+  ComposerDraftPersistence,
+  MentionPopoverState,
+  UseComposerOptions,
+  UseComposerResult,
+} from './hooks/useComposer.js';
+export {
+  useToolTimeline,
+} from './hooks/useToolTimeline.js';
+export type {
+  ToolTimelineRow,
+  UseToolTimelineOptions,
+  UseToolTimelineResult,
+} from './hooks/useToolTimeline.js';
+export {
+  useExtEventGroups,
+} from './hooks/useExtEventGroups.js';
+export type {
+  ExtEventGroup,
+} from './hooks/useExtEventGroups.js';
+export {
+  usePinnedTodos,
+} from './hooks/usePinnedTodos.js';
+export type {
+  UsePinnedTodosResult,
+} from './hooks/usePinnedTodos.js';
+export {
+  parseSubmittedAnswers,
+  useQuestionForms,
+} from './hooks/useQuestionForms.js';
+export type {
+  ParsedQuestionForm,
+  QuestionFormAnswers,
+  UseQuestionFormsResult,
+} from './hooks/useQuestionForms.js';
+export {
+  useArtifactStream,
+} from './hooks/useArtifactStream.js';
+export type {
+  ArtifactStreamItem,
+  UseArtifactStreamResult,
+} from './hooks/useArtifactStream.js';
+export {
+  CHAT_FAB_DRAG_THRESHOLD_PX,
+  CHAT_FAB_EDGE_MARGIN_PX,
+  clampChatFabToViewport,
+  useChatFabDrag,
+} from './hooks/useChatFabDrag.js';
+export type {
+  ChatFabPosition,
+  UseChatFabDragResult,
+} from './hooks/useChatFabDrag.js';
 export {
   useT,
   useI18n,
