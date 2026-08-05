@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { checkAgenticDomPurity } from '../check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from '../check-chatpane-public-surface.js';
 import { checkEngineBoundaries } from '../check-engine-boundaries.js';
+import { checkExtensionlessImports } from '../check-extensionless-imports.js';
 import { checkProtocolPurity } from '../check-protocol-purity.js';
 
 function write(root: string, relPath: string, content: string): void {
@@ -277,6 +278,78 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       "import { PrivateTestOnlyThing } from '../../public/test-only.js';\nexport { PrivateTestOnlyThing };\n",
     );
 
+    // R11: extensionless relative ESM import detection. Deliberately OUTSIDE packages/ (like the
+    // R9/R10 fixtures above), in its own `r11-fixtures/` dir standing in for a `packages/` root —
+    // checkExtensionlessImports takes packagesDir as an option for exactly this reason.
+    write(
+      root,
+      'r11-fixtures/pkg-a/src/sibling.ts',
+      'export const sibling = 1;\n',
+    );
+    write(root, 'r11-fixtures/pkg-a/src/subdir/index.ts', 'export const fromDir = 1;\n');
+    // Known-bad: extensionless import of a real sibling FILE — must be flagged, and the hint must
+    // suggest ".js" (not "/index.js"), since `sibling.ts` exists but `sibling/index.ts` doesn't.
+    write(
+      root,
+      'r11-fixtures/pkg-a/src/bad-no-ext-file.ts',
+      "import { sibling } from './sibling';\nexport { sibling };\n",
+    );
+    // Known-bad: extensionless import that actually names a DIRECTORY (subdir/index.ts exists,
+    // subdir.ts/subdir.tsx don't) — must be flagged, and the hint must suggest "/index.js".
+    write(
+      root,
+      'r11-fixtures/pkg-a/src/bad-no-ext-dir.ts',
+      "import { fromDir } from './subdir';\nexport { fromDir };\n",
+    );
+    // Known-good: same shape, but already has the extension — must NOT be flagged.
+    write(
+      root,
+      'r11-fixtures/pkg-a/src/ok-with-ext.ts',
+      "import { sibling } from './sibling.js';\nexport { sibling };\n",
+    );
+    // Known-good: a bare package specifier is never in scope for this rule, extension or not.
+    write(
+      root,
+      'r11-fixtures/pkg-a/src/ok-bare.ts',
+      "import { createDaemon } from '@jini-ai/core';\nexport { createDaemon };\n",
+    );
+    // Regression fixture for the false-positive this check was explicitly built to avoid (see its
+    // own module doc): import-shaped syntax living inside a STRING LITERAL, not a real import —
+    // mirrors the real `packages/mcp/src/client/__tests__/client.test.ts` case this investigation
+    // found. Must NOT be flagged; proves the line-start anchor, not just documents the intent.
+    write(
+      root,
+      'r11-fixtures/pkg-a/src/__tests__/ok-string-literal-lookalike.test.ts',
+      [
+        "import { describe, expect, it } from 'vitest';",
+        "describe('parseThing', () => {",
+        "  it('recognizes an import-shaped string as data, not code', () => {",
+        "    expect(parseThing(\"import x from './not-real'\", 'a.ts')).toEqual(['not-real']);",
+        '  });',
+        '});',
+      ].join('\n') + '\n',
+    );
+    // R11 tsconfig-exclude respect: pkg-b's own tsconfig.json excludes src/vendor/** (mirroring
+    // the real packages/agent-runtime's exclusion of its vendored, separately-built Remotion
+    // template — see this check's own module doc). An extensionless import under the excluded
+    // subtree must NOT be flagged; the same shape just outside it must still be flagged, proving
+    // the exclusion is scoped to that directory, not silently swallowing the whole package.
+    write(
+      root,
+      'r11-fixtures/pkg-b/tsconfig.json',
+      JSON.stringify({ include: ['src'], exclude: ['src/vendor/**'] }, null, 2),
+    );
+    write(
+      root,
+      'r11-fixtures/pkg-b/src/vendor/template/bad-but-excluded.ts',
+      "import { x } from './other';\nexport { x };\n",
+    );
+    write(
+      root,
+      'r11-fixtures/pkg-b/src/normal-bad-no-ext.ts',
+      "import { x } from './other';\nexport { x };\n",
+    );
+
     const engineViolations = await checkEngineBoundaries({ repoRoot: root });
     const protocolViolations = await checkProtocolPurity({ repoRoot: root });
     const domPurityGood = await checkAgenticDomPurity({
@@ -303,6 +376,10 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       repoRoot: root,
       chatPaneDir: join(root, 'r10-fixtures', 'chat-pane'),
       barrelPath: join(root, 'r10-fixtures', 'public-barrel.ts'),
+    });
+    const extensionlessViolations = await checkExtensionlessImports({
+      repoRoot: root,
+      packagesDir: join(root, 'r11-fixtures'),
     });
 
     const has = (violations: { rule: string; file: string }[], rule: string, fileSuffix: string) =>
@@ -404,6 +481,30 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [
         !chatPaneViolations.some((v) => v.file.endsWith('__tests__/ChatPane.test.tsx')),
         'R10 must NOT flag an escaping import from a __tests__/ file, even when the name is not in the barrel',
+      ],
+      [
+        has(extensionlessViolations, 'R11-extensionless-import', 'bad-no-ext-file.ts') &&
+          extensionlessViolations.some((v) => v.file.endsWith('bad-no-ext-file.ts') && v.reason.includes('"./sibling.js"') && !v.reason.includes('/index.js')),
+        'R11 should catch an extensionless import of a real sibling file, hinting ".js" not "/index.js"',
+      ],
+      [
+        has(extensionlessViolations, 'R11-extensionless-import', 'bad-no-ext-dir.ts') &&
+          extensionlessViolations.some((v) => v.file.endsWith('bad-no-ext-dir.ts') && v.reason.includes('"./subdir/index.js"')),
+        'R11 should catch an extensionless import that actually names a directory, hinting "/index.js"',
+      ],
+      [!extensionlessViolations.some((v) => v.file.endsWith('ok-with-ext.ts')), 'R11 must NOT flag a relative import that already has ".js"'],
+      [!extensionlessViolations.some((v) => v.file.endsWith('ok-bare.ts')), 'R11 must NOT flag a bare @jini-ai/<name> import'],
+      [
+        !extensionlessViolations.some((v) => v.file.endsWith('ok-string-literal-lookalike.test.ts')),
+        'R11 must NOT flag import-shaped syntax inside a string literal (the real packages/mcp false-positive this check was built to avoid)',
+      ],
+      [
+        !extensionlessViolations.some((v) => v.file.includes('src/vendor/')),
+        'R11 must NOT flag files under a package-declared tsconfig.json exclude (mirrors the real vendored Remotion template)',
+      ],
+      [
+        has(extensionlessViolations, 'R11-extensionless-import', 'normal-bad-no-ext.ts'),
+        'R11 should still catch an extensionless import just outside the excluded subtree — the exclude must be scoped, not swallow the whole package',
       ],
     ];
 

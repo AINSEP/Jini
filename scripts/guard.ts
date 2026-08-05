@@ -25,14 +25,28 @@
  * `index.ts` rather than narrowing scope — see ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md
  * §9 for the reasoning on each.
  *
+ * `checkExtensionlessImports` (R11, added 2026-08-05) is a fifth check, shipped ENFORCING
+ * immediately, not disabled-first like R10 — R10's disabled period existed because a concurrent
+ * agent was mid-restructuring the exact tree it checks; no such concurrent-edit risk applies here.
+ * Found by REF-001 Step C's hardened tarball-execution check (import the real packed tarball, not
+ * just `require.resolve` it): `@jini-ai/ui`'s `Toast.js` reached `./Icon` with no extension, which
+ * resolves under a bundler (Vite, Vitest) but throws `ERR_MODULE_NOT_FOUND` under plain Node ESM.
+ * Investigating found it wasn't `ui`-specific — `tsconfig.base.json`'s repo-wide
+ * `moduleResolution: "Bundler"` lets every package's typechecker accept this. Fixed the 21 real
+ * sites found (10 in `ui`, 11 in `renderers-react`) in the same change that adds this check. See
+ * `check-extensionless-imports.ts`'s own module doc for two false-positive classes this check
+ * deliberately does NOT flag (import-shaped text inside a string literal; a package's own
+ * tsconfig-excluded, separately-built vendored subtree) and why both are correct to exclude.
+ *
  * Fail-closed guarantee: before trusting any check against the real repo, `runGuardSelfTest`
- * runs all four against known-bad fixtures and refuses to report "ok" on the real repo unless the
+ * runs all five against known-bad fixtures and refuses to report "ok" on the real repo unless the
  * checks demonstrably still catch what they're supposed to. This is what makes "silently
  * regress to a no-op again" a self-test failure instead of a silent false "ok."
  */
 import { checkAgenticDomPurity } from './check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkEngineBoundaries } from './check-engine-boundaries.js';
+import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
 import { runGuardSelfTest } from './lib/self-test.js';
 
@@ -57,6 +71,7 @@ async function main() {
     await checkProtocolPurity(),
     await checkAgenticDomPurity(),
     await checkChatPanePublicSurface(),
+    await checkExtensionlessImports(),
     // TODO: vocabulary-firewall check (foundry/automation/** must not import engine domain types) —
     // genuinely unimplemented, not covered by either check above (both are scoped to packages/).
     // TODO: residual-JS allowlist — genuinely unimplemented; scope not yet specified precisely
