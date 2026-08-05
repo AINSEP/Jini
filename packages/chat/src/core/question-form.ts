@@ -619,6 +619,39 @@ function parseDefaultValue(
   return undefined;
 }
 
+/** `#rgb`, `#rgba`, `#rrggbb`, `#rrggbbaa`. */
+const HEX_COLOR = /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+/** A bare CSS colour keyword. Letters only — with no parenthesis it cannot become a function call. */
+const COLOR_KEYWORD = /^[a-z]+$/i;
+/**
+ * A colour function. The argument charset deliberately excludes `(`, so no nested function —
+ * `var()`, `url()`, `image-set()`, `attr()` — can appear inside one of these either.
+ */
+const COLOR_FUNCTION = /^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch|color)\(\s*[0-9a-z%.,/\s+-]*\)$/i;
+
+/**
+ * Whether a model-supplied palette entry may be written into a CSS value.
+ *
+ * `palette` reaches `QuestionForm`'s swatch as `style={{ background: c }}`, and `background` is a
+ * SHORTHAND — it accepts far more than a colour. An agent (or anything that can influence one)
+ * emitting `url(https://attacker.example/pixel)` therefore got the browser to issue a request the
+ * moment the card rendered: a tracking beacon inside the chat transcript, needing no click. Neither
+ * React nor the CSSOM filters this; React passes style values through, and the CSSOM happily
+ * accepts a valid shorthand.
+ *
+ * Enforced HERE rather than at the swatch, because this is the normalization boundary and the
+ * component is not the only thing that could ever read `palette`. An entry that fails is DROPPED
+ * rather than substituted: a silently recoloured swatch would misrepresent the agent's proposal,
+ * and a card with fewer swatches is honest about what survived validation.
+ */
+export function isRenderableColor(value: string): boolean {
+  const candidate = value.trim();
+  // Bounded before any regex runs: these come from model output, and the function pattern's `\s*`
+  // plus a character class is the shape that makes a pathological input worth not accepting at all.
+  if (candidate.length === 0 || candidate.length > 64) return false;
+  return HEX_COLOR.test(candidate) || COLOR_KEYWORD.test(candidate) || COLOR_FUNCTION.test(candidate);
+}
+
 function parseDirectionCards(raw: unknown): DirectionCard[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const out: DirectionCard[] = [];
@@ -630,7 +663,9 @@ function parseDirectionCards(raw: unknown): DirectionCard[] | undefined {
     if (id === null || label === null) continue;
     const mood = typeof e.mood === 'string' ? e.mood : '';
     const references = Array.isArray(e.references) ? e.references.filter((r): r is string => typeof r === 'string').slice(0, 6) : [];
-    const palette = Array.isArray(e.palette) ? e.palette.filter((p): p is string => typeof p === 'string').slice(0, 8) : [];
+    const palette = Array.isArray(e.palette)
+      ? e.palette.filter((p): p is string => typeof p === 'string' && isRenderableColor(p)).slice(0, 8)
+      : [];
     const displayFont = typeof e.displayFont === 'string' ? e.displayFont : 'Georgia, serif';
     const bodyFont = typeof e.bodyFont === 'string' ? e.bodyFont : '-apple-system, system-ui, sans-serif';
     out.push({ id, label, mood, references, palette, displayFont, bodyFont });

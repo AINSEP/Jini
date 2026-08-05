@@ -156,7 +156,22 @@ ${SURFACE_SCRIPT_PRELUDE}
   // how it is written. The submit button is type=button (see the actions array above) for exactly
   // this reason, and this function is called directly from its "click" handler below -- "click" is
   // unaffected by the sandboxed-forms flag, which only ever gates form submission.
+  // In-flight guard for BOTH action paths. \`setBusy\` disables the action buttons and nothing else
+  // (see SURFACE_SCRIPT_PRELUDE), which is a complete guard on a surface whose only entry points
+  // are buttons -- but this one also has the Enter handler below, bound to controls setBusy leaves
+  // enabled on purpose (a busy form still has to be readable, and disabling every input mid-call
+  // would blow away focus and selection). Holding Enter therefore fired one \`tools/call\` per
+  // keydown repeat while the first was still pending: a confirmation-token tool would reject the
+  // extras, but an ordinary state-mutating one would simply run again. Cancel shares the flag so
+  // Enter cannot submit on top of an in-flight cancel either.
+  //
+  // Deliberately NOT cleared on success -- the success path tears the surface down, so re-arming
+  // would only reopen the window. Cleared on failure, matching what setBusy(false) already does
+  // there: a rejected call did not happen, and the human must be able to retry.
+  var pending = false;
+
   function runSubmit() {
+    if (pending) return;
     var params = {};
     var key;
     for (key in BASE_PARAMS) if (Object.prototype.hasOwnProperty.call(BASE_PARAMS, key)) params[key] = BASE_PARAMS[key];
@@ -170,12 +185,14 @@ ${SURFACE_SCRIPT_PRELUDE}
       setStatus(TEXT.missingPrefix + missing.join(", "), "invalid");
       return;
     }
+    pending = true;
     setBusy(true);
     setStatus(TEXT.working, "pending");
     api.callTool(TOOL, params).then(function () {
       setStatus(TEXT.done, "done");
       api.requestTeardown();
     }, function (error) {
+      pending = false;
       setBusy(false);
       setStatus(TEXT.failedPrefix + describeError(error), "failed");
     });
@@ -203,6 +220,8 @@ ${SURFACE_SCRIPT_PRELUDE}
     }
     if (action !== "cancel") continue;
     actionButtons[b].addEventListener("click", function () {
+      if (pending) return;
+      pending = true;
       setBusy(true);
       if (CANCEL === null) {
         setStatus(TEXT.dismissed, "dismissed");
@@ -214,6 +233,7 @@ ${SURFACE_SCRIPT_PRELUDE}
         setStatus(TEXT.dismissed, "dismissed");
         api.requestTeardown();
       }, function (error) {
+        pending = false;
         setBusy(false);
         setStatus(TEXT.failedPrefix + describeError(error), "failed");
       });

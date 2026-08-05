@@ -161,6 +161,42 @@ describe('A2uiSurfaceCard', () => {
     expect(await screen.findByText('This action could not be delivered: network down')).toBeInTheDocument();
   });
 
+  /**
+   * `onAgentAction` is host-supplied, so its promises are not guaranteed to settle in call order.
+   * Clearing the notice on each click was not enough on its own: an OLDER click's failure could
+   * land after a newer click had already cleared it, repainting a superseded failure next to a
+   * control that just worked. Only the latest attempt may write the notice.
+   */
+  it('ignores an older attempt that settles after a newer one, rather than repainting a superseded failure', async () => {
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Button', child: 'label', action: { event: { name: 'continue' } } },
+        { id: 'label', component: 'Text', text: 'Continue' },
+      ]),
+    ];
+    const deferreds: Array<(value: { ok: boolean; reason?: string }) => void> = [];
+    const onAgentAction = vi.fn(
+      () =>
+        new Promise<{ ok: boolean; reason?: string }>((resolve) => {
+          deferreds.push(resolve);
+        }) as Promise<{ ok: true } | { ok: false; reason: string }>,
+    );
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+
+    const button = screen.getByRole('button', { name: 'Continue' });
+    await userEvent.click(button);
+    await userEvent.click(button);
+    await waitFor(() => expect(deferreds).toHaveLength(2));
+
+    // Newest settles first and succeeds; the stale one then reports a failure the human has moved past.
+    deferreds[1]!({ ok: true });
+    deferreds[0]!({ ok: false, reason: 'stale failure from the first click' });
+    await waitFor(() => expect(onAgentAction).toHaveBeenCalledTimes(2));
+
+    expect(screen.queryByText(/stale failure from the first click/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/could not be delivered/)).not.toBeInTheDocument();
+  });
+
   it('shows no delivery-failure notice when onAgentAction resolves { ok: true }', async () => {
     const events = [
       createSurfaceMessage('s1', [

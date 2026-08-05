@@ -129,6 +129,31 @@ describe('runOpenAiToolTurn', () => {
     expect(events).not.toContainEqual({ type: 'error', message: 'Internal IPs blocked' });
   });
 
+  /**
+   * The guard only ever validates the ORIGINAL url. With the default `redirect: 'follow'`, a
+   * public endpoint that passes both the literal and the DNS check could answer `302 ->
+   * http://169.254.169.254/...` and `fetch` would quietly chase it — reaching exactly the address
+   * space the guard exists to refuse, with the provider auth headers still attached. Asserted on
+   * the request init rather than by simulating a redirect, because that is the whole mechanism:
+   * `redirect: 'error'` is what makes the hop impossible.
+   */
+  it('refuses to follow redirects, so a guard-passing endpoint cannot bounce the request into blocked address space', async () => {
+    dnsAnswers.set('api.vendor.example', [{ address: '203.0.113.10', family: 4 }]);
+    const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(finishChunk('stop'), done())));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await runOpenAiToolTurn({
+      apiKey: 'sk-test',
+      model: 'gpt-4o',
+      baseUrl: 'https://api.vendor.example',
+      messages: baseMessages,
+      onEvent: () => {},
+    });
+
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect(init.redirect).toBe('error');
+  });
+
   it('reports a network error (Error instance) redacted, and a non-Error rejection stringified', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNRESET')));
     const events: OpenAiTurnEvent[] = [];

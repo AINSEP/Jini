@@ -75,7 +75,14 @@ export function McpUiSurfaceCard({ events, onToolCall, onOpenLink }: McpUiSurfac
             key={resource.resource.uri}
             title={resource.resource.uri}
             html={resource.resource.text}
-            sessionKey={`${resource.resource.uri}:${resource.resource.text.length}`}
+            // The whole document, not its LENGTH. `useMcpUiHost` already defaults `sessionKey` to
+            // `html` — exact by construction — and this override replaced that with a digest so
+            // coarse that any two documents of equal size under one URI collided: a genuine update
+            // (a re-rendered dialog with the same-length body, a swapped confirmation token) reused
+            // the previous iframe session, so the handshake never re-ran and the frame kept serving
+            // the OLD document's state. The URI stays in the key because it is real identity; the
+            // length was never a substitute for content.
+            sessionKey={`${resource.resource.uri}:${resource.resource.text}`}
             {...(onToolCall === undefined ? {} : { onToolCall })}
             {...(onOpenLink === undefined ? {} : { onOpenLink })}
             {...(height === undefined || Number.isNaN(height) ? {} : { initialHeight: height })}

@@ -212,6 +212,51 @@ describe('useRunStream', () => {
     expect(result.current.runId).toBe('run-2');
   });
 
+  /**
+   * The orphaned-run race. `cancel()` can only stop a run it has an id for, and while `startRun`
+   * is unresolved there is no id: `state.runId` is undefined, so `stopRun` was never called, and
+   * the generation bump then routed the eventual resolution down the "not current" path. The run
+   * kept going on the daemon with nothing on the client able to reach it — invisibly, because the
+   * UI had already said "canceled".
+   *
+   * Distinct from the plain supersession above, which correctly stops nothing: there a newer start
+   * owns the conversation, and the older run's teardown is not a cancellation.
+   */
+  it('cancel() during an unresolved start() still stops the run once its id finally arrives', async () => {
+    let resolveStart!: (v: { runId: string }) => void;
+    const transport = {
+      startRun: vi.fn(
+        async () =>
+          new Promise<{ runId: string }>((resolve) => {
+            resolveStart = resolve;
+          }),
+      ),
+      reattachRun: vi.fn(),
+      stopRun: vi.fn(),
+      fetchRunStatus: vi.fn(),
+    } as unknown as ChatTransport;
+    const { result } = renderHook(() => useRunStream(transport));
+
+    let startCall!: Promise<{ runId: string } | null>;
+    act(() => {
+      startCall = result.current.start({ history: [] });
+    });
+    // No id yet — precisely the window the defect lived in.
+    expect(result.current.runId).toBeNull();
+
+    act(() => result.current.cancel());
+    expect(result.current.status).toBe('canceled');
+    expect(transport.stopRun).not.toHaveBeenCalled();
+
+    await act(async () => {
+      resolveStart({ runId: 'run-late' });
+      await startCall;
+    });
+
+    expect(transport.stopRun).toHaveBeenCalledWith('run-late');
+    expect(result.current.status).toBe('canceled');
+  });
+
   it('a superseded start() whose transport promise later rejects is silently dropped (stale-generation catch guard)', async () => {
     let rejectFirst!: (err: unknown) => void;
     const firstPromise = new Promise<{ runId: string }>((_resolve, reject) => {

@@ -56,8 +56,7 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
     const pendingDelete = new Set<string>();
     let pendingFull = false;
 
-    const flush = async () => {
-      timer = null;
+    const runFlushPass = async () => {
       // Deletes are free (no fetch); apply them first.
       if (pendingDelete.size) {
         const del = new Set(pendingDelete);
@@ -91,6 +90,45 @@ export function useAssetGridLiveUpdates<TAsset extends AssetGridItem>(
         // guarantees every element is non-null.
         const resolved = fetched as unknown as TAsset[];
         setAssets((prev) => mergeIngestedAssets(prev, resolved));
+      }
+    };
+
+    /**
+     * At most ONE pass runs at a time, and a pass requested during one is coalesced into a single
+     * follow-up rather than started alongside it.
+     *
+     * `timer` alone did not provide that. `flush` nulled it on entry and then awaited, so a second
+     * pass could start while the first was still inside `fetchById` — and by then the first had
+     * already drained `pendingIngest`, so the second pass's delete found nothing there to cancel.
+     * The first pass would then merge the asset the second had just removed, putting a deleted
+     * asset back on screen. The `fetched.some(a => a === null)` guard does not cover it: the fetch
+     * can legitimately have resolved WITH the asset, moments before it was deleted.
+     *
+     * Guarding the merge instead was tried and is not sufficient — `pendingDelete` is cleared by
+     * whichever pass applies it, so by the time the fetching pass resumes there is nothing left to
+     * re-check against. Serializing removes the precondition rather than the symptom, the same
+     * reasoning `useMediaProvidersTab`'s `persist` uses for overlapping writes.
+     *
+     * Events arriving mid-pass are not lost: they accumulate in the same pending sets and the
+     * `rerun` loop picks them up, one window later than they would have been applied before.
+     */
+    let flushing = false;
+    let rerun = false;
+
+    const flush = async () => {
+      timer = null;
+      if (flushing) {
+        rerun = true;
+        return;
+      }
+      flushing = true;
+      try {
+        do {
+          rerun = false;
+          await runFlushPass();
+        } while (rerun);
+      } finally {
+        flushing = false;
       }
     };
 

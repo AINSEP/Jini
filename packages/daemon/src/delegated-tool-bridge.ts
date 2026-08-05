@@ -165,10 +165,23 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
       // Blast radius of a bogus channel is bounded and worth stating: this path is human-only, so
       // the failure mode is an event no renderer subscribes to — nothing rendered. It cannot put
       // anything into model context, which is the property that would actually matter.
+      //
+      // That bound holds only for an UNKNOWN channel, which is why the spread order below matters.
+      // `payload` used to be spread LAST, so a handler could set `type` to a channel this bridge
+      // does know — `tool_result`, `mcp-ui` — and set `toolUseId` to a DIFFERENT call's, producing
+      // a well-formed forged event correlated against someone else's tool call. The cast is what
+      // let it past the closed `RunAgentPayload` union unnoticed. `SurfaceEmission.payload` is
+      // documented as "the channel's own fields, merged into the emitted event BESIDE `type`" —
+      // beside, not over — so both reserved keys are stripped rather than merely out-ordered.
+      // Stripping, not reordering: `correlationFor` returns `{}` for a channel that carries no
+      // `toolUseId`, so spread order alone would still let a payload smuggle one onto those.
+      const safePayload: Record<string, unknown> = { ...emission.payload };
+      delete safePayload['type'];
+      delete safePayload['toolUseId'];
       const data = {
+        ...safePayload,
         type: emission.channel,
         ...correlationFor(emission.channel, toolUseId),
-        ...emission.payload,
       } as unknown as RunAgentPayload;
       await lifecycle.emit(runId, { event: 'agent', data });
     };

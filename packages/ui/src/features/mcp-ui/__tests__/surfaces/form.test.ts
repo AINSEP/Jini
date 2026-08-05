@@ -208,6 +208,48 @@ describe('renderFormDocument', () => {
     });
   });
 
+  /**
+   * `setBusy` disables the action buttons and nothing else, so the button path was already guarded
+   * — but the Enter handler is bound to controls that stay enabled, and a held Enter key repeats.
+   * Every repeat used to produce another `tools/call` against a still-pending one. The base params
+   * here carry a `confirmationToken`, which would let a token-checking tool reject the extras; an
+   * ordinary state-mutating tool has nothing to reject them with.
+   */
+  it('ignores repeated Enter while a call is in flight, and re-arms only once that call has failed', async () => {
+    const surface = mountSurface(renderFormDocument(SPEC));
+    const note = surface.doc.querySelector<HTMLInputElement>('input[name="note"]')!;
+    const pressEnter = () => note.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    pressEnter();
+    pressEnter();
+    pressEnter();
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+
+    // The button path shares the flag rather than relying on `disabled` alone.
+    surface.submit();
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+
+    // A rejected call did not happen, so the human must be able to retry — same reasoning as the
+    // `setBusy(false)` on the failure branch.
+    await surface.settle('reject', new Error('upstream down'));
+    pressEnter();
+    expect(surface.api.callTool).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let Enter submit on top of an in-flight cancel', () => {
+    const surface = mountSurface(
+      renderFormDocument({ ...SPEC, cancel: { label: 'Cancel', toolName: 'content_post_abandon', params: { id: 'p1' } } }),
+    );
+
+    surface.click('cancel');
+    surface.doc
+      .querySelector<HTMLInputElement>('input[name="note"]')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_abandon', { id: 'p1' });
+  });
+
   it('does not submit on Enter in a checkbox, matching what native implicit submission would have done', () => {
     const surface = mountSurface(renderFormDocument(SPEC));
     const notify = surface.doc.querySelector<HTMLInputElement>('input[name="notify"]')!;

@@ -436,6 +436,50 @@ describe('question-form: direction-cards', () => {
     expect(question?.cards?.[0]?.palette).toHaveLength(8);
   });
 
+  /**
+   * `palette` is rendered as `style={{ background: c }}`, and `background` is a SHORTHAND — it
+   * accepts far more than a colour. An agent emitting `url(...)` got the browser to fetch it the
+   * moment the card painted: a tracking beacon in the transcript, needing no click. Neither React
+   * nor the CSSOM filters this. Non-colours are dropped at parse time rather than substituted, so
+   * a card is honest about what survived instead of being quietly recoloured.
+   */
+  it('drops palette entries that are not colours, so a url() beacon never reaches a CSS value', () => {
+    const body = JSON.stringify({
+      questions: [
+        {
+          id: 'direction',
+          label: 'Pick a direction',
+          type: 'direction-cards',
+          cards: [
+            {
+              id: 'c1',
+              label: 'Card',
+              palette: [
+                '#cc6344',
+                'url(https://attacker.example/pixel)',
+                'oklch(62% 0.14 42)',
+                'red',
+                'image-set("https://attacker.example/x.png")',
+                'rgb(1,2,3)',
+                'var(--leak)',
+                '#abc',
+                'red; background-image: url(https://attacker.example/p)',
+              ],
+            },
+          ],
+        },
+      ],
+    });
+    const form = parseQuestionForm(`<question-form>${body}</question-form>`);
+    expect(form?.questions[0]?.cards?.[0]?.palette).toEqual([
+      '#cc6344',
+      'oklch(62% 0.14 42)',
+      'red',
+      'rgb(1,2,3)',
+      '#abc',
+    ]);
+  });
+
   it('drops a card entry missing id or label, defaults mood/font fields, and returns undefined for an all-invalid array', () => {
     const body = JSON.stringify({
       questions: [

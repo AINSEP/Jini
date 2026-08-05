@@ -82,13 +82,31 @@ export function hasAnyConfiguredProvider(providers: MediaProviderMap | null | un
  *
  * Server entries that are not present are skipped entirely — an empty server
  * record must not blank a configured local one.
+ *
+ * ## `dropProviderIds` — why a preserve list was not enough
+ *
+ * `preserveLocalProviderIds` can only preserve something that EXISTS locally:
+ * case 3 requires `hasRecoverableFields(localEntry)`, and a cleared provider
+ * has no local entry at all. So a provider the operator cleared, whose removal
+ * has not yet reached the server, was re-created here from the server's own
+ * still-present copy — a reload silently put a deleted credential back on
+ * screen. A deletion is not a weaker edit; it is an edit the preserve
+ * mechanism structurally cannot express, so it needs its own channel.
+ * `dropProviderIds` names ids whose local absence is INTENTIONAL and
+ * authoritative for this merge, and they are dropped whichever case runs.
  */
 export function mergeDaemonProviders(
   localProviders: MediaProviderMap | null | undefined,
   daemonProviders: MediaProviderMap | null | undefined,
-  options?: { preserveLocalProviderIds?: ReadonlySet<string> },
+  options?: { preserveLocalProviderIds?: ReadonlySet<string>; dropProviderIds?: ReadonlySet<string> },
 ): MediaProviderMap {
-  const local = { ...(localProviders ?? {}) };
+  const dropped = options?.dropProviderIds;
+  const withoutDropped = (map: MediaProviderMap): MediaProviderMap =>
+    dropped === undefined || dropped.size === 0
+      ? map
+      : Object.fromEntries(Object.entries(map).filter(([providerId]) => !dropped.has(providerId)));
+
+  const local = withoutDropped({ ...(localProviders ?? {}) });
 
   if (daemonProviders == null) return local;
 
@@ -99,6 +117,7 @@ export function mergeDaemonProviders(
   const merged: MediaProviderMap = { ...local };
   for (const [providerId, daemonEntry] of Object.entries(daemonProviders)) {
     if (!isEntryPresent(daemonEntry)) continue;
+    if (dropped?.has(providerId)) continue;
     const localEntry = merged[providerId];
     const preserveLocalEdit =
       Boolean(options?.preserveLocalProviderIds?.has(providerId)) && hasRecoverableFields(localEntry);

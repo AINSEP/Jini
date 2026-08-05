@@ -113,6 +113,20 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
    */
   const mutatedSinceSend = useRef<Set<string>>(new Set());
 
+  /**
+   * Providers cleared locally whose removal the daemon has not confirmed yet.
+   *
+   * `mutatedSinceSend` protects a clear from the SAVE response. Nothing protected it from the LOAD
+   * response, and the two need different mechanisms: a clear is deliberately not a pending edit
+   * (see `clearProvider`), so it is absent from `preserveLocalProviderIds`, and `mergeDaemonProviders`
+   * cannot preserve an entry that no longer exists locally anyway. The daemon still holds the
+   * credential until the write lands, so any reload in that window re-created it from the server's
+   * copy and put a cleared credential back on screen. These ids are tombstones: the merge drops
+   * them outright, and they are released only when a write that carried the deletion succeeds, or
+   * when the clear is rolled back.
+   */
+  const clearedProviderIds = useRef<Set<string>>(new Set());
+
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -157,10 +171,20 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
   const flushNow = useCallback(async (): Promise<PersistOutcome> => {
     const sent = providersRef.current;
     mutatedSinceSend.current = new Set();
+    // Snapshotted with the payload: exactly the tombstones this write is carrying to the daemon.
+    // A clear issued while it is in flight is NOT in here and keeps its tombstone, because this
+    // request never told the server about it.
+    const clearsInFlight = [...clearedProviderIds.current].filter((providerId) => sent[providerId] === undefined);
     try {
       const saved = await portRef.current.saveMediaProviders(sent);
       if (!alive.current) return { status: 'abandoned' };
       const touched = mutatedSinceSend.current;
+      // The server has now accepted a map without these, so the local absence is no longer a claim
+      // waiting to be defended — the daemon agrees. Re-touched ids keep their tombstone: the
+      // operator changed their mind mid-flight and this response does not describe that decision.
+      for (const providerId of clearsInFlight) {
+        if (!touched.has(providerId)) clearedProviderIds.current.delete(providerId);
+      }
       const next: MediaProviderMap = { ...saved };
       for (const providerId of touched) {
         const local = providersRef.current[providerId];
@@ -237,6 +261,12 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
     (migrateOnFirstUpload: boolean) => {
       const ticket = ++loadTicket.current;
       const isCurrent = () => alive.current && loadTicket.current === ticket;
+      // Captured for the MIGRATION decision only — `shouldSyncLocalProvidersToDaemon` asks "did the
+      // operator already have local data before this fetch answered", which is a question about the
+      // pre-fetch state by definition. The MERGE deliberately does not use it: merging a response
+      // against a snapshot taken before the request was sent discards every edit made while it was
+      // in flight, which is the load-path twin of the whole-map overwrite `persist` serializes to
+      // avoid. The merge reads `providersRef.current` at response time instead.
       const localBeforeMerge = providersRef.current;
       setLoad({ status: 'loading' });
       portRef.current.fetchMediaProviders().then((daemonResult) => {
@@ -247,8 +277,9 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
           setLoad({ status: 'unreachable' });
           return;
         }
-        const merged = mergeDaemonProviders(localBeforeMerge, daemonResult, {
+        const merged = mergeDaemonProviders(providersRef.current, daemonResult, {
           preserveLocalProviderIds: pendingRef.current,
+          dropProviderIds: clearedProviderIds.current,
         });
         applyProviders(merged);
         setLoad({ status: 'ok' });
@@ -297,10 +328,18 @@ export function useMediaProvidersTab({ port, initialProviders }: UseMediaProvide
         delete next[providerId];
         applyProviders(next);
         mutatedSinceSend.current.add(providerId);
+        clearedProviderIds.current.add(providerId);
         const outcome = await persist();
         // A FAILED save rolls the optimistic clear back so the operator does
         // not lose a credential the daemon never actually dropped — same
         // rollback shape as `useProjectLocationsTab.removeDraft`.
+        //
+        // The tombstone goes with it. It exists to defend a clear the daemon has not caught up to
+        // yet; once the clear is being abandoned there is nothing left to defend, and a tombstone
+        // outliving its clear would suppress the provider on every future reload — a resurrection
+        // bug traded for a disappearance bug. Released on `abandoned` too: an unmounted tree has no
+        // state to reconcile, and this ref does not survive the remount that would need it.
+        if (outcome.status !== 'saved') clearedProviderIds.current.delete(providerId);
         if (outcome.status !== 'failed' || !alive.current) return;
         if (previousEntry === undefined) return;
         // Restore ONLY this provider, into whatever the map is NOW. Restoring

@@ -275,6 +275,14 @@ export async function runOpenAiCompatibleRequest(init: OpenAiCompatibleRequestIn
       method: 'POST',
       headers: init.headers,
       body: JSON.stringify(init.body),
+      // The caller's SSRF check (`validateBaseUrlResolved`) only ever sees the
+      // ORIGINAL url. Following a redirect would let a public, guard-passing
+      // endpoint hand back a `302 -> http://169.254.169.254/...` and reach the
+      // address the guard exists to refuse — with the provider auth headers
+      // still attached. `model-catalog.ts`'s own fetch already refuses
+      // redirects for the same reason; a redirecting chat-completions endpoint
+      // is not a thing any supported provider does.
+      redirect: 'error',
       ...(init.signal ? { signal: init.signal } : {}),
     })) as unknown as typeof response;
   } catch (error) {

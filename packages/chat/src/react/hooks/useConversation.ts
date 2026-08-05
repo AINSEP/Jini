@@ -169,7 +169,18 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       setMessagesState([...history, resetAssistant]);
       setScrollIntent(true);
       const resolvedAgentId = resetAssistant.agentId ?? agentId;
-      await run.start({ history, ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}), conversationId });
+      // `priorUser`'s attachments go back out with the retry. They were located above and then
+      // dropped: `sendMessage` forwards `attachments` to `run.start`, this path did not, so
+      // retrying an image or file prompt re-sent the TEXT alone. The model then answered a question
+      // about a picture it could no longer see — and because the transcript still renders the
+      // attachment beside the user turn, the failure reads as the model ignoring it rather than as
+      // the client never having sent it.
+      await run.start({
+        history,
+        ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
+        conversationId,
+        ...(priorUser.attachments !== undefined ? { attachments: priorUser.attachments } : {}),
+      });
     },
     [agentId, conversationId, run],
   );

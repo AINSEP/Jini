@@ -296,6 +296,95 @@ describe("durability of the stack itself", () => {
     expect(target.parts.get("a")).toBe("a0");
   });
 
+  /**
+   * The same principle the test above pins for `transaction`, applied to the three replay paths.
+   * `makeTarget`'s `failWriteOn` switch is fixed at construction, which cannot express these cases:
+   * the fault has to land on a REPLAY write, after a clean transaction has already been recorded.
+   */
+  function armFailureOn(target: EditTarget, id: PartId): void {
+    const real = target.replacePart;
+    target.replacePart = async (partId, content) => {
+      if (partId === id) throw new Error("disk on fire");
+      await real(partId, content);
+    };
+  }
+
+  test("an undo that fails partway keeps its entry on the undo stack, so the half-rewound artifact is still reachable", async () => {
+    const target = makeTarget({ initial: { a: "a0", b: "b0" } });
+    const history = createEditHistory(target);
+    await history.transaction((recording) =>
+      applyEdits(recording, [
+        { id: "a", content: "a1" },
+        { id: "b", content: "b1" },
+      ])
+    );
+
+    // Undo replays in reverse, so `b` rewinds cleanly and `a` is the one that blows up.
+    armFailureOn(target, "a");
+    await expect(history.undo()).rejects.toThrow("disk on fire");
+
+    expect(target.parts.get("b")).toBe("b0");
+    expect(target.parts.get("a")).toBe("a1");
+    // Stranded in neither stack was the defect: the entry must still be undoable, and must NOT
+    // have moved to redo, because the state redo would move toward is the state still on disk.
+    expect(history.canUndo()).toBe(true);
+    expect(history.canRedo()).toBe(false);
+
+    // Retrying finishes the job — replaying `before` over the part that already rewound rewrites
+    // it with the content it already holds, which is what makes the retry safe, not merely possible.
+    target.replacePart = async (id, content) => {
+      target.parts.set(id, content);
+    };
+    await history.undo();
+    expect(target.parts.get("a")).toBe("a0");
+    expect(target.parts.get("b")).toBe("b0");
+    expect(history.canUndo()).toBe(false);
+    expect(history.canRedo()).toBe(true);
+  });
+
+  test("a redo that fails partway keeps its entry on the redo stack", async () => {
+    const target = makeTarget({ initial: { a: "a0", b: "b0" } });
+    const history = createEditHistory(target);
+    await history.transaction((recording) =>
+      applyEdits(recording, [
+        { id: "a", content: "a1" },
+        { id: "b", content: "b1" },
+      ])
+    );
+    await history.undo();
+
+    // Redo replays in application order, so `b` is the second write here.
+    armFailureOn(target, "b");
+    await expect(history.redo()).rejects.toThrow("disk on fire");
+
+    expect(target.parts.get("a")).toBe("a1");
+    expect(target.parts.get("b")).toBe("b0");
+    expect(history.canRedo()).toBe(true);
+    expect(history.canUndo()).toBe(false);
+  });
+
+  test("a restore that fails partway still records its entry, so the parts it did change can be undone", async () => {
+    const target = makeTarget({ initial: { a: "a0", b: "b0" } });
+    const history = createEditHistory(target);
+    const snapshot: Snapshot = { id: "snap", parts: { a: "aX", b: "bX" } };
+
+    armFailureOn(target, "b");
+    await expect(history.restore(snapshot)).rejects.toThrow("disk on fire");
+
+    expect(target.parts.get("a")).toBe("aX");
+    expect(target.parts.get("b")).toBe("b0");
+    // Without a recorded entry the write to `a` would be unreachable through this API — exactly
+    // the destructive-restore failure this tier exists to prevent, reached by a different route.
+    expect(history.canUndo()).toBe(true);
+
+    target.replacePart = async (id, content) => {
+      target.parts.set(id, content);
+    };
+    await history.undo();
+    expect(target.parts.get("a")).toBe("a0");
+    expect(target.parts.get("b")).toBe("b0");
+  });
+
   test("the stack is bounded — oldest entries drop past the limit", async () => {
     const target = makeTarget({ initial: { a: "a0" } });
     const history = createEditHistory(target, { limit: 2 });

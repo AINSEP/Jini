@@ -89,6 +89,31 @@ describe('useConversation', () => {
     expect(result.current.messages[1]!.content).toBe('recovered');
   });
 
+  /**
+   * `retry` located the prior user turn and then used it only for the role guard, so its
+   * attachments never went back out — `sendMessage` forwards them to `start`, this path did not.
+   * Retrying an image prompt re-sent the text ALONE, and the model answered about a picture it
+   * could no longer see, while the transcript still rendered the attachment beside the user turn.
+   */
+  it('retry() re-sends the prior user turn’s attachments, not just its text', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useConversation({ transport }));
+    const attachments = [{ path: '/tmp/shot.png', name: 'shot.png', kind: 'image' as const }];
+    await act(async () => {
+      await result.current.sendMessage('what is wrong with this?', { attachments });
+    });
+    expect(transport.calls[0]?.input.attachments).toEqual(attachments);
+
+    act(() => transport.fail(new Error('network blip')));
+    const failedId = result.current.messages[1]!.id;
+    await act(async () => {
+      await result.current.retry(failedId);
+    });
+
+    expect(transport.calls).toHaveLength(2);
+    expect(transport.calls[1]?.input.attachments).toEqual(attachments);
+  });
+
   it('setMessages accepts both a plain array and an updater function', () => {
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useConversation({ transport }));

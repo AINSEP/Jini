@@ -35,8 +35,12 @@ export function withExclusiveFileLock<T>(filePath: string, operation: () => T): 
     } catch (error) {
       if (!isErrno(error, 'EEXIST')) throw error;
       // Contentious locks are never evicted by age: an old mtime is not proof
-      // that the owning process or operation is dead.
-      fs.statSync(lockPath);
+      // that the owning process or operation is dead. There is deliberately no
+      // `statSync` here — an earlier version stat'd the lock and discarded the
+      // result, left over from the age-based eviction this comment describes
+      // removing. That stat threw ENOENT out of this function whenever the
+      // owner released between the failed `openSync` and the stat, turning the
+      // NORMAL release race into a hard failure instead of the retry below.
       if (Date.now() >= deadline) {
         throw new Error(`Timed out waiting for exclusive access to ${path.basename(filePath)}.`);
       }

@@ -187,6 +187,22 @@ function looksLikeIpLiteral(hostname: string): boolean {
  * hostname that resolves to a loopback address (including `*.localhost` per
  * RFC 6761 and IPv4-mapped IPv6 loopback) follows the same carve-out.
  *
+ * ## What this does NOT close, stated so nobody reads it as a complete defence
+ *
+ * This resolves the hostname; `fetch` then resolves it AGAIN, independently, when it dials. Between
+ * those two resolutions the answer can change — a DNS rebinding attacker returns a public address
+ * to this check and a private one to the connection. No preflight validator can close that gap; it
+ * needs the request to dial the exact address that was approved, via an IP-pinning dispatcher
+ * (undici `Agent` with a custom `connect`, or `node:https` with a `lookup` option). Neither is
+ * reachable from this package today: it carries no external runtime dependencies by design, so
+ * adopting one is a deliberate architecture decision rather than a patch to this file.
+ *
+ * That gap is defence-in-depth rather than the primary trust boundary — `baseUrl` here is
+ * operator-configured provider config, not attacker-supplied input — but callers must not treat a
+ * pass from this function as proof that the socket went where it said it would. Callers should
+ * additionally refuse redirects (`redirect: 'error'`), which closes the OTHER way a validated
+ * origin reaches an unvalidated address; `model-catalog.ts` and `openai-chat.ts` both do.
+ *
  * DNS lookup failures are not treated as a security signal — the caller is
  * going to surface a connection error from `fetch` anyway, and turning a
  * transient resolver hiccup into a rejection would just confuse callers. The

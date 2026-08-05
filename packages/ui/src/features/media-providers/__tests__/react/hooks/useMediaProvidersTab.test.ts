@@ -115,6 +115,62 @@ describe('useMediaProvidersTab — clearProvider', () => {
     // The credential the daemon never actually dropped must still be there.
     expect(result.current.providers.a).toEqual({ apiKeyConfigured: true });
   });
+
+  /**
+   * The clear-then-reload resurrection. A clear is deliberately NOT a pending edit, so it is absent
+   * from `preserveLocalProviderIds` — and `mergeDaemonProviders` could not have preserved it anyway,
+   * since that path requires a local entry with recoverable fields and a cleared entry has none.
+   * The daemon still holds the credential until the write lands, so any reload in that window
+   * re-created it from the server's copy and put a cleared credential back on screen. No concurrent
+   * save is needed to reproduce it; a reload alone is enough.
+   */
+  it('a reload issued before the clear reaches the daemon does not resurrect the cleared provider', async () => {
+    let saveResolve!: (value: MediaProviderMap) => void;
+    const port: MediaProvidersPort = {
+      // The daemon still reports the credential — the clear has not landed yet, which is the point.
+      fetchMediaProviders: () => Promise.resolve({ a: { apiKeyConfigured: true }, b: { apiKeyConfigured: true } }),
+      saveMediaProviders: () =>
+        new Promise<MediaProviderMap>((resolve) => {
+          saveResolve = resolve;
+        }),
+    };
+    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    await waitFor(() => expect(result.current.providers.a).toBeDefined());
+
+    result.current.clearProvider('a');
+    await waitFor(() => expect(result.current.providers.a).toBeUndefined());
+
+    result.current.reload();
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+    expect(result.current.providers.a).toBeUndefined();
+    // Untouched providers still reconcile normally — the tombstone is scoped to the cleared id.
+    expect(result.current.providers.b).toBeDefined();
+
+    // Once the write lands the tombstone is released and the daemon is authoritative again.
+    saveResolve({ b: { apiKeyConfigured: true } });
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'saved' }));
+  });
+
+  /**
+   * The tombstone must not outlive the clear it defends: a rolled-back clear that kept its
+   * tombstone would suppress the provider on every future reload — a resurrection bug traded for a
+   * disappearance bug.
+   */
+  it('releases the tombstone when the clear is rolled back, so a later reload sees the daemon copy again', async () => {
+    const port: MediaProvidersPort = {
+      fetchMediaProviders: () => Promise.resolve({ a: { apiKeyConfigured: true } }),
+      saveMediaProviders: () => Promise.reject(new Error('disk full')),
+    };
+    const { result } = renderHook(() => useMediaProvidersTab({ port }));
+    await waitFor(() => expect(result.current.providers.a).toBeDefined());
+
+    result.current.clearProvider('a');
+    await waitFor(() => expect(result.current.save).toEqual({ status: 'save-error', message: 'disk full' }));
+
+    result.current.reload();
+    await waitFor(() => expect(result.current.load).toEqual({ status: 'ok' }));
+    expect(result.current.providers.a).toEqual({ apiKeyConfigured: true });
+  });
 });
 
 describe('useMediaProvidersTab — saveChanges', () => {

@@ -100,6 +100,66 @@ describe('useAssetGridLiveUpdates', () => {
     vi.useRealTimers();
   });
 
+  /**
+   * The resurrection race. `flush` used to null `timer` on entry and then await, so a second pass
+   * could start while the first was still inside `fetchById`. By then the first had drained
+   * `pendingIngest`, so the second pass's delete found nothing there to cancel: it filtered the
+   * asset out of the list, and the first pass then merged it straight back in. `fetched === null`
+   * does not catch this — the fetch legitimately resolved WITH the asset, moments before it was
+   * deleted.
+   *
+   * Passes are serialized now, so the delete lands AFTER the merge instead of before it, and the
+   * final list is correct. Asserted on the resulting state rather than on call counts, because the
+   * defect was never about how many times `setAssets` ran — it was about the order they composed in.
+   */
+  it('does not resurrect an asset deleted while its ingest fetch was still in flight', async () => {
+    vi.useFakeTimers();
+    const { port, fire } = fakeLiveUpdatesPort();
+    let assets: TestAsset[] = [{ id: 'a', kind: 'image' }, { id: 'b', kind: 'image' }];
+    const setAssets = vi.fn((updater: unknown) => {
+      assets = (updater as (prev: TestAsset[]) => TestAsset[])(assets);
+    });
+    const reload = vi.fn().mockResolvedValue(undefined);
+    let resolveFetch!: (value: TestAsset) => void;
+    const fetchAssetById = vi.fn(
+      () => new Promise<TestAsset>((resolve) => { resolveFetch = resolve; }),
+    );
+    renderHook(() =>
+      useAssetGridLiveUpdates<TestAsset>({
+        active: true,
+        liveUpdates: port,
+        filtersActive: false,
+        fetchAssetById,
+        setAssets: setAssets as unknown as React.Dispatch<React.SetStateAction<TestAsset[]>>,
+        reload,
+        coalesceMs: 50,
+      }),
+    );
+
+    // Pass 1 takes the ingest and parks on the fetch.
+    act(() => fire().onIngest('a'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+    expect(fetchAssetById).toHaveBeenCalledWith('a');
+
+    // The asset is deleted while that fetch is still outstanding.
+    act(() => fire().onDelete('a'));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    // Now the fetch answers — with the asset, because it was still there when the read happened.
+    await act(async () => {
+      resolveFetch({ id: 'a', kind: 'image' });
+      await vi.advanceTimersByTimeAsync(50);
+    });
+
+    expect(assets.map((asset) => asset.id)).toEqual(['b']);
+    expect(reload).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
   it('falls back to a full reload when filtersActive is true, even for an ingest event', async () => {
     vi.useFakeTimers();
     const { port, fire } = fakeLiveUpdatesPort();

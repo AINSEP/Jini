@@ -61,6 +61,17 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
   // Bumped on every start/reattach/reset. A handler closes over the
   // generation it was created for and drops itself once superseded.
   const generationRef = useRef(0);
+  /**
+   * Generations that were CANCELLED (as opposed to merely superseded) while their `startRun` was
+   * still in flight.
+   *
+   * `cancel()` can only stop a run it has an id for, and during that window there is no id yet.
+   * The generation bump then routes the eventual resolution down the "not current" path, so the
+   * run was left alive on the daemon with nothing on the client able to reach it. Recording the
+   * intent here lets the resolution finish the job. A supersession by a new start/reattach is
+   * deliberately NOT recorded — that case really does need no stop.
+   */
+  const canceledGenerations = useRef<Set<number>>(new Set());
 
   const teardownSubscription = useCallback(() => {
     subscriptionAbortRef.current?.abort();
@@ -111,10 +122,17 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
           { ...input, signal: subscriptionAbort.signal, cancelSignal: cancelAbort.signal },
           makeHandlers(generation),
         );
-        if (generationRef.current !== generation) return { runId };
+        if (generationRef.current !== generation) {
+          // Consumed rather than assumed: only a CANCEL leaves an orphan here.
+          if (canceledGenerations.current.delete(generation)) void transport.stopRun(runId);
+          return { runId };
+        }
         setState((prev) => ({ ...prev, runId }));
         return { runId };
       } catch (err) {
+        // A start that never produced a run id has nothing to stop; drop the intent so the set does
+        // not accumulate one entry per failed start for the lifetime of the hook.
+        canceledGenerations.current.delete(generation);
         if (generationRef.current !== generation) return null;
         setState((prev) => ({ ...prev, status: 'error', error: toError(err) }));
         return null;
@@ -149,6 +167,10 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
   const cancel = useCallback(() => {
     cancelAbortRef.current?.abort();
     const runId = state.runId;
+    // Recorded BEFORE the bump, so it names the generation currently in flight. When `runId` is
+    // already known the `stopRun` below does the work and this entry is simply never consumed;
+    // when it is not, this is the only thing that will ever stop that run.
+    if (runId == null) canceledGenerations.current.add(generationRef.current);
     generationRef.current += 1;
     teardownSubscription();
     setState((prev) => ({ ...prev, status: 'canceled' }));

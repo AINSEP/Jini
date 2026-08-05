@@ -202,6 +202,9 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
   const [, forceRender] = useState(0);
   const appliedCountRef = useRef(0);
   const surfaceIdRef = useRef<string | undefined>(undefined);
+  /** Monotonic ticket for `handleAction`'s agent-delivery attempts — see its use for why a host's
+   *  promises settling out of order would otherwise repaint a superseded failure. */
+  const agentActionAttemptRef = useRef(0);
   const [refusalNotice, setRefusalNotice] = useState<string | null>(null);
   const [pendingAgentAction, setPendingAgentAction] = useState<string | null>(null);
   const [localActionResult, setLocalActionResult] = useState<{ componentId: string; value: unknown } | null>(null);
@@ -259,17 +262,24 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
       // a working control" concern `refusalNotice`'s own clearing already guards against.
       setPendingAgentAction(null);
       setDeliveryFailureNotice(null);
+      // Clearing the notice is not enough on its own: `onAgentAction` is host-supplied and its
+      // promises are not guaranteed to settle in call order, so an OLDER click's rejection could
+      // land after a newer one had already cleared the notice — repainting a failure the human has
+      // since superseded, next to a control that just worked. Only the latest attempt may write.
+      const attempt = (agentActionAttemptRef.current += 1);
+      const isLatestAttempt = () => agentActionAttemptRef.current === attempt;
       const outcome = onAgentAction(runId, built.message);
       // `isThenable`, not `instanceof Promise` — see that helper's own doc for why.
       if (isThenable(outcome)) {
         void outcome.then(
           (result) => {
-            if (!result.ok) setDeliveryFailureNotice(result.reason);
+            if (!result.ok && isLatestAttempt()) setDeliveryFailureNotice(result.reason);
           },
           (error: unknown) => {
             // A rejection is the host's transport breaking, not a message the host chose to report —
             // still surfaced, so the human sees *something* rather than a click that silently did
             // nothing.
+            if (!isLatestAttempt()) return;
             setDeliveryFailureNotice(error instanceof Error ? error.message : String(error));
           },
         );

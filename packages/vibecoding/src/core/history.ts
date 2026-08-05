@@ -225,17 +225,27 @@ export function createEditHistory(
     canRedo: () => redoStack.length > 0,
 
     async undo(): Promise<HistoryEntry | null> {
-      const entry = undoStack.pop();
+      // Peeked, not popped: a `replacePart` that throws partway through leaves the earlier parts
+      // already rewound, and popping first would strand that half-applied entry in NEITHER stack —
+      // the artifact changed and the history API could no longer reach it. Same principle decision
+      // 3 in this module's doc states for `transaction`. Moving between stacks only after a clean
+      // replay means a failed undo is simply retryable: replaying `before` again rewrites the
+      // parts that already landed with the content they already hold (a no-op) and retries the one
+      // that failed.
+      const entry = undoStack[undoStack.length - 1];
       if (!entry) return null;
       await replay([...entry.changes].reverse(), "before");
+      undoStack.pop();
       redoStack.push(entry);
       return entry;
     },
 
     async redo(): Promise<HistoryEntry | null> {
-      const entry = redoStack.pop();
+      // Peeked for the same reason as `undo` above, in the other direction.
+      const entry = redoStack[redoStack.length - 1];
       if (!entry) return null;
       await replay(entry.changes, "after");
+      redoStack.pop();
       undoStack.push(entry);
       return entry;
     },
@@ -249,9 +259,15 @@ export function createEditHistory(
       }
       if (changes.length === 0) return null;
 
-      await replay(changes, "after");
+      // Recorded BEFORE the replay, not after. A restore that throws on its second part has still
+      // changed the first, and pushing afterwards left those writes with no undo record at all —
+      // the destructive-restore failure mode decision 2 in this module's doc exists to prevent,
+      // reached by a different route. The `before` sides were captured above and are correct
+      // regardless of how far the replay got: undoing a partially-applied restore rewrites every
+      // listed part with the content it had before, which is a no-op for the ones never reached.
       const entry: HistoryEntry = { label: `restore ${snapshot.id}`, changes };
       push(entry);
+      await replay(changes, "after");
       return entry;
     },
 

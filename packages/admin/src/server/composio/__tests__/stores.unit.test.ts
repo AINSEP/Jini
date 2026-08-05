@@ -357,6 +357,36 @@ describe('Composio file stores', () => {
     fs.unlinkSync(lockPath);
   });
 
+  /**
+   * Regression: a contender that loses the `O_EXCL` open must RETRY, including when the owner
+   * releases in the gap before it looks again. An earlier version stat'd `lockPath` between those
+   * two moments and discarded the result — vestigial code from an age-based eviction that had
+   * already been removed — so the ENOENT from that stat escaped `withExclusiveFileLock` and turned
+   * an ordinary lock handoff into a hard failure.
+   *
+   * The race is made deterministic by failing only the FIRST `openSync` with EEXIST while no lock
+   * file exists on disk, which is exactly the state a contender sees when the owner unlinks
+   * immediately after its open lost.
+   */
+  it('retries rather than failing when the owner releases between a contender\'s failed open and its next attempt', () => {
+    const directory = makeTemporaryDirectory();
+    const filePath = path.join(directory, 'state.json');
+    const lockPath = `${filePath}.lock`;
+
+    const openSpy = vi.spyOn(fs, 'openSync').mockImplementationOnce(() => {
+      expect(fs.existsSync(lockPath)).toBe(false);
+      throw Object.assign(new Error('EEXIST: file already exists, open'), { code: 'EEXIST' });
+    });
+
+    try {
+      expect(withExclusiveFileLock(filePath, () => 'ran')).toBe('ran');
+      expect(openSpy).toHaveBeenCalledTimes(2);
+      expect(fs.existsSync(lockPath)).toBe(false);
+    } finally {
+      openSpy.mockRestore();
+    }
+  });
+
   it('does not evict a live lock owner solely because its mtime is old', () => {
     const directory = makeTemporaryDirectory();
     const filePath = path.join(directory, 'state.json');
@@ -401,18 +431,14 @@ describe('Composio file stores', () => {
       error.code = 'EACCES';
       throw error;
     });
+    // A permissions failure on the lock path surfaces through THIS open, which is the only
+    // filesystem call the contention loop makes. There is deliberately no companion assertion for
+    // a `statSync` EACCES inside that loop: the loop no longer stats at all (see `file-lock.ts` —
+    // the stat was vestigial and its ENOENT broke ordinary lock handoffs), and the combination it
+    // used to assert is unreachable anyway. If `openSync` can see the file well enough to report
+    // EEXIST, a `statSync` on the same path is not going to come back EACCES.
     expect(() => withExclusiveFileLock(filePath, () => undefined)).toThrow('open denied');
     open.mockRestore();
-
-    fs.writeFileSync(`${filePath}.lock`, 'owner');
-    const stat = vi.spyOn(fs, 'statSync').mockImplementationOnce(() => {
-      const error = new Error('stat denied') as NodeJS.ErrnoException;
-      error.code = 'EACCES';
-      throw error;
-    });
-    expect(() => withExclusiveFileLock(filePath, () => undefined)).toThrow('stat denied');
-    stat.mockRestore();
-    fs.unlinkSync(`${filePath}.lock`);
 
     expect(() => withExclusiveFileLock(filePath, () => {
       vi.spyOn(fs, 'unlinkSync').mockImplementationOnce(() => {
