@@ -8,7 +8,7 @@
  * a project-scoped file-upload path (`uploadProjectFiles`), and a 10-minute
  * skip-countdown auto-continue — all OD product policy, not generic panel
  * behavior, so they are dropped here per
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §1's "prune OD actions"
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1's "prune OD actions"
  * directive for this component family. A host that wants analytics gets it
  * for free via `<JiniChatProvider analytics={...}>` (not wired into this
  * component directly — see `AnalyticsAdapter`); a host that wants a

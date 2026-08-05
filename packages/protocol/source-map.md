@@ -19,12 +19,12 @@ Explicitly not ported here (still OD-only / later-task material): `execution-pro
 `ToolExecutor` territory), everything else in `packages/contracts/src/index.ts`'s
 barrel (`api/*`, `brands`, `plugins`, `figma`, `media`, `connectors`, `design-systems`,
 `prompts`, `critique`, `analytics`, `artifacts/od-card`) — all product surfaces per
-`foundry/docs/jini-port/recon/r1-daemon.md`.
+`ADS-memory/reports/jini-port/recon/r1-daemon.md`.
 
 **Provenance correction (2026-07-16):** the origin commit above is the tip of
 the local `open-design-agentic` clone's `main` branch, which turns out to be a
 personal integration branch diverged from true upstream `nexu-io/open-design`
-`main` (see `foundry/docs/jini-port/od-reference-branches.md`), not upstream `main`
+`main` (see `ADS-memory/reports/jini-port/od-reference-branches.md`), not upstream `main`
 itself. Practical effect on this file: `GENERIC_ERROR_CODES` includes
 `TOOL_NOT_AVAILABLE`, which is only present in the local branch's
 not-yet-upstream `browser-actions`/`agent-tools` work — `common.ts` and the
@@ -36,7 +36,7 @@ Not reverted; it's a reasonable generic tool-boundary code either way.
 Sourced from `leonaburime-ucla/open-design`'s `packages/registry-protocol`
 (cloned fresh to `/tmp/od-source` for this task; `src/schemas.ts` +
 `src/backend.ts` + `src/index.ts`, 3 files, ~199 LOC total), per
-`foundry/docs/jini-port/recon/r2-packages.md` §14: "zero OD coupling... pure zod
+`ADS-memory/reports/jini-port/recon/r2-packages.md` §14: "zero OD coupling... pure zod
 schemas... Classification: PURE-TS. Drop-in." Verified independently before
 porting: `grep -niE "open[- ]design|OD_"` across all three source files and
 the package's own test file returned zero matches.

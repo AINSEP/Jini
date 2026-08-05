@@ -8,7 +8,7 @@ export default defineConfig({
       provider: 'v8',
       // json-summary/json (not just the text table) so a coverage-driven
       // pass can read real per-file numbers — see
-      // foundry/docs/jini-port/skills/fixing-open-design-web.md Phase 9.5.
+      // ADS-memory/reports/jini-port/skills/fixing-open-design-web.md Phase 9.5.
       reporter: ['text', 'json-summary', 'json'],
       exclude: [
         ...coverageConfigDefaults.exclude,

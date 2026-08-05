@@ -144,7 +144,7 @@ native build runs under pnpm's default script-blocking policy) +
 Task brief: port `apps/daemon/src/storage/{daemon-db,db-inspect}.ts` and
 `apps/daemon/src/{metrics,logging}/` from the real `leonaburime-ucla/open-design`
 fork (cloned fresh to `/tmp/od-source`; `apps/daemon/src` on `main`), per
-`foundry/docs/jini-port/recon/r1-daemon.md`'s TASK 1 classification
+`ADS-memory/reports/jini-port/recon/r1-daemon.md`'s TASK 1 classification
 (`storage/`: "`aws-sigv4.ts`, `daemon-db.ts`, `db-inspect.ts` generic; only
 `project-storage.ts` leans OD"; `metrics/`+`logging/`: "generic observability
 primitives").
@@ -165,13 +165,13 @@ CLI subcommands.
 
 Both files ported with zero logic changes beyond the identity strips above —
 verified against the Phase 0 "no behavior changes in the same PR" guardrail
-in `foundry/docs/jini-port/skills/fixing-open-design.md` (the file that skill doc
+in `ADS-memory/reports/jini-port/skills/fixing-open-design.md` (the file that skill doc
 governs is a capability-barrel *refactor* template, not a strict fit for a
 first-time *port* like this one, but the same discipline applies).
 
 **Phase 6.6 note:** the task brief that requested this port also referenced
 a "Phase 6.6" async/network test-category checklist in
-`foundry/docs/jini-port/skills/fixing-open-design.md`, said to have been "added
+`ADS-memory/reports/jini-port/skills/fixing-open-design.md`, said to have been "added
 tonight." That file was read in full before this port began (quoted its
 actual Phase 6.5 coverage-bar line as instructed) and **contains no Phase
 6.6 section — the document ends at Phase 7.** This is a discrepancy between

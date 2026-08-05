@@ -7,7 +7,7 @@ equivalent) package is scaffolded, per this task's explicit instruction to propo
 **Scope note:** this document was written alongside two HTTP-route/CLI-command ports on the same
 branch (see `packages/http/source-map.md`'s 2026-07-21 additions and `packages/cli/source-map.md`'s
 matching entry). Unlike those two — which had an existing, detailed source-map to port against —
-a generic plugin host has no locked-architecture precedent anywhere in `foundry/docs/jini-port/`. This
+a generic plugin host has no locked-architecture precedent anywhere in `ADS-memory/reports/jini-port/`. This
 document exists to give the next task that precedent, not to build ahead of one.
 
 ## What OD's actual plugin/marketplace system does today
@@ -125,7 +125,7 @@ one should have, based on what worked (and what's conspicuously absent) in OD's 
    parse-then-validate split (schema parse → cross-field rules → `{ok, warnings, errors}`, unknown
    vocabulary strings warn rather than fail) but the manifest's *content* must be redrawn against
    the kernel's own nouns (`Tool`, `Agent`, `ToolRegistry`/`ToolExecutor`, `ProviderRegistry` — per
-   `foundry/docs/jini-port/extraction-plan.md` §2.1/§2.3) rather than OD's `connector`/`genui`/`pipeline`/
+   `ADS-memory/reports/jini-port/extraction-plan.md` §2.1/§2.3) rather than OD's `connector`/`genui`/`pipeline`/
    `design system` vocabulary, which has no meaning in the neutral kernel. Whether to also port the
    *compat-adapter* idea (ingesting Claude Code's `.claude-plugin/plugin.json` or Agent Skills'
    `SKILL.md` format into a canonical Jini pack manifest) is a real, separate, valuable question —

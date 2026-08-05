@@ -3,7 +3,7 @@
  *
  * Wires transport, project, analytics, i18n, and the artifact-renderer
  * registry into context — exactly the `JiniChatProviderProps` shape from
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §2. This is the ONE file in
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §2. This is the ONE file in
  * this package's presentational layer allowed to bind concrete
  * adapters/slots to context (mirrors the OD slice discipline's
  * "only `dependencies.ts` binds a provider" rule, per §5's engine-core

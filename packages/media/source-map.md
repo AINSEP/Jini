@@ -25,7 +25,7 @@ plus `packages/contracts/src/api/media.ts` (the `MediaExecutionPolicy` type +
 `mediaExecutionPolicyDenial` function `policy.ts` wraps — read to recover the
 actual generic logic `policy.ts` itself only re-exports).
 
-Per `foundry/docs/jini-port/START-HERE.md`/dispatch brief: this is a genuinely new
+Per `ADS-memory/reports/jini-port/START-HERE.md`/dispatch brief: this is a genuinely new
 package — **not in `extraction-plan.md`'s locked §3 package set** (same
 situation as `@jini/deploy`, flagged there for the identical reason: named
 only in roadmap-appendix-adjacent prose, not in the locked list). This is
@@ -553,7 +553,7 @@ round 2) — Node built-ins. No `@open-design/contracts`.
 ## Coverage
 
 `pnpm --filter @jini/media exec vitest run --coverage` (json-summary + json
-reporters per `foundry/docs/jini-port/skills/fixing-open-design.md` Phase 6.5):
+reporters per `ADS-memory/reports/jini-port/skills/fixing-open-design.md` Phase 6.5):
 **100% statements / 100% branches / 100% functions / 100% lines**, aggregate
 and per file, across the whole package including the dispatch engine added
 this pass (280 tests across 17 files; the dispatch-engine tests mock a real

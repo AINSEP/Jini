@@ -1,12 +1,12 @@
 # `@jini/registry` — provenance
 
 **New package, not yet in the locked §3 package set in
-`foundry/docs/jini-port/extraction-plan.md`.** Per that doc's precedent for
+`ADS-memory/reports/jini-port/extraction-plan.md`.** Per that doc's precedent for
 `@jini/deploy` ("a genuinely new package this list didn't originally
 enumerate — listed here for visibility, not folded into the locked set
 until reviewed"), the same applies here: this package needs Coordinator/
 Software-Architect sign-off before being folded into the locked list. It was
-built per the task-6 audit's PART A brief off `foundry/docs/jini-port/recon/
+built per the task-6 audit's PART A brief off `ADS-memory/reports/jini-port/recon/
 r1-daemon.md`'s TASK 1 MIXED classification for `registry/`: "Pluggable
 content-registry backends (`static`/`github`/`database`/`versioning`) —
 generic pattern, but typed against `@open-design/registry-protocol` +

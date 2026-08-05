@@ -4,8 +4,8 @@ Origin: `nexu-io/open-design` (fork `leonaburime-ucla/open-design`), branch `mai
 commit `951fa5f1541c3b7af23ccb07e3e60b294def56b1` (2026-07-12), local reference
 clone `/Users/la/Desktop/Programming/OSS-Repos/open-design-agentic`.
 
-Per `foundry/docs/jini-port/extraction-plan.md` §12 C3 and
-`foundry/docs/jini-port/recon/r4b-webui-design.md` §1: `@jini/chat-core` is the
+Per `ADS-memory/reports/jini-port/extraction-plan.md` §12 C3 and
+`ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1: `@jini/chat-core` is the
 framework-free "reusable center" — the generic event/message vocabulary plus
 every pure artifact/question-form/tool/todo/transcript parser, so a non-React
 host (e.g. a Vue shell) can consume the same logic `@jini/chat-react` will

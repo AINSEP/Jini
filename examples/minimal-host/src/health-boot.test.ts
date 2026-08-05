@@ -1,6 +1,6 @@
 // Milestone 1 red-spec ("Harnesses + sync-ownership manifest") — gate N:
 // "`examples/minimal-host` installs only packed `@jini-ai/*` tarballs, OD-noun/
-// import ban" and "health-boot from tarballs" (foundry/docs/jini-port/extraction-plan.md
+// import ban" and "health-boot from tarballs" (ADS-memory/reports/jini-port/extraction-plan.md
 // §7, §8 task 1).
 //
 // Nothing under test here exists yet — this file PINS the target behavior for
@@ -30,7 +30,7 @@ describe('milestone 1 gate N — health-boot from packed @jini-ai/* tarballs', (
     if (!existsSync(harnessScript)) {
       throw new Error(
         'scripts/health-boot.ts does not exist yet — milestone 1 impl must add the ' +
-          'pack+install+boot harness. See foundry/docs/jini-port/extraction-plan.md §7 + §8 task 1.',
+          'pack+install+boot harness. See ADS-memory/reports/jini-port/extraction-plan.md §7 + §8 task 1.',
       );
     }
 

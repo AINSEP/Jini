@@ -2,8 +2,8 @@
  * `@jini-ai/chat/core` — framework-free chat vocabulary + pure parsers.
  *
  * Zero React, zero DOM/browser globals, zero Node built-ins, zero imports
- * from any product package's scope. See foundry/docs/jini-port/extraction-plan.md
- * §12 C2/C3 and foundry/docs/jini-port/recon/r4b-webui-design.md §1 for the design
+ * from any product package's scope. See ADS-memory/reports/jini-port/extraction-plan.md
+ * §12 C2/C3 and ADS-memory/reports/jini-port/recon/r4b-webui-design.md §1 for the design
  * this package targets, and source-map.md for exact provenance.
  *
  * Was `@jini-ai/chat-core` (its own top-level package, one entry point) through npm 0.1.2 —

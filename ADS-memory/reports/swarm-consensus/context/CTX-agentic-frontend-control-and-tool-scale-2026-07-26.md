@@ -116,7 +116,7 @@ State how each degrades at 10, 100, and 1000 capabilities, and what it does to p
 **You have full read access to the repository.** Nothing is off-limits except one file: the
 coordinator's own frozen first-pass answer, which has been physically moved outside the repo so
 this round stays blind. Everything else — every package, every test, every design doc, every
-prior debate transcript in `foundry/docs/jini-port/`, the `ADS-memory/reports/` history — is
+prior debate transcript in `ADS-memory/reports/jini-port/`, the `ADS-memory/reports/` history — is
 yours to read. Read widely; the packet is a map, not the territory.
 
 Two directories are worth a look and easy to miss: `packages/chat-core/src/agentic/` (the whole

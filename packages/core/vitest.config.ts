@@ -6,7 +6,7 @@ export default defineConfig({
       provider: 'v8',
       // The v8 text table silently drops rows once there are many files —
       // json-summary/json are what a coverage-driven pass should actually
-      // read (see foundry/docs/jini-port's Phase 6.5 method).
+      // read (see ADS-memory/reports/jini-port's Phase 6.5 method).
       reporter: ['text', 'json-summary', 'json'],
       // Package-wide (verified 2026-07-20 all remaining files are at or near
       // 100% on their own). compose.typecheck.ts is excluded because it's a

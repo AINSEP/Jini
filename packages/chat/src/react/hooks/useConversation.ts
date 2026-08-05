@@ -5,7 +5,7 @@
  * flag, and the active conversation id. Reconciles `useRunStream`'s live
  * `AgentEvent[]` into the streaming assistant message's `events`/`content`
  * as they arrive, and finalizes it once the run reaches a terminal status.
- * Per `foundry/docs/jini-port/recon/r4b-webui-design.md` §4.
+ * Per `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4.
  *
  * Mutations reach the transport only through the composed `useRunStream` —
  * this hook never imports `fetch`/`EventSource` itself.

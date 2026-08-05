@@ -181,7 +181,7 @@ configuration surface suggests agent injection that is not implemented.
 
 - Severity: Medium
 - Category: Status-document drift
-- Location: root `AGENTS.md`, `foundry/docs/jini-port/refactor-roadmap.md`,
+- Location: root `AGENTS.md`, `ADS-memory/reports/jini-port/refactor-roadmap.md`,
   `ADS-memory/reports/od-port-status-2026-07-18.md`
 
 Several authoritative-looking status sections still say there is no runnable daemon and that core

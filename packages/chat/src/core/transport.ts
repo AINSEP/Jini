@@ -18,7 +18,7 @@
  * against the real source at
  * `apps/web/src/providers/daemon.ts` (branch `refactor/web-chat-pane-slice`,
  * commit `58fe4358747bd08b82c36947f1ff05aa5fa6a02a`). See
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §2 for the target shape this
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §2 for the target shape this
  * module implements verbatim.
  */
 import type { AgentEvent } from './events.js';

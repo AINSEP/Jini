@@ -5,7 +5,7 @@ import type { JsonValue } from './common.js';
  * the kernel level — a `Run` is generic (an agent editing text, running commands, inspecting a
  * workspace, ...), not necessarily "a chat prompt", so the kernel nouns stay {Run, Agent, Tool}
  * and never learn about prompt/history vocabulary. That neutrality is real (see
- * `foundry/docs/jini-port/extraction-plan.md`'s vocabulary firewall), but it left every host that
+ * `ADS-memory/reports/jini-port/extraction-plan.md`'s vocabulary firewall), but it left every host that
  * *is* driving a chat-shaped agent to invent its own `contextRef` encoding from scratch — two
  * independent consumers (this repo's own `examples/reference-web` playground, and an external
  * adopter) solved the identical "how do I get a prompt into contextRef" problem two

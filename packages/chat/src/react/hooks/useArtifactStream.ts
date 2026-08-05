@@ -5,7 +5,7 @@
  * built purely over a message's text content via `@jini-ai/chat/core`'s
  * `parseArtifacts` (completed `<artifact>` blocks) and `splitStreamingArtifact`
  * (the currently in-flight one, if any) plus an injected `RendererRegistry`.
- * Per `foundry/docs/jini-port/recon/r4b-webui-design.md` §4.
+ * Per `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4.
  *
  * `ArtifactFile`/`ArtifactRenderer`/`RendererRegistry` are the local
  * placeholder shapes from `../../artifact-types.js` — see that file's

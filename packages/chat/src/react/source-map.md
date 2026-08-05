@@ -12,7 +12,7 @@ branches, both public OPEN draft PRs:
   `apps/web/src/features/chat-composer/`.
 
 Plus the near-clean presentational leaves cited by
-`foundry/docs/jini-port/recon/r4b-webui-design.md` §1, read from the chat-pane-slice
+`ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1, read from the chat-pane-slice
 checkout's `apps/web/src/components/` (unchanged by that branch's own
 decomposition, so identical across both source branches):
 `ToolCard.tsx` (582 lines), `QuestionForm.tsx` (725 lines — r4b's "890" line
@@ -20,8 +20,8 @@ count is stale; the real file is 725), `QuestionsPanel.tsx` (521 lines),
 `NextStepActions.tsx` (1,069 lines), plus `runtime/tool-renderers.ts` (124
 lines) and `runtime/todos.ts` (162 lines).
 
-Per `foundry/docs/jini-port/extraction-plan.md` §3 and
-`foundry/docs/jini-port/recon/r4b-webui-design.md` §1/§2/§4: `@jini/chat-react` is
+Per `ADS-memory/reports/jini-port/extraction-plan.md` §3 and
+`ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1/§2/§4: `@jini/chat-react` is
 the headless-hooks + presentational-components + slot-interface layer built
 on `@jini/chat-core`'s framework-free vocabulary. See that doc for the full
 target API surface this package implements.
@@ -194,7 +194,7 @@ siblings `modelOptions.tsx` (310), `providerModelsCache.ts` (43),
 `agentModelSelection.ts` (29), `AgentDiagnosticRow.tsx` (133),
 `AgentPicker.tsx` (74); `NewProjectPanel.tsx`'s `MediaModelCards` (3,059-line
 file, function at line 2525). Confirmed by direct read (not just citing
-`foundry/docs/jini-port/recon/r6-god-component-internals.md` §1.13/§3 and
+`ADS-memory/reports/jini-port/recon/r6-god-component-internals.md` §1.13/§3 and
 `r5-components-sweep.md` §4) that both files independently implement the same
 "group models by provider, badge each provider's credential/integration
 status, search-filter, click to select" shape — `r6`'s cross-cutting pattern

@@ -1,7 +1,7 @@
 /**
  * @jini-ai/chat-react — headless hooks + presentational components + slots for
  * a chat/artifact frontend, built on `@jini-ai/chat/core`'s framework-free
- * vocabulary. See foundry/docs/jini-port/recon/r4b-webui-design.md §1/§2/§4 for the
+ * vocabulary. See ADS-memory/reports/jini-port/recon/r4b-webui-design.md §1/§2/§4 for the
  * spec this package implements, and source-map.md for provenance.
  *
  * This barrel is filled in incrementally as each layer lands (hooks first,

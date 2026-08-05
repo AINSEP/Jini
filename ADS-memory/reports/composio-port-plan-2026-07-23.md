@@ -47,7 +47,7 @@ some capability map at 2693, `.stopCatalogRefreshLoop()` at shutdown, 8621).
 Two earlier passes in this repo already touched this directory and are worth
 citing since they inform risk, not scope:
 
-- `foundry/docs/jini-port/recon/r1-daemon.md:36` filed `connectors/` (all 7 files,
+- `ADS-memory/reports/jini-port/recon/r1-daemon.md:36` filed `connectors/` (all 7 files,
   same count) under **PRODUCT** (leave-out), not MIXED: *"Composio connector
   catalog/curation/descriptions. Product-curated (though pattern is
   generic)."* — i.e. the original recon pass was more conservative than the

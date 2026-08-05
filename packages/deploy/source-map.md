@@ -4,7 +4,7 @@ Origin: `nexu-io/open-design` (fork `leonaburime-ucla/open-design`), local refer
 `/Users/la/Desktop/Programming/OSS-Repos/open-design-agentic`, `apps/daemon/src/deploy.ts`
 (2,005 lines, read in full; not modified).
 
-Per `foundry/docs/jini-port/extraction-plan.md` §10 (roadmap appendix): "`@jini/deploy` — Netlify /
+Per `ADS-memory/reports/jini-port/extraction-plan.md` §10 (roadmap appendix): "`@jini/deploy` — Netlify /
 Vercel / GitHub Pages deploy targets (multi-bound `DeployTarget` token; `deploy.publish` is a
 Tool)." This is a **new package, not one of the locked §3 set** — it was only named in the
 roadmap-appendix prose, so per the Programmer dispatch it is added to `AGENTS.md`'s package list

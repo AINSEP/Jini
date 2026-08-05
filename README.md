@@ -18,9 +18,9 @@ code under `packages/` must remain free of product-specific behavior and identit
 - `AI-Dev-Shop/` — the vendored development-pipeline toolkit.
 - `scripts/` — repository guards and maintenance tools.
 
-Start with [`foundry/docs/jini-port/START-HERE.md`](foundry/docs/jini-port/START-HERE.md),
+Start with [`ADS-memory/reports/jini-port/START-HERE.md`](ADS-memory/reports/jini-port/START-HERE.md),
 then read
-[`foundry/docs/jini-port/extraction-plan.md`](foundry/docs/jini-port/extraction-plan.md)
+[`ADS-memory/reports/jini-port/extraction-plan.md`](ADS-memory/reports/jini-port/extraction-plan.md)
 for the locked architecture and dependency-ordered work.
 
 ## Development

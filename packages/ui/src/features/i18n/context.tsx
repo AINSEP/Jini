@@ -4,7 +4,7 @@
  * Generic i18n context + hooks — the "context + host-injected adapter,
  * default no-op" shape already used by this package's other injectable
  * slots (mirrors the analytics-adapter pattern from
- * `foundry/docs/jini-port/recon/r4-webui.md` §5c: context, host supplies its own
+ * `ADS-memory/reports/jini-port/recon/r4-webui.md` §5c: context, host supplies its own
  * dictionary or gets a passthrough).
  *
  * Origin: `i18n/index.tsx` in the vendored OD web tree. Ported the

@@ -3,7 +3,7 @@
  *
  * Renders a conversation's messages via `<MessageRow>`, and — matching
  * `useConversation`'s `scrollIntent` flag (see
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §4: "message array, optimistic
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4: "message array, optimistic
  * user message, scroll-intent flag") — auto-scrolls to the newest content
  * whenever `scrollIntent` is true, calling `onScrolled` once it has. Pure
  * DOM scroll-anchoring via a ref lives here (a presentational component),

@@ -1,5 +1,5 @@
 /**
- * Patch canary — milestone 1 gate O (foundry/docs/jini-port/extraction-plan.md §4.3, §8 task 1).
+ * Patch canary — milestone 1 gate O (ADS-memory/reports/jini-port/extraction-plan.md §4.3, §8 task 1).
  *
  * OD stays a consumer synced via `git format-patch` (locked decision #4). This harness proves
  * an upstream OD daemon patch still applies once its paths are rewritten onto this repo's

@@ -1,7 +1,7 @@
 /**
  * Type-level proof that `createLocalNodeDaemon` preserves `createDaemon`'s compile-time
  * "missing binding" gate through its own `CreateLocalNodeDaemonConfig` wrapper — see that
- * function's own doc and `foundry/docs/jini-port/extraction-plan.md` §1 ("the single biggest
+ * function's own doc and `ADS-memory/reports/jini-port/extraction-plan.md` §1 ("the single biggest
  * correction"). Not a runtime test — `tsc --noEmit` is the test runner here: if the
  * `@ts-expect-error` line below ever stops erroring (e.g. the gate regresses to silently
  * accepting an under-bound daemon), `tsc` fails on an unused `@ts-expect-error` directive, which

@@ -25,7 +25,7 @@
 #      bumped packages to npm (`pnpm changeset publish`) and, on success,
 #      mirrors the same packages to GitHub Packages.
 #
-# See foundry/docs/jini-port/publishing.md for the full contributor-facing writeup.
+# See ADS-memory/reports/jini-port/publishing.md for the full contributor-facing writeup.
 
 name: Publish
 

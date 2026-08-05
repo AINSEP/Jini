@@ -15,7 +15,7 @@ into a `core/` foundation kernel plus `acp/` and `pi-rpc/` concern
 subdirectories at the source, each with a barrel `index.ts` and `@module`
 docblocks — this port keeps that internal shape identical (path-mirrored,
 not flattened or re-clustered), per this repo's patch-routing convention for
-high-churn upstream zones (see `foundry/docs/jini-port/extraction-plan.md` §4).
+high-churn upstream zones (see `ADS-memory/reports/jini-port/extraction-plan.md` §4).
 
 ```
 core/  ←  acp/

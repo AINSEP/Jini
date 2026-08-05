@@ -1,0 +1,112 @@
+{
+  "generated_at": "2026-07-02T01:44:42.605232+00:00",
+  "host": "LAs-MacBook-Pro",
+  "working_directory": "/Users/la/Desktop/Programming/OSS-Repos/open-design/AI-Dev-Shop",
+  "prompt": "Reply with OK and then <<SWARM_END>> only.",
+  "case_timeout_seconds": 75,
+  "codex_cd": "/Users/la/Desktop/Programming/OSS-Repos/open-design/AI-Dev-Shop",
+  "agy_cd": "/tmp",
+  "cli_versions": [
+    {
+      "cli": "claude",
+      "path": "/usr/local/bin/claude",
+      "version": "2.1.179 (Claude Code)"
+    },
+    {
+      "cli": "gemini",
+      "path": "/Users/la/.npm-global/bin/gemini",
+      "version": "0.47.0"
+    },
+    {
+      "cli": "codex",
+      "path": "/Users/la/.npm-global/bin/codex",
+      "version": "codex-cli 0.140.0"
+    },
+    {
+      "cli": "agy",
+      "path": "/Users/la/.local/bin/agy",
+      "version": "1.0.14"
+    }
+  ],
+  "model_resolution": {
+    "claude": {
+      "cli": "claude",
+      "requested_model": "",
+      "resolved_model": "opus",
+      "selection_source": "local_default_alias",
+      "command_model": "opus",
+      "note": "alias 'opus' from ~/.claude/settings.json; no exact ID found in memory map"
+    },
+    "gemini": {
+      "cli": "gemini",
+      "requested_model": "",
+      "resolved_model": "gemini-3.1-pro-preview",
+      "selection_source": "local_default",
+      "command_model": "gemini-3.1-pro-preview",
+      "note": "from ~/.gemini/settings.json"
+    },
+    "codex": {
+      "cli": "codex",
+      "requested_model": "",
+      "resolved_model": "gpt-5.5",
+      "selection_source": "local_default",
+      "command_model": "gpt-5.5",
+      "note": "from /Users/la/.codex/config.toml; reasoning=medium"
+    },
+    "agy": {
+      "cli": "agy",
+      "requested_model": "",
+      "resolved_model": "Gemini 3.1 Pro (High)",
+      "selection_source": "default",
+      "command_model": "Gemini 3.1 Pro (High)",
+      "note": "agy replaces gemini CLI; run from /tmp to avoid AGENTS.md pickup"
+    }
+  },
+  "results": [
+    {
+      "case": "codex_json",
+      "status": "ok",
+      "rc": 0,
+      "duration_s": 8.3,
+      "stdout_len": 331,
+      "stderr_len": 39,
+      "stdout_is_jsonish": true,
+      "parsed_has_end_marker": true,
+      "command": [
+        "codex",
+        "exec",
+        "--json",
+        "-m",
+        "gpt-5.5",
+        "--cd",
+        "/Users/la/Desktop/Programming/OSS-Repos/open-design/AI-Dev-Shop",
+        "--skip-git-repo-check",
+        "Reply with OK and then <<SWARM_END>> only."
+      ],
+      "parsed_snippet": "OK\\n<<SWARM_END>>",
+      "stdout_snippet": "{\"type\":\"thread.started\",\"thread_id\":\"019f207f-acce-7793-a314-18f3e90b04f3\"}\\n{\"type\":\"turn.started\"}\\n{\"type\":\"item.completed\",\"item\":{\"id\":\"item_0\",\"type\":...",
+      "stderr_snippet": "Reading additional input from stdin...\\n"
+    },
+    {
+      "case": "agy_text",
+      "status": "ok",
+      "rc": 0,
+      "duration_s": 8.8,
+      "stdout_len": 17,
+      "stderr_len": 0,
+      "stdout_is_jsonish": false,
+      "parsed_has_end_marker": true,
+      "command": [
+        "agy",
+        "--model",
+        "Gemini 3.1 Pro (High)",
+        "--print",
+        "Reply with OK and then <<SWARM_END>> only."
+      ],
+      "parsed_snippet": "OK\\n<<SWARM_END>>",
+      "stdout_snippet": "OK\\n<<SWARM_END>>\\n",
+      "stderr_snippet": ""
+    }
+  ],
+  "discovery": null
+}

@@ -53,7 +53,7 @@ Everything currently built follows one consistent pattern across this whole code
 | `packages/http/src/runs.ts` | Where gap 1 (default run→agent wiring) would attach if it lives at the HTTP layer instead of the daemon layer — `RunStartHandler` is the existing host-supplied extension point. |
 | `packages/memory/src/llm-provider.ts` | A generic (already-built, today) "call one of N LLM HTTP APIs with a system+user prompt" primitive — relevant precedent for what a *building block* Jini could own (as opposed to a full composition *policy*) might look like, if any option proposes Jini owning composition tooling short of an opinionated pipeline. |
 | `packages/daemon/source-map.md` | Full design-decision history for every already-built piece named above, including explicit "why NOT built this way" reasoning for related past decisions. |
-| `foundry/docs/jini-port/extraction-plan.md` | The locked kernel-noun boundary (`Run`, `Agent`, `Tool`, `EventLog`, `Principal` — explicitly no `Project`/`Conversation`/`Brand`/`DesignSystem`) that any option must not violate. |
+| `ADS-memory/reports/jini-port/extraction-plan.md` | The locked kernel-noun boundary (`Run`, `Agent`, `Tool`, `EventLog`, `Principal` — explicitly no `Project`/`Conversation`/`Brand`/`DesignSystem`) that any option must not violate. |
 
 ## Constraints
 
@@ -75,7 +75,7 @@ Everything currently built follows one consistent pattern across this whole code
 |---|---|
 | `packages/daemon/src/agent-executor.ts` (current state on this branch) | The actual code implementing the "already built" primitives described above — read directly, not from a summary, before proposing any design that touches it. |
 | `packages/daemon/source-map.md` | Full provenance and design-decision history, including several already-resolved "why not X" calls whose reasoning is directly relevant here (e.g. why `resumable` is hardcoded `false` today, why ACP's native tool permission and Jini's own tool execution are kept as two explicit separate paths). |
-| `foundry/docs/jini-port/extraction-plan.md` | The locked kernel-noun boundary and the composition model (`Packs own their app-services; kernel owns orchestration only`) this question sits inside of. |
+| `ADS-memory/reports/jini-port/extraction-plan.md` | The locked kernel-noun boundary and the composition model (`Packs own their app-services; kernel owns orchestration only`) this question sits inside of. |
 
 ## Shared Prompt Payload
 

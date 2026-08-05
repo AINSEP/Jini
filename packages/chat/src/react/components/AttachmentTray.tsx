@@ -3,7 +3,7 @@
  *
  * Renders staged composer attachments as removable chips. A dumb,
  * props-in/JSX-out implementation of the `AttachmentTraySlot` shape from
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §2 — a host can pass its own
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §2 — a host can pass its own
  * `renderItem` for exotic attachment kinds (screenshots, Figma frames, ...)
  * and this component falls back to the built-in chip otherwise.
  */

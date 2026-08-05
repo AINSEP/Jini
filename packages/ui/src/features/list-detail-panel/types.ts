@@ -9,7 +9,7 @@
  * instance of this shape — see `packages/ui/source-map.md` for why
  * `PluginsView.tsx`'s detail modal and `ProjectView.tsx`'s composition were
  * verified NOT to share it despite the surface-level "conceptually related"
- * flag in `foundry/docs/jini-port/recon/r6-god-component-internals.md`).
+ * flag in `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md`).
  */
 
 /** The minimum shape a summary item must carry: a stable identity. */

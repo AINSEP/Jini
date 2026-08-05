@@ -4,7 +4,7 @@ Date: 2026-07-19
 Status: **Proposed debate seed — not an approved architecture decision**
 Scope: Jini's agent-facing control plane, product capability discovery, MCP exposure, backend access, plugin-contributed tools, frontend actions, and authorization boundaries.
 
-This document captures a design direction discovered while exercising Jini's new local run path. It is deliberately detailed so it can serve as the starting packet for an architecture debate. It extends the locked Jini kernel architecture; it does not replace or silently amend `foundry/docs/jini-port/extraction-plan.md`.
+This document captures a design direction discovered while exercising Jini's new local run path. It is deliberately detailed so it can serve as the starting packet for an architecture debate. It extends the locked Jini kernel architecture; it does not replace or silently amend `ADS-memory/reports/jini-port/extraction-plan.md`.
 
 ## 1. Executive summary
 
@@ -1586,7 +1586,7 @@ Relevant code and documentation at the time this proposal was written:
 - `packages/http/src/runs.ts` — current generic create/status/cancel/SSE run transport.
 - `packages/node-host/src/create-local-node-daemon.ts` — local composition preset and host-owned run-start hook.
 - `packages/mcp/source-map.md` — generic MCP primitives retained and the OD-coupled stdio server intentionally dropped.
-- `foundry/docs/jini-port/extraction-plan.md` — locked Jini architecture and package boundaries that this proposal must extend rather than bypass.
+- `ADS-memory/reports/jini-port/extraction-plan.md` — locked Jini architecture and package boundaries that this proposal must extend rather than bypass.
 - `/Users/la/Desktop/Programming/OSS-Repos/open-design-agentic/docs/rfc-drafts/agent-ready.md` and `agent-ready-cross-project.md` — a sibling repo's shipped RFC + contracts for the same problem at the OD-product level (see §3.6); informs this proposal but must not be imported into `@jini/*`.
 
 ## 28. Decision record placeholder

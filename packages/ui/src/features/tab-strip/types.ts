@@ -16,7 +16,7 @@ export interface TabStripDragTarget {
 /**
  * One tab-strip item. `content` is host-injected — the primitive never
  * renders an icon or label itself, it just lays out whatever the host gives
- * it (see `foundry/docs/jini-port/god-components-extraction-plan.md`'s consolidation
+ * it (see `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s consolidation
  * map: "the specific parts become host-injected config, not part of the
  * primitive").
  */

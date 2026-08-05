@@ -1,7 +1,7 @@
 /**
  * @module minimal-host entry point
  *
- * The neutrality-proof entry point (README.md; foundry/docs/jini-port/extraction-plan.md §2.4/§7):
+ * The neutrality-proof entry point (README.md; ADS-memory/reports/jini-port/extraction-plan.md §2.4/§7):
  * imports ONLY `@jini-ai/*` packages, boots a real `createLocalNodeDaemon` daemon (the "host
  * preset" — zero product concepts, zero interfaces implemented) with no feature packs, then
  * exercises its complete run vertical slice over real HTTP: create, stream, reconnect with a

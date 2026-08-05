@@ -1,6 +1,6 @@
 /**
  * Jini repo guard — aggregates the boundary + neutrality checks.
- * Run via `pnpm guard`. See foundry/docs/jini-port/extraction-plan.md §7 (guardrails) and §12 C-series.
+ * Run via `pnpm guard`. See ADS-memory/reports/jini-port/extraction-plan.md §7 (guardrails) and §12 C-series.
  *
  * STATUS (2026-07-19 hardening pass): `checkEngineBoundaries` and `checkProtocolPurity` are
  * real (R1/R2/R3/R5/R6/R7/R8 — see their own module docs), replacing the literal `return []`

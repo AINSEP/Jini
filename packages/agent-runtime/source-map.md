@@ -275,8 +275,8 @@ re-verified here. All content below was read directly from `apps/daemon/src/runt
 and the handful of top-level daemon files it reaches into (`role-marker-guard.ts`,
 `copilot-stream.ts`, `acp.ts`, `pi-rpc.ts`) on that commit.
 
-Per `foundry/docs/jini-port/extraction-plan.md` §8 task 7 and
-`foundry/docs/jini-port/recon/r1b-daemon-design.md` §1 ("`@jini/agent-runtime` package spec"). This
+Per `ADS-memory/reports/jini-port/extraction-plan.md` §8 task 7 and
+`ADS-memory/reports/jini-port/recon/r1b-daemon-design.md` §1 ("`@jini/agent-runtime` package spec"). This
 section covers the new TypeScript-source content added under `src/*.ts` and `src/defs/*.ts`
 alongside the (unrelated, untouched) `craft/`/`skills/` content documented above.
 
@@ -629,7 +629,7 @@ available via the workspace's `@types/node`.
 Origin: `apps/daemon/src/integrations/` (13 files) on the real fork clone
 `leonaburime-ucla/open-design`, read directly from `/tmp/od-source` for this
 task (not the frozen in-repo snapshot). Per
-`foundry/docs/jini-port/recon/r1-daemon.md` TASK 1's MIXED-classification entry for
+`ADS-memory/reports/jini-port/recon/r1-daemon.md` TASK 1's MIXED-classification entry for
 `integrations/`: "LLM-provider integrations (`google-models`,
 `openai-chat-token-params`, `provider-models`, `xai-oauth*`, `aihubmix`,
 `elevenlabs-voices`) are generic agent-runtime providers; `vela*` (AMR) is a
@@ -740,9 +740,9 @@ The task brief identified four real OD coupling points to port-inject; a fifth (
 
 **4. `resolveAcpTimeoutMs`'s env var name.** Covered under seam 3 above; listed separately in the task brief as its own numbered item, so cross-referenced here for clarity.
 
-**5. Doc-comment / prose rewording.** "Open Design", `OD_ACP_STAGE_TIMEOUT_MS`, `OD_ACP_TIMEOUT_MS`, and `server.ts` (an OD-specific file path with no Jini equivalent) references in JSDoc/inline comments across `acp/constants.ts`, `acp/json.ts`, `acp/rpc.ts`, `acp/updates.ts`, and `acp/session.ts` were reworded to generic language (e.g., "a structured error object", "a host application may resolve its own branded environment variable"). The `text-suppression.ts` port additionally needed this treatment in its own new `@module` docblock (see next item) and one internal comment referencing this skill's coverage-discipline convention by a path that itself contains the substring `open-design` (`foundry/docs/jini-port/skills/fixing-open-design.md`) — reworded to avoid the literal path.
+**5. Doc-comment / prose rewording.** "Open Design", `OD_ACP_STAGE_TIMEOUT_MS`, `OD_ACP_TIMEOUT_MS`, and `server.ts` (an OD-specific file path with no Jini equivalent) references in JSDoc/inline comments across `acp/constants.ts`, `acp/json.ts`, `acp/rpc.ts`, `acp/updates.ts`, and `acp/session.ts` were reworded to generic language (e.g., "a structured error object", "a host application may resolve its own branded environment variable"). The `text-suppression.ts` port additionally needed this treatment in its own new `@module` docblock (see next item) and one internal comment referencing this skill's coverage-discipline convention by a path that itself contains the substring `open-design` (`ADS-memory/reports/jini-port/skills/fixing-open-design.md`) — reworded to avoid the literal path.
 
-**6. `text-suppression.ts`'s two dropped dead functions.** `possibleDsmlArtifactOpenStart` and `possibleArtifactCloseStart` are declared in the origin file but never called anywhere in it (confirmed by `grep -n` across the full origin file — zero call sites, not exported). The task brief said "port this file verbatim," but keeping genuinely dead, unreachable, unexported code would force a choice between a contrived test asserting nothing real, or a coverage-suppression comment — both of which `foundry/docs/jini-port/skills/fixing-open-design.md`'s Phase 6.5 explicitly rules out ("a hard-to-cover branch is a refactor signal, not something to suppress"). Dropped instead; this is the one deliberate "not quite verbatim" deviation in an otherwise byte-for-byte port of that file.
+**6. `text-suppression.ts`'s two dropped dead functions.** `possibleDsmlArtifactOpenStart` and `possibleArtifactCloseStart` are declared in the origin file but never called anywhere in it (confirmed by `grep -n` across the full origin file — zero call sites, not exported). The task brief said "port this file verbatim," but keeping genuinely dead, unreachable, unexported code would force a choice between a contrived test asserting nothing real, or a coverage-suppression comment — both of which `ADS-memory/reports/jini-port/skills/fixing-open-design.md`'s Phase 6.5 explicitly rules out ("a hard-to-cover branch is a refactor signal, not something to suppress"). Dropped instead; this is the one deliberate "not quite verbatim" deviation in an otherwise byte-for-byte port of that file.
 
 **7. Four dead-branch removals in `acp/session.ts` and one in `core/json-line-stream.ts`'s `flush()`, plus three `noUncheckedIndexedAccess`-guard-to-non-null-assertion conversions across `core/json-line-stream.ts`, `pi-rpc/models.ts`, and `pi-rpc/session.ts`.** These surfaced only during the coverage-driven pass (Phase 6.5), not from the OD-coupling analysis — each is a genuinely unreachable branch given the *current* call graph, not a speculative "this could never happen" guess:
    - `core/json-line-stream.ts`'s `flush()` had a defensive re-emit-and-clear on a leftover `pendingJson` candidate; proven dead because `pendingJson` is only ever retained when `classifyJsonCandidate` most recently judged it `'incomplete'`, and a 200,000-trial fuzz (random truncated valid-JSON fragments) found zero cases where `classifyJsonCandidate` says `'incomplete'` while `JSON.parse` on the identical string would actually succeed — so a bare re-attempt at end-of-stream could never succeed either.
@@ -796,7 +796,7 @@ and merged the type-only-file coverage carve-outs (`src/types.ts` from the
 `runtimes/` port, `src/agent-protocol/acp/types.ts` from this PR) into one
 `exclude` list. Coverage `thresholds` differed (this PR: 99/99/99/99; the
 `runtimes/` port: 99.9/99.9/99.9/99.9) — set to 99 on all four metrics,
-matching the documented floor in `foundry/docs/jini-port/skills/fixing-open-design.md`
+matching the documented floor in `ADS-memory/reports/jini-port/skills/fixing-open-design.md`
 Phase 6.5 (">=99% ... 100% as the actual goal"), and verified against the
 actual merged coverage run (see this package's own CI/PR validation output
 for the authoritative merged numbers, same as the `runtimes/` section's own

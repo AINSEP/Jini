@@ -18,14 +18,14 @@ the locked 14-package set.
 
 Origin: `apps/daemon/src/artifacts/` (6 files) on the real fork clone
 `leonaburime-ucla/open-design`, read directly from `/tmp/od-source` for this
-task. Per `foundry/docs/jini-port/recon/r1-daemon.md` TASK 1's MIXED-classification
+task. Per `ADS-memory/reports/jini-port/recon/r1-daemon.md` TASK 1's MIXED-classification
 entry for `artifacts/`: "the artifact store concept is a generic engine
 port, but OD's artifact = HTML prototype / design output. Extract the store
 interface; keep OD's file-kind classification as adapter."
 
 **Original home decision: `@jini/daemon`, not `@jini/core`** (superseded 2026-07-19 — see
 above). Both packages' existing scope was checked first per the task brief. `@jini/core` (per
-`foundry/docs/jini-port/extraction-plan.md` §3) owns `ProviderRegistry`/
+`ADS-memory/reports/jini-port/extraction-plan.md` §3) owns `ProviderRegistry`/
 `ToolRegistry`/DI tokens+resolver/`Principal`/`Authorizer` — pure
 registries and composition machinery, not stateful storage. `@jini/daemon`
 already owned `RunLifecycle` + the durable `EventLog` kernel port

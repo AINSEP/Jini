@@ -11,9 +11,9 @@ Resume the Jini port/refactor audit canary from the retained evidence at:
 MANDATORY STARTUP:
 1. Read AI-Dev-Shop/AGENTS.md and follow its Coordinator startup rules.
 2. Read root AGENTS.md.
-3. Read foundry/docs/jini-port/START-HERE.md, extraction-plan.md, and refactor-roadmap.md.
-4. Read foundry/docs/jini-port/skills/fixing-open-design.md and fixing-open-design-web.md.
-5. Read foundry/docs/jini-port/god-components-extraction-plan.md.
+3. Read ADS-memory/reports/jini-port/START-HERE.md, extraction-plan.md, and refactor-roadmap.md.
+4. Read ADS-memory/reports/jini-port/skills/fixing-open-design.md and fixing-open-design-web.md.
+5. Read ADS-memory/reports/jini-port/god-components-extraction-plan.md.
 
 USER CONSTRAINTS:
 - Do not use git worktrees.

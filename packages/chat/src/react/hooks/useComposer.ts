@@ -3,7 +3,7 @@
  *
  * Owns the composer's draft text, staged attachments, `@`-mention popover
  * state, and the selected agent/model/sessionMode. Per
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §4: attachments reach the host
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4: attachments reach the host
  * only through `ProjectContextValue.uploadFiles`/`ComposerSlots`; no direct
  * provider import. Draft persistence (OD's `ComposerDraftPort`,
  * localStorage-backed) is likewise injectable, not hard-wired — this hook

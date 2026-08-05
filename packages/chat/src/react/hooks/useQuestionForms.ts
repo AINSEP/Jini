@@ -7,7 +7,7 @@
  * reading the next user message's `[form answers — ...]` payload. Pure parse
  * — `submit` only builds the next-user-message text; the host posts it via
  * its own `sendMessage`/transport call. Per
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §4.
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4.
  *
  * `parseSubmittedAnswers` below generalizes OD's `components/QuestionForm.tsx`
  * function of the same name (verified 0 OD product references — it only

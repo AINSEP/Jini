@@ -8,12 +8,12 @@
  * analytics, and i18n. Every OD-domain widget (OdCard, design-toolbox, brand-browser,
  * plugin folders, sketch preview, comments/annotation, AMR billing,
  * model/agent picker, file preview) is a host concern reached through one of
- * these slots — see `foundry/docs/jini-port/recon/r4b-webui-design.md` §2, which
+ * these slots — see `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §2, which
  * this module implements field-for-field.
  *
  * Only `import type { ReactNode }` is used here (no JSX, no React runtime
  * value import), so this file stays at the package's top level per the
- * react-layout policy in `foundry/docs/jini-port/god-components-extraction-plan.md`
+ * react-layout policy in `ADS-memory/reports/jini-port/god-components-extraction-plan.md`
  * — everything that actually renders (hooks, components) lives under
  * `react/`.
  */
@@ -127,7 +127,7 @@ export interface AnalyticsAdapter {
  * dictionary-backed translator. Every user-facing string in this package's
  * components is wrapped in `useT()`'s `t()` — the English string itself is
  * the key, per the i18n policy in
- * `foundry/docs/jini-port/god-components-extraction-plan.md`.
+ * `ADS-memory/reports/jini-port/god-components-extraction-plan.md`.
  */
 export interface I18nAdapter {
   t: (key: string, vars?: Record<string, string | number>) => string;

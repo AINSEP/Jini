@@ -2,7 +2,7 @@
 
 > **MANDATORY STARTUP — do this before anything else (blocking):**
 > 1. Read **`AI-Dev-Shop/AGENTS.md`** and activate the AI Dev Shop multi-agent pipeline. It defines the agents, skills, and delivery workflow used to build this repo — do not proceed without loading it.
-> 2. Then read **`foundry/docs/jini-port/START-HERE.md`** and **`foundry/docs/jini-port/extraction-plan.md`** for the locked architecture and the task list.
+> 2. Then read **`ADS-memory/reports/jini-port/START-HERE.md`** and **`ADS-memory/reports/jini-port/extraction-plan.md`** for the locked architecture and the task list.
 > 3. Before searching for code or planning any feature, use **[Codebase search](#codebase-search--query-the-indexes-first-default-alongside-rg)** below — query the local indexes first, not just `rg`.
 > 4. Spin up the **[`sidekick` helper agent](#sidekick--the-sonnet-5-helper-agent)** and keep it available for the session. See below for what to hand it.
 > Skipping step 1 is a blocker: the pipeline, personas, and skills that do the work live there.
@@ -22,7 +22,7 @@
 > built."** Full breakdown: **`ADS-memory/reports/od-port-status-2026-07-18.md`**
 > and `ADS-memory/reports/daemon-full-gap-map-2026-07-18.md`.
 
-**Read `foundry/docs/jini-port/START-HERE.md` first**, then `foundry/docs/jini-port/extraction-plan.md`. Those hold the locked architecture, the reasoning (every debate transcript), and the dependency-ordered task list. This file is the map; those are the authority.
+**Read `ADS-memory/reports/jini-port/START-HERE.md` first**, then `ADS-memory/reports/jini-port/extraction-plan.md`. Those hold the locked architecture, the reasoning (every debate transcript), and the dependency-ordered task list. This file is the map; those are the authority.
 
 ## `sidekick` — the Sonnet 5 helper agent
 
@@ -43,7 +43,7 @@ stays on architecture and correctness:
   symbol at a cited line.
 
 **Do not hand it**: architecture or protocol design, security/permissions judgment, anything
-that would relitigate a locked decision in `foundry/docs/jini-port/extraction-plan.md`, or
+that would relitigate a locked decision in `ADS-memory/reports/jini-port/extraction-plan.md`, or
 deletions it did not author. It is instructed to stop and report a blocker instead.
 
 It is **not** a reserved AI Dev Shop pipeline agent — it labels itself `Sidekick(Assist):`
@@ -115,13 +115,13 @@ A general-purpose, reusable, headless, agent-drivable engine extracted from Open
 ## Layout
 
 - `packages/*` — **the engine** (`@jini-ai/*`), product-neutral. Current: `protocol, core, daemon, agent-runtime, sqlite, http-kit, cli, platform, sidecar, server, chat-core, chat-react, renderers-react, ui, artifacts, deploy, registry, memory, media, capability-providers, desktop-host, diagnostics, mcp, agentic, composio`. (`http` was renamed to `http-kit` and `node-host` to `server` on 2026-07-29 — the two names were easy to confuse since both packages' own `jini.domain` metadata was literally `"server"`; `server` (ex-`node-host`) is the one assembled preset that actually opens a listener, `http-kit` (ex-`http`) is the underlying toolkit of composable Express route-registrars a host mounts onto its own app. Two other names were stale in this list until 2026-07-28: `agui`, folded into `packages/agentic/src/gen-ui/` on 2026-07-26 — see `packages/agentic/source-map.md`'s "Folded from `@jini/agui`" section — and `metatool`, removed from the engine package set in `27410e8e1`. A third, `a2ui`, existed as its own package only briefly the same day before folding into `packages/agentic/src/a2ui/` — see that same source-map's "Folded from `@jini-ai/a2ui`" section. All three may still linger in older working copies as untracked, gitignored `dist`/`node_modules` leftovers; `pnpm guard` flags such a directory as "missing package.json", so delete the leftover rather than hunting a phantom package.) The physical layout stays flat; each `package.json` carries canonical `jini` domain/kind/runtime metadata documented in `packages/README.md` and enforced by `pnpm guard`. `protocol, core, daemon, agent-runtime, platform, sidecar, chat-core, deploy, registry, memory, media, capability-providers, desktop-host` have real implementations (`daemon`: `RunLifecycle`/`EventLog`/`ToolExecutor`; `agent-runtime`: both the `agent-protocol/` ACP+pi-rpc transport AND the `runtimes/` registry/detection/defs/stream-parsers are now ported — see `packages/agent-runtime/source-map.md`'s "Barrel merge" section); the rest are stubs pending extraction. `ui` (renamed from `components` 2026-07-16 — see `packages/ui/README.md`) holds generic, non-chat, non-OD-branded UI: primitives, feature-shaped domains, and their hooks/providers/ports — not just flat components. There is no locked/incubating package-admission gate anymore — removed 2026-07-28; `UNLOCKED.md` is a historical record only. See each package's `source-map.md` for what it implements and what's deferred/skipped.
-- `foundry/` — internal supporting material around the engine: automation, architecture docs, and product integrations. It is deliberately separate from the publishable `packages/*` engine.
-- `foundry/integrations/open-design/` — the OD adapter (strangler daemon lands here; keeps OD's file tree so upstream fixes `format-patch` in). `reference/od-web-src.orig/` is the real OD web tree for later frontend extraction. **For any question about OD's real current structure, read `/Users/la/Desktop/Programming/OSS-Repos/open-design` instead** — a real, full clone (both `origin=nexu-io/open-design` and `fork=leonaburime-ucla/open-design` remotes) — not this repo's `reference/**` snapshot (see the caveat in `foundry/integrations/open-design/README.md`). That clone already has `AI-Dev-Shop/integrations/graphify/`'s output computed against it (`graphify-out/GRAPH_REPORT.md`, `graph.json`) and is indexed in `AI-Dev-Shop/integrations/codebase-memory-mcp/` — query those before re-deriving structure from scratch.
+- `foundry/` — **untracked local workshop**, entirely gitignored (`/foundry/`). It holds the AI dev control-plane's executable half and, historically, the Open Design vendored dumps. Nothing in a fresh clone. Do not put anything here that another agent is expected to read.
+- `foundry/automation/` — the AI dev control-plane's executable half (separate concern from the engine; never imported by `@jini-ai/*`). `project-runner/` (the execution runtime to build — minimal SQLite ledger first) lives here. It is no longer a pnpm workspace member (dropped 2026-08-05) since it is untracked; it carries its own `node_modules` and still builds in place.
+- `foundry/integrations/` — empty since 2026-08-04. The OD adapter dump that lived at `open-design/` (39MB of `od-web-src.orig/`, `components-original/`, `i18n/locales/`) was deleted; it is recoverable from git history at `96f0a5c8^`, and the pre-extraction OD trunk is bundled at `../jini-backups/integrated-478a8557.bundle`. **For any question about OD's real current structure, read `/Users/la/Desktop/Programming/OSS-Repos/open-design`** — a real, full clone (both `origin=nexu-io/open-design` and `fork=leonaburime-ucla/open-design` remotes), never a snapshot. That clone already has `AI-Dev-Shop/integrations/graphify/`'s output computed against it (`graphify-out/GRAPH_REPORT.md`, `graph.json`) and is indexed in `AI-Dev-Shop/integrations/codebase-memory-mcp/` — query those before re-deriving structure from scratch.
 - `examples/` — the public place to browse and run Jini consumers: `reference-web/` is the Vite host, `reference-desktop/` is its Electron shell, `sample-projects/` contains disposable workspaces, and `minimal-host/` imports ONLY `@jini-ai/*` as the neutrality CI gate.
 - `AI-Dev-Shop/` — the declarative pipeline toolkit (vendored, agents/skills/routing), read-only during normal feature work.
 - `ADS-memory/` — durable decisions/specs/reports (project-owned workspace, sibling to `AI-Dev-Shop/`).
-- `foundry/automation/` — the AI dev control-plane's executable half (separate concern from the engine; never imported by `@jini-ai/*`). `project-runner/` (the execution runtime to build — minimal SQLite ledger first) lives here.
-- `foundry/docs/jini-port/` — all architecture docs, recon, and debate transcripts from the 2026-07-16 design session.
+- `ADS-memory/reports/jini-port/` — all architecture docs, recon, and debate transcripts from the 2026-07-16 design session. **This is the locked architecture authority** (`START-HERE.md`, `extraction-plan.md`). It lived at `foundry/docs/jini-port/` until 2026-08-05 and was untracked for two days as collateral of the foundry untracking — which is how a code review came to cite a plan that was not in the repo. It is tracked now; keep it that way.
 - `scripts/` — `guard.ts`, `check-engine-boundaries.ts`, `check-protocol-purity.ts`.
 
 ## Hard boundaries (enforced by scripts/guard.ts)

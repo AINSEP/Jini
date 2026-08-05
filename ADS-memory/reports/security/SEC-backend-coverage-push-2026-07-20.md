@@ -28,7 +28,7 @@ No Critical finding was identified. The High finding requires human sign-off if 
 - `packages/daemon/src/agent-executor.ts:763-781` uses `input.env ?? process.env` for both launch resolution and the spawned process environment.
 - `packages/node-host/src/create-local-node-daemon.ts:221` constructs the default executor without an environment sanitizer.
 - `packages/daemon/src/__tests__/agent-executor.test.ts:136-163` injects `applyAgentLaunchEnv: (env) => env`; the suite checks spawn/cancellation mechanics but does not prove daemon/API/provider secrets are removed.
-- Locked architecture decision C8 (`foundry/docs/jini-port/extraction-plan.md:203`) explicitly requires scoped credentials/allowlisted environment rather than wholesale inheritance.
+- Locked architecture decision C8 (`ADS-memory/reports/jini-port/extraction-plan.md:203`) explicitly requires scoped credentials/allowlisted environment rather than wholesale inheritance.
 
 **Impact and exploit path**
 
@@ -83,7 +83,7 @@ For provider-supplied deployment URLs, require HTTPS and an explicit provider-ow
 
 **Evidence**
 
-- Locked decision C7 requires typed dispatch plus authenticated capability negotiation; C8 requires sidecar authentication and replay protection (`foundry/docs/jini-port/extraction-plan.md:197-203`).
+- Locked decision C7 requires typed dispatch plus authenticated capability negotiation; C8 requires sidecar authentication and replay protection (`ADS-memory/reports/jini-port/extraction-plan.md:197-203`).
 - `packages/sidecar/src/json-ipc.ts:153-160` exposes a generic `unknown` message handler with no identity/capability input.
 - `packages/sidecar/src/json-ipc.ts:161-198` appends bytes until a newline with no maximum frame size or idle deadline.
 - The async `data` listener at `packages/sidecar/src/json-ipc.ts:187-256` has no handled/in-flight guard. A second frame/chunk can invoke the handler again while the first invocation is awaiting, despite the documented one-request-per-connection contract.

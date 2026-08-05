@@ -29,8 +29,8 @@ Read before execution:
 - AI-Dev-Shop/AGENTS.md
 - AI-Dev-Shop/agents/testrunner/skills.md
 - activated general-behavior, code-navigation, codebase-graph, test-design, verification-before-completion, and architecture-decisions guidance
-- foundry/docs/jini-port/START-HERE.md
-- foundry/docs/jini-port/extraction-plan.md
+- ADS-memory/reports/jini-port/START-HERE.md
+- ADS-memory/reports/jini-port/extraction-plan.md
 - ADS-memory/.local-artifacts/handoff/20260721T160145Z-handoff.md
 - governance contracts: architecture-fitness, computational-controls, runtime-validation, specs-as-built-freshness
 - ADS-memory/governance/adrs/ADR-INDEX.md

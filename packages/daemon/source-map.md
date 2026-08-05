@@ -181,7 +181,7 @@ registry/memory/services/migration task)
 Origin: `leonaburime-ucla/open-design`'s `refactor/web-memory-slice` branch
 (cloned fresh to `/tmp/od-source`), `apps/daemon/src/migration/` (3 files:
 `index.ts` barrel, `legacy-data-migrator.ts`, `update-apply-observations.ts`).
-Per `foundry/docs/jini-port/recon/r1-daemon.md` TASK 1's `migration/` row: "Legacy-data
+Per `ADS-memory/reports/jini-port/recon/r1-daemon.md` TASK 1's `migration/` row: "Legacy-data
 migration is generic mechanism but hardcodes OD data layout (inference)." Read
 all 3 files in full to confirm/correct that inference:
 
@@ -1501,7 +1501,7 @@ decision, backed by evidence gathered in this session, not assumption:
 list): root `pnpm guard` (scans all of `packages/@jini/**`, including `terminal-session.ts`) — zero
 violations. No R1–R7 boundary/neutrality/sprawl issues in this file.
 
-**The decision.** This repo's own `foundry/docs/jini-port/START-HERE.md` states the architecture plainly:
+**The decision.** This repo's own `ADS-memory/reports/jini-port/START-HERE.md` states the architecture plainly:
 *"Jini is a headless daemon"* — a long-running Node server process, the deployment shape that
 overwhelmingly means a Linux host (container or bare server) in practice, not a developer's own
 macOS/Windows machine. `node-pty@1.1.0`'s npm tarball bundles prebuilt native addons for

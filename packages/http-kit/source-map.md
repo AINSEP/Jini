@@ -119,7 +119,7 @@ back to the conservative 500 default, same as OD's unmapped-code behavior).
 `@jini/protocol` (workspace) — `ApiError`/`ApiErrorCode`/`ApiErrorResponse`/
 `ApiValidationIssue`/`createApiError`/`createApiErrorResponse`, replacing
 OD's `@open-design/contracts` import throughout (that package's DTOs are
-OD-product-coupled per `foundry/docs/jini-port/recon/r2-packages.md` §1;
+OD-product-coupled per `ADS-memory/reports/jini-port/recon/r2-packages.md` §1;
 `@jini/protocol/src/errors.ts` already independently defines the same
 generic error shapes this module needs — matched 1:1 by name and field
 shape, so the switch was a mechanical import-source change with one field
@@ -130,7 +130,7 @@ framework dependency previously existed anywhere in the Jini workspace.
 
 ## 2026-07-18 addition — resolving the `http/` recon discrepancy + `local-daemon-request.ts`
 
-Tonight's task brief flagged a discrepancy: `foundry/docs/jini-port/recon/r1-daemon.md`'s
+Tonight's task brief flagged a discrepancy: `ADS-memory/reports/jini-port/recon/r1-daemon.md`'s
 TASK 1 table lists a 10-file `http/` directory (`adapter.ts`, `api-errors.ts`,
 `origin-guard.ts`, `parse.ts`, `response.ts`, `tool-request-auth.ts`, "plus 4
 more") as GENERIC-ENGINE, which doesn't match this package's already-merged
@@ -235,7 +235,7 @@ package's own `compat.ts` export and `express`'s existing `Request`/
 
 ## `routes/` classification (32 files) — backend-routes port task
 
-Scope note on branch: `foundry/docs/jini-port/recon/r1-daemon.md` TASK 1 counts `routes/` at
+Scope note on branch: `ADS-memory/reports/jini-port/recon/r1-daemon.md` TASK 1 counts `routes/` at
 32 files, but `main`/`refactor/http-capability-barrel` on
 `leonaburime-ucla/open-design` only have 29 — three files
 (`attribution.ts`, `whats-new.ts`, `project/cancel-owned-runs.ts`) exist only on

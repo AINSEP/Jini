@@ -1,7 +1,7 @@
 /**
  * Minimal generic i18n context, local to this package (no dependency on
  * `@jini-ai/ui` — see this package's "Allowed deps" in
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §1, which does not include
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1, which does not include
  * `@jini-ai/ui`). Same "context + host-injected dictionary, zero-cost
  * passthrough when unconfigured" shape as `@jini-ai/ui`'s
  * `features/i18n`, kept intentionally tiny since this package only has a

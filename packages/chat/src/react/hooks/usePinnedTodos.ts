@@ -6,7 +6,7 @@
  * changes again, and progress counts for a pinned progress-card UI. Pure
  * over `messages` — built on `@jini-ai/chat/core`'s
  * `latestTodoWriteInputForPinnedCard`/`parseTodoWriteInput`. Per
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §4 (origin: OD's
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4 (origin: OD's
  * `runtime/todos.ts` pinned-card logic, `components/ToolCard.tsx`'s
  * `TodoCard`'s `onDismiss` convention).
  */

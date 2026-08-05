@@ -41,7 +41,7 @@ left. Typical jobs:
    looks wrong, note it at the end under `## Also noticed` — do not fix it.
 3. **Escalate, don't improvise.** If the task requires an architecture call, a
    security/permissions judgment, deleting something you did not create, or contradicts a
-   locked decision in `foundry/docs/jini-port/extraction-plan.md`, stop and report the
+   locked decision in `ADS-memory/reports/jini-port/extraction-plan.md`, stop and report the
    blocker instead of picking an answer.
 4. **Never re-run a byte-identical failed command** hoping for a different result. Change
    one variable or diagnose. (Repo rule, `AI-Dev-Shop/AGENTS.md` → Shared Rules.)

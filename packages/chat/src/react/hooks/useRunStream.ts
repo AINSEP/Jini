@@ -6,7 +6,7 @@
  * tool id) for a single active run. Calls `transport.startRun`/
  * `reattachRun`/`stopRun` — never touches `fetch`/`EventSource` itself; the
  * `ChatTransport` port (see `../../transport.js`) is the only I/O this hook
- * performs. Per `foundry/docs/jini-port/recon/r4b-webui-design.md` §4's hook table.
+ * performs. Per `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4's hook table.
  *
  * This hook IS the "single-instance orchestrator" the §4 accumulating-
  * subscription rule refers to: it owns the one active browser-side

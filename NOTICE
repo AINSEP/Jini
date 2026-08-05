@@ -7,6 +7,6 @@ used under the Apache License, Version 2.0.
 
 Portions of the @jini/* engine packages are extracted from Open Design.
 Per-package provenance (original path, origin commit, transform) is recorded
-in each package's source-map.md, indexed by foundry/docs/jini-port/extraction-plan.md.
+in each package's source-map.md, indexed by ADS-memory/reports/jini-port/extraction-plan.md.
 
 Modified files carry prominent notices per Apache-2.0 section 4(b).

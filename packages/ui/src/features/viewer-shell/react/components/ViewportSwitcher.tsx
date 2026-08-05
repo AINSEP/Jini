@@ -19,7 +19,7 @@ export interface ViewportSwitcherProps {
  *
  * A second component in the same source tree (`DesignBrowserPanel.tsx`'s
  * `BrowserViewportControls`, not yet extracted — see
- * `foundry/docs/jini-port/god-components-extraction-plan.md`'s consolidation map)
+ * `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s consolidation map)
  * turned out, on a side-by-side read, to be the exact same shape: a trigger
  * button + dropdown listbox over the same preset list, same outside-
  * click/Escape-to-close behavior, differing only in cosmetic wrapper markup

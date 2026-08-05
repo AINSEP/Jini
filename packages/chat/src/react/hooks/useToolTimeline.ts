@@ -6,7 +6,7 @@
  * `dedupeToolUsesById`), derives a four-state status via
  * `deriveToolStatus`, and tracks per-row expand/collapse UI state. Pure over
  * `AgentEvent[]` — zero I/O. Per
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §4.
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4.
  */
 import { useCallback, useMemo, useState } from 'react';
 import type { AgentEvent, ToolRenderProps, ToolStatus } from '@jini-ai/chat/core';

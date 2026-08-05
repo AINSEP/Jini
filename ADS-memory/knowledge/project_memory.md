@@ -5,8 +5,8 @@ Use this file for stable project-specific conventions, constraints, gotchas, and
 ## Entries
 
 - 2026-07-23: Extended Jini project information lives under `foundry/docs/`. Start with
-  `foundry/docs/jini-port/START-HERE.md`, then read
-  `foundry/docs/jini-port/extraction-plan.md`; use ADS-memory for retained decisions,
+  `ADS-memory/reports/jini-port/START-HERE.md`, then read
+  `ADS-memory/reports/jini-port/extraction-plan.md`; use ADS-memory for retained decisions,
   evidence, reports, and curated memory rather than as a replacement for those docs.
 - 2026-07-24: **Coverage integrity is a durable project rule.** Coverage targets are
   acceptance gates, not optimization targets. Reach them with behaviorally meaningful

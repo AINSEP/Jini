@@ -6,7 +6,7 @@ Origin: the generic bootstrap skeleton inside OD's `startServer()`
 `/Users/la/Desktop/Programming/OSS-Repos/open-design` (branch not checked out there — read via
 `git show arch/server-startserver-endgame:<path>`).
 
-Per `foundry/docs/jini-port/extraction-plan.md` §2.4, `createLocalNodeDaemon` is the "host preset" that
+Per `ADS-memory/reports/jini-port/extraction-plan.md` §2.4, `createLocalNodeDaemon` is the "host preset" that
 lets a brand-new product boot a daemon by implementing zero interfaces — the single missing piece
 that makes the whole engine runnable instead of a set of tested-in-isolation fragments (per the
 root `AGENTS.md`'s ⚠️ PORT STATUS callout). Everything product-specific `startServer` also wires

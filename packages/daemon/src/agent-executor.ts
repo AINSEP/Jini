@@ -545,7 +545,7 @@ export interface AgentExecutorRunInput {
    * coding-agent CLI is prompt-influenced and must be treated as potentially adversarial; it must
    * not inherit secrets the daemon process happens to hold for unrelated reasons. See SEC-001
    * (`ADS-memory/reports/proposals/PROP-agent-subprocess-env-allowlist-2026-07-21.md`) and locked
-   * architecture decision C8 (`foundry/docs/jini-port/extraction-plan.md`).
+   * architecture decision C8 (`ADS-memory/reports/jini-port/extraction-plan.md`).
    */
   readonly env?: NodeJS.ProcessEnv;
 }

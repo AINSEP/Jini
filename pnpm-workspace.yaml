@@ -1,12 +1,14 @@
 packages:
   - packages/*
   - examples/*
-  - foundry/automation/project-runner
 # AI-Dev-Shop is a vendored toolkit (not a workspace package); ADS-memory is project data.
+# No `foundry/**` entry is listed here on purpose — the whole tree is untracked, so any entry
+# resolves locally but not in a fresh clone.
 # `foundry/integrations/open-design` was removed 2026-08-04: it was a 39MB vendored dump of
 # Open Design's own source (od-web-src.orig/, components-original/, i18n/locales/) that no
 # @jini-ai/* package imports, and agents kept mistaking it for engine code. It is recoverable
 # from git history at 96f0a5c8^, and the pre-extraction OD trunk is bundled at
 # ../jini-backups/integrated-478a8557.bundle.
-# Note: pnpm tolerates a workspace path that does not exist — verified, including under
-# --frozen-lockfile — so a stale entry here is cosmetic, not a build breaker.
+# `foundry/automation/project-runner` (`@jini-automation/project-runner`) was dropped 2026-08-05
+# for the same reason. No tracked package depends on it and it carries its own node_modules, so
+# it still builds and runs in place — it is just no longer a workspace member.

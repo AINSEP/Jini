@@ -64,7 +64,7 @@ function ToggleRow({ label, hint, checked, onChange }: ToggleRowProps) {
  * generate/rotate ("Delete my data") flow. Origin: `PrivacySection.tsx`,
  * mounted by `SettingsDialog.tsx`'s `privacy` tab — flagged "likely
  * generic, not fully verified" by
- * `foundry/docs/jini-port/recon/r6-god-component-internals.md` §1.3; this task is
+ * `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md` §1.3; this task is
  * the first full verification (see `packages/ui/source-map.md`).
  */
 export function PrivacyTab({ state, onChange, labels, now = Date.now }: PrivacyTabProps) {

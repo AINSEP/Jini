@@ -5,10 +5,10 @@ Origin: `leonaburime-ucla/open-design`, branch `main`, commit
 task (not the vendored `foundry/integrations/open-design/reference/` snapshot, which
 is a frozen 2026-07-16 copy — see that directory's README for the caveat).
 
-Per `foundry/docs/jini-port/recon/r4b-webui-design.md` §1 ("`@jini/artifacts-react` —
+Per `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1 ("`@jini/artifacts-react` —
 RendererRegistry", the pre-lock name for this package — the locked name per
 `extraction-plan.md` §3 is `@jini/renderers-react`) and
-`foundry/docs/jini-port/god-components-extraction-plan.md`'s "Consolidation map"
+`ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s "Consolidation map"
 (`features/annotation-canvas/` targets this package for its Part B, landed in
 the same task — see this file's second half).
 
@@ -28,7 +28,7 @@ the same task — see this file's second half).
 | `src/srcdoc/bridge.ts` | — (new) | The `SrcDocBridge` plugin seam (see below). |
 | `src/srcdoc/index.ts` | — (new) | Barrel. |
 | `src/types.ts` | — (new) | `ArtifactFile` (generified from `ProjectFile`: `{name, kind, content?, url?, manifest?}`). Re-exports `ArtifactManifest`/`ArtifactKind`/`ArtifactRendererId`/`ArtifactExportKind`/`ArtifactStatus` from `@jini/chat-core`, which already ports the manifest vocabulary (`createHtmlArtifactManifest`, `inferLegacyManifest`, `parseArtifactManifest`, etc. — see `packages/chat-core/src/artifacts/`) — this package does not re-derive that logic. |
-| `src/react/i18n.tsx` | `i18n/index.tsx` in the vendored OD web tree (via the same mechanism-only port already done for `@jini/ui`'s `features/i18n`) | A second, package-local copy of the same "context + host-injected dictionary, zero-cost passthrough when unconfigured" shape — not a dependency on `@jini/ui`, since this package's allowed deps (`foundry/docs/jini-port/recon/r4b-webui-design.md` §1) are `react`, `@jini/chat-core`, a markdown lib, and shiki; `@jini/ui` is not among them. Deliberately smaller than `@jini/ui`'s version (no locale/RTL/persistence — this package only has a handful of user-facing strings). |
+| `src/react/i18n.tsx` | `i18n/index.tsx` in the vendored OD web tree (via the same mechanism-only port already done for `@jini/ui`'s `features/i18n`) | A second, package-local copy of the same "context + host-injected dictionary, zero-cost passthrough when unconfigured" shape — not a dependency on `@jini/ui`, since this package's allowed deps (`ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1) are `react`, `@jini/chat-core`, a markdown lib, and shiki; `@jini/ui` is not among them. Deliberately smaller than `@jini/ui`'s version (no locale/RTL/persistence — this package only has a handful of user-facing strings). |
 | `src/react/components/SrcDocSandbox.tsx` | — (new) | The sandboxed-iframe host component (see "The srcDoc host" below). |
 | `src/react/components/ArtifactView.tsx` | — (new) | `<ArtifactView file registry slots>` per r4b §1's public-surface list. Resolves `file` against `registry`, dispatches to a host `slots.renderers[id]` when supplied, otherwise a built-in default for `html`/`svg`/`markdown`, otherwise a translated fallback message. |
 | `src/index.ts` | — (new) | Public barrel. |
@@ -163,7 +163,7 @@ pre-dispatch fetch exactly). Target file:
 `apps/web/src/components/PreviewDrawOverlay.tsx` (2,158 lines, confirmed by
 `wc -l` against the live fetch — matches the expected line count).
 
-Per `foundry/docs/jini-port/god-components-extraction-plan.md`'s Consolidation map
+Per `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s Consolidation map
 (`features/annotation-canvas/` row) and its priority-order item 1: "near-
 complete annotation-canvas engine (freehand draw/undo-redo, canvas redraw
 with rAF/DPR handling, box-select, draggable text labels, a
@@ -374,7 +374,7 @@ this core, each defining their own message shapes (see
 | `src/types.ts` | `SandboxedDocumentOptions`, `SandboxedDocumentResult`, `SandboxBridgeMessage`, `SandboxBridgeHandler`. Zero runtime declarations (verified via the standard `grep -nE '^(export )?(const\|function\|class\|let\|var) '` check) — excluded from the coverage run per the documented `@jini/ui` carve-out for the same shape of file, not a coverage dodge. |
 | `src/html-utils.ts` | `escapeHtmlAttribute`, `injectAfterHeadOpen`, `injectBeforeHeadEnd`, `injectBeforeBodyEnd` — generic string splices for inserting markup into an HTML document without a full parse/re-serialize round-trip. Ported near-verbatim from the *shape* of OD's own `injectBeforeHeadEnd`/`injectBeforeBodyEnd` in `runtime/srcdoc.ts` (finding the *last* `</head>`/`</body>` before the next structural boundary, so a same-named tag inside an earlier `<script>`/`<style>` literal isn't mistaken for the real one) — this exact technique is already reused across many of OD's own bridge injectors, i.e. already treated as generic infrastructure by the source itself. |
 | `src/sandboxed-document.ts` | `isFullHtmlDocument`, `wrapFragmentAsDocument` (OD's `buildSrcdoc` full-doc-vs-fragment decision, isolated), `injectBaseHref`, `buildStorageShimScript`, `buildFocusGuardScript`, `buildSandboxedDocument` (composes all of the above). `buildStorageShimScript`'s in-memory `localStorage`/`sessionStorage` fallback and click-interception logic (hash-scroll, safe-scheme `target="_blank"` open) is OD's `injectSandboxShim` logic verbatim, renamed (`data-od-sandbox-shim` → `data-jini-sandbox-shim`) — a `sandbox="allow-scripts"` iframe without `allow-same-origin` throws `SecurityError` on first Storage access, and this is genuinely artifact-shape-agnostic browser-compat code, not an OD business rule. `buildFocusGuardScript` is OD's `injectPreviewFocusGuard` verbatim, renamed (`data-od-preview-focus-guard` → `data-jini-focus-guard`). **Not ported**: `injectSelectionBridge` (comment/inspect element-picking — OD-message-type-coupled), `injectPaletteBridge` (OD's 5 named brand palettes), `injectManualEditBridge`/`annotateManualEditSourcePaths` (manual-edit patch model), `injectSnapshotBridge`/`injectExportCaptureBridge` (export pipeline), `annotateMissingOdIds` (OD's `data-od-id` annotation convention for the selection bridge), the deck bridge (`injectDeckBridge`, referenced in `buildSrcdoc`'s own doc comment but not shown in the excerpt read for this task — deferred to the eventual deck-navigation feature, which will register its own message types against `useSandboxBridge` rather than receiving them for free from this core). |
-| `src/sandbox-bridge.ts` | `useSandboxBridge` — a React hook wiring one `window` `message` listener scoped to a single iframe (`event.source === iframe.contentWindow`), dispatching by `message.type` to a caller-registered handler map, plus a `post()` that sends to that iframe. Deliberately carries **no message vocabulary** — this is transport only, unlike OD's `injectSelectionBridge`-style bridges which hard-code their own protocol inside the injected script. The listener attaches once per mount; `handlers`/`targetOrigin` are read through a ref on every message rather than listed as effect deps, both avoiding needless re-attachment on every render and sidestepping the `useT()`-in-deps infinite-loop gotcha documented in `foundry/docs/jini-port/skills/fixing-open-design-web.md` Phase 6 for any handler that closes over translated strings. |
+| `src/sandbox-bridge.ts` | `useSandboxBridge` — a React hook wiring one `window` `message` listener scoped to a single iframe (`event.source === iframe.contentWindow`), dispatching by `message.type` to a caller-registered handler map, plus a `post()` that sends to that iframe. Deliberately carries **no message vocabulary** — this is transport only, unlike OD's `injectSelectionBridge`-style bridges which hard-code their own protocol inside the injected script. The listener attaches once per mount; `handlers`/`targetOrigin` are read through a ref on every message rather than listed as effect deps, both avoiding needless re-attachment on every render and sidestepping the `useT()`-in-deps infinite-loop gotcha documented in `ADS-memory/reports/jini-port/skills/fixing-open-design-web.md` Phase 6 for any handler that closes over translated strings. |
 | `src/new-tab-preview.ts` | `buildSandboxedPreviewPage` + `openSandboxedPreviewInNewTab` — ported from OD's `runtime/exports.ts` `buildSandboxedPreviewDocument`/`openSandboxedPreviewInNewTab` (a tiny full-viewport host page wrapping the real artifact as a nested `srcdoc` iframe, opened via a `Blob` URL revoked after 60s). Logic verbatim; dropped the OD-specific `deck`/PDF-export-only parameters (`sandboxedPreview`, the deck print-stylesheet injection) that live in the surrounding `exportAsPdf` caller, not in this function itself. |
 | `src/index.ts` | Public barrel. |
 
@@ -608,7 +608,7 @@ useAnnotationCanvas.ts` lines 920/926, **pre-existing and untouched by this
 task** (that file was already below 100% branch coverage in the prior
 merge's own recorded baseline — this task does not touch `annotation-canvas/`
 at all). Clears the ≥99%-on-all-4-metrics bar
-(`foundry/docs/jini-port/skills/fixing-open-design-web.md` Phase 9.5) both
+(`ADS-memory/reports/jini-port/skills/fixing-open-design-web.md` Phase 9.5) both
 aggregate and per file for every file this task added or touched. Reached
 via the Phase 9.5 classify-then-fix loop: two genuinely-reachable branches
 were found under-tested (a menu item's missing-`testId`/missing-`description`

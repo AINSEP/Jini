@@ -10,7 +10,7 @@
 
 - Handoff: `ADS-memory/.local-artifacts/handoff/20260724T043442Z-handoff.md`
 - Handoff SHA-256: `596a4987d6df5af18add9662a00e3c614dada0ae535cdd5bb5c6f818f60d0643` — exact match
-- Locked architecture: `foundry/docs/jini-port/extraction-plan.md`
+- Locked architecture: `ADS-memory/reports/jini-port/extraction-plan.md`
 - Architecture SHA-256: `c1ccae2bb11cfe482bf9b367d17c6f5ef0999b223c5eaf868893f570933cc97d` — exact match
 - Coverage profile: coordinator-supplied continuation contract, **100/100/100/100**, reinforced by `ADS-memory/knowledge/project_memory.md`
 - Convergence threshold: coordinator-supplied continuation contract, **100% of in-scope tests**

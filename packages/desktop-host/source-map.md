@@ -9,7 +9,7 @@ OD-specific business logic; those remain explicitly out of scope.
 
 Origin: `leonaburime-ucla/open-design`, cloned fresh from `main` for this task (not the
 frozen `foundry/integrations/open-design/reference/` snapshot — see that directory's README
-caveat). Per `foundry/docs/jini-port/extraction-plan.md` §12 C7: `RenderService` is "a provider
+caveat). Per `ADS-memory/reports/jini-port/extraction-plan.md` §12 C7: `RenderService` is "a provider
 bound via the registry, not a kernel service" (`renderToPdf(html)->bytes` /
 `capture(html)->png` + viewport/timeout/abort/resource-policy, Electron / headless-Chromium
 / Tauri as adapters), and the Tauri spike is scoped narrowly to "sidecar launch/discovery,
@@ -88,7 +88,7 @@ Per the task brief's DO-NOT-PORT list, none of the following were read beyond co
 - `apps/desktop/src/main/updater.ts` (~3,529 lines, OD release-channel-specific) and `launcher-runtime.ts`/`@open-design/launcher-proto` (the same update-flow family, see discrepancies above).
 - `deck-capture.ts`/`pdf-export.ts` (OD design-export business logic — a future `RenderService` adapter, not this task).
 - `apps/packaged/src/{identity,download-attribution,startup-telemetry,launcher-after-quit}.ts` (OD branding/analytics-specific).
-- OD's `@open-design/launcher-proto` package (desktop-packaging glue, not engine material per `foundry/docs/jini-port/recon/r2-packages.md`).
+- OD's `@open-design/launcher-proto` package (desktop-packaging glue, not engine material per `ADS-memory/reports/jini-port/recon/r2-packages.md`).
 
 ## Vocabulary / boundary notes
 

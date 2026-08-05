@@ -1,0 +1,7 @@
+# Machine-readable component dependency graph.
+# Populate during reverse-spec or as-built curation.
+
+version: 1
+components: []
+dependencies: []
+external_systems: []

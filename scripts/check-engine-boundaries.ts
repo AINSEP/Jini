@@ -36,7 +36,7 @@
  *
  * Deliberately a regex-based MVP over `scripts/lib/walk-imports.ts`, not a full
  * `ts.resolveModuleName` AST pass — per the debate's own convergence that this is sufficient
- * for v0. See foundry/docs/jini-port/extraction-plan.md §7 (guardrails) and §12 C-series.
+ * for v0. See ADS-memory/reports/jini-port/extraction-plan.md §7 (guardrails) and §12 C-series.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';

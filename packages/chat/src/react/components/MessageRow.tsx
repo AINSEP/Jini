@@ -10,7 +10,7 @@
  * decompose `ChatPane.tsx`/`ChatComposer.tsx`, not `AssistantMessage.tsx`
  * (3,317 lines) — that god-component's own vertical-slice extraction is a
  * separate, not-yet-dispatched task (see
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §3's suggested "AssistantMessage
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §3's suggested "AssistantMessage
  * first" ordering, which this task's sources don't cover). This is
  * therefore a fresh, reasonable v1 composition of the already-ported leaves,
  * not a byte-for-byte port — text and question-forms interleave in original

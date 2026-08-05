@@ -1,6 +1,6 @@
 /**
  * scripts/health-boot.ts — milestone 1 gate N ("Harnesses + sync-ownership manifest";
- * foundry/docs/jini-port/extraction-plan.md §7 + §8 task 1).
+ * ADS-memory/reports/jini-port/extraction-plan.md §7 + §8 task 1).
  *
  * The neutrality-proof harness: pack every real `@jini-ai/*` package `examples/minimal-host`
  * transitively depends on into tarballs, install those tarballs (never a workspace link) into a

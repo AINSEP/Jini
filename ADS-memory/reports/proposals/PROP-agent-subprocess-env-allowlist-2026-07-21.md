@@ -41,7 +41,7 @@ The coding-agent CLI a run spawns is prompt-influenced and, in the threat model 
 - unrelated provider API keys (a different agent/provider's credentials than the one this run is actually using)
 - database connection strings, cloud credentials, any other host-level secret the daemon process happens to have in its env for unrelated reasons
 
-This directly contradicts the locked architecture decision C8 (`foundry/docs/jini-port/extraction-plan.md:203`):
+This directly contradicts the locked architecture decision C8 (`ADS-memory/reports/jini-port/extraction-plan.md:203`):
 
 > Credentials = scoped handles/allowlisted env, not wholesale inheritance. Agent subprocesses: sanitized env, controlled cwd, process-group cleanup, resource limits.
 

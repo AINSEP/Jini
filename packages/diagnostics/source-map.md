@@ -2,7 +2,7 @@
 
 Origin: `leonaburime-ucla/open-design`'s `packages/diagnostics` on `main`
 (cloned fresh to `/tmp/od-source`; 7 files, ~608 LOC across `src/`). Per
-`foundry/docs/jini-port/recon/r2-packages.md` §12: "diagnostics-bundle tooling: HTTP
+`ADS-memory/reports/jini-port/recon/r2-packages.md` §12: "diagnostics-bundle tooling: HTTP
 endpoint constants, JSON/text redaction, sources, manifest, zip builder,
 agent-logs. OD coupling is low (one `DIAGNOSTICS_FILENAME_PREFIX =
 "open-design-diagnostics"` constant + daemon-endpoint comments)... rename the

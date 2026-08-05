@@ -122,7 +122,7 @@ report for this task.
 
 Sourced from `leonaburime-ucla/open-design`'s `packages/download` on `main`
 (cloned fresh to `/tmp/od-source`; `src/index.ts`, one file, 1051 LOC), per
-`foundry/docs/jini-port/recon/r2-packages.md` §11: "a generic download store... only
+`ADS-memory/reports/jini-port/recon/r2-packages.md` §11: "a generic download store... only
 sentinel/kind string constants... Classification: GENERIC-RUNTIME. Portable;
 rename the sentinel strings. Small." Its only workspace dependency is
 `@open-design/platform` — already ported here as this package.
@@ -178,7 +178,7 @@ plus this package's own `fs.ts`/`process.ts` exports.
 
 Sourced from `leonaburime-ucla/open-design`'s `refactor/web-memory-slice`
 branch (cloned fresh to `/tmp/od-source`), `apps/daemon/src/services/
-login-shell.ts` (72 LOC). Per `foundry/docs/jini-port/recon/r1-daemon.md` TASK 1's
+login-shell.ts` (72 LOC). Per `ADS-memory/reports/jini-port/recon/r1-daemon.md` TASK 1's
 `services/` row: `login-shell.ts` was called out as the one generic file in
 that directory (the sibling `plugin-installation`/`plugin-share-tasks`/
 `whats-new`/`open-design-public-metadata` files are OD-product and were not
@@ -197,7 +197,7 @@ No new dependency — `shell.ts` uses only the `node:child_process` builtin.
 ## 2026-07-18 addition — `aws-sigv4.ts` + `blob-storage.ts`
 
 Task brief: port `apps/daemon/src/storage/aws-sigv4.ts` (per
-`foundry/docs/jini-port/recon/r1-daemon.md`'s TASK 1: "generic") and resolve
+`ADS-memory/reports/jini-port/recon/r1-daemon.md`'s TASK 1: "generic") and resolve
 `project-storage.ts`'s "leans OD" flag (verify and either drop or extract a
 generic core). Origin: real `leonaburime-ucla/open-design` fork clone
 (`/tmp/od-source`), `apps/daemon/src/storage/{aws-sigv4,project-storage}.ts`

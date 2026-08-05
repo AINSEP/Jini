@@ -5,7 +5,7 @@
 //
 // i18n note: this package's convention is "the English string itself is the
 // key" (`t('Connect')`, not `t('settings.memoryX')`) — see
-// `foundry/docs/jini-port/god-components-extraction-plan.md`'s i18n policy. The
+// `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s i18n policy. The
 // pinned source's OD dictionary keys are NOT ported (that dictionary's actual
 // translated copy is product content); every `t(...)` call below uses a
 // plain-English default instead.

@@ -1,7 +1,7 @@
 /**
  * Generic status-badged resource-dashboard primitives.
  *
- * Provenance: `foundry/docs/jini-port/god-components-extraction-plan.md`'s "5 more
+ * Provenance: `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s "5 more
  * overlaps" section flagged "Resource-dashboard shell, twice, both directly
  * Run-vocabulary-relevant": `DesignsTab.tsx` (sub-tab sort + search +
  * select-mode/bulk-delete + per-item kebab menu + a grid/kanban view toggle

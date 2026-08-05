@@ -11,7 +11,7 @@
  *
  * Files with no React import (this one included) stay at the feature's top
  * level; `hooks/`/`components/` move under `react/` — the layout policy in
- * `foundry/docs/jini-port/god-components-extraction-plan.md`.
+ * `ADS-memory/reports/jini-port/god-components-extraction-plan.md`.
  */
 import type {
   AgentDefinition,

@@ -1,6 +1,6 @@
 # Proposal: deadline/cancellation contract for `DeployTarget` (CR-R3)
 
-**Status:** Proposal only — not implemented. Requires Software Architect review before any code change, per the code review's explicit `ARCHITECTURE_REVIEW_REQUIRED` classification and this task's own scope boundary (`@jini/deploy` itself still awaits sign-off for inclusion in the locked package architecture — see `foundry/docs/jini-port/extraction-plan.md`'s package set and `packages/deploy/source-map.md`).
+**Status:** Proposal only — not implemented. Requires Software Architect review before any code change, per the code review's explicit `ARCHITECTURE_REVIEW_REQUIRED` classification and this task's own scope boundary (`@jini/deploy` itself still awaits sign-off for inclusion in the locked package architecture — see `ADS-memory/reports/jini-port/extraction-plan.md`'s package set and `packages/deploy/source-map.md`).
 
 **Finding:** `ADS-memory/reports/code-review/CR-backend-coverage-push-2026-07-20.md`, R3 (High).
 
@@ -27,7 +27,7 @@ A hung upstream socket on any single one of these calls leaves the whole `publis
 
 ## Why this is an architecture decision, not a mechanical fix
 
-`@jini/deploy` "still awaits sign-off for inclusion in the locked package architecture" (per the code review). The `DeployTarget` port is the seam every current and future provider adapter implements, and every current and future caller (an HTTP route, a tool handler, a CLI command) depends on. Getting the cancellation/deadline shape right here is exactly the kind of contract decision `foundry/docs/jini-port/extraction-plan.md`'s locked design process is for — a cloud agent picking an ad hoc shape (a raw `timeoutMs` number? an `AbortSignal`? a custom cancellation token type?) risks becoming a second, incompatible cancellation convention alongside whatever the kernel (`RunLifecycle`, `ToolExecutor`) already establishes for its own cancellation propagation, which this package should probably match rather than reinvent.
+`@jini/deploy` "still awaits sign-off for inclusion in the locked package architecture" (per the code review). The `DeployTarget` port is the seam every current and future provider adapter implements, and every current and future caller (an HTTP route, a tool handler, a CLI command) depends on. Getting the cancellation/deadline shape right here is exactly the kind of contract decision `ADS-memory/reports/jini-port/extraction-plan.md`'s locked design process is for — a cloud agent picking an ad hoc shape (a raw `timeoutMs` number? an `AbortSignal`? a custom cancellation token type?) risks becoming a second, incompatible cancellation convention alongside whatever the kernel (`RunLifecycle`, `ToolExecutor`) already establishes for its own cancellation propagation, which this package should probably match rather than reinvent.
 
 ## Proposed contract shape (for architect review)
 

@@ -10,7 +10,7 @@
 // its current `main` (confirmed by direct comparison; see
 // `packages/ui/source-map.md`'s provenance note for this feature). This slice
 // imports and reuses those instead of shipping a third near-duplicate copy,
-// per `foundry/docs/jini-port/god-components-extraction-plan.md`'s Consolidation map,
+// per `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s Consolidation map,
 // which flags this exact overlap and asks each future extraction to check
 // for it. Only the two transforms with no equivalent in `features/connectors`
 // stay here: the tool-cursor-aware single-connector merge this slice's

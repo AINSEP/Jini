@@ -7,7 +7,7 @@ reference stub per interface, zero wiring into any other package.
 
 ## Why this exists (the gap it names)
 
-`foundry/docs/jini-port/recon/r5b-consumers-matrix.md` §2 (the capability matrix) and
+`ADS-memory/reports/jini-port/recon/r5b-consumers-matrix.md` §2 (the capability matrix) and
 §3.3 identify a **capability-provider registry with auth / storage /
 payments / db / realtime as Zana + a fleet orchestrator convergent** — both consumers
 independently built an explicit port+provider layer (Zana: `app-chassis`'s
@@ -150,7 +150,7 @@ beyond what TypeScript itself needs.
 
 `pnpm --filter @jini/capability-providers exec vitest run --coverage`
 (json-summary + json reporters per
-`foundry/docs/jini-port/skills/fixing-open-design.md` Phase 6.5): **100%
+`ADS-memory/reports/jini-port/skills/fixing-open-design.md` Phase 6.5): **100%
 statements/branches/functions/lines**, aggregate and per file (7 covered
 source files). No `/* v8 ignore */` or equivalent suppression comment
 anywhere in this package. One dead branch found during the coverage loop

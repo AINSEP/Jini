@@ -2,7 +2,7 @@
  * @module tool-renderer-registry
  *
  * Per-tool renderer registry — ships "as-is" per
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §2 ("SHIP AS-IS, runtime/tool-renderers.ts").
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §2 ("SHIP AS-IS, runtime/tool-renderers.ts").
  * Origin: `apps/web/src/runtime/tool-renderers.ts`'s registration mechanism
  * (verified 0 OD product references — the pure `deriveToolStatus`/
  * `toRenderProps` half of that file already lives in `@jini-ai/chat/core`'s

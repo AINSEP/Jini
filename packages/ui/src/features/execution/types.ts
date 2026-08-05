@@ -1,7 +1,7 @@
 /**
  * Origin: the inline `execution` tab body in `SettingsDialog.tsx`
  * (lines 4080-5336), classified MIXED by
- * `foundry/docs/jini-port/recon/r6-god-component-internals.md` §1.3 — a generic
+ * `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md` §1.3 — a generic
  * "Local CLI vs. bring-your-own-key" execution switch wrapped in
  * origin-specific managed-runtime/wallet chrome.
  *

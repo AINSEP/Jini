@@ -71,7 +71,7 @@ export function appendSavedCommentOrder(
 /** Default "just now / 5 minutes ago / 3 days ago" relative-time formatter.
  *  Pure given a `now` timestamp — callers wrap the result in `t()` at the
  *  call site (see the i18n policy in
- *  `foundry/docs/jini-port/god-components-extraction-plan.md`). Returns a
+ *  `ADS-memory/reports/jini-port/god-components-extraction-plan.md`). Returns a
  *  `{ key, vars }` pair rather than a finished string so a host's `t()` can
  *  supply its own plural/locale-aware phrasing; `key` is always one of a
  *  small fixed set of English template strings. */

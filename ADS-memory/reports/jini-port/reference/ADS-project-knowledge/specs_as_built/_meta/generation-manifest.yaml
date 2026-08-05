@@ -1,0 +1,7 @@
+# Specs-as-built generation manifest.
+# This file is populated when reverse-spec or as-built capture produces artifacts.
+
+version: 1
+# Each artifact entry should include: id, path, artifact_type, source_scope,
+# source_fingerprint, generated_at, generator, and reverse_spec_run.
+artifacts: []

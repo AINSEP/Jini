@@ -6,7 +6,7 @@
 - Execution mode: Sequential, in the primary checkout; no worktrees
 - Toolchain: Node v24.2.0; pnpm 10.33.2; git 2.39.3
 - Coverage standard: >=99% for statements, branches, functions, and lines, aggregate and per file; 100% goal; `json-summary` plus `json` evidence; no suppression comments
-- Audit standards: `AI-Dev-Shop/AGENTS.md`, root `AGENTS.md`, `foundry/docs/jini-port/START-HERE.md`, `foundry/docs/jini-port/extraction-plan.md`, `foundry/docs/jini-port/refactor-roadmap.md`, both Jini-adapted fixing skills, and `foundry/docs/jini-port/god-components-extraction-plan.md`
+- Audit standards: `AI-Dev-Shop/AGENTS.md`, root `AGENTS.md`, `ADS-memory/reports/jini-port/START-HERE.md`, `ADS-memory/reports/jini-port/extraction-plan.md`, `ADS-memory/reports/jini-port/refactor-roadmap.md`, both Jini-adapted fixing skills, and `ADS-memory/reports/jini-port/god-components-extraction-plan.md`
 
 ## Method and evidence policy
 

@@ -1,11 +1,11 @@
 # `@jini/memory` — provenance
 
 **New package, not yet in the locked §3 package set in
-`foundry/docs/jini-port/extraction-plan.md`.** Same precedent as `@jini/deploy` and
+`ADS-memory/reports/jini-port/extraction-plan.md`.** Same precedent as `@jini/deploy` and
 `@jini/registry`: flagged here for Coordinator/Software-Architect sign-off
 before being folded into the locked list.
 
-Built per the task-6 audit's PART B brief off `foundry/docs/jini-port/recon/
+Built per the task-6 audit's PART B brief off `ADS-memory/reports/jini-port/recon/
 r1-daemon.md`'s TASK 1 MIXED classification for the daemon's top-level
 `memory*.ts`: "memory subsystem... generic capability with OD-shaped
 payloads." This is the daemon-side backend capability (extraction/rules/

@@ -7,7 +7,7 @@ export default defineConfig({
       provider: 'v8',
       // The v8 text table silently drops rows — json-summary/json are what a
       // coverage-driven pass should actually read (see
-      // foundry/docs/jini-port/skills/fixing-open-design.md Phase 6.5).
+      // ADS-memory/reports/jini-port/skills/fixing-open-design.md Phase 6.5).
       reporter: ['text', 'json-summary', 'json'],
       exclude: [
         ...coverageConfigDefaults.exclude,

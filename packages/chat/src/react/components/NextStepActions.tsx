@@ -4,7 +4,7 @@
  * A generic row of "what next" suggestion buttons rendered after a
  * completed assistant turn. Heavily pruned from OD's
  * `components/NextStepActions.tsx` (1,069 lines) per
- * `foundry/docs/jini-port/recon/r4b-webui-design.md` §1's explicit directive for
+ * `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §1's explicit directive for
  * this file ("prune OD actions"): the OD original hardcodes ~20 product-
  * specific prompt catalogs (design-system refine/audit, brand-extraction
  * continue/AI-optimize, plan-generate-from-doc, project-continue, ...), a

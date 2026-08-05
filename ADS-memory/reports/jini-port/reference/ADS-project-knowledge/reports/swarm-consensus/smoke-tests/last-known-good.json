@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "validated_at": "2026-07-16T16:07:38.662482+00:00",
+      "environment_key": "claude|LAs-MacBook-Pro|Darwin|22.6.0|x86_64|json",
+      "environment": {
+        "cli": "claude",
+        "cli_path": "/Users/la/.npm-global/bin/claude",
+        "cli_version": "2.1.201 (Claude Code)",
+        "hostname": "LAs-MacBook-Pro",
+        "system": "Darwin",
+        "release": "22.6.0",
+        "machine": "x86_64",
+        "transport_requirement": "json"
+      },
+      "requested_model": "claude-fable-5",
+      "requested_model_hint": "claude-fable-5",
+      "winner_model": "claude-fable-5",
+      "winner_source": "smoke_test_discovery",
+      "json_ok": true,
+      "text_ok": false,
+      "artifact_path": "/Users/la/Desktop/Programming/Jini/ADS-project-knowledge/reports/swarm-consensus/smoke-tests/2026-07-16T160738Z-claude-discovery.md"
+    }
+  ],
+  "updated_at": "2026-07-16T16:07:38.662619+00:00"
+}

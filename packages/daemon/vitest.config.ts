@@ -6,7 +6,7 @@ export default defineConfig({
       provider: 'v8',
       // The v8 text table silently drops rows once there are many files —
       // json-summary/json are what a coverage-driven pass should actually
-      // read (see foundry/docs/jini-port's Phase 6.5 method).
+      // read (see ADS-memory/reports/jini-port's Phase 6.5 method).
       reporter: ['text', 'json-summary', 'json'],
       // CR-R4: widened to the whole package (matching packages/core and
       // packages/agent-runtime's package-wide convention) — the prior config

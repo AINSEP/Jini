@@ -4,7 +4,7 @@
  * Minimal `ArtifactFile`/`ArtifactRenderer`/`RendererRegistry` shapes,
  * defined locally per this task's SCOPE NOTE: r4b calls the artifact-renderer
  * package `@jini-ai/artifacts-react`; the actual locked name
- * (`foundry/docs/jini-port/extraction-plan.md` §3) is `@jini-ai/renderers-react`, which
+ * (`ADS-memory/reports/jini-port/extraction-plan.md` §3) is `@jini-ai/renderers-react`, which
  * is still a placeholder stub being built in a separate session. `chat-react`
  * needs these shapes now (for `useArtifactStream` and the `ArtifactFile`
  * field on `ProjectContextValue`), so they are defined here to the exact
