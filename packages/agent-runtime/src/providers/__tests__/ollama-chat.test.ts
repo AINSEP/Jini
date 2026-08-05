@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runOllamaToolTurn, type OllamaMessageParam, type OllamaTurnEvent } from '../ollama-chat.js';
+import { pinnedFetch } from '../connection-guard.js';
+
+/**
+ * `pinnedFetch` (the transport `runSingleOllamaRequest` actually calls, since the DNS-rebinding
+ * fix — see `connection-guard.ts`) is mocked instead of global `fetch`: it dials via
+ * `node:https`/`node:http`, not `fetch`, so stubbing `globalThis.fetch` no longer intercepts
+ * anything. Every other export stays real — only the actual network call is replaced.
+ */
+vi.mock('../connection-guard.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../connection-guard.js')>();
+  return { ...actual, pinnedFetch: vi.fn() };
+});
 
 /** Builds a fake NDJSON response body — each argument is one already-JSON-stringified line. */
 function ndjsonBody(...lines: string[]): AsyncIterable<string> {
@@ -40,11 +52,12 @@ const apiKey = 'sk-ollama-cloud';
 describe('runOllamaToolTurn', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.mocked(pinnedFetch).mockReset();
   });
 
   it('defaults to https://ollama.com/api/chat and sends a Bearer authorization header', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} });
     expect(result).toEqual({ finishReason: 'stop', toolTurns: 0 });
     const [url, init] = fetchMock.mock.calls[0]!;
@@ -54,7 +67,7 @@ describe('runOllamaToolTurn', () => {
 
   it('accepts an explicit local baseUrl (loopback carve-out still applies)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({
       apiKey,
@@ -70,7 +83,7 @@ describe('runOllamaToolTurn', () => {
 
   it('still rejects a non-loopback internal base url', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({
       apiKey,
@@ -86,14 +99,14 @@ describe('runOllamaToolTurn', () => {
 
   it('strips a trailing /api from a caller-supplied baseUrl before appending /api/chat', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runOllamaToolTurn({ apiKey, baseUrl: 'https://ollama.example.com/api/', model: 'llama3', messages: baseMessages, onEvent: () => {} });
     const [url] = fetchMock.mock.calls[0]!;
     expect(url).toBe('https://ollama.example.com/api/chat');
   });
 
   it('reports a network error, redacting the api key when it appears in the message', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error(`upstream rejected key ${apiKey}`)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue(new Error(`upstream rejected key ${apiKey}`)));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
@@ -103,7 +116,7 @@ describe('runOllamaToolTurn', () => {
   });
 
   it('reports a non-ok error response with status code', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, body: null, text: async () => JSON.stringify({ error: 'model "llama3" not found' }) }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: false, status: 404, body: null, text: async () => JSON.stringify({ error: 'model "llama3" not found' }) }));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
@@ -113,7 +126,7 @@ describe('runOllamaToolTurn', () => {
   });
 
   it('reports a missing response body as an error, using the Ollama provider label', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: true, status: 200, body: null, text: async () => '' }));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
@@ -125,7 +138,7 @@ describe('runOllamaToolTurn', () => {
   it('streams text_delta events from message.content and ends with reason stop on the done:true line', async () => {
     const body = ndjsonBody(textLine('Hello'), textLine(' world'), doneLine());
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toEqual([
@@ -147,7 +160,7 @@ describe('runOllamaToolTurn', () => {
         yield `${doneLine()}\n`;
       },
     };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'text_delta', delta: 'split across chunks' });
@@ -155,7 +168,7 @@ describe('runOllamaToolTurn', () => {
 
   it('sends options.num_predict only when maxTokens is a positive number', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, maxTokens: 256, onEvent: () => {} });
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(init.body);
@@ -169,7 +182,7 @@ describe('runOllamaToolTurn', () => {
 
   it('sends options.temperature, alongside num_predict when both are set', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, temperature: 0, maxTokens: 64, onEvent: () => {} });
     // Temperature 0 must survive: it is the most useful value and the easiest to lose to a
     // truthiness check, and Ollama nests both under a single `options` object.
@@ -178,7 +191,7 @@ describe('runOllamaToolTurn', () => {
 
   it('forwards a non-empty tools array verbatim, and omits the field for an empty one', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const tools = [{ type: 'function' as const, function: { name: 'get_weather', description: 'w', parameters: { type: 'object' } } }];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, tools, onEvent: () => {} });
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body).tools).toEqual(tools);
@@ -191,7 +204,7 @@ describe('runOllamaToolTurn', () => {
 
   it('passes a caller AbortSignal through to fetch so a cancelled turn actually cancels the request', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const controller = new AbortController();
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, signal: controller.signal, onEvent: () => {} });
     expect(fetchMock.mock.calls[0]![1].signal).toBe(controller.signal);
@@ -200,7 +213,7 @@ describe('runOllamaToolTurn', () => {
   it('reports a thrown non-Error rejection from fetch by stringifying it', async () => {
     // `fetch` rejecting with a non-Error is rare but real (a bare string from a patched global, an
     // undici internal); the turn must still surface an error rather than crash on `.message`.
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('socket hang up'));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockRejectedValue('socket hang up'));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'error', message: 'socket hang up' });
@@ -208,14 +221,14 @@ describe('runOllamaToolTurn', () => {
   });
 
   it('falls back to the raw (truncated) body when a non-ok error response is not JSON', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502, body: null, text: async () => '<html>Bad Gateway</html>' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: false, status: 502, body: null, text: async () => '<html>Bad Gateway</html>' }));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'error', message: '<html>Bad Gateway</html>', code: '502' });
   });
 
   it('truncates an overlong non-JSON error body to 500 characters', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 500, body: null, text: async () => 'x'.repeat(2000) }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: false, status: 500, body: null, text: async () => 'x'.repeat(2000) }));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     const error = events.find((e): e is Extract<OllamaTurnEvent, { type: 'error' }> => e.type === 'error');
@@ -223,7 +236,7 @@ describe('runOllamaToolTurn', () => {
   });
 
   it('falls back to the raw body when the error JSON has no string error field', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 400, body: null, text: async () => '{"detail":"nope"}' }));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue({ ok: false, status: 400, body: null, text: async () => '{"detail":"nope"}' }));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'error', message: '{"detail":"nope"}', code: '400' });
@@ -237,7 +250,7 @@ describe('runOllamaToolTurn', () => {
         yield encoder.encode(`${doneLine()}\n`);
       },
     };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body as unknown as AsyncIterable<string>)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body as unknown as AsyncIterable<string>)));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'text_delta', delta: 'from bytes' });
@@ -247,7 +260,7 @@ describe('runOllamaToolTurn', () => {
     // Ollama sends blank keep-alive lines, and a proxy can inject non-JSON noise. Either must be
     // survivable: the surrounding real lines still have to be processed.
     const body = ndjsonBody('', '   ', 'not json at all', textLine('still here'), '[]', doneLine());
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'text_delta', delta: 'still here' });
@@ -261,7 +274,7 @@ describe('runOllamaToolTurn', () => {
         yield doneLine(); // no trailing newline — the stream simply ends
       },
     };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: () => {} });
     expect(result).toEqual({ finishReason: 'stop', toolTurns: 0 });
   });
@@ -277,7 +290,7 @@ describe('runOllamaToolTurn', () => {
         yield textLine('and the tail'); // complete JSON, no newline, no done marker
       },
     };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events.filter((e) => e.type === 'text_delta')).toEqual([
@@ -297,7 +310,7 @@ describe('runOllamaToolTurn', () => {
         yield '{"model":"llama3","mess';
       },
     };
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events).toContainEqual({ type: 'text_delta', delta: 'partial answer' });
@@ -306,7 +319,7 @@ describe('runOllamaToolTurn', () => {
 
   it('ignores a line whose message field is not an object', async () => {
     const body = ndjsonBody(JSON.stringify({ model: 'llama3', message: 'oops', done: false }), doneLine());
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events.filter((e) => e.type === 'text_delta')).toEqual([]);
@@ -327,7 +340,7 @@ describe('runOllamaToolTurn', () => {
       }),
       doneLine(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({
       apiKey,
@@ -358,7 +371,7 @@ describe('runOllamaToolTurn', () => {
       }),
       doneLine(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(events.filter((e) => e.type === 'tool_use')).toEqual([
@@ -369,7 +382,7 @@ describe('runOllamaToolTurn', () => {
 
   it('merges caller-supplied extraHeaders verbatim (no hardcoded product-identity header)', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ndjsonBody(doneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     await runOllamaToolTurn({
       apiKey,
       model: 'llama3',
@@ -391,7 +404,7 @@ describe('runOllamaToolTurn', () => {
     );
     const secondBody = ndjsonBody(textLine('Sunny.'), doneLine());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: '72F sunny' });
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({
@@ -433,7 +446,7 @@ describe('runOllamaToolTurn', () => {
     const firstBody = ndjsonBody(toolCallLine('take_screenshot', {}, 'call_1'), doneLine());
     const secondBody = ndjsonBody(textLine('looks right'), doneLine());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'here is the screenshot', images: ['iVBORw0KGgoAAAANSUhEUg=='] });
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
@@ -472,7 +485,7 @@ describe('runOllamaToolTurn', () => {
     );
     const secondBody = ndjsonBody(textLine('done'), doneLine());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockImplementation(async (call: { name: string }) =>
       call.name === 'get_weather' ? { content: '72F sunny' } : { content: 'shot', images: ['aGVsbG8='] },
     );
@@ -490,7 +503,7 @@ describe('runOllamaToolTurn', () => {
     const firstBody = ndjsonBody(toolCallLine('take_screenshot', {}, 'call_1'), doneLine());
     const secondBody = ndjsonBody(textLine('ok'), doneLine());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'shot', images: ['data:image/png;base64,aGVsbG8='] });
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
@@ -507,7 +520,7 @@ describe('runOllamaToolTurn', () => {
     const firstBody = ndjsonBody(toolCallLine('take_screenshot', {}, 'call_1'), doneLine());
     const secondBody = ndjsonBody(textLine('ok'), doneLine());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(firstBody)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'shot', images: [''] });
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
@@ -520,7 +533,7 @@ describe('runOllamaToolTurn', () => {
     const body = ndjsonBody(toolCallLine('fail_tool', {}, 'call_1'), doneLine());
     const secondBody = ndjsonBody(textLine('done'), doneLine());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(body)).mockResolvedValueOnce(okResponse(secondBody));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'boom', isError: true });
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, executeTool, onEvent: (e) => events.push(e) });
@@ -529,7 +542,7 @@ describe('runOllamaToolTurn', () => {
 
   it('generates a stable synthetic id for a tool call with no id in the response', async () => {
     const body = ndjsonBody(toolCallLine('noop', {}), doneLine());
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     const toolUse = events.find((e) => e.type === 'tool_use');
@@ -539,7 +552,7 @@ describe('runOllamaToolTurn', () => {
   it('stops with reason max_tool_turns once the bound is hit, without invoking executeTool for the turn that exceeds it', async () => {
     const round = () => ndjsonBody(toolCallLine('loop_tool', {}, 'call_x'), doneLine());
     const fetchMock = vi.fn().mockResolvedValueOnce(okResponse(round())).mockResolvedValueOnce(okResponse(round()));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const executeTool = vi.fn().mockResolvedValue({ content: 'again' });
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({
@@ -562,7 +575,7 @@ describe('runOllamaToolTurn', () => {
       // Would-be second end site — must never fire.
       doneLine(),
     );
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(okResponse(body)));
+    vi.mocked(pinnedFetch).mockImplementation(vi.fn().mockResolvedValue(okResponse(body)));
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     const endEvents = events.filter((e) => e.type === 'end');
@@ -574,7 +587,7 @@ describe('runOllamaToolTurn', () => {
   it('ends with reason stop (no further request) when a tool call is requested but no executeTool is supplied, but still emits tool_use for the resolved call', async () => {
     const body = ndjsonBody(toolCallLine('noop', {}, 'call_1'), doneLine());
     const fetchMock = vi.fn().mockResolvedValue(okResponse(body));
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(pinnedFetch).mockImplementation(fetchMock);
     const events: OllamaTurnEvent[] = [];
     const result = await runOllamaToolTurn({ apiKey, model: 'llama3', messages: baseMessages, onEvent: (e) => events.push(e) });
     expect(fetchMock).toHaveBeenCalledTimes(1);

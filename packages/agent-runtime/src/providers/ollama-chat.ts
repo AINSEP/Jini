@@ -103,7 +103,7 @@
  * set `isError` keeps its exact prior behavior.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 
 export interface OllamaFunctionToolDef {
@@ -362,12 +362,22 @@ async function runSingleOllamaRequest(
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = (await fetch(ollamaRequestUrl(options.baseUrl), {
-      method: 'POST',
-      headers: ollamaHeaders(options),
-      body: JSON.stringify(ollamaRequestBody(options, messages)),
-      ...(options.signal ? { signal: options.signal } : {}),
-    })) as unknown as typeof response;
+    response = await pinnedFetch(
+      ollamaRequestUrl(options.baseUrl),
+      {
+        method: 'POST',
+        headers: ollamaHeaders(options),
+        body: JSON.stringify(ollamaRequestBody(options, messages)),
+        // Unlike the other three providers, this call never set `redirect: 'error'` even before
+        // this pinning change — the reviewer's redirect-rebinding finding was only reported (and
+        // fixed) for `openai-chat.ts`. `pinnedFetch` closes it here regardless, the same way it
+        // does everywhere else (`node:http`'s `request` never auto-follows); the flag is added for
+        // self-documentation, matching the other three call sites.
+        redirect: 'error',
+        ...(options.signal ? { signal: options.signal } : {}),
+      },
+      baseUrlCheck.pinnedAddress,
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     onEvent({ type: 'error', message: redactSecrets(message, [options.apiKey]) });
