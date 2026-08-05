@@ -246,6 +246,11 @@ export async function uploadMedia(
     createdAt: nowIso,
     updatedAt: nowIso,
     version: 1,
+    // No sizing UI on upload yet (only the edit panel got one — see `UpdateMediaMetadataInput`
+    // below) — every freshly uploaded asset starts with no override, set via a follow-up PATCH.
+    width: null,
+    height: null,
+    cssClass: null,
   };
   await deps.mediaRepo.save(media);
 
@@ -321,6 +326,20 @@ export interface UpdateMediaMetadataInput {
   alt?: string | undefined;
   caption?: string | undefined;
   credit?: string | undefined;
+  /**
+   * Quick-and-dirty sizing override fields (see `MediaRecord.width`/`height`/`cssClass` doc).
+   * `undefined` (the key omitted, or explicitly `undefined`) leaves the stored value unchanged —
+   * same optional-field/partial-patch contract every other field on this input already has.
+   * `null` explicitly CLEARS a previously-set override back to "not set". A provided number must be
+   * a positive integer (rejected with `MediaValidationError` otherwise) — this is public HTML output
+   * sizing, not a field worth silently coercing.
+   */
+  width?: number | null | undefined;
+  height?: number | null | undefined;
+  /** Same undefined/null/value contract as `width`/`height` above. A non-empty string is trimmed;
+   *  a string that trims to empty is stored as `null` (equivalent to clearing it), matching the
+   *  "empty means unset" convention `title`/`alt`/etc. already follow via `.trim()`. */
+  cssClass?: string | null | undefined;
 }
 
 export interface UpdateMediaMetadataDeps {
@@ -342,6 +361,14 @@ export interface UpdateMediaMetadataRequired {
  * @complexity O(1).
  * @overallScore 100
  */
+/** Validates a `width`/`height` override: must be a positive integer. `null` (explicit clear) and
+ *  `undefined` (leave unchanged) both bypass this — only a real provided number is checked. */
+function assertPositiveIntegerOrThrow(value: number, field: "width" | "height"): void {
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new MediaValidationError(`media.${field} must be a positive integer, got ${value}`);
+  }
+}
+
 export async function updateMediaMetadata(
   required: UpdateMediaMetadataRequired,
   _optional: Record<string, never> = {}
@@ -350,12 +377,18 @@ export async function updateMediaMetadata(
   const existing = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
 
+  if (input.width !== undefined && input.width !== null) assertPositiveIntegerOrThrow(input.width, "width");
+  if (input.height !== undefined && input.height !== null) assertPositiveIntegerOrThrow(input.height, "height");
+
   const media: MediaRecord = {
     ...existing,
     title: input.title !== undefined ? input.title.trim() || existing.title : existing.title,
     alt: input.alt !== undefined ? input.alt.trim() : existing.alt,
     caption: input.caption !== undefined ? input.caption.trim() : existing.caption,
     credit: input.credit !== undefined ? input.credit.trim() : existing.credit,
+    width: input.width !== undefined ? input.width : existing.width,
+    height: input.height !== undefined ? input.height : existing.height,
+    cssClass: input.cssClass !== undefined ? (input.cssClass === null ? null : input.cssClass.trim() || null) : existing.cssClass,
     updatedAt: deps.clock.nowIso(),
     version: existing.version + 1,
   };

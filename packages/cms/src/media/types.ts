@@ -54,6 +54,18 @@ export interface MediaRecord {
   createdAt: ISODateTime;
   updatedAt: ISODateTime;
   version: number;
+  /**
+   * Quick-and-dirty public-render sizing fields (owner-directed skip-the-ADR fix — "should we have
+   * more lines on the upload/edit media page for css tags and height and width?"). An operator-set
+   * per-asset override the public site's renderer threads onto the `<img>` tag so an inserted image
+   * stops rendering at full native pixel width with nothing constraining it. `null` means "not set"
+   * — a host renderer must omit the corresponding attribute entirely rather than emit `width="null"`
+   * or coerce to `0`. Always present (never `undefined`) so every existing `MediaRecord` construction
+   * site is forced to make an explicit choice; `uploadMedia` defaults all three to `null`.
+   */
+  width: number | null;
+  height: number | null;
+  cssClass: string | null;
 }
 
 /**
