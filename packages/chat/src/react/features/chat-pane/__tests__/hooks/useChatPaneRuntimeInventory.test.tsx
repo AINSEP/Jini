@@ -130,6 +130,26 @@ describe('useChatPaneRuntimeInventory', () => {
     expect(result.current.runtimeInventoryError?.message).toBe('inventory unavailable');
   });
 
+  it('starts scanningAgents true synchronously when access is supplied at mount', async () => {
+    // The load effect only flips `scanningAgents` to `true` once it runs, which is after the
+    // first paint. If the initial state were `false` there would be one rendered frame where
+    // detection is neither loaded nor marked as loading — the frame that used to make
+    // `ChatPane`'s "No usable CLI" banner flash on reload. Asserted with no `act()` in between so
+    // this reads the very first synchronous render, before the effect has any chance to run.
+    const access = runtimeAccess({
+      listAgents: vi.fn(() => new Promise<ChatPaneAgent[]>(() => {})),
+    });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({ access }));
+    expect(result.current.scanningAgents).toBe(true);
+  });
+
+  it('starts scanningAgents false synchronously when no access is supplied at mount', () => {
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({
+      initialAgents: [{ id: 'static', name: 'Static' }],
+    }));
+    expect(result.current.scanningAgents).toBe(false);
+  });
+
   it('safely no-ops explicit inventory actions when runtime access is absent', async () => {
     const { result } = renderHook(() => useChatPaneRuntimeInventory({
       initialAgents: [{ id: 'static', name: 'Static' }],

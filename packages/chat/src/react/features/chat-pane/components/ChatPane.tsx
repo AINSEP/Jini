@@ -116,6 +116,7 @@ function ChatPaneSuggestionsRow({ suggestions, onSelect, t }: ChatPaneSuggestion
 
 interface ChatPaneStatusMessagesProps {
   unavailable: boolean;
+  scanningAgents: boolean;
   conversationError: Error | null;
   attachmentError: Error | null;
   dropReadError: string | null;
@@ -130,6 +131,7 @@ interface ChatPaneStatusMessagesProps {
  * source of truth, so they are rendered as siblings rather than folded into one derived state. */
 function ChatPaneStatusMessages({
   unavailable,
+  scanningAgents,
   conversationError,
   attachmentError,
   dropReadError,
@@ -141,7 +143,16 @@ function ChatPaneStatusMessages({
 }: ChatPaneStatusMessagesProps): ReactNode {
   return (
     <>
-      {unavailable ? (
+      {/* `unavailable` alone conflates "inventory still loading" with "inventory loaded, nothing
+          usable" — both present as `selectedAgent === undefined`. `scanningAgents` is the signal
+          that tells them apart, mirroring the `workingDirectoryPending`/`workingDirectoryInvalid`
+          pair below: a pending detection is a `status`, only a *finished* detection that found
+          nothing is an `alert`. */}
+      {unavailable && scanningAgents ? (
+        <div className="jini-chat-pane__status" role="status">
+          {t('Loading available CLIs')}
+        </div>
+      ) : unavailable ? (
         <div className="jini-chat-pane__error" role="alert">{t('No usable CLI is selected.')}</div>
       ) : null}
       {conversationError ? (
@@ -439,6 +450,7 @@ export function ChatPane({
           <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={pane.composer.setDraft} t={t} />
           <ChatPaneStatusMessages
             unavailable={unavailable}
+            scanningAgents={runtimeView.scanningAgents}
             conversationError={pane.conversation.error}
             attachmentError={pane.attachmentError}
             dropReadError={fileDrop.dropReadError}

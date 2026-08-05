@@ -35,7 +35,12 @@ export function useChatPaneRuntimeInventory({
   pollIntervalMs = 5_000,
 }: UseChatPaneRuntimeInventoryOptions): UseChatPaneRuntimeInventoryResult {
   const [agents, setAgents] = useState<readonly ChatPaneAgent[]>(initialAgents);
-  const [scanningAgents, setScanningAgents] = useState(false);
+  // Seeded from `access` at mount, not `false`: the load effect below only flips this to `true`
+  // once it runs, which is after the first paint. Starting at `false` when `access` is already
+  // defined at mount painted one frame where the inventory was neither loaded nor marked as
+  // loading — indistinguishable from "detection finished, nothing usable" to any consumer keyed
+  // off this flag, which is exactly the frame `ChatPane`'s "No usable CLI" banner flashed on.
+  const [scanningAgents, setScanningAgents] = useState(() => access !== undefined);
   const [daemonOnline, setDaemonOnline] = useState(false);
   const [runtimeInventoryError, setRuntimeInventoryError] = useState<Error | null>(null);
   const inventory = useLatestOperation();

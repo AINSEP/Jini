@@ -43,14 +43,20 @@ const CLAUDE_EFFORT_LEVELS: ReadonlySet<string> = new Set([
   'low', 'medium', 'high', 'xhigh', 'max',
 ]);
 
+// Current models first, then the still-active-but-superseded 4.5 opus/sonnet generation kept as
+// older options rather than dropped — an installed CLI may still be pinned to one via its own
+// config, and removing a working selection out from under a user is worse than listing it last.
+// `claude-haiku-4-5` is unchanged: Haiku 4.5 is still the current Haiku model, nothing superseded it.
 const CLAUDE_FALLBACK_MODELS = [
   DEFAULT_MODEL_OPTION,
   { id: 'sonnet', label: 'Sonnet (alias)' },
   { id: 'opus', label: 'Opus (alias)' },
   { id: 'haiku', label: 'Haiku (alias)' },
+  { id: 'claude-opus-5', label: 'claude-opus-5' },
+  { id: 'claude-sonnet-5', label: 'claude-sonnet-5' },
+  { id: 'claude-haiku-4-5', label: 'claude-haiku-4-5' },
   { id: 'claude-opus-4-5', label: 'claude-opus-4-5' },
   { id: 'claude-sonnet-4-5', label: 'claude-sonnet-4-5' },
-  { id: 'claude-haiku-4-5', label: 'claude-haiku-4-5' },
 ];
 
 export const claudeAgentDef = {

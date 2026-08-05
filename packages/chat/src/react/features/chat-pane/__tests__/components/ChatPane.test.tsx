@@ -325,10 +325,75 @@ describe('ChatPane', () => {
       />,
     );
 
-    expect(screen.getByRole('status')).toHaveTextContent('Checking working directory…');
+    // Two independent `status` banners are up at once here on purpose: CLI detection is
+    // in flight (no `runtimeAccess` call has settled yet) at the same time the working
+    // directory check is pending — each is its own source of truth, not a shared one.
+    const statusTexts = screen.getAllByRole('status').map((el) => el.textContent);
+    expect(statusTexts).toContain('Checking working directory…');
+    expect(statusTexts).toContain('Loading available CLIs');
     expect(await screen.findByText('inventory unavailable')).toBeInTheDocument();
     await act(async () => resolveExists(false));
     expect(await screen.findByText('Working directory is unavailable.')).toBeInTheDocument();
+    // `listAgents` rejected above, so detection is finished (not loading) and found nothing —
+    // now the genuine terminal case, which is the one case that should render as an `alert`.
+    expect(await screen.findByText('No usable CLI is selected.')).toBeInTheDocument();
+    expect(screen.queryByText('Loading available CLIs')).not.toBeInTheDocument();
+  });
+
+  it('shows a loading status while CLI detection is in flight, not the red unavailable banner', async () => {
+    let resolveAgents!: (result: ChatPaneAgent[]) => void;
+    const pending = new Promise<ChatPaneAgent[]>((resolve) => {
+      resolveAgents = resolve;
+    });
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        runtimeAccess={{
+          listAgents: () => pending,
+          rescanAgents: async () => [],
+          daemonOnline: async () => true,
+        }}
+      />,
+    );
+
+    // Detection has not resolved yet: a status, not an alert, and the composer must not have
+    // flashed the red "no usable CLI" banner in the process.
+    expect(screen.getByRole('status')).toHaveTextContent('Loading available CLIs');
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await act(async () => resolveAgents([]));
+
+    // Detection finished and genuinely found nothing usable: now, and only now, the red alert.
+    expect(await screen.findByText('No usable CLI is selected.')).toBeInTheDocument();
+    expect(screen.queryByText('Loading available CLIs')).not.toBeInTheDocument();
+  });
+
+  it('shows neither the loading status nor the unavailable alert once a usable agent resolves', async () => {
+    let resolveAgents!: (result: ChatPaneAgent[]) => void;
+    const pending = new Promise<ChatPaneAgent[]>((resolve) => {
+      resolveAgents = resolve;
+    });
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        initialSelection={{ agentId: 'codex' }}
+        runtimeAccess={{
+          listAgents: () => pending,
+          rescanAgents: async () => [],
+          daemonOnline: async () => true,
+        }}
+      />,
+    );
+
+    expect(screen.getByRole('status')).toHaveTextContent('Loading available CLIs');
+
+    await act(async () => resolveAgents(agents));
+
+    expect(screen.queryByText('Loading available CLIs')).not.toBeInTheDocument();
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
   });
 
   it('subscribes the daemon-relayed bridge when agentControl is supplied enabled', () => {
