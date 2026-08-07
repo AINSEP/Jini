@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useConfirmButton } from './ConfirmButton.hooks.js';
 
 /**
  * @file Shared two-click, in-place confirmation control for destructive or access-affecting
@@ -43,6 +43,10 @@ export interface ConfirmButtonProps {
    *  page (one "Delete" per table row) and the row's own text doesn't disambiguate them for a
    *  screen-reader user navigating control-by-control rather than row-by-row. */
   ariaLabel?: string;
+  /** Injectable seam for the armed/disarmed state hook. Defaults to the real
+   *  {@link useConfirmButton}; a test can pass a fake here to exercise `ConfirmButton`'s rendering
+   *  without driving the real Escape/outside-click/blur dismissal logic. */
+  useConfirmButton?: typeof useConfirmButton;
 }
 
 /**
@@ -50,49 +54,16 @@ export interface ConfirmButtonProps {
  * and announces the armed state through a `.visually-hidden` live region (a separate region rather
  * than relying on the button's own label swap, since AT support for announcing a text change inside
  * a live-region-less `<button>`'s accessible name is inconsistent across screen readers). Second
- * click fires `onConfirm` and disarms immediately. Losing focus, an outside click, or Escape
- * disarms without firing, so a control armed and then abandoned (a slow screen-reader read-through,
- * a misclick landing elsewhere) cannot later be fired by an unrelated click landing on the same
- * screen position.
- *
- * @complexity O(1) per render/interaction. The two document-level listeners are attached only while
- * armed, not for the component's whole mounted lifetime.
+ * click fires `onConfirm` and disarms immediately. Arm/disarm state and its Escape/outside-click/
+ * blur dismissal live in {@link useConfirmButton} (injectable via the `useConfirmButton` prop,
+ * defaulted to the real implementation, so a test can supply a fake without mocking modules).
  */
-export function ConfirmButton(props: ConfirmButtonProps) {
-  const [confirming, setConfirming] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-
-  // Listeners are scoped to the armed window only — an idle (disarmed) ConfirmButton costs nothing
-  // beyond the button element itself, so mounting many of them (one per table row) does not add a
-  // standing per-row document listener.
-  useEffect(() => {
-    if (!confirming) return;
-    function disarm() {
-      setConfirming(false);
-    }
-    function onDocMouseDown(e: globalThis.MouseEvent) {
-      if (!buttonRef.current?.contains(e.target as Node)) disarm();
-    }
-    function onKeyDown(e: globalThis.KeyboardEvent) {
-      if (e.key === 'Escape') disarm();
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', onDocMouseDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [confirming]);
-
-  function handleClick() {
-    if (props.pending || props.disabled) return;
-    if (!confirming) {
-      setConfirming(true);
-      return;
-    }
-    setConfirming(false);
-    props.onConfirm();
-  }
+export function ConfirmButton({ useConfirmButton: useConfirmButtonState = useConfirmButton, ...props }: ConfirmButtonProps) {
+  const { confirming, buttonRef, handleClick, handleBlur } = useConfirmButtonState(
+    props.pending,
+    props.disabled,
+    props.onConfirm,
+  );
 
   const label = props.pending
     ? (props.pendingLabel ?? DEFAULT_PENDING_LABEL)
@@ -116,7 +87,7 @@ export function ConfirmButton(props: ConfirmButtonProps) {
         data-armed={confirming ? 'true' : undefined}
         disabled={props.disabled || props.pending}
         onClick={handleClick}
-        onBlur={() => setConfirming(false)}
+        onBlur={handleBlur}
         aria-label={props.ariaLabel}
       >
         {label}

@@ -32,8 +32,8 @@
 export { resolveTone, toneClassName } from './types.js';
 export type { ConfirmTone } from './types.js';
 
-export { ConfirmButton } from './components/ConfirmButton.js';
-export type { ConfirmButtonProps } from './components/ConfirmButton.js';
+export { ConfirmButton } from './components/ConfirmButton/ConfirmButton.js';
+export type { ConfirmButtonProps } from './components/ConfirmButton/ConfirmButton.js';
 
 export { ConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.js';
 export type { ConfirmDialogProps } from './components/ConfirmDialog/ConfirmDialog.js';

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfirmButton } from '../../components/ConfirmButton.js';
+import { ConfirmButton } from '../../components/ConfirmButton/ConfirmButton.js';
 
 function renderButton(props: Partial<Parameters<typeof ConfirmButton>[0]> = {}) {
   const onConfirm = vi.fn();
@@ -101,5 +102,30 @@ describe('ConfirmButton states', () => {
   it('takes an explicit accessible name for repeated per-row controls', () => {
     renderButton({ ariaLabel: 'Delete "My Post"' });
     expect(screen.getByRole('button', { name: 'Delete "My Post"' })).toBeInTheDocument();
+  });
+});
+
+describe('ConfirmButton hook injection', () => {
+  it('renders purely off an injected fake, proving useConfirmButton is not hardcoded', () => {
+    // A fake that reports armed with spy handlers — no real click-count state or document
+    // listeners run at all. If ConfirmButton rendered off anything other than what this hook
+    // returns, the label/attribute assertions below would come from real state instead.
+    const fakeHandleClick = vi.fn();
+    const fakeHandleBlur = vi.fn();
+    function useFakeConfirmButton() {
+      const buttonRef = useRef<HTMLButtonElement>(null);
+      return { confirming: true, buttonRef, handleClick: fakeHandleClick, handleBlur: fakeHandleBlur };
+    }
+
+    const { button } = renderButton({ useConfirmButton: useFakeConfirmButton });
+
+    expect(button()).toHaveTextContent('Confirm delete');
+    expect(button()).toHaveAttribute('data-armed', 'true');
+
+    fireEvent.click(button());
+    expect(fakeHandleClick).toHaveBeenCalledOnce();
+
+    fireEvent.blur(button());
+    expect(fakeHandleBlur).toHaveBeenCalledOnce();
   });
 });
