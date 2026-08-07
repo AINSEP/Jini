@@ -35,8 +35,8 @@ export type { ConfirmTone } from './types.js';
 export { ConfirmButton } from './components/ConfirmButton.js';
 export type { ConfirmButtonProps } from './components/ConfirmButton.js';
 
-export { ConfirmDialog } from './components/ConfirmDialog.js';
-export type { ConfirmDialogProps } from './components/ConfirmDialog.js';
+export { ConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.js';
+export type { ConfirmDialogProps } from './components/ConfirmDialog/ConfirmDialog.js';
 
 // The list table. Deliberately has no sorting, pagination or row selection — see its file header
 // for the corpus evidence behind each omission.

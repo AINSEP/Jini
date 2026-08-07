@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, type MouseEvent, type ReactNode, type SyntheticEvent } from 'react';
-import { resolveTone, toneClassName, type ConfirmTone } from '../types.js';
+import { type ReactNode } from 'react';
+import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
+import { useConfirmDialog } from './ConfirmDialog.hooks.js';
 
 /**
  * @file Shared modal confirmation primitive — the replacement for `window.confirm`, which blocks
@@ -9,14 +10,9 @@ import { resolveTone, toneClassName, type ConfirmTone } from '../types.js';
  * Built on the native `<dialog>` element (`showModal()`/`close()`) rather than a plain-`<div>`
  * overlay + backdrop idiom: that shape hand-rolls focus trapping, Escape handling, and a backdrop
  * element, all of which the browser's own top layer gives a real `<dialog>` for free, including
- * correct stacking above everything else on the page without a chosen `z-index`.
- *
- * `dialog.showModal()`/`dialog.close()` are guarded by a `typeof` check rather than called
- * unconditionally: jsdom (this package's React test environment, verified directly rather than
- * assumed) does not implement either method at all — calling them throws `TypeError`. The fallback
- * branch below toggles the plain `open` attribute instead, which no browser shipping a real
- * `<dialog>` ever takes (the `showModal`/`close` branch always wins there), so this only changes
- * behavior under jsdom, where it keeps the dialog mountable and its content queryable.
+ * correct stacking above everything else on the page without a chosen `z-index`. The `showModal`/
+ * `close` calls themselves, and the jsdom fallback they need, live in `ConfirmDialog.hooks.tsx` —
+ * see that file's doc comment.
  *
  * Unstyled, like everything in this layer: the `.confirm-dialog` / `.btn-secondary` /
  * `.btn-danger` / `.btn-warning` class names are emitted for the host stylesheet to define.
@@ -48,82 +44,6 @@ export interface ConfirmDialogProps {
 }
 
 const DEFAULT_CANCEL_LABEL = 'Cancel';
-
-/**
- * Owns the `<dialog>` element's open/close lifecycle and focus management for `ConfirmDialog`,
- * kept as a separate hook (rather than inline in the component body) so it can be swapped for a
- * fake via the `useDialog` prop on `ConfirmDialogProps` — see that prop's doc comment.
- *
- * The caller keeps `ConfirmDialog` mounted and toggles `open` — it is never conditionally rendered
- * by its parent — so the effect below has a stable `<dialog>` element to call `showModal()`/
- * `close()` on and to restore focus through when it closes.
- *
- * Focus moves to the *cancel* action on open, not confirm — an operator whose first keystroke after
- * a slow read-through is Enter should land on the safe action, not the destructive one.
- *
- * @complexity O(1) per open/close transition — one `showModal`/`close` call and one focus move.
- */
-export function useConfirmDialog(open: boolean, pending: boolean | undefined, onCancel: () => void) {
-  // `useId()`, not a string literal — a hardcoded id breaks the moment a screen mounts two
-  // `ConfirmDialog`s at once (a delete-role and a delete-policy confirm on one page, both
-  // stay-mounted/toggle-`open` per this hook's own doc comment above): two `<h2>`s share one
-  // id, and `aria-labelledby` resolves via `getElementById`, which always returns the FIRST match
-  // in document order regardless of which dialog is actually open — a screen reader announcing
-  // "Delete role?" while the operator is about to confirm "Delete policy?", on a destructive
-  // action. `useId()` gives every mounted instance its own id for free.
-  const titleId = useId();
-  const dialogRef = useRef<HTMLDialogElement>(null);
-  const cancelRef = useRef<HTMLButtonElement>(null);
-  // Captured at the moment `open` flips true, before focus moves into the dialog — the element that
-  // had focus then is, by construction, whatever triggered this dialog (a `RowMenu` item's
-  // "Delete", a plain trigger button, …). Restored on close rather than left wherever the browser's
-  // own modal-focus algorithm happened to land (its default without this is `<body>`, which drops a
-  // keyboard user back to the top of the page).
-  const triggerRef = useRef<Element | null>(null);
-
-  useEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open) {
-      triggerRef.current = document.activeElement;
-      if (typeof dialog.showModal === 'function') {
-        if (!dialog.open) dialog.showModal();
-      } else {
-        dialog.setAttribute('open', '');
-      }
-      cancelRef.current?.focus();
-    } else {
-      if (typeof dialog.close === 'function') {
-        if (dialog.open) dialog.close();
-      } else {
-        dialog.removeAttribute('open');
-      }
-      if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
-    }
-  }, [open]);
-
-  function handleNativeCancel(e: SyntheticEvent<HTMLDialogElement>) {
-    // Fires on Escape while a real `showModal()`-opened dialog has focus. Always prevented: the
-    // effect above is the single source of truth for open/closed (driven by `open`), so
-    // letting the browser close the element on its own would desync DOM state from React state.
-    // Escape still closes the dialog — it just does so by routing through `onCancel`, same as a
-    // Cancel-button click, so the caller's `open` state (and therefore this same effect) is what
-    // actually calls `dialog.close()`.
-    e.preventDefault();
-    if (pending) return;
-    onCancel();
-  }
-
-  function handleBackdropClick(e: MouseEvent<HTMLDialogElement>) {
-    // A `<dialog>` element's own box is sized to its content, not the viewport — a click that lands
-    // on the `<dialog>` element itself (as opposed to one of its children) is therefore a click on
-    // the backdrop area outside that content box.
-    if (pending) return;
-    if (e.target === dialogRef.current) onCancel();
-  }
-
-  return { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick };
-}
 
 /**
  * Controlled modal confirm — renders the `<dialog>` markup and delegates its open/close and focus

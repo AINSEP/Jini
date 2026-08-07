@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { ConfirmDialog } from '../../components/ConfirmDialog.js';
+import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
 
 function renderDialog(props: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) {
   const onConfirm = vi.fn();
