@@ -41,27 +41,32 @@ export interface ConfirmDialogProps {
   pending?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Injectable seam for the dialog's open/close and focus-management hook. Defaults to the real
+   *  {@link useConfirmDialog}; a test can pass a fake here to exercise `ConfirmDialog`'s rendering
+   *  without invoking the native `<dialog>` methods or DOM focus calls at all. */
+  useDialog?: typeof useConfirmDialog;
 }
 
 const DEFAULT_CANCEL_LABEL = 'Cancel';
 
 /**
- * Controlled modal confirm. The caller keeps this mounted and toggles `open` — it is never
- * conditionally rendered by its parent — so the effect below has a stable `<dialog>` element to
- * call `showModal()`/`close()` on and to restore focus through when it closes.
+ * Owns the `<dialog>` element's open/close lifecycle and focus management for `ConfirmDialog`,
+ * kept as a separate hook (rather than inline in the component body) so it can be swapped for a
+ * fake via the `useDialog` prop on `ConfirmDialogProps` — see that prop's doc comment.
+ *
+ * The caller keeps `ConfirmDialog` mounted and toggles `open` — it is never conditionally rendered
+ * by its parent — so the effect below has a stable `<dialog>` element to call `showModal()`/
+ * `close()` on and to restore focus through when it closes.
  *
  * Focus moves to the *cancel* action on open, not confirm — an operator whose first keystroke after
- * a slow read-through is Enter should land on the safe action, not the destructive one. Both
- * actions are plain `type="button"` (no `<form method="dialog">`, no `type="submit"`), so there is
- * no browser-assigned "default button" for Enter to reach for at all; confirm can only ever fire
- * from an explicit click or explicit Tab-then-Enter onto it.
+ * a slow read-through is Enter should land on the safe action, not the destructive one.
  *
  * @complexity O(1) per open/close transition — one `showModal`/`close` call and one focus move.
  */
-export function ConfirmDialog(props: ConfirmDialogProps) {
+export function useConfirmDialog(open: boolean, pending: boolean | undefined, onCancel: () => void) {
   // `useId()`, not a string literal — a hardcoded id breaks the moment a screen mounts two
   // `ConfirmDialog`s at once (a delete-role and a delete-policy confirm on one page, both
-  // stay-mounted/toggle-`open` per this component's own doc comment above): two `<h2>`s share one
+  // stay-mounted/toggle-`open` per this hook's own doc comment above): two `<h2>`s share one
   // id, and `aria-labelledby` resolves via `getElementById`, which always returns the FIRST match
   // in document order regardless of which dialog is actually open — a screen reader announcing
   // "Delete role?" while the operator is about to confirm "Delete policy?", on a destructive
@@ -79,7 +84,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
-    if (props.open) {
+    if (open) {
       triggerRef.current = document.activeElement;
       if (typeof dialog.showModal === 'function') {
         if (!dialog.open) dialog.showModal();
@@ -95,27 +100,46 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
       }
       if (triggerRef.current instanceof HTMLElement) triggerRef.current.focus();
     }
-  }, [props.open]);
+  }, [open]);
 
   function handleNativeCancel(e: SyntheticEvent<HTMLDialogElement>) {
     // Fires on Escape while a real `showModal()`-opened dialog has focus. Always prevented: the
-    // effect above is the single source of truth for open/closed (driven by `props.open`), so
+    // effect above is the single source of truth for open/closed (driven by `open`), so
     // letting the browser close the element on its own would desync DOM state from React state.
     // Escape still closes the dialog — it just does so by routing through `onCancel`, same as a
     // Cancel-button click, so the caller's `open` state (and therefore this same effect) is what
     // actually calls `dialog.close()`.
     e.preventDefault();
-    if (props.pending) return;
-    props.onCancel();
+    if (pending) return;
+    onCancel();
   }
 
   function handleBackdropClick(e: MouseEvent<HTMLDialogElement>) {
     // A `<dialog>` element's own box is sized to its content, not the viewport — a click that lands
     // on the `<dialog>` element itself (as opposed to one of its children) is therefore a click on
     // the backdrop area outside that content box.
-    if (props.pending) return;
-    if (e.target === dialogRef.current) props.onCancel();
+    if (pending) return;
+    if (e.target === dialogRef.current) onCancel();
   }
+
+  return { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick };
+}
+
+/**
+ * Controlled modal confirm — renders the `<dialog>` markup and delegates its open/close and focus
+ * lifecycle to {@link useConfirmDialog} (injectable via the `useDialog` prop, defaulted to the real
+ * implementation, so a test can supply a fake without mocking modules).
+ *
+ * Both actions are plain `type="button"` (no `<form method="dialog">`, no `type="submit"`), so there
+ * is no browser-assigned "default button" for Enter to reach for at all; confirm can only ever fire
+ * from an explicit click or explicit Tab-then-Enter onto it.
+ */
+export function ConfirmDialog({ useDialog = useConfirmDialog, ...props }: ConfirmDialogProps) {
+  const { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick } = useDialog(
+    props.open,
+    props.pending,
+    props.onCancel,
+  );
 
   return (
     <dialog

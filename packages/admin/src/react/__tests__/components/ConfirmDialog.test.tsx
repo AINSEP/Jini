@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfirmDialog } from '../../components/ConfirmDialog.js';
 
@@ -185,5 +185,40 @@ describe('ConfirmDialog tone', () => {
     const { onConfirm } = renderDialog();
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
     expect(onConfirm).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ConfirmDialog dialog-hook injection', () => {
+  it('renders purely off an injected fake, proving useConfirmDialog is not hardcoded', () => {
+    // A fake that never touches showModal/close/focus at all — if ConfirmDialog rendered off
+    // anything other than what this hook returns (e.g. called the real useConfirmDialog itself
+    // somewhere internally), the title id and click routing below would come from that instead.
+    const fakeHandleBackdropClick = vi.fn();
+    function useFakeDialog() {
+      const dialogRef = useRef<HTMLDialogElement>(null);
+      const cancelRef = useRef<HTMLButtonElement>(null);
+      return {
+        titleId: 'fake-title-id',
+        dialogRef,
+        cancelRef,
+        handleNativeCancel: vi.fn(),
+        handleBackdropClick: fakeHandleBackdropClick,
+      };
+    }
+
+    const { onCancel } = renderDialog({ useDialog: useFakeDialog });
+
+    // `hidden: true`: the fake never sets the `open` attribute the real hook would, so the
+    // accessibility tree treats this `<dialog>`'s content as hidden — a detail of this fake, not
+    // of the seam under test, so it's opted around here rather than replicated in the fake.
+    const heading = screen.getByRole('heading', { name: 'Delete post?', hidden: true });
+    expect(heading).toHaveAttribute('id', 'fake-title-id');
+    expect(dialog()).toHaveAttribute('aria-labelledby', 'fake-title-id');
+
+    // Backdrop click is routed through the fake's handler, not the real one — the real onCancel
+    // prop is never called directly by the component.
+    fireEvent.click(dialog());
+    expect(fakeHandleBackdropClick).toHaveBeenCalledOnce();
+    expect(onCancel).not.toHaveBeenCalled();
   });
 });
