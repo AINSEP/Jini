@@ -43,8 +43,8 @@ export type { ConfirmDialogProps } from './components/ConfirmDialog/ConfirmDialo
 export { DataTable } from './components/DataTable.js';
 export type { DataTableColumn, DataTableProps } from './components/DataTable.js';
 
-export { RowMenu } from './components/RowMenu.js';
-export type { RowMenuItem, RowMenuProps } from './components/RowMenu.js';
+export { RowMenu } from './components/RowMenu/RowMenu.js';
+export type { RowMenuItem, RowMenuProps } from './components/RowMenu/RowMenu.js';
 
 // Compound: `Sidebar.MobileHeader`, `.Nav`, `.Footer`, `.RailToggle` hang off the root. `useSidebar`
 // is exported so a host's own control (a log-out button, a workspace switcher) can read the rail

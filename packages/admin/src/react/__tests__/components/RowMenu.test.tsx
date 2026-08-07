@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
+import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { RowMenu, type RowMenuItem } from '../../components/RowMenu.js';
+import { RowMenu, type RowMenuItem } from '../../components/RowMenu/RowMenu.js';
 
 function items(overrides: Partial<RowMenuItem>[] = []): RowMenuItem[] {
   const base: RowMenuItem[] = [
@@ -230,5 +231,48 @@ describe('RowMenu positioning', () => {
     expect(removeSpy.mock.calls.some(([type]) => type === 'scroll')).toBe(true);
     expect(removeSpy.mock.calls.some(([type]) => type === 'resize')).toBe(true);
     vi.restoreAllMocks();
+  });
+});
+
+describe('RowMenu hook injection', () => {
+  it('renders purely off an injected fake, proving useRowMenu is not hardcoded', () => {
+    // A fake that force-opens with a fixed position and spy handlers — none of the real
+    // click/keyboard-driven state or `getBoundingClientRect` math runs at all. If `RowMenu`
+    // rendered off anything other than what this hook returns, the assertions below would come
+    // from the real state instead.
+    const fakeOnTriggerClick = vi.fn();
+    const fakeSelectItem = vi.fn();
+    function useFakeRowMenu() {
+      const triggerRef = useRef<HTMLButtonElement>(null);
+      const menuRef = useRef<HTMLDivElement>(null);
+      const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+      return {
+        open: true,
+        position: { top: 42, left: 7, placement: 'above' as const },
+        triggerRef,
+        menuRef,
+        itemRefs,
+        onTriggerClick: fakeOnTriggerClick,
+        onTriggerKeyDown: vi.fn(),
+        onMenuKeyDown: vi.fn(),
+        selectItem: fakeSelectItem,
+      };
+    }
+
+    const list = items();
+    render(<RowMenu items={list} triggerLabel='Actions for "My Post"' useRowMenu={useFakeRowMenu} />);
+
+    // Open from mount, with the fake's fixed 'above' position, though no click ever happened.
+    const menu = screen.getByRole('menu');
+    expect(menu.style.top).toBe('42px');
+    expect(menu.style.left).toBe('7px');
+    expect(menu.className).toContain('row-menu-popup-above');
+
+    // Trigger click and item click are routed through the fake's handlers, not real state.
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for "My Post"' }));
+    expect(fakeOnTriggerClick).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
+    expect(fakeSelectItem).toHaveBeenCalledWith(list[0]?.onSelect);
   });
 });
