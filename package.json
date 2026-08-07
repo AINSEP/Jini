@@ -13,7 +13,8 @@
     "playground:desktop": "pnpm --filter @jini-app/reference-desktop run build && pnpm --filter @jini-app/reference-desktop run dev",
     "typecheck": "pnpm -r --if-present run typecheck && tsc -p scripts/tsconfig.json --noEmit",
     "changeset": "changeset",
-    "complexity": "eslint --no-error-on-unmatched-pattern ."
+    "complexity": "eslint --no-error-on-unmatched-pattern .",
+    "complexity:strict": "eslint --no-error-on-unmatched-pattern --rule 'complexity: [\"error\", 10]' --rule 'sonarjs/cognitive-complexity: [\"error\", 10]'"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.1",

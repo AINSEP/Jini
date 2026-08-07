@@ -266,6 +266,162 @@ function terminalStateFromEndEntry(entry: EventLogEntry): { state: TerminalRunOu
   return { state, resumable: entry.data.resumable === true };
 }
 
+// ---------------------------------------------------------------------------
+// start()/stream() phase helpers
+//
+// `start()` and `stream()` were each over the complexity gate (cyclomatic 12/13,
+// cognitive 12/12). Both are broken up the same way: pure/near-pure pieces with
+// real branching extracted to named, independently-testable top-level functions
+// (typed against plain object shapes rather than the private `RunRecord`, so
+// they can be exported without leaking that internal type), leaving each method
+// itself a flat sequence with only its two or three irreducible guard clauses.
+// ---------------------------------------------------------------------------
+
+/**
+ * `start()`'s idempotency-replay lookup: the run id an existing `idempotencyKey` already maps to,
+ * or `undefined` when there is no key or no existing mapping (a fresh start proceeds normally).
+ * Pure.
+ */
+export function resolveIdempotentReplayRunId(
+  idempotencyIndex: ReadonlyMap<string, string>,
+  idempotencyKey: string | undefined,
+): string | undefined {
+  if (idempotencyKey === undefined) return undefined;
+  return idempotencyIndex.get(idempotencyKey);
+}
+
+/** Registers `runId` under `idempotencyKey` in `idempotencyIndex` — a no-op when no key was supplied. */
+export function registerIdempotencyKeyIfPresent(
+  idempotencyIndex: Map<string, string>,
+  idempotencyKey: string | undefined,
+  runId: string,
+): void {
+  if (idempotencyKey === undefined) return;
+  idempotencyIndex.set(idempotencyKey, runId);
+}
+
+/**
+ * Removes `idempotencyKey`'s mapping from `idempotencyIndex`, but only when it still points at
+ * `runId` — used to roll back a failed durable `'start'` append without clobbering a different
+ * run that may have since claimed the same key (defensive; `start()`'s own locking makes that
+ * race unreachable today, but the check costs nothing and documents the invariant).
+ */
+export function clearIdempotencyIndexEntryIfMatching(
+  idempotencyIndex: Map<string, string>,
+  idempotencyKey: string | undefined,
+  runId: string,
+): void {
+  if (idempotencyKey !== undefined && idempotencyIndex.get(idempotencyKey) === runId) {
+    idempotencyIndex.delete(idempotencyKey);
+  }
+}
+
+/** The durable `'start'` entry's payload — pure field mapping, split out of `start()` so its two optional-field spreads don't count toward that method's own complexity. */
+export function buildStartPayload(
+  runId: string,
+  startInput: Pick<StartRunInput, 'contextRef' | 'agentId' | 'idempotencyKey'>,
+): RunStartPayload {
+  return {
+    runId,
+    contextRef: startInput.contextRef,
+    ...(startInput.agentId !== undefined ? { agentId: startInput.agentId } : {}),
+    ...(startInput.idempotencyKey !== undefined ? { idempotencyKey: startInput.idempotencyKey } : {}),
+  };
+}
+
+/**
+ * Arms `record.watchdog` when `timeoutMs` is configured — a no-op otherwise. `record` is typed as a
+ * plain `{watchdog}` shape (not `Pick<RunRecord, 'watchdog'>`) purely so this function can be
+ * exported without naming the private `RunRecord` type in a public signature.
+ */
+export function armWatchdogIfConfigured(
+  record: { watchdog: InactivityWatchdog | undefined },
+  timeoutMs: number | undefined,
+  onTimeout: () => void,
+): void {
+  if (timeoutMs === undefined) return;
+  record.watchdog = createInactivityWatchdog({ timeoutMs, onTimeout });
+}
+
+/**
+ * `stream()`'s replay-delivery step: sends every already-durable entry to `onEvent`, returning the
+ * delivered eventIds so a caller can avoid re-delivering the same event from a different source
+ * (buffered live events observed during the replay, a terminal catch-up event). Pure aside from
+ * calling the injected `onEvent`.
+ */
+export function deliverReplayedEvents(
+  runId: string,
+  entries: readonly EventLogEntry[],
+  onEvent: (event: RunProtocolEvent) => void,
+): Set<string> {
+  const deliveredEventIds = new Set<string>();
+  for (const entry of entries) {
+    const event = toRunEvent(runId, entry);
+    deliveredEventIds.add(event.eventId);
+    onEvent(event);
+  }
+  return deliveredEventIds;
+}
+
+/**
+ * Delivers every event in `events` not already present in `deliveredEventIds`, marking each as
+ * delivered as it goes. Reused in `stream()` for both the buffered-live-event catch-up and the
+ * single terminal-event catch-up, so the "don't double-deliver" bookkeeping lives in one place.
+ */
+export function deliverUndeliveredEvents(
+  events: readonly RunProtocolEvent[],
+  deliveredEventIds: Set<string>,
+  onEvent: (event: RunProtocolEvent) => void,
+): void {
+  for (const event of events) {
+    if (!deliveredEventIds.has(event.eventId)) {
+      deliveredEventIds.add(event.eventId);
+      onEvent(event);
+    }
+  }
+}
+
+/**
+ * Closes out a `stream()` subscription once replay and catch-up delivery are done: a terminal run's
+ * subscriber is removed immediately (no further event will ever come), a still-live run's stays
+ * registered behind the returned `unsubscribe`. `record` is typed as a plain `{subscribers}` shape
+ * for the same exportability reason as {@link armWatchdogIfConfigured}.
+ */
+export function finishStreamSubscription(
+  record: { subscribers: Set<(event: RunProtocolEvent) => void> },
+  subscriber: (event: RunProtocolEvent) => void,
+  terminal: boolean,
+): StreamSubscribeResult {
+  if (terminal) {
+    record.subscribers.delete(subscriber);
+    return { kind: 'ok', unsubscribe: () => {} };
+  }
+  return { kind: 'ok', unsubscribe: () => record.subscribers.delete(subscriber) };
+}
+
+/**
+ * Constructs a fresh in-memory `RunRecord` for a new `start()` call. Pure field mapping with no
+ * branches at all — not exported (would leak the private `RunRecord` type), kept as a named
+ * function purely so `start()` itself reads as "build the record, register it" rather than an
+ * 11-field literal inline.
+ */
+function buildNewRunRecord(startInput: Pick<StartRunInput, 'contextRef'>, runId: string, now: number): RunRecord {
+  return {
+    contextRef: startInput.contextRef,
+    status: { id: runId, state: 'running', startedAt: now, updatedAt: now, endedAt: undefined },
+    resumable: false,
+    cancelRequested: false,
+    lastCancelRequest: undefined,
+    cancelListeners: new Set(),
+    subscribers: new Set(),
+    terminalWaiters: [],
+    terminalEndEntry: undefined,
+    watchdog: undefined,
+    startPromise: undefined,
+    finishPromise: undefined,
+  };
+}
+
 export interface CreateRunLifecycleInput {
   readonly eventLog: EventLog;
   /** Host-owned sink for asynchronous lifecycle failures that cannot be returned to a caller. Defaults to `console.error`. */
@@ -322,6 +478,21 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     const runEvent = toRunEvent(runId, entry);
     notifySubscribers(record, runEvent);
     return runEvent;
+  }
+
+  /** `start()`'s phase 2: appends the durable `'start'` entry, rolling back the in-memory record and idempotency-index entry on failure. */
+  async function appendStartOrRollback(runId: string, record: RunRecord, startInput: StartRunInput): Promise<void> {
+    const startPayload = buildStartPayload(runId, startInput);
+    const startPromise = appendEvent(runId, record, 'start', startPayload).then(() => undefined);
+    record.startPromise = startPromise;
+    try {
+      await startPromise;
+      record.startPromise = undefined;
+    } catch (error) {
+      runs.delete(runId);
+      clearIdempotencyIndexEntryIfMatching(idempotencyIndex, startInput.idempotencyKey, runId);
+      throw error;
+    }
   }
 
   /**
@@ -437,13 +608,18 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     },
 
     async start(startInput: StartRunInput): Promise<StartRunResult> {
-      if (startInput.idempotencyKey !== undefined) {
-        const existingRunId = idempotencyIndex.get(startInput.idempotencyKey);
-        if (existingRunId) {
-          const existing = requireRun(existingRunId);
-          await existing.startPromise;
-          return { run: toPublicStatus(existing), started: false };
-        }
+      // Synchronous on purpose: `resolveIdempotentReplayRunId` does no I/O, and the common case
+      // (no idempotencyKey, or a fresh one) must reach `runs.set()` below in the same synchronous
+      // turn as this call — not after even one microtask tick — so a caller that races `finish()`
+      // in immediately after `start()` (before ever awaiting it) still finds the record `finish()`
+      // needs. Wrapping this check in its own `await`ed async function previously broke exactly
+      // that: an `async function` always defers its continuation by a microtask even when its body
+      // never itself awaits, which shifted `runs.set()` behind the racing `finish()` call.
+      const existingRunId = resolveIdempotentReplayRunId(idempotencyIndex, startInput.idempotencyKey);
+      if (existingRunId !== undefined) {
+        const existing = requireRun(existingRunId);
+        await existing.startPromise;
+        return { run: toPublicStatus(existing), started: false };
       }
 
       const runId = startInput.runId ?? randomUUID();
@@ -451,56 +627,15 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         throw new Error(`RunLifecycle: run "${runId}" already exists`);
       }
 
-      const now = Date.now();
-      const record: RunRecord = {
-        contextRef: startInput.contextRef,
-        status: { id: runId, state: 'running', startedAt: now, updatedAt: now, endedAt: undefined },
-        resumable: false,
-        cancelRequested: false,
-        lastCancelRequest: undefined,
-        cancelListeners: new Set(),
-        subscribers: new Set(),
-        terminalWaiters: [],
-        terminalEndEntry: undefined,
-        watchdog: undefined,
-        startPromise: undefined,
-        finishPromise: undefined,
-      };
+      const record = buildNewRunRecord(startInput, runId, Date.now());
       runs.set(runId, record);
-      if (startInput.idempotencyKey !== undefined) {
-        idempotencyIndex.set(startInput.idempotencyKey, runId);
-      }
+      registerIdempotencyKeyIfPresent(idempotencyIndex, startInput.idempotencyKey, runId);
 
-      const startPayload: RunStartPayload = {
-        runId,
-        contextRef: startInput.contextRef,
-        ...(startInput.agentId !== undefined ? { agentId: startInput.agentId } : {}),
-        ...(startInput.idempotencyKey !== undefined ? { idempotencyKey: startInput.idempotencyKey } : {}),
-      };
-      const startPromise = appendEvent(runId, record, 'start', startPayload).then(() => undefined);
-      record.startPromise = startPromise;
-      try {
-        await startPromise;
-        record.startPromise = undefined;
-      } catch (error) {
-        runs.delete(runId);
-        if (
-          startInput.idempotencyKey !== undefined &&
-          idempotencyIndex.get(startInput.idempotencyKey) === runId
-        ) {
-          idempotencyIndex.delete(startInput.idempotencyKey);
-        }
-        throw error;
-      }
+      await appendStartOrRollback(runId, record, startInput);
 
-      if (startInput.inactivityTimeoutMs !== undefined) {
-        record.watchdog = createInactivityWatchdog({
-          timeoutMs: startInput.inactivityTimeoutMs,
-          onTimeout: () => {
-            void handleInactivityTimeout(runId);
-          },
-        });
-      }
+      armWatchdogIfConfigured(record, startInput.inactivityTimeoutMs, () => {
+        void handleInactivityTimeout(runId);
+      });
 
       return { run: toPublicStatus(record), started: true };
     },
@@ -674,36 +809,16 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
           record.subscribers.delete(subscriber);
           return replay;
         }
-        const deliveredEventIds = new Set<string>();
-        for (const entry of replay.entries) {
-          const event = toRunEvent(runId, entry);
-          deliveredEventIds.add(event.eventId);
-          onEvent(event);
-        }
-
-        for (const event of bufferedLiveEvents) {
-          if (!deliveredEventIds.has(event.eventId)) {
-            deliveredEventIds.add(event.eventId);
-            onEvent(event);
-          }
-        }
+        const deliveredEventIds = deliverReplayedEvents(runId, replay.entries, onEvent);
+        deliverUndeliveredEvents(bufferedLiveEvents, deliveredEventIds, onEvent);
         replaying = false;
 
         const terminal = isTerminalRunState(record.status.state);
         if (terminal && record.terminalEndEntry) {
-          const terminalEvent = toRunEvent(runId, record.terminalEndEntry);
-          if (!deliveredEventIds.has(terminalEvent.eventId)) {
-            deliveredEventIds.add(terminalEvent.eventId);
-            onEvent(terminalEvent);
-          }
+          deliverUndeliveredEvents([toRunEvent(runId, record.terminalEndEntry)], deliveredEventIds, onEvent);
         }
 
-        if (terminal) {
-          record.subscribers.delete(subscriber);
-          return { kind: 'ok', unsubscribe: () => {} };
-        }
-
-        return { kind: 'ok', unsubscribe: () => record.subscribers.delete(subscriber) };
+        return finishStreamSubscription(record, subscriber, terminal);
       } catch (error) {
         // Subscription is installed before durable replay to close the replay→live race. Any
         // replay I/O or consumer callback failure must therefore remove it before propagating.

@@ -265,7 +265,7 @@ const BATCH_ID_PATTERN = /^[a-zA-Z0-9-]{8,80}$/u;
 /** Bytes of leading signature `detectAttachmentKind` needs (WEBP's marker ends at byte 12). */
 const SIGNATURE_BYTES = 12;
 
-interface AttachmentRecord {
+export interface AttachmentRecord {
   id: string;
   filePath: string;
   name: string;
@@ -328,6 +328,88 @@ export function isUnchangedAttachment(
     && observed.size === recorded.size;
 }
 
+/**
+ * Phase 1 of `claim()`: synchronously reserves `attachments` for `runId`, or throws (releasing
+ * whatever it already reserved this call) the first time a requested attachment turns out to be
+ * unknown or already claimed.
+ *
+ * The reservation loop deliberately has no `await`: this store's exactly-once guarantee is what
+ * stops two runs being handed the same real path on disk, and `claim` is reachable concurrently
+ * (two run starts, one shared attachment). Nothing between `records.get` and the assignment of
+ * `record.claimedRunId` may ever become asynchronous — that window is exactly where a concurrent
+ * call would get its turn and could observe the same record as still unclaimed.
+ *
+ * Exported so this invariant can be exercised directly against a plain `Map` of fabricated
+ * records, without going through a disk-backed store.
+ */
+export function reserveAttachmentRecords(
+  attachments: readonly StoredAttachment[],
+  records: ReadonlyMap<string, AttachmentRecord>,
+  runId: string,
+  maxAttachments: number,
+): AttachmentRecord[] {
+  if (attachments.length > maxAttachments) {
+    throw new AttachmentRejectedError('too-many-attachments', 'Too many attachments');
+  }
+  const requestedPaths = new Set(attachments.map((attachment) => attachment.path));
+  if (requestedPaths.size !== attachments.length) {
+    throw new AttachmentRejectedError('duplicate-attachment', 'Duplicate attachment');
+  }
+  const claimed: AttachmentRecord[] = [];
+  for (const requested of attachments) {
+    const record = records.get(requested.path);
+    if (!record || record.claimedRunId !== undefined) {
+      for (const reserved of claimed) delete reserved.claimedRunId;
+      throw new AttachmentRejectedError(
+        'attachment-unknown-or-claimed',
+        'Attachment is unknown or already claimed',
+      );
+    }
+    record.claimedRunId = runId;
+    claimed.push(record);
+  }
+  return claimed;
+}
+
+/**
+ * Phase 2 of `claim()`: re-verifies every already-reserved record against the filesystem — not
+ * merely re-read, but re-checked against what registration recorded, so someone able to write into
+ * the batch directory between upload and run start cannot get the agent to read a file of their
+ * choosing — and checks every claimed attachment shares one batch. Returns the shared batch
+ * directory on success (or `''` for an empty `claimed`, which `claim()` never passes in — it
+ * returns before calling this — but which a direct caller can still treat as "no batch").
+ *
+ * Throws without releasing `claimed`'s reservations; releasing is the caller's job (`claim`'s own
+ * `catch`), so a rejected claim still leaves nothing half-claimed and the caller can retry with a
+ * corrected set.
+ *
+ * Exported so the integrity and mixed-batch checks can be exercised directly against fabricated
+ * records over real files on disk, without a full `createDiskAttachmentStore` around them.
+ */
+export async function verifyClaimedAttachments(
+  claimed: readonly AttachmentRecord[],
+): Promise<string> {
+  let batchDirectory = '';
+  for (const [index, record] of claimed.entries()) {
+    const info = await lstat(record.filePath);
+    const canonicalPath = await realpath(record.filePath);
+    if (!isUnchangedAttachment(record, {
+      isRegularFile: info.isFile(),
+      dev: info.dev,
+      ino: info.ino,
+      size: info.size,
+      canonicalPath,
+    })) {
+      throw new AttachmentRejectedError('attachment-integrity', 'Attachment changed after upload');
+    }
+    if (index > 0 && record.batchDirectory !== batchDirectory) {
+      throw new AttachmentRejectedError('mixed-batch', 'Attachments must belong to one batch');
+    }
+    batchDirectory = record.batchDirectory;
+  }
+  return batchDirectory;
+}
+
 /** Renders a byte cap the way a person would read it, for a message a user actually sees. */
 function formatByteLimit(bytes: number): string {
   const megabytes = bytes / (1024 * 1024);
@@ -343,6 +425,44 @@ export function sanitizeAttachmentName(requestedName: unknown): string {
   return basename(requestedName).replaceAll(/[^a-zA-Z0-9._ -]/gu, '_') || 'attachment';
 }
 
+/** `true` when `body`'s first 8 bytes are the PNG signature. */
+export function hasPngSignature(body: Uint8Array): boolean {
+  return body.length >= 8
+    && body[0] === 0x89
+    && body[1] === 0x50
+    && body[2] === 0x4e
+    && body[3] === 0x47;
+}
+
+/** `true` when `body`'s first 3 bytes are the JPEG start-of-image marker. */
+export function hasJpegSignature(body: Uint8Array): boolean {
+  return body.length >= 3
+    && body[0] === 0xff
+    && body[1] === 0xd8
+    && body[2] === 0xff;
+}
+
+/** `true` when `body`'s first 6 bytes spell either GIF version tag. */
+export function hasGifSignature(body: Uint8Array): boolean {
+  const signature = new TextDecoder().decode(body.slice(0, 6));
+  return signature === 'GIF87a' || signature === 'GIF89a';
+}
+
+/** `true` when `body` opens with a RIFF container whose form type is WEBP. */
+export function hasWebpSignature(body: Uint8Array): boolean {
+  return body.length >= 12
+    && new TextDecoder().decode(body.slice(0, 4)) === 'RIFF'
+    && new TextDecoder().decode(body.slice(8, 12)) === 'WEBP';
+}
+
+/** Every recognized image signature, checked in this order until one matches. */
+const IMAGE_SIGNATURE_MATCHERS: readonly ((body: Uint8Array) => boolean)[] = [
+  hasPngSignature,
+  hasJpegSignature,
+  hasGifSignature,
+  hasWebpSignature,
+];
+
 /**
  * Infers `'image'` from the leading bytes rather than from a renderer-controlled MIME type or file
  * extension. PNG, JPEG, GIF87a/89a, and WEBP are recognized; everything else is `'file'`.
@@ -351,21 +471,7 @@ export function sanitizeAttachmentName(requestedName: unknown): string {
  * a renderer assert it would let a renderer choose how the agent runtime parses the bytes.
  */
 export function detectAttachmentKind(body: Uint8Array): StoredAttachment['kind'] {
-  const isPng = body.length >= 8
-    && body[0] === 0x89
-    && body[1] === 0x50
-    && body[2] === 0x4e
-    && body[3] === 0x47;
-  const isJpeg = body.length >= 3
-    && body[0] === 0xff
-    && body[1] === 0xd8
-    && body[2] === 0xff;
-  const signature = new TextDecoder().decode(body.slice(0, 6));
-  const isGif = signature === 'GIF87a' || signature === 'GIF89a';
-  const isWebp = body.length >= 12
-    && new TextDecoder().decode(body.slice(0, 4)) === 'RIFF'
-    && new TextDecoder().decode(body.slice(8, 12)) === 'WEBP';
-  return isPng || isJpeg || isGif || isWebp ? 'image' : 'file';
+  return IMAGE_SIGNATURE_MATCHERS.some((matchesSignature) => matchesSignature(body)) ? 'image' : 'file';
 }
 
 /**
@@ -586,86 +692,27 @@ export async function createDiskAttachmentStore({
 
     async claim(attachments, runId) {
       if (attachments.length === 0) return { attachments: [] };
-      if (attachments.length > maxAttachments) {
-        throw new AttachmentRejectedError('too-many-attachments', 'Too many attachments');
-      }
-      const requestedPaths = new Set(attachments.map((attachment) => attachment.path));
-      if (requestedPaths.size !== attachments.length) {
-        throw new AttachmentRejectedError('duplicate-attachment', 'Duplicate attachment');
-      }
-      // Phase 1 — reserve, synchronously. The check and the write must not be separated by an
-      // `await`: this store's exactly-once guarantee is what stops two runs being handed the same
-      // real path on disk, and `claim` is reachable concurrently (two run starts, one shared
-      // attachment). Validating first and marking afterwards left the whole `lstat`/`realpath`
-      // window open for a second claim to observe the same record as unclaimed and be fulfilled
-      // too. Being single-threaded is not protection here — `await` is exactly where the other
-      // call gets its turn. Nothing between the `records.get` and the assignment below may ever
-      // become asynchronous.
-      const claimed: AttachmentRecord[] = [];
-      const releaseReservations = (): void => {
-        for (const record of claimed) delete record.claimedRunId;
-      };
-      for (const requested of attachments) {
-        const record = records.get(requested.path);
-        if (!record || record.claimedRunId !== undefined) {
-          releaseReservations();
-          throw new AttachmentRejectedError(
-            'attachment-unknown-or-claimed',
-            'Attachment is unknown or already claimed',
-          );
-        }
-        record.claimedRunId = runId;
-        claimed.push(record);
-      }
-
-      // Phase 2 — validate what is now held exclusively. Any failure releases the whole
-      // reservation, so a rejected claim still leaves nothing half-claimed and the caller can
-      // retry with a corrected set — the same guarantee the previous ordering provided, now
-      // without the window. Only reservations made by *this* call are released, so a concurrent
-      // winner's claim is never revoked by a loser's rollback.
-      // Overwritten on the first iteration, which always runs — `attachments` is non-empty by the
-      // early return above — so the initial value is never the one returned.
-      let batchDirectory = '';
+      // Phase 1 (`reserveAttachmentRecords`) reserves synchronously; Phase 2
+      // (`verifyClaimedAttachments`) re-validates what is now held exclusively. Any Phase 2 failure
+      // releases the whole reservation here, so a rejected claim still leaves nothing half-claimed
+      // and the caller can retry with a corrected set. Only reservations made by *this* call are
+      // released, so a concurrent winner's claim is never revoked by a loser's rollback.
+      const claimed = reserveAttachmentRecords(attachments, records, runId, maxAttachments);
       try {
-        for (const [index, record] of claimed.entries()) {
-          // Re-verified against what registration recorded, not merely re-read: someone able to
-          // write into the batch directory between upload and run start would otherwise get the
-          // agent to read a file of their choosing.
-          const info = await lstat(record.filePath);
-          const canonicalPath = await realpath(record.filePath);
-          if (!isUnchangedAttachment(record, {
-            isRegularFile: info.isFile(),
-            dev: info.dev,
-            ino: info.ino,
-            size: info.size,
-            canonicalPath,
-          })) {
-            throw new AttachmentRejectedError(
-              'attachment-integrity',
-              'Attachment changed after upload',
-            );
-          }
-          if (index > 0 && record.batchDirectory !== batchDirectory) {
-            throw new AttachmentRejectedError(
-              'mixed-batch',
-              'Attachments must belong to one batch',
-            );
-          }
-          batchDirectory = record.batchDirectory;
-        }
+        const batchDirectory = await verifyClaimedAttachments(claimed);
+        return {
+          attachments: claimed.map((record) => ({
+            path: record.filePath,
+            name: record.name,
+            kind: record.kind,
+            size: record.size,
+          })),
+          batchDirectory,
+        };
       } catch (error) {
-        releaseReservations();
+        for (const record of claimed) delete record.claimedRunId;
         throw error;
       }
-      return {
-        attachments: claimed.map((record) => ({
-          path: record.filePath,
-          name: record.name,
-          kind: record.kind,
-          size: record.size,
-        })),
-        batchDirectory,
-      };
     },
 
     async deleteUnclaimed(batchId, paths) {

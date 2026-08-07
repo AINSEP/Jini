@@ -1,9 +1,228 @@
+import type { Dispatch, SetStateAction } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { useConnectorAuthorization } from '../../hooks/useConnectorAuthorization.js';
+import {
+  performConnectorConnect,
+  performConnectorDisconnect,
+  reportThrownConnectorActionFailure,
+  useConnectorAuthorization,
+  withoutKey,
+} from '../../hooks/useConnectorAuthorization.js';
 import { createFakeConnectorsPort } from '../../dependencies.js';
 import type { ConnectorAuthBridgePort, ConnectorAuthPendingStoragePort } from '../../ports.js';
-import type { Connector, ConnectorAuthorizationPendingState } from '../../types.js';
+import type { Connector, ConnectorAuthorizationPendingState, ConnectorAuthResultEvent } from '../../types.js';
+
+describe('withoutKey', () => {
+  it('removes the key when present', () => {
+    expect(withoutKey({ a: 1, b: 2 }, 'a')).toEqual({ b: 2 });
+  });
+
+  it('returns the same reference when the key is already absent', () => {
+    const record = { a: 1 };
+    expect(withoutKey(record, 'missing')).toBe(record);
+  });
+});
+
+/** Minimal `Dispatch<SetStateAction<T>>` fake for directly testing the
+ *  module-level helpers extracted out of the hook's callbacks — no React
+ *  render needed, since these functions only need a setState-shaped
+ *  callback, not an actual component. */
+function fakeSetter<T>(initial: T): { get: () => T; set: Dispatch<SetStateAction<T>> } {
+  let value = initial;
+  return {
+    get: () => value,
+    set: (next) => {
+      value = typeof next === 'function' ? (next as (prev: T) => T)(value) : next;
+    },
+  };
+}
+
+describe('reportThrownConnectorActionFailure', () => {
+  it('reports an Error message via onAuthResult, then rethrows the same error', () => {
+    const onAuthResult = vi.fn();
+    const err = new Error('network down');
+    expect(() => reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'connect' }, { onAuthResult }, err)).toThrow(err);
+    expect(onAuthResult).toHaveBeenCalledWith({ connectorId: 'slack', action: 'connect', result: 'failed', errorCode: 'network down' });
+  });
+
+  it('stringifies a non-Error throw', () => {
+    const onAuthResult = vi.fn();
+    expect(() =>
+      reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'disconnect' }, { onAuthResult }, 'plain failure'),
+    ).toThrow('plain failure');
+    expect(onAuthResult).toHaveBeenCalledWith({
+      connectorId: 'slack',
+      action: 'disconnect',
+      result: 'failed',
+      errorCode: 'plain failure',
+    });
+  });
+
+  it('still rethrows when onAuthResult is not supplied', () => {
+    expect(() => reportThrownConnectorActionFailure({ connectorId: 'slack', action: 'connect' }, {}, new Error('boom'))).toThrow('boom');
+  });
+});
+
+describe('performConnectorConnect', () => {
+  function harness() {
+    return {
+      updateConnector: vi.fn(),
+      onConnectorsChanged: vi.fn(),
+      onAuthResult: vi.fn<(event: ConnectorAuthResultEvent) => void>(),
+      pending: fakeSetter<ConnectorAuthorizationPendingState>({}),
+      authError: fakeSetter<Record<string, string>>({ slack: 'stale-error' }),
+      cancelFailed: fakeSetter<Record<string, boolean>>({ slack: true }),
+    };
+  }
+
+  it('clears pre-existing cancelFailed/authError up front, then on success updates pending and calls onAuthResult', async () => {
+    const h = harness();
+    const port = createFakeConnectorsPort({ connectors: [makeConnector()] });
+    port.connectConnector = vi.fn(async () => ({
+      connector: makeConnector(),
+      auth: { kind: 'redirect_required' as const, redirectUrl: 'https://oauth.example.com', expiresAt: '2099-01-01T00:00:00Z' },
+    }));
+
+    await performConnectorConnect(
+      { connectorId: 'slack', port, updateConnector: h.updateConnector },
+      {
+        onConnectorsChanged: h.onConnectorsChanged,
+        onAuthResult: h.onAuthResult,
+        setPending: h.pending.set,
+        setAuthError: h.authError.set,
+        setCancelFailed: h.cancelFailed.set,
+      },
+    );
+
+    expect(h.cancelFailed.get().slack).toBeUndefined();
+    expect(h.authError.get().slack).toBeUndefined();
+    expect(h.updateConnector).toHaveBeenCalledWith(makeConnector());
+    expect(h.pending.get().slack).toEqual({ expiresAt: '2099-01-01T00:00:00Z', redirectUrl: 'https://oauth.example.com' });
+    expect(h.onAuthResult).toHaveBeenCalledWith({ connectorId: 'slack', action: 'connect', result: 'success' });
+    expect(h.onConnectorsChanged).not.toHaveBeenCalled();
+  });
+
+  it('calls onConnectorsChanged when the connect result already reports connected', async () => {
+    const h = harness();
+    const port = createFakeConnectorsPort({ connectors: [makeConnector()] });
+    port.connectConnector = vi.fn(async () => ({ connector: makeConnector({ status: 'connected' }) }));
+
+    await performConnectorConnect(
+      { connectorId: 'slack', port, updateConnector: h.updateConnector },
+      { onConnectorsChanged: h.onConnectorsChanged, setPending: h.pending.set, setAuthError: h.authError.set, setCancelFailed: h.cancelFailed.set },
+    );
+
+    expect(h.onConnectorsChanged).toHaveBeenCalledTimes(1);
+  });
+
+  it('a resolved failure result clears pending and records the error', async () => {
+    const h = harness();
+    const port = createFakeConnectorsPort({ connectors: [makeConnector()] });
+    port.connectConnector = vi.fn(async () => ({ connector: null, error: 'denied' }));
+
+    await performConnectorConnect(
+      { connectorId: 'slack', port, updateConnector: h.updateConnector },
+      {
+        onAuthResult: h.onAuthResult,
+        setPending: h.pending.set,
+        setAuthError: h.authError.set,
+        setCancelFailed: h.cancelFailed.set,
+      },
+    );
+
+    expect(h.pending.get().slack).toBeUndefined();
+    expect(h.authError.get().slack).toBe('denied');
+    expect(h.onAuthResult).toHaveBeenCalledWith({ connectorId: 'slack', action: 'connect', result: 'failed', errorCode: 'denied' });
+  });
+
+  it('a resolved failure result with no error message omits errorCode and leaves authError untouched', async () => {
+    const h = harness();
+    h.authError = fakeSetter<Record<string, string>>({});
+    const port = createFakeConnectorsPort({ connectors: [makeConnector()] });
+    port.connectConnector = vi.fn(async () => ({ connector: null }));
+
+    await performConnectorConnect(
+      { connectorId: 'slack', port, updateConnector: h.updateConnector },
+      { onAuthResult: h.onAuthResult, setPending: h.pending.set, setAuthError: h.authError.set, setCancelFailed: h.cancelFailed.set },
+    );
+
+    expect(h.authError.get().slack).toBeUndefined();
+    expect(h.onAuthResult).toHaveBeenCalledWith({ connectorId: 'slack', action: 'connect', result: 'failed' });
+  });
+
+  it('propagates a thrown connect error via onAuthResult and rethrows', async () => {
+    const h = harness();
+    const port = createFakeConnectorsPort({ connectors: [makeConnector()] });
+    port.connectConnector = vi.fn(async () => {
+      throw new Error('network down');
+    });
+
+    await expect(
+      performConnectorConnect(
+        { connectorId: 'slack', port, updateConnector: h.updateConnector },
+        { onAuthResult: h.onAuthResult, setPending: h.pending.set, setAuthError: h.authError.set, setCancelFailed: h.cancelFailed.set },
+      ),
+    ).rejects.toThrow('network down');
+
+    expect(h.onAuthResult).toHaveBeenCalledWith({
+      connectorId: 'slack',
+      action: 'connect',
+      result: 'failed',
+      errorCode: 'network down',
+    });
+  });
+});
+
+describe('performConnectorDisconnect', () => {
+  function harness() {
+    return {
+      updateConnector: vi.fn(),
+      onConnectorsChanged: vi.fn(),
+      onAuthResult: vi.fn<(event: ConnectorAuthResultEvent) => void>(),
+      pending: fakeSetter<ConnectorAuthorizationPendingState>({ slack: {} }),
+      authError: fakeSetter<Record<string, string>>({ slack: 'stale-error' }),
+    };
+  }
+
+  it('on success clears pending/authError, updates the connector, and reports success', async () => {
+    const h = harness();
+    const port = createFakeConnectorsPort({ connectors: [makeConnector({ status: 'connected' })] });
+    port.disconnectConnector = vi.fn(async () => makeConnector({ status: 'available' }));
+
+    await performConnectorDisconnect(
+      { connectorId: 'slack', port, updateConnector: h.updateConnector },
+      { onConnectorsChanged: h.onConnectorsChanged, onAuthResult: h.onAuthResult, setPending: h.pending.set, setAuthError: h.authError.set },
+    );
+
+    expect(h.pending.get().slack).toBeUndefined();
+    expect(h.authError.get().slack).toBeUndefined();
+    expect(h.updateConnector).toHaveBeenCalledWith(makeConnector({ status: 'available' }));
+    expect(h.onConnectorsChanged).toHaveBeenCalledTimes(1);
+    expect(h.onAuthResult).toHaveBeenCalledWith({ connectorId: 'slack', action: 'disconnect', result: 'success' });
+  });
+
+  it('propagates a thrown disconnect error via onAuthResult and rethrows', async () => {
+    const h = harness();
+    const port = createFakeConnectorsPort({ connectors: [makeConnector({ status: 'connected' })] });
+    port.disconnectConnector = vi.fn(async () => {
+      throw 'plain disconnect failure';
+    });
+
+    await expect(
+      performConnectorDisconnect(
+        { connectorId: 'slack', port, updateConnector: h.updateConnector },
+        { onAuthResult: h.onAuthResult, setPending: h.pending.set, setAuthError: h.authError.set },
+      ),
+    ).rejects.toBe('plain disconnect failure');
+
+    expect(h.onAuthResult).toHaveBeenCalledWith({
+      connectorId: 'slack',
+      action: 'disconnect',
+      result: 'failed',
+      errorCode: 'plain disconnect failure',
+    });
+  });
+});
 
 function makeConnector(overrides: Partial<Connector> = {}): Connector {
   return { id: 'slack', name: 'Slack', provider: 'Composio', category: 'communication', status: 'available', tools: [], ...overrides };

@@ -290,19 +290,135 @@ interface SingleRequestOutcome {
   readonly text: string;
 }
 
-/** Runs exactly one Gemini `streamGenerateContent` request and reduces its SSE events into a single outcome. Mirrors `anthropic-messages.ts#runSingleAnthropicRequest`'s `emitEnd` contract — see that function's doc. */
-async function runSingleGoogleRequest(
+/** Mutable reduction state threaded through one streaming request's frame handlers (below). Grouped into one object so each handler takes a single parameter instead of several — same convention as `anthropic-messages.ts#AnthropicStreamState`/`openai-chat.ts#OpenAiStreamState`. Exported so a unit test can construct one directly without going through a full `runGoogleToolTurn` call. */
+export interface GoogleStreamState {
+  readonly guard: ReturnType<typeof createRoleMarkerGuard>;
+  readonly toolCalls: GoogleToolCall[];
+  fullText: string;
+  finishReason: string | null;
+  usage: Record<string, unknown> | null;
+}
+
+export function applyGoogleUsage(state: GoogleStreamState, data: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): void {
+  if (!isRecord(data.usageMetadata)) return;
+  state.usage = data.usageMetadata;
+  onEvent({ type: 'usage', usage: state.usage });
+}
+
+/** The frame's first candidate, unnarrowed — `processGoogleFrame` distinguishes "no candidate at all" (checks `promptFeedback` for a blocked-prompt error) from "a candidate that isn't a record" (silently skipped), so this deliberately does not collapse both into one `null`. */
+function firstGoogleCandidate(data: Record<string, unknown>): unknown {
+  const candidates = Array.isArray(data.candidates) ? data.candidates : [];
+  return candidates[0];
+}
+
+/** Checks `data.promptFeedback` for a documented block reason and, if present, emits the `error` event for it (the caller emits `end` — see `processGoogleFrame`). Returns whether the frame loop should stop. */
+export function handleGoogleBlockedPrompt(data: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): boolean {
+  if (!isRecord(data.promptFeedback) || typeof data.promptFeedback.blockReason !== 'string') return false;
+  onEvent({ type: 'error', message: `prompt blocked: ${data.promptFeedback.blockReason}`, code: data.promptFeedback.blockReason });
+  return true;
+}
+
+function googleCandidateParts(candidate: Record<string, unknown>): readonly unknown[] {
+  const content = isRecord(candidate.content) ? candidate.content : null;
+  return content && Array.isArray(content.parts) ? content.parts : [];
+}
+
+/**
+ * Feeds one text part through the role-marker guard and emits the safe portion. Returns `'break'`
+ * once the guard flags contamination (the caller ends the turn immediately), otherwise
+ * `'continue'` — same contract as `anthropic-messages.ts#handleAnthropicTextDelta`.
+ */
+export function handleGoogleTextPart(state: GoogleStreamState, text: string, onEvent: (event: GoogleTurnEvent) => void): 'continue' | 'break' {
+  const safe = state.guard.feedText(text);
+  if (safe.length > 0) {
+    state.fullText += safe;
+    onEvent({ type: 'text_delta', delta: safe });
+  }
+  if (!state.guard.contaminated) return 'continue';
+  const warn = state.guard.warningEvent();
+  if (warn) onEvent(warn);
+  return 'break';
+}
+
+/** `rawPart.functionCall` must already be confirmed a record by the caller. Reads `thoughtSignature` off `rawPart` (a sibling of `functionCall`, not a member of it) — see `GoogleFunctionCallPart.thoughtSignature`'s doc for why only a non-empty string is carried. */
+export function handleGoogleFunctionCallPart(state: GoogleStreamState, rawPart: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): void {
+  const fc = rawPart.functionCall as Record<string, unknown>;
+  const name = typeof fc.name === 'string' ? fc.name : null;
+  if (!name) return;
+  const id = typeof fc.id === 'string' && fc.id.length > 0 ? fc.id : `call_${state.toolCalls.length}`;
+  const signature = typeof rawPart.thoughtSignature === 'string' && rawPart.thoughtSignature.length > 0 ? rawPart.thoughtSignature : undefined;
+  const call: GoogleToolCall = { id, name, input: fc.args ?? {}, ...(signature ? { thoughtSignature: signature } : {}) };
+  state.toolCalls.push(call);
+  onEvent({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
+}
+
+/** Dispatches one part between the text and function-call handlers above. Returns `'break'` once a text part contaminates the guard, else `'continue'`. */
+export function processGoogleRawPart(state: GoogleStreamState, rawPart: unknown, onEvent: (event: GoogleTurnEvent) => void): 'continue' | 'break' {
+  if (!isRecord(rawPart)) return 'continue';
+  if (typeof rawPart.text === 'string' && rawPart.text.length > 0) {
+    return handleGoogleTextPart(state, rawPart.text, onEvent);
+  }
+  if (isRecord(rawPart.functionCall)) {
+    handleGoogleFunctionCallPart(state, rawPart, onEvent);
+  }
+  return 'continue';
+}
+
+/** Dispatches one candidate's `parts` array, one part at a time, via `processGoogleRawPart`. Returns `'break'` once a text part contaminates the guard. */
+function processGoogleParts(state: GoogleStreamState, parts: readonly unknown[], onEvent: (event: GoogleTurnEvent) => void): 'continue' | 'break' {
+  for (const rawPart of parts) {
+    if (processGoogleRawPart(state, rawPart, onEvent) === 'break') return 'break';
+  }
+  return 'continue';
+}
+
+/** One frame's dispatch outcome — `'end'` carries the reason `runSingleGoogleRequest`'s loop passes to `emitEnd`, matching `anthropic-messages.ts#AnthropicFrameOutcome`'s identical split (the low-level handlers below only ever *report* why to stop; only the loop itself calls `emitEnd`, keeping that call in exactly one place). */
+export type GoogleFrameOutcome = { readonly action: 'continue' } | { readonly action: 'end'; readonly reason: GoogleTurnEndReason };
+
+/**
+ * Reduces one already-parsed SSE frame payload into `state`, reporting whether the caller's frame
+ * loop should stop (`'end'`, on either a blocked prompt or guard contamination) or keep going
+ * (`'continue'`). Pulling this out of the loop body turns what was five sequential,
+ * nesting-penalized top-level `if`s into one function call plus one outcome check — see
+ * `runSingleGoogleRequest`'s loop below.
+ */
+export function processGoogleFrame(state: GoogleStreamState, data: Record<string, unknown>, onEvent: (event: GoogleTurnEvent) => void): GoogleFrameOutcome {
+  applyGoogleUsage(state, data, onEvent);
+
+  const rawCandidate = firstGoogleCandidate(data);
+  if (!rawCandidate) {
+    return handleGoogleBlockedPrompt(data, onEvent) ? { action: 'end', reason: 'error' } : { action: 'continue' };
+  }
+  if (!isRecord(rawCandidate)) return { action: 'continue' };
+
+  if (typeof rawCandidate.finishReason === 'string') {
+    state.finishReason = rawCandidate.finishReason;
+  }
+
+  return processGoogleParts(state, googleCandidateParts(rawCandidate), onEvent) === 'break'
+    ? { action: 'end', reason: 'contaminated' }
+    : { action: 'continue' };
+}
+
+/**
+ * Validates `options.baseUrl` and opens the streaming POST, returning the response's readable body
+ * once every pre-stream failure mode (SSRF-guard rejection, network error, non-2xx status, missing
+ * body) has been ruled out. Calls `emitEnd('error')` and returns `null` itself on any of those —
+ * the caller only has to check for `null` — same split as
+ * `anthropic-messages.ts#openAnthropicResponseStream`.
+ */
+async function openGoogleResponseStream(
   options: GoogleTurnOptions,
   contents: readonly GoogleContent[],
   emitEnd: (reason: GoogleTurnEndReason) => void,
-): Promise<SingleRequestOutcome> {
+): Promise<AsyncIterable<Uint8Array | string> | null> {
   const { onEvent } = options;
 
   const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_GOOGLE_BASE_URL, defaultDnsLookup);
   if (baseUrlCheck.error) {
     onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
-    return { finishReason: null, toolCalls: [], text: '' };
+    return null;
   }
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
@@ -322,7 +438,7 @@ async function runSingleGoogleRequest(
     const message = error instanceof Error ? error.message : String(error);
     onEvent({ type: 'error', message: redactSecrets(message, [options.apiKey]) });
     emitEnd('error');
-    return { finishReason: null, toolCalls: [], text: '' };
+    return null;
   }
 
   if (!response.ok) {
@@ -333,26 +449,45 @@ async function runSingleGoogleRequest(
       code: String(response.status),
     });
     emitEnd('error');
-    return { finishReason: null, toolCalls: [], text: '' };
+    return null;
   }
   if (!response.body) {
     onEvent({ type: 'error', message: 'Google response had no body' });
     emitEnd('error');
+    return null;
+  }
+
+  return response.body;
+}
+
+/** Runs exactly one Gemini `streamGenerateContent` request and reduces its SSE events into a single outcome. Mirrors `anthropic-messages.ts#runSingleAnthropicRequest`'s `emitEnd` contract — see that function's doc. */
+async function runSingleGoogleRequest(
+  options: GoogleTurnOptions,
+  contents: readonly GoogleContent[],
+  emitEnd: (reason: GoogleTurnEndReason) => void,
+): Promise<SingleRequestOutcome> {
+  const { onEvent } = options;
+
+  const body = await openGoogleResponseStream(options, contents, emitEnd);
+  if (!body) {
     return { finishReason: null, toolCalls: [], text: '' };
   }
 
   onEvent({ type: 'status', label: 'requesting' });
 
-  const guard = createRoleMarkerGuard('google-turn');
-  const toolCalls: GoogleToolCall[] = [];
-  let fullText = '';
-  let finishReason: string | null = null;
-  let usage: Record<string, unknown> | null = null;
+  const state: GoogleStreamState = {
+    guard: createRoleMarkerGuard('google-turn'),
+    toolCalls: [],
+    fullText: '',
+    finishReason: null,
+    usage: null,
+  };
 
-  frameLoop: for await (const frame of decodeSseStream(response.body)) {
-    // No re-check of an "ended" flag at the top of this loop: every `emitEnd(...)` call site below
-    // (the promptFeedback block-reason branch and the contamination branch) is immediately followed
-    // by `break frameLoop` — same reachability proof as `anthropic-messages.ts#runSingleAnthropicRequest`.
+  frameLoop: for await (const frame of decodeSseStream(body)) {
+    // No re-check of an "ended" flag at the top of this loop: the only way this loop calls
+    // `emitEnd` is the `outcome.action === 'end'` branch below, immediately followed by
+    // `break frameLoop` — same reachability proof as
+    // `anthropic-messages.ts#runSingleAnthropicRequest`.
     let data: unknown;
     try {
       data = JSON.parse(frame.data);
@@ -361,75 +496,14 @@ async function runSingleGoogleRequest(
     }
     if (!isRecord(data)) continue;
 
-    if (isRecord(data.usageMetadata)) {
-      usage = data.usageMetadata;
-      onEvent({ type: 'usage', usage });
-    }
-
-    const candidates = Array.isArray(data.candidates) ? data.candidates : [];
-    const candidate = candidates[0];
-
-    if (!candidate) {
-      if (isRecord(data.promptFeedback) && typeof data.promptFeedback.blockReason === 'string') {
-        onEvent({ type: 'error', message: `prompt blocked: ${data.promptFeedback.blockReason}`, code: data.promptFeedback.blockReason });
-        emitEnd('error');
-        break frameLoop;
-      }
-      continue;
-    }
-    if (!isRecord(candidate)) continue;
-
-    if (typeof candidate.finishReason === 'string') {
-      finishReason = candidate.finishReason;
-    }
-
-    const content = isRecord(candidate.content) ? candidate.content : null;
-    const parts = content && Array.isArray(content.parts) ? content.parts : [];
-
-    for (const rawPart of parts) {
-      if (!isRecord(rawPart)) continue;
-
-      if (typeof rawPart.text === 'string' && rawPart.text.length > 0) {
-        // No `guard.contaminated` pre-check here: the only way it becomes true is the
-        // `emitEnd('contaminated'); break frameLoop;` a few lines below, which exits the outer
-        // frame loop immediately — see `anthropic-messages.ts#runSingleAnthropicRequest`'s
-        // identical reachability proof.
-        const safe = guard.feedText(rawPart.text);
-        if (safe.length > 0) {
-          fullText += safe;
-          onEvent({ type: 'text_delta', delta: safe });
-        }
-        if (guard.contaminated) {
-          const warn = guard.warningEvent();
-          if (warn) onEvent(warn);
-          emitEnd('contaminated');
-          break frameLoop;
-        }
-        continue;
-      }
-
-      if (isRecord(rawPart.functionCall)) {
-        const fc = rawPart.functionCall;
-        const name = typeof fc.name === 'string' ? fc.name : null;
-        if (name) {
-          const id = typeof fc.id === 'string' && fc.id.length > 0 ? fc.id : `call_${toolCalls.length}`;
-          // Read off the PART, not off `fc` — `thoughtSignature` is a sibling of `functionCall`,
-          // not a member of it. Only a non-empty string is carried: a missing signature and an
-          // empty one are different states, and the continuation must omit the field entirely
-          // rather than send `""`, which the API treats as a malformed signature rather than as
-          // "absent". See `GoogleFunctionCallPart.thoughtSignature`.
-          const signature = typeof rawPart.thoughtSignature === 'string' && rawPart.thoughtSignature.length > 0
-            ? rawPart.thoughtSignature
-            : undefined;
-          const call: GoogleToolCall = { id, name, input: fc.args ?? {}, ...(signature ? { thoughtSignature: signature } : {}) };
-          toolCalls.push(call);
-          onEvent({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
-        }
-      }
+    const outcome = processGoogleFrame(state, data, onEvent);
+    if (outcome.action === 'end') {
+      emitEnd(outcome.reason);
+      break frameLoop;
     }
   }
 
-  return { finishReason, toolCalls, text: fullText };
+  return { finishReason: state.finishReason, toolCalls: state.toolCalls, text: state.fullText };
 }
 
 const GOOGLE_ALLOWED_IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
@@ -524,16 +598,82 @@ function splitGoogleToolResultContent(content: string | readonly GoogleToolResul
 }
 
 /**
+ * Decides why the tool loop should stop after one request, or returns `null` when it should
+ * instead proceed to execute the pending tool calls. Pure — no events, no I/O — mirrors
+ * `anthropic-messages.ts#anthropicLoopExitReason`'s decision/effect split. Deliberate structural
+ * difference from that sibling: the continuation predicate is `toolCalls.length > 0`, not a
+ * `finishReason` comparison (see module doc, point 2, for why Gemini's `finishReason` enum cannot
+ * be used here).
+ */
+export function googleLoopExitReason(outcome: SingleRequestOutcome, toolTurns: number, maxToolTurns: number): GoogleTurnEndReason | null {
+  if (outcome.toolCalls.length === 0) return 'stop';
+  if (toolTurns >= maxToolTurns) return 'max_tool_turns';
+  return null;
+}
+
+/** Builds the `model`-role `Content`'s `parts` recording the pending tool calls — text (if any) followed by one `functionCall` part per call, each with its `thoughtSignature` spread back on as a sibling field, in the same shape the response delivered it and only when the response actually carried one (a `functionCall` part with no signature is legal; one with an empty-string signature is not). */
+export function buildGoogleAssistantParts(text: string, toolCalls: readonly GoogleToolCall[]): GooglePart[] {
+  return [
+    ...(text ? [{ text } as const] : []),
+    ...toolCalls.map(
+      (call) =>
+        ({
+          functionCall: { name: call.name, args: call.input, id: call.id },
+          ...(call.thoughtSignature ? { thoughtSignature: call.thoughtSignature } : {}),
+        }) as const,
+    ),
+  ];
+}
+
+export interface GoogleToolExecutionOutcome {
+  readonly functionResponseParts: GooglePart[];
+  readonly followUpParts: GooglePart[];
+}
+
+/**
+ * Runs every pending tool call in order, reducing the results into the `functionResponse` parts
+ * for the batch plus any labeled `inlineData` image parts that ride alongside them in the same
+ * continuation `Content` — see module doc's "No documented way to attach an image to a
+ * functionResponse" section for why images travel this way instead of a separate follow-up
+ * message (unlike `openai-chat.ts`/`azure-chat.ts`).
+ */
+export async function executeGoogleToolCalls(
+  executeTool: GoogleToolExecutor,
+  calls: readonly GoogleToolCall[],
+  onEvent: (event: GoogleTurnEvent) => void,
+): Promise<GoogleToolExecutionOutcome> {
+  const functionResponseParts: GooglePart[] = [];
+  const followUpParts: GooglePart[] = [];
+  for (const call of calls) {
+    const result = await executeTool(call);
+    const sanitized = sanitizeGoogleToolResult(result);
+    onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
+    const split = splitGoogleToolResultContent(sanitized.content);
+    functionResponseParts.push({
+      functionResponse: {
+        name: call.name,
+        id: call.id,
+        response: { content: split.responseContent, isError: sanitized.isError },
+      },
+    });
+    if (split.imageParts.length > 0) {
+      // Attribution label — see module doc for why an unlabeled image is unsafe here.
+      followUpParts.push({ text: `Image output from tool \`${call.name}\` (tool_call_id: ${call.id}):` });
+      followUpParts.push(...split.imageParts);
+    }
+  }
+  return { functionResponseParts, followUpParts };
+}
+
+/**
  * Runs a full Gemini `streamGenerateContent` turn, including the
  * tool-execution loop when `options.executeTool` is supplied and the model
  * requests a function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s
- * doc for the shared event-stream/`ended`-flag contract this mirrors — with
- * one deliberate structural difference: the loop-continuation predicate is
- * `toolCalls.length > 0`, not a `finishReason` comparison (see module doc,
- * point 2, for why Gemini's `finishReason` enum cannot be used here).
+ * doc for the shared event-stream/`ended`-flag contract this mirrors.
  */
 export async function runGoogleToolTurn(options: GoogleTurnOptions): Promise<GoogleTurnResult> {
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
+  const executeTool = options.executeTool;
 
   const endGuard = createTurnEndGuard<GoogleTurnEvent>(options.onEvent, (reason) => ({ type: 'end', reason }));
   const emitEnd = endGuard.emitEnd;
@@ -548,60 +688,22 @@ export async function runGoogleToolTurn(options: GoogleTurnOptions): Promise<Goo
 
     if (endGuard.hasEnded()) break;
 
-    if (outcome.toolCalls.length === 0) {
-      emitEnd('stop');
+    const exitReason = googleLoopExitReason(outcome, toolTurns, maxToolTurns);
+    if (exitReason) {
+      emitEnd(exitReason);
       break;
     }
-    if (!options.executeTool) {
+    if (!executeTool) {
       // Pending tool calls were already emitted as `tool_use` events above;
       // with no executor to run them, the turn ends here rather than
       // silently retrying forever.
       emitEnd('stop');
       break;
     }
-    if (toolTurns >= maxToolTurns) {
-      emitEnd('max_tool_turns');
-      break;
-    }
     toolTurns += 1;
 
-    const modelParts: GooglePart[] = [
-      ...(outcome.text ? [{ text: outcome.text } as const] : []),
-      // `thoughtSignature` is spread back on as a SIBLING of `functionCall`, in the same shape the
-      // response delivered it, and only when the response actually carried one — a `functionCall`
-      // part with no signature is legal; one with an empty-string signature is not.
-      ...outcome.toolCalls.map(
-        (call) =>
-          ({
-            functionCall: { name: call.name, args: call.input, id: call.id },
-            ...(call.thoughtSignature ? { thoughtSignature: call.thoughtSignature } : {}),
-          }) as const,
-      ),
-    ];
-    const functionResponseParts: GooglePart[] = [];
-    // Every `functionResponse` part for this batch is pushed here first; the labeled image parts
-    // below are only ever folded into the SAME single continuation `Content`, after the loop —
-    // matching `openai-chat.ts`'s batching discipline even though Gemini's wire format doesn't
-    // strictly require it (see module doc for why this module still does it this way).
-    const followUpParts: GooglePart[] = [];
-    for (const call of outcome.toolCalls) {
-      const result = await options.executeTool(call);
-      const sanitized = sanitizeGoogleToolResult(result);
-      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
-      const split = splitGoogleToolResultContent(sanitized.content);
-      functionResponseParts.push({
-        functionResponse: {
-          name: call.name,
-          id: call.id,
-          response: { content: split.responseContent, isError: sanitized.isError },
-        },
-      });
-      if (split.imageParts.length > 0) {
-        // Attribution label — see module doc for why an unlabeled image is unsafe here.
-        followUpParts.push({ text: `Image output from tool \`${call.name}\` (tool_call_id: ${call.id}):` });
-        followUpParts.push(...split.imageParts);
-      }
-    }
+    const modelParts = buildGoogleAssistantParts(outcome.text, outcome.toolCalls);
+    const { functionResponseParts, followUpParts } = await executeGoogleToolCalls(executeTool, outcome.toolCalls, options.onEvent);
 
     contents = [
       ...contents,

@@ -634,6 +634,19 @@ describe('attachAcpSession', () => {
       emitUpdate(child, { sessionUpdate: 'agent_message_chunk' });
       expect(send).not.toHaveBeenCalled();
     });
+
+    it('sends nothing for a cumulative snapshot that repeats with no new characters', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      attachAcpSession(baseOptions(child, { send }));
+      handshakeToSessionNew(child);
+      emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: 'Hello' });
+      send.mockClear();
+      // Same cumulative snapshot resent verbatim: startsWith matches, but the
+      // sliced delta is empty, so no text_delta should be emitted.
+      emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: 'Hello' });
+      expect(send).not.toHaveBeenCalled();
+    });
   });
 
   describe('tool_call artifact-write mirroring', () => {
@@ -797,6 +810,22 @@ describe('attachAcpSession', () => {
       expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'text_delta', delta: 'unrelated text' }));
     });
 
+    it('leaves the DSML suppressor untouched when an unrelated, never-armed tool call fails', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      attachAcpSession(baseOptions(child, { send }));
+      handshakeToSessionNew(child);
+      // Arm the suppressor via tc-1's completed write, then fail an entirely
+      // different tool call (tc-2) that never owned the pending suppression
+      // or a pending write registration — the disarm guard must be a no-op.
+      emitUpdate(child, { sessionUpdate: 'tool_call', toolCallId: 'tc-1', title: 'write x.html', status: 'completed' });
+      emitUpdate(child, { sessionUpdate: 'tool_call_update', toolCallId: 'tc-2', title: 'run tests', status: 'failed' });
+      send.mockClear();
+      emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: '<artifact>still hidden</artifact>' });
+      const textDeltas = send.mock.calls.filter((c) => c[0] === 'agent' && (c[1] as any).type === 'text_delta');
+      expect(textDeltas).toHaveLength(0);
+    });
+
     it('fully suppresses a delta entirely consumed by tool-call XML, leaving nothing for the DSML stage', () => {
       const child = new FakeAcpChild();
       const send = vi.fn();
@@ -923,6 +952,24 @@ describe('attachAcpSession', () => {
       emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: '<artifact>body</artifact>' });
       const textDeltas = send.mock.calls.filter((c) => c[0] === 'agent' && (c[1] as any).type === 'text_delta');
       expect(textDeltas).toHaveLength(0);
+    });
+
+    it('passes a fresh, non-cumulative, tag-free delta through unchanged once armed after prior text', () => {
+      const child = new FakeAcpChild();
+      const send = vi.fn();
+      attachAcpSession(baseOptions(child, { send }));
+      handshakeToSessionNew(child);
+      emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: 'Some prose first. ' });
+      // Arms the suppressor after visible text has already been sent
+      // (dsmlArtifactSuppressorArmedAfterText = true).
+      emitUpdate(child, { sessionUpdate: 'tool_call', toolCallId: 'tc-1', title: 'write x.html', status: 'completed' });
+      send.mockClear();
+      // A fresh, non-cumulative delta (does not start with the prior buffer)
+      // with no tag markers at all: stripping is a no-op, so the delta
+      // qualifies as plain prose directly, without needing the
+      // sawIncrementalProse heuristic.
+      emitUpdate(child, { sessionUpdate: 'agent_message_chunk', text: 'totally unrelated text' });
+      expect(send).toHaveBeenCalledWith('agent', expect.objectContaining({ type: 'text_delta', delta: 'totally unrelated text' }));
     });
   });
 

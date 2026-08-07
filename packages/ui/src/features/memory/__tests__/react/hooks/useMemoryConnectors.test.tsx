@@ -9,10 +9,14 @@
 // reload-loading guard, the synchronous ref-based re-entrancy guards for
 // connect/scan/save, and the synchronous connectorStatusesRef sync used by
 // the catalogue merge.
+import type { Dispatch, SetStateAction } from 'react';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  applyMemoryConnectorConnectResult,
+  applyMemoryConnectorConnectThrown,
+  saveSelectedConnectorSuggestions,
   useMemoryConnectors,
   useWiredMemoryConnectors,
   type MemoryConnectorsCoordination,
@@ -92,6 +96,157 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+
+/** Minimal `Dispatch<SetStateAction<T>>` fake for directly testing the
+ *  module-level helpers extracted out of the hook's callbacks — no React
+ *  render needed, since these functions only need a setState-shaped
+ *  callback, not an actual component. */
+function fakeSetter<T>(initial: T): { get: () => T; set: Dispatch<SetStateAction<T>> } {
+  let value = initial;
+  return {
+    get: () => value,
+    set: (next) => {
+      value = typeof next === 'function' ? (next as (prev: T) => T)(value) : next;
+    },
+  };
+}
+
+describe('saveSelectedConnectorSuggestions', () => {
+  it('saves every suggestion and collects their ids', async () => {
+    const saveMemoryEntry = vi.fn(async (draft) => ({
+      id: draft.id ?? 'generated',
+      name: draft.name,
+      description: draft.description,
+      type: draft.type,
+      body: draft.body,
+    }));
+    const { savedSuggestionIds, failure } = await saveSelectedConnectorSuggestions({
+      suggestions: [suggestion('s1'), suggestion('s2')],
+      port: { saveMemoryEntry },
+    });
+    expect([...savedSuggestionIds]).toEqual(['s1', 's2']);
+    expect(failure).toBeUndefined();
+    expect(saveMemoryEntry).toHaveBeenCalledTimes(2);
+  });
+
+  it('defaults a missing description to an empty string', async () => {
+    const saveMemoryEntry = vi.fn(async (draft) => ({ id: 'x', name: draft.name, description: draft.description, type: draft.type, body: draft.body }));
+    await saveSelectedConnectorSuggestions({ suggestions: [suggestion('s1', { description: undefined })], port: { saveMemoryEntry } });
+    expect(saveMemoryEntry).toHaveBeenCalledWith(expect.objectContaining({ description: '' }));
+  });
+
+  it('only counts suggestions whose save resolved a real entry, not a null failure', async () => {
+    const saveMemoryEntry = vi.fn(async (draft) =>
+      draft.id?.includes('s1') ? { id: draft.id, name: draft.name, description: draft.description, type: draft.type, body: draft.body } : null,
+    );
+    const { savedSuggestionIds } = await saveSelectedConnectorSuggestions({
+      suggestions: [suggestion('s1'), suggestion('s2')],
+      port: { saveMemoryEntry },
+    });
+    expect([...savedSuggestionIds]).toEqual(['s1']);
+  });
+
+  it('stops the loop and reports a thrown failure, keeping ids already saved before it', async () => {
+    const saveMemoryEntry = vi.fn(async (draft) => {
+      if (draft.id?.includes('s1')) return { id: draft.id, name: draft.name, description: draft.description, type: draft.type, body: draft.body };
+      throw new Error('second save failed');
+    });
+    const { savedSuggestionIds, failure } = await saveSelectedConnectorSuggestions({
+      suggestions: [suggestion('s1'), suggestion('s2'), suggestion('s3')],
+      port: { saveMemoryEntry },
+    });
+    expect([...savedSuggestionIds]).toEqual(['s1']);
+    expect(failure).toEqual(new Error('second save failed'));
+    // The loop stops at the throw — a suggestion after the failed one is never attempted.
+    expect(saveMemoryEntry).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('applyMemoryConnectorConnectThrown', () => {
+  it('records the Error message under the connector id and clears its pending-auth membership', () => {
+    const errors = fakeSetter<Record<string, string>>({});
+    const pendingAuthIds = fakeSetter<Set<string>>(new Set(['notion']));
+    applyMemoryConnectorConnectThrown(
+      { connectorId: 'notion', err: new Error('network unreachable') },
+      { setConnectorConnectErrors: errors.set, setPendingConnectorAuthIds: pendingAuthIds.set },
+    );
+    expect(errors.get().notion).toBe('network unreachable');
+    expect(pendingAuthIds.get().has('notion')).toBe(false);
+  });
+
+  it('stringifies a non-Error throw and preserves other connectors already in the error map', () => {
+    const errors = fakeSetter<Record<string, string>>({ figma: 'unrelated' });
+    const pendingAuthIds = fakeSetter<Set<string>>(new Set());
+    applyMemoryConnectorConnectThrown(
+      { connectorId: 'notion', err: 'plain string failure' },
+      { setConnectorConnectErrors: errors.set, setPendingConnectorAuthIds: pendingAuthIds.set },
+    );
+    expect(errors.get()).toEqual({ figma: 'unrelated', notion: 'plain string failure' });
+  });
+});
+
+describe('applyMemoryConnectorConnectResult', () => {
+  function harness(initialConnectors: Connector[] = []) {
+    return {
+      port: { notifyConnectorsChanged: vi.fn() },
+      connectors: fakeSetter<Connector[]>(initialConnectors),
+      errors: fakeSetter<Record<string, string>>({}),
+      pendingAuthIds: fakeSetter<Set<string>>(new Set()),
+      invalidateCatalogueGuard: vi.fn(),
+    };
+  }
+
+  it('notifies connectors-changed and returns true when the result is already connected with no auth step', () => {
+    const h = harness();
+    const outcome = applyMemoryConnectorConnectResult(
+      { connectorId: 'notion', result: { connector: connector('notion', { status: 'connected' }) }, port: h.port },
+      {
+        setConnectors: h.connectors.set,
+        setConnectorConnectErrors: h.errors.set,
+        setPendingConnectorAuthIds: h.pendingAuthIds.set,
+        invalidateCatalogueGuard: h.invalidateCatalogueGuard,
+      },
+    );
+    expect(outcome).toBe(true);
+    expect(h.port.notifyConnectorsChanged).toHaveBeenCalledTimes(1);
+    expect(h.connectors.get().find((c) => c.id === 'notion')?.status).toBe('connected');
+    expect(h.pendingAuthIds.get().has('notion')).toBe(false);
+    expect(h.invalidateCatalogueGuard).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks the connector pending-auth (without notifying) when a redirect is required, and returns true', () => {
+    const h = harness();
+    const outcome = applyMemoryConnectorConnectResult(
+      { connectorId: 'notion', result: { connector: connector('notion'), auth: { kind: 'redirect_required' } }, port: h.port },
+      {
+        setConnectors: h.connectors.set,
+        setConnectorConnectErrors: h.errors.set,
+        setPendingConnectorAuthIds: h.pendingAuthIds.set,
+        invalidateCatalogueGuard: h.invalidateCatalogueGuard,
+      },
+    );
+    expect(outcome).toBe(true);
+    expect(h.port.notifyConnectorsChanged).not.toHaveBeenCalled();
+    expect(h.pendingAuthIds.get().has('notion')).toBe(true);
+  });
+
+  it('records the error, clears pending-auth membership, and returns false on a resolved failure', () => {
+    const h = harness();
+    h.pendingAuthIds = fakeSetter<Set<string>>(new Set(['notion']));
+    const outcome = applyMemoryConnectorConnectResult(
+      { connectorId: 'notion', result: { connector: connector('notion'), error: 'denied' }, port: h.port },
+      {
+        setConnectors: h.connectors.set,
+        setConnectorConnectErrors: h.errors.set,
+        setPendingConnectorAuthIds: h.pendingAuthIds.set,
+        invalidateCatalogueGuard: h.invalidateCatalogueGuard,
+      },
+    );
+    expect(outcome).toBe(false);
+    expect(h.errors.get().notion).toBe('denied');
+    expect(h.pendingAuthIds.get().has('notion')).toBe(false);
+  });
+});
 
 describe('useMemoryConnectors — catalogue + selection', () => {
   it('always surfaces the six memory-connector apps and marks connected ones', async () => {

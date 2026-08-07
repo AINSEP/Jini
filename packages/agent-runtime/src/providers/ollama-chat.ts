@@ -310,54 +310,118 @@ interface SingleRequestOutcome {
   readonly text: string;
 }
 
-/**
- * Reads a `fetch` response body as newline-delimited JSON, yielding one
- * parsed line at a time. Buffers partial lines across chunk boundaries — an
- * NDJSON line is not guaranteed to arrive in a single chunk. A trailing,
- * unterminated final line (no closing newline) is still yielded once the
- * stream ends, matching `sse-decode.ts#decodeSseStream`'s equivalent
- * tolerance for the SSE case.
- */
-async function* decodeNdjsonStream(body: AsyncIterable<Uint8Array | string>): AsyncGenerator<unknown> {
-  const decoder = new TextDecoder();
-  let buffer = '';
-  for await (const chunk of body) {
-    buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
-    let newlineIndex: number;
-    while ((newlineIndex = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, newlineIndex).trim();
-      buffer = buffer.slice(newlineIndex + 1);
-      if (!line) continue;
-      try {
-        yield JSON.parse(line);
-      } catch {
-        continue; // tolerate a malformed/empty keep-alive line
-      }
-    }
-  }
-  const trailing = buffer.trim();
-  if (trailing) {
-    try {
-      yield JSON.parse(trailing);
-    } catch {
-      // final partial line was never completed — nothing usable to yield
-    }
+/** Mutable reduction state threaded through one streaming request's line handlers (below). Grouped into one object so each handler takes a single parameter instead of several — same convention as `anthropic-messages.ts#AnthropicStreamState`/`openai-chat.ts#OpenAiStreamState`. Exported so a unit test can construct one directly without going through a full `runOllamaToolTurn` call. */
+export interface OllamaStreamState {
+  readonly guard: ReturnType<typeof createRoleMarkerGuard>;
+  readonly toolCalls: OllamaToolCall[];
+  fullText: string;
+  finishReason: string | null;
+}
+
+/** Parses one `function.arguments` value: Ollama's native tool-call payload documents it as a native JSON object, but a strict/older server can still send a stringified blob — this tolerates either, falling back to the raw string on malformed JSON. */
+export function parseOllamaToolCallArguments(args: unknown): unknown {
+  if (typeof args !== 'string') return args;
+  try {
+    return JSON.parse(args);
+  } catch {
+    return args;
   }
 }
 
-/** Runs exactly one Ollama `/api/chat` NDJSON streaming request and reduces it into a single outcome. Mirrors `anthropic-messages.ts#runSingleAnthropicRequest`'s `emitEnd` contract — see that function's doc. */
-async function runSingleOllamaRequest(
+/** Resolves one raw `message.tool_calls[]` entry into an `OllamaToolCall`, or `null` when the entry is missing its `function`/`name` (malformed, so skipped rather than surfaced). `index` seeds the synthetic id fallback — see `OllamaToolCallParam`'s doc for why a call id is generated locally rather than trusted off the wire. */
+export function resolveOllamaToolCall(rawCall: unknown, index: number): OllamaToolCall | null {
+  if (!isRecord(rawCall) || !isRecord(rawCall.function)) return null;
+  const name = typeof rawCall.function.name === 'string' ? rawCall.function.name : '';
+  if (!name) return null;
+  const input = parseOllamaToolCallArguments(rawCall.function.arguments);
+  const id = typeof rawCall.id === 'string' && rawCall.id ? rawCall.id : `ollama-tool-${index}`;
+  return { id, name, input };
+}
+
+/** Resolves every entry in `message.tool_calls` into `state.toolCalls`, then marks `finishReason: 'tool_calls'` once at least one resolved — mirrors the original inline loop's behavior of setting `finishReason` after the whole batch rather than per-call. */
+export function handleOllamaToolCallsField(state: OllamaStreamState, message: Record<string, unknown>): void {
+  if (!Array.isArray(message.tool_calls)) return;
+  for (const rawCall of message.tool_calls) {
+    const call = resolveOllamaToolCall(rawCall, state.toolCalls.length);
+    if (call) state.toolCalls.push(call);
+  }
+  if (state.toolCalls.length > 0) state.finishReason = 'tool_calls';
+}
+
+/**
+ * Feeds one `message.content` delta through the role-marker guard and emits the safe portion.
+ * Returns `'break'` once the guard flags contamination, otherwise `'continue'` — same contract as
+ * `anthropic-messages.ts#handleAnthropicTextDelta`/`openai-chat.ts#handleOpenAiTextContentDelta`.
+ */
+export function handleOllamaTextContent(state: OllamaStreamState, content: string, onEvent: (event: OllamaTurnEvent) => void): 'continue' | 'break' {
+  const safe = state.guard.feedText(content);
+  if (safe.length > 0) {
+    state.fullText += safe;
+    onEvent({ type: 'text_delta', delta: safe });
+  }
+  if (!state.guard.contaminated) return 'continue';
+  const warn = state.guard.warningEvent();
+  if (warn) onEvent(warn);
+  return 'break';
+}
+
+/**
+ * Reduces one already-parsed NDJSON line into `state`, reporting whether the caller's line loop
+ * should stop and, if so, why. `'break'` calls `emitEnd('contaminated')` itself (mirroring the
+ * `content`-delta contamination path being the only in-loop `emitEnd` call site in every sibling
+ * provider); `'done'` reports the terminal `done: true` line with no `emitEnd` call of its own —
+ * the caller (`runSingleOllamaRequest`) still owns the normal-completion `emitEnd`, exactly like
+ * every sibling turn-runner's `emitEnd` contract.
+ */
+export function processOllamaLine(
+  state: OllamaStreamState,
+  line: Record<string, unknown>,
+  onEvent: (event: OllamaTurnEvent) => void,
+  emitEnd: (reason: OllamaTurnEndReason) => void,
+): 'continue' | 'break' | 'done' {
+  const message = isRecord(line.message) ? line.message : null;
+  if (message && typeof message.content === 'string' && message.content.length > 0) {
+    if (handleOllamaTextContent(state, message.content, onEvent) === 'break') {
+      state.finishReason = 'contaminated';
+      emitEnd('contaminated');
+      return 'break';
+    }
+  }
+  if (message) handleOllamaToolCallsField(state, message);
+
+  if (line.done === true) {
+    if (state.finishReason !== 'contaminated' && state.finishReason !== 'tool_calls') state.finishReason = 'stop';
+    return 'done';
+  }
+  return 'continue';
+}
+
+/** Emitted for every resolved call as soon as the stream ends, independent of whether the caller actually supplied an `executeTool` — see AUD-R4-002 fix note in the module doc. */
+function emitPendingOllamaToolUseEvents(toolCalls: readonly OllamaToolCall[], onEvent: (event: OllamaTurnEvent) => void): void {
+  for (const call of toolCalls) {
+    onEvent({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
+  }
+}
+
+/**
+ * Validates `options.baseUrl` and opens the streaming POST, returning the response's readable body
+ * once every pre-stream failure mode (SSRF-guard rejection, network error, non-2xx status, missing
+ * body) has been ruled out. Calls `emitEnd('error')` and returns `null` itself on any of those —
+ * the caller only has to check for `null` — same split as
+ * `anthropic-messages.ts#openAnthropicResponseStream`.
+ */
+async function openOllamaResponseStream(
   options: OllamaTurnOptions,
   messages: readonly OllamaMessageParam[],
   emitEnd: (reason: OllamaTurnEndReason) => void,
-): Promise<SingleRequestOutcome> {
+): Promise<AsyncIterable<Uint8Array | string> | null> {
   const { onEvent } = options;
 
   const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_OLLAMA_BASE_URL, defaultDnsLookup);
   if (baseUrlCheck.error) {
     onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
-    return { finishReason: null, toolCalls: [], text: '' };
+    return null;
   }
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
@@ -382,7 +446,7 @@ async function runSingleOllamaRequest(
     const message = error instanceof Error ? error.message : String(error);
     onEvent({ type: 'error', message: redactSecrets(message, [options.apiKey]) });
     emitEnd('error');
-    return { finishReason: null, toolCalls: [], text: '' };
+    return null;
   }
 
   if (!response.ok) {
@@ -393,69 +457,152 @@ async function runSingleOllamaRequest(
       code: String(response.status),
     });
     emitEnd('error');
-    return { finishReason: null, toolCalls: [], text: '' };
+    return null;
   }
   if (!response.body) {
     onEvent({ type: 'error', message: 'Ollama response had no body' });
     emitEnd('error');
+    return null;
+  }
+
+  return response.body;
+}
+
+/** Parses one NDJSON line, returning `undefined` for a malformed/empty line — JSON has no `undefined` literal, so a successful parse is never confused with a failed one. Extracted so the generator below never nests a `try`/`catch` inside its loops (see that function's doc). */
+export function parseNdjsonLine(line: string): unknown {
+  try {
+    return JSON.parse(line);
+  } catch {
+    return undefined;
+  }
+}
+
+/** Splits already-accumulated buffer content into complete newline-terminated lines (newline stripped) plus the remaining partial-line `remainder`. Pure — no I/O — so this buffering/splitting logic is exercised as plain value-in/value-out assertions instead of through the full streaming generator. */
+export function splitNdjsonLines(buffer: string): { readonly lines: readonly string[]; readonly remainder: string } {
+  const lines: string[] = [];
+  let rest = buffer;
+  let newlineIndex: number;
+  while ((newlineIndex = rest.indexOf('\n')) >= 0) {
+    lines.push(rest.slice(0, newlineIndex));
+    rest = rest.slice(newlineIndex + 1);
+  }
+  return { lines, remainder: rest };
+}
+
+/** Trims and parses each complete line in `rawLines`, yielding only the ones that parsed to something other than `undefined` — a plain (non-async) generator so `decodeNdjsonStream` below can delegate to it with `yield*` instead of nesting a `for`/`if`/`if` inside its own `for await` loop. */
+export function* parseNdjsonLines(rawLines: readonly string[]): Generator<unknown> {
+  for (const rawLine of rawLines) {
+    const line = rawLine.trim();
+    if (!line) continue; // tolerate a malformed/empty keep-alive line
+    const parsed = parseNdjsonLine(line);
+    if (parsed !== undefined) yield parsed;
+  }
+}
+
+/**
+ * Reads a `fetch` response body as newline-delimited JSON, yielding one
+ * parsed line at a time. Buffers partial lines across chunk boundaries — an
+ * NDJSON line is not guaranteed to arrive in a single chunk. A trailing,
+ * unterminated final line (no closing newline) is still yielded once the
+ * stream ends, matching `sse-decode.ts#decodeSseStream`'s equivalent
+ * tolerance for the SSE case.
+ */
+async function* decodeNdjsonStream(body: AsyncIterable<Uint8Array | string>): AsyncGenerator<unknown> {
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for await (const chunk of body) {
+    buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
+    const { lines, remainder } = splitNdjsonLines(buffer);
+    buffer = remainder;
+    yield* parseNdjsonLines(lines);
+  }
+  const trailing = buffer.trim();
+  if (!trailing) return;
+  const parsed = parseNdjsonLine(trailing);
+  if (parsed !== undefined) yield parsed; // else: final partial line was never completed — nothing usable to yield
+}
+
+/** Runs exactly one Ollama `/api/chat` NDJSON streaming request and reduces it into a single outcome. Mirrors `anthropic-messages.ts#runSingleAnthropicRequest`'s `emitEnd` contract — see that function's doc. */
+async function runSingleOllamaRequest(
+  options: OllamaTurnOptions,
+  messages: readonly OllamaMessageParam[],
+  emitEnd: (reason: OllamaTurnEndReason) => void,
+): Promise<SingleRequestOutcome> {
+  const { onEvent } = options;
+
+  const body = await openOllamaResponseStream(options, messages, emitEnd);
+  if (!body) {
     return { finishReason: null, toolCalls: [], text: '' };
   }
 
   onEvent({ type: 'status', label: 'requesting' });
 
-  const guard = createRoleMarkerGuard('ollama-turn');
-  let fullText = '';
-  const toolCalls: OllamaToolCall[] = [];
-  let finishReason: string | null = null;
+  const state: OllamaStreamState = {
+    guard: createRoleMarkerGuard('ollama-turn'),
+    toolCalls: [],
+    fullText: '',
+    finishReason: null,
+  };
 
-  for await (const line of decodeNdjsonStream(response.body)) {
+  for await (const line of decodeNdjsonStream(body)) {
     if (!isRecord(line)) continue;
-
-    const message = isRecord(line.message) ? line.message : null;
-    if (message && typeof message.content === 'string' && message.content.length > 0) {
-      const safe = guard.feedText(message.content);
-      if (safe.length > 0) {
-        fullText += safe;
-        onEvent({ type: 'text_delta', delta: safe });
-      }
-      if (guard.contaminated) {
-        const warn = guard.warningEvent();
-        if (warn) onEvent(warn);
-        finishReason = 'contaminated';
-        emitEnd('contaminated');
-        break;
-      }
-    }
-
-    if (message && Array.isArray(message.tool_calls)) {
-      for (const rawCall of message.tool_calls) {
-        if (!isRecord(rawCall) || !isRecord(rawCall.function)) continue;
-        const name = typeof rawCall.function.name === 'string' ? rawCall.function.name : '';
-        if (!name) continue;
-        const args = rawCall.function.arguments;
-        const input = typeof args === 'string' ? (() => { try { return JSON.parse(args); } catch { return args; } })() : args;
-        const id = typeof rawCall.id === 'string' && rawCall.id ? rawCall.id : `ollama-tool-${toolCalls.length}`;
-        toolCalls.push({ id, name, input });
-      }
-      if (toolCalls.length > 0) finishReason = 'tool_calls';
-    }
-
-    if (line.done === true) {
-      if (finishReason !== 'contaminated' && finishReason !== 'tool_calls') finishReason = 'stop';
-      break;
-    }
+    const result = processOllamaLine(state, line, onEvent, emitEnd);
+    if (result === 'break' || result === 'done') break;
   }
 
-  // Emitted for every resolved call as soon as the stream ends, independent of whether the
-  // caller actually supplied an `executeTool` — matches `openai-chat.ts#runOpenAiCompatibleRequest`'s
-  // identical unconditional-on-resolution emission (see AUD-R4-002 fix note in the module doc).
-  if (finishReason === 'tool_calls') {
-    for (const call of toolCalls) {
-      onEvent({ type: 'tool_use', id: call.id, name: call.name, input: call.input });
-    }
+  if (state.finishReason === 'tool_calls') {
+    emitPendingOllamaToolUseEvents(state.toolCalls, onEvent);
   }
 
-  return { finishReason, toolCalls, text: fullText };
+  return { finishReason: state.finishReason, toolCalls: state.toolCalls, text: state.fullText };
+}
+
+/**
+ * Decides why the tool loop should stop after one request, or returns `null` when it should
+ * instead proceed to execute the pending tool calls — mirrors
+ * `anthropic-messages.ts#anthropicLoopExitReason`'s pure decision/effect split.
+ */
+export function ollamaLoopExitReason(outcome: SingleRequestOutcome, toolTurns: number, maxToolTurns: number): OllamaTurnEndReason | null {
+  if (outcome.finishReason !== 'tool_calls' || outcome.toolCalls.length === 0) return 'stop';
+  if (toolTurns >= maxToolTurns) return 'max_tool_turns';
+  return null;
+}
+
+/** Builds the assistant continuation's `tool_calls` field — Ollama's native shape has no `id`/`type` on the wire (see `OllamaToolCallParam`'s doc). */
+export function buildOllamaAssistantToolCalls(toolCalls: readonly OllamaToolCall[]): OllamaToolCallParam[] {
+  return toolCalls.map((call) => ({ function: { name: call.name, arguments: call.input } }));
+}
+
+/**
+ * Runs every pending tool call in order, applying `guardToolResult` and reducing the results into
+ * the `tool`-role continuation messages Ollama's native `tool_name`-association scheme expects —
+ * see module doc's "Design decision: native `tool`-role images" section for why no separate
+ * follow-up message is needed here, unlike `openai-chat.ts`/`azure-chat.ts`.
+ */
+export async function executeOllamaToolCalls(
+  executeTool: OllamaToolExecutor,
+  calls: readonly OllamaToolCall[],
+  onEvent: (event: OllamaTurnEvent) => void,
+): Promise<OllamaMessageParam[]> {
+  const toolResultMessages: OllamaMessageParam[] = [];
+  for (const call of calls) {
+    const rawResult = await executeTool(call);
+    const result = guardToolResult(rawResult);
+    onEvent({
+      type: 'tool_result',
+      toolUseId: call.id,
+      content: result.content,
+      ...(result.images ? { images: result.images } : {}),
+      isError: result.isError ?? false,
+    });
+    toolResultMessages.push({
+      role: 'tool',
+      content: result.content,
+      tool_name: call.name,
+      ...(result.images ? { images: result.images } : {}),
+    });
+  }
+  return toolResultMessages;
 }
 
 /**
@@ -466,6 +613,7 @@ async function runSingleOllamaRequest(
  */
 export async function runOllamaToolTurn(options: OllamaTurnOptions): Promise<OllamaTurnResult> {
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
+  const executeTool = options.executeTool;
 
   const endGuard = createTurnEndGuard<OllamaTurnEvent>(options.onEvent, (reason) => ({ type: 'end', reason }));
   const emitEnd = endGuard.emitEnd;
@@ -480,41 +628,19 @@ export async function runOllamaToolTurn(options: OllamaTurnOptions): Promise<Oll
 
     if (endGuard.hasEnded()) break;
 
-    if (outcome.finishReason !== 'tool_calls' || outcome.toolCalls.length === 0) {
-      emitEnd('stop');
+    const exitReason = ollamaLoopExitReason(outcome, toolTurns, maxToolTurns);
+    if (exitReason) {
+      emitEnd(exitReason);
       break;
     }
-    if (!options.executeTool) {
+    if (!executeTool) {
       emitEnd('stop');
-      break;
-    }
-    if (toolTurns >= maxToolTurns) {
-      emitEnd('max_tool_turns');
       break;
     }
     toolTurns += 1;
 
-    const assistantToolCalls: OllamaToolCallParam[] = outcome.toolCalls.map((call) => ({
-      function: { name: call.name, arguments: call.input },
-    }));
-    const toolResultMessages: OllamaMessageParam[] = [];
-    for (const call of outcome.toolCalls) {
-      const rawResult = await options.executeTool(call);
-      const result = guardToolResult(rawResult);
-      options.onEvent({
-        type: 'tool_result',
-        toolUseId: call.id,
-        content: result.content,
-        ...(result.images ? { images: result.images } : {}),
-        isError: result.isError ?? false,
-      });
-      toolResultMessages.push({
-        role: 'tool',
-        content: result.content,
-        tool_name: call.name,
-        ...(result.images ? { images: result.images } : {}),
-      });
-    }
+    const assistantToolCalls = buildOllamaAssistantToolCalls(outcome.toolCalls);
+    const toolResultMessages = await executeOllamaToolCalls(executeTool, outcome.toolCalls, options.onEvent);
 
     messages = [
       ...messages,

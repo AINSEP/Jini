@@ -21,6 +21,7 @@ import {
 import type {
   Connector,
   ConnectorAction,
+  ConnectorActionResult,
   ConnectorAuthorizationPendingState,
   ConnectorAuthResultEvent,
   ConnectorStatusMap,
@@ -44,6 +45,108 @@ export interface ConnectorAuthorizationController {
   reloadStatuses: () => Promise<ConnectorStatusMap>;
   runConnectorAction: (connectorId: string, action: ConnectorAction) => Promise<void>;
   cancelAuthorization: (connectorId: string) => Promise<void>;
+}
+
+/** Removes `key` from `record`, preserving referential identity when the key
+ *  was already absent — the shared shape behind this file's several
+ *  "clear this connector's flag if it has one" state updates. */
+export function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  if (record[key] === undefined) return record;
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
+export interface ConnectorActionSetters {
+  onConnectorsChanged?: (() => void) | undefined;
+  onAuthResult?: ((event: ConnectorAuthResultEvent) => void) | undefined;
+  setPending: Dispatch<SetStateAction<ConnectorAuthorizationPendingState>>;
+  setAuthError: Dispatch<SetStateAction<Record<string, string>>>;
+}
+
+/** Reports a thrown (as opposed to a resolved failure result) connector
+ *  action failure via `onAuthResult`, then rethrows — shared by both
+ *  {@link performConnectorConnect}'s and {@link performConnectorDisconnect}'s
+ *  catch blocks, which previously duplicated this formatting. Exported for
+ *  direct unit testing. */
+export function reportThrownConnectorActionFailure(
+  { connectorId, action }: { connectorId: string; action: ConnectorAction },
+  { onAuthResult }: { onAuthResult?: ((event: ConnectorAuthResultEvent) => void) | undefined },
+  err: unknown,
+): never {
+  onAuthResult?.({
+    connectorId,
+    action,
+    result: 'failed',
+    errorCode: err instanceof Error ? err.message : String(err),
+  });
+  throw err;
+}
+
+/** The resolved-success half of `performConnectorConnect`'s result handling. */
+function applyConnectorConnectSuccess(
+  { connectorId, result }: { connectorId: string; result: ConnectorActionResult },
+  { onConnectorsChanged, onAuthResult, setPending }: Omit<ConnectorActionSetters, 'setAuthError'> & {
+    setPending: Dispatch<SetStateAction<ConnectorAuthorizationPendingState>>;
+  },
+): void {
+  if (result.connector?.status === 'connected') onConnectorsChanged?.();
+  setPending((curr) => updateConnectorAuthorizationPendingFromConnectResponse(curr, result, Date.now()));
+  onAuthResult?.({ connectorId, action: 'connect', result: 'success' });
+}
+
+/** The resolved-failure half of `performConnectorConnect`'s result handling
+ *  (a `{ error }` result, as opposed to a thrown rejection). */
+function applyConnectorConnectFailureResult(
+  { connectorId, result }: { connectorId: string; result: ConnectorActionResult },
+  { onAuthResult, setPending, setAuthError }: ConnectorActionSetters,
+): void {
+  setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+  if (result.error) {
+    setAuthError((curr) => ({ ...curr, [connectorId]: result.error! }));
+  }
+  onAuthResult?.({ connectorId, action: 'connect', result: 'failed', ...(result.error ? { errorCode: result.error } : {}) });
+}
+
+/** `runConnectorAction`'s `'connect'` branch, thinly wrapped by the callback
+ *  below — isolated so its own control flow (success / failed-result /
+ *  thrown) is readable and testable without a rendered hook. Exported for
+ *  direct unit testing; not part of this package's public barrel. */
+export async function performConnectorConnect(
+  { connectorId, port, updateConnector }: { connectorId: string; port: ConnectorsPort; updateConnector: (next: Connector | null) => void },
+  { onConnectorsChanged, onAuthResult, setPending, setAuthError, setCancelFailed }: ConnectorActionSetters & {
+    setCancelFailed: Dispatch<SetStateAction<Record<string, boolean>>>;
+  },
+): Promise<void> {
+  setCancelFailed((curr) => withoutKey(curr, connectorId));
+  setAuthError((curr) => withoutKey(curr, connectorId));
+  try {
+    const result = await port.connectConnector(connectorId);
+    updateConnector(result.connector);
+    if (result.connector && !result.error) {
+      applyConnectorConnectSuccess({ connectorId, result }, { onConnectorsChanged, onAuthResult, setPending });
+      return;
+    }
+    applyConnectorConnectFailureResult({ connectorId, result }, { onAuthResult, setPending, setAuthError });
+  } catch (err) {
+    reportThrownConnectorActionFailure({ connectorId, action: 'connect' }, { onAuthResult }, err);
+  }
+}
+
+/** `runConnectorAction`'s `'disconnect'` branch — see {@link performConnectorConnect}. */
+export async function performConnectorDisconnect(
+  { connectorId, port, updateConnector }: { connectorId: string; port: ConnectorsPort; updateConnector: (next: Connector | null) => void },
+  { onConnectorsChanged, onAuthResult, setPending, setAuthError }: ConnectorActionSetters,
+): Promise<void> {
+  setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
+  setAuthError((curr) => withoutKey(curr, connectorId));
+  try {
+    updateConnector(await port.disconnectConnector(connectorId));
+    onConnectorsChanged?.();
+    onAuthResult?.({ connectorId, action: 'disconnect', result: 'success' });
+  } catch (err) {
+    reportThrownConnectorActionFailure({ connectorId, action: 'disconnect' }, { onAuthResult }, err);
+  }
 }
 
 /**
@@ -188,62 +291,15 @@ export function useConnectorAuthorization(
       setPendingConnectorAction({ connectorId, action });
       try {
         if (action === 'connect') {
-          setCancelFailed((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const next = { ...curr };
-            delete next[connectorId];
-            return next;
-          });
-          setAuthError((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const next = { ...curr };
-            delete next[connectorId];
-            return next;
-          });
-          try {
-            const result = await port.connectConnector(connectorId);
-            updateConnector(result.connector);
-            if (result.connector && !result.error) {
-              if (result.connector.status === 'connected') onConnectorsChanged?.();
-              setPending((curr) => updateConnectorAuthorizationPendingFromConnectResponse(curr, result, Date.now()));
-              onAuthResult?.({ connectorId, action: 'connect', result: 'success' });
-            } else {
-              setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
-              if (result.error) {
-                setAuthError((curr) => ({ ...curr, [connectorId]: result.error! }));
-              }
-              onAuthResult?.({ connectorId, action: 'connect', result: 'failed', ...(result.error ? { errorCode: result.error } : {}) });
-            }
-          } catch (err) {
-            onAuthResult?.({
-              connectorId,
-              action: 'connect',
-              result: 'failed',
-              errorCode: err instanceof Error ? err.message : String(err),
-            });
-            throw err;
-          }
+          await performConnectorConnect(
+            { connectorId, port, updateConnector },
+            { onConnectorsChanged, onAuthResult, setPending, setAuthError, setCancelFailed },
+          );
         } else {
-          setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
-          setAuthError((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const next = { ...curr };
-            delete next[connectorId];
-            return next;
-          });
-          try {
-            updateConnector(await port.disconnectConnector(connectorId));
-            onConnectorsChanged?.();
-            onAuthResult?.({ connectorId, action: 'disconnect', result: 'success' });
-          } catch (err) {
-            onAuthResult?.({
-              connectorId,
-              action: 'disconnect',
-              result: 'failed',
-              errorCode: err instanceof Error ? err.message : String(err),
-            });
-            throw err;
-          }
+          await performConnectorDisconnect(
+            { connectorId, port, updateConnector },
+            { onConnectorsChanged, onAuthResult, setPending, setAuthError },
+          );
         }
       } finally {
         setPendingConnectorAction(null);

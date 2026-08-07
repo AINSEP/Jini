@@ -119,6 +119,7 @@ import {
   type PreparedPromptFile,
   type PromptAugmenter,
   type RuntimeAgentDef,
+  type RuntimeBuildOptions,
   type RuntimeContext,
   type RuntimeLockHold,
 } from '@jini-ai/agent-runtime';
@@ -134,7 +135,7 @@ import { classifyRunCloseStatus } from './close-status.js';
 import { resolveContinuationTransport } from './continuation/continuation-transport.js';
 import type { RunByteJournal } from './continuation/journal.js';
 import { resultContent } from './delegated-tool-bridge.js';
-import { applyImagePromptDelivery } from './image-prompt-delivery.js';
+import { applyImagePromptDelivery, type ImagePromptDelivery } from './image-prompt-delivery.js';
 import type { RunRetrySideEffectState } from './run/core/index.js';
 import type { ToolExecutor } from './tool-executor.js';
 import type { RunLifecycle } from './run-lifecycle.js';
@@ -340,6 +341,28 @@ function asOptionalNumber(value: unknown): number | undefined {
 }
 
 /**
+ * Narrows a parsed `usage` event's `usage` sub-object (`{input_tokens?, output_tokens?}`) — the one
+ * piece of {@link translateUsagePayload} with real nested branching (an optional container holding
+ * two optional numeric fields), extracted so that function reads as a flat field-by-field mapping.
+ * @param rawUsage - `rawEvent.usage` once already narrowed to a record, or `undefined` when absent/malformed.
+ * @returns `undefined` when neither token count is present — matching `translateUsagePayload`'s
+ * original "omit the whole `usage` field rather than emit an empty object" behavior.
+ * @complexity O(1).
+ */
+export function extractUsageTokens(
+  rawUsage: Record<string, unknown> | undefined,
+): { input_tokens?: number; output_tokens?: number } | undefined {
+  if (!rawUsage) return undefined;
+  const inputTokens = asOptionalNumber(rawUsage.input_tokens);
+  const outputTokens = asOptionalNumber(rawUsage.output_tokens);
+  if (inputTokens === undefined && outputTokens === undefined) return undefined;
+  return {
+    ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
+    ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
+  };
+}
+
+/**
  * Narrows one parsed `usage` event's loosely-typed fields into
  * `RunAgentPayload`'s `usage` variant. The 4 source parsers attach extra
  * fields this narrow payload has no room for — `thought_tokens`,
@@ -353,15 +376,7 @@ function asOptionalNumber(value: unknown): number | undefined {
  */
 function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPayload {
   const rawUsage = isRecord(rawEvent.usage) ? rawEvent.usage : undefined;
-  const inputTokens = rawUsage ? asOptionalNumber(rawUsage.input_tokens) : undefined;
-  const outputTokens = rawUsage ? asOptionalNumber(rawUsage.output_tokens) : undefined;
-  const usage =
-    inputTokens !== undefined || outputTokens !== undefined
-      ? {
-          ...(inputTokens !== undefined ? { input_tokens: inputTokens } : {}),
-          ...(outputTokens !== undefined ? { output_tokens: outputTokens } : {}),
-        }
-      : undefined;
+  const usage = extractUsageTokens(rawUsage);
   const costUsd = asOptionalNumber(rawEvent.costUsd);
   const durationMs = asOptionalNumber(rawEvent.durationMs);
   return {
@@ -371,6 +386,120 @@ function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPaylo
     ...(durationMs !== undefined ? { durationMs } : {}),
   };
 }
+
+export function translateStatusEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  const model = asOptionalString(rawEvent.model);
+  const ttftMs = asOptionalNumber(rawEvent.ttftMs);
+  const detail = asOptionalString(rawEvent.detail);
+  const sessionId = asOptionalString(rawEvent.sessionId);
+  return {
+    kind: 'agent',
+    payload: {
+      type: 'status',
+      label: asString(rawEvent.label, 'unknown'),
+      ...(model !== undefined ? { model } : {}),
+      ...(ttftMs !== undefined ? { ttftMs } : {}),
+      ...(detail !== undefined ? { detail } : {}),
+    },
+    ...(sessionId !== undefined ? { sessionId } : {}),
+  };
+}
+
+function translateTextDeltaEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  return { kind: 'agent', payload: { type: 'text_delta', delta: asString(rawEvent.delta) } };
+}
+
+function translateThinkingStartEvent(): AgentRuntimeEventTranslation {
+  return { kind: 'agent', payload: { type: 'thinking_start' } };
+}
+
+function translateThinkingDeltaEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  return { kind: 'agent', payload: { type: 'thinking_delta', delta: asString(rawEvent.delta) } };
+}
+
+function translateToolUseEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  return {
+    kind: 'agent',
+    payload: {
+      type: 'tool_use',
+      id: asString(rawEvent.id),
+      name: asString(rawEvent.name),
+      input: rawEvent.input ?? null,
+    },
+  };
+}
+
+function translateToolInputDeltaEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  return {
+    kind: 'agent',
+    payload: {
+      type: 'tool_input_delta',
+      id: asString(rawEvent.id),
+      name: asString(rawEvent.name),
+      delta: asString(rawEvent.delta),
+    },
+  };
+}
+
+export function translateToolResultEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  const isError = typeof rawEvent.isError === 'boolean' ? rawEvent.isError : undefined;
+  return {
+    kind: 'agent',
+    payload: {
+      type: 'tool_result',
+      toolUseId: asString(rawEvent.toolUseId),
+      content: asString(rawEvent.content),
+      ...(isError !== undefined ? { isError } : {}),
+    },
+  };
+}
+
+function translateUsageEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  return { kind: 'agent', payload: translateUsagePayload(rawEvent) };
+}
+
+function translateRawEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  return { kind: 'agent', payload: { type: 'raw', line: asString(rawEvent.line) } };
+}
+
+export function translateErrorEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  const code = asOptionalString(rawEvent.code);
+  const message = asString(rawEvent.message, 'Unknown agent error');
+  return {
+    kind: 'error',
+    payload: { message, ...(code !== undefined ? { error: { code, message } } : {}) },
+  };
+}
+
+export function translateTurnEndEvent(rawEvent: Record<string, unknown>): AgentRuntimeEventTranslation {
+  // Claude-specific per-turn boundary. Not forwarded as an 'agent'
+  // event (no RunAgentPayload variant represents it) — run() reacts to
+  // it directly to close stdin (or, for gap 3, decide whether to inject
+  // a tool result and keep it open instead). See module doc.
+  const stopReason = asOptionalString(rawEvent.stopReason);
+  return { kind: 'turn-end', ...(stopReason !== undefined ? { stopReason } : {}) };
+}
+
+/**
+ * One entry per `rawEvent.type` this driver understands, each producing the same
+ * {@link AgentRuntimeEventTranslation} `translateAgentRuntimeEvent` used to return from an inline
+ * `switch` — replaced with this table (refactor-patterns' preferred fix for a long switch over an
+ * event-kind discriminant) so each case's own mapping is independently readable and testable, and so
+ * `translateAgentRuntimeEvent` itself is just a lookup plus the two upfront guards.
+ */
+const EVENT_TYPE_TRANSLATORS: Readonly<Record<string, (rawEvent: Record<string, unknown>) => AgentRuntimeEventTranslation>> = {
+  status: translateStatusEvent,
+  text_delta: translateTextDeltaEvent,
+  thinking_start: translateThinkingStartEvent,
+  thinking_delta: translateThinkingDeltaEvent,
+  tool_use: translateToolUseEvent,
+  tool_input_delta: translateToolInputDeltaEvent,
+  tool_result: translateToolResultEvent,
+  usage: translateUsageEvent,
+  raw: translateRawEvent,
+  error: translateErrorEvent,
+  turn_end: translateTurnEndEvent,
+};
 
 /**
  * Narrows one parser-emitted `{type, ...}` record into this engine's
@@ -391,93 +520,15 @@ function translateUsagePayload(rawEvent: Record<string, unknown>): RunAgentPaylo
  *
  * @param rawEvent - One event as delivered to a stream parser's `onEvent` callback.
  * @returns The routing + payload this event maps to.
- * @complexity O(1) — one discriminant switch, no iteration.
+ * @complexity O(1) — one table lookup, no iteration.
  * @overallScore 100/100
  */
 export function translateAgentRuntimeEvent(rawEvent: unknown): AgentRuntimeEventTranslation {
   if (!isRecord(rawEvent) || typeof rawEvent.type !== 'string') {
     return { kind: 'ignored' };
   }
-
-  switch (rawEvent.type) {
-    case 'status': {
-      const model = asOptionalString(rawEvent.model);
-      const ttftMs = asOptionalNumber(rawEvent.ttftMs);
-      const detail = asOptionalString(rawEvent.detail);
-      const sessionId = asOptionalString(rawEvent.sessionId);
-      return {
-        kind: 'agent',
-        payload: {
-          type: 'status',
-          label: asString(rawEvent.label, 'unknown'),
-          ...(model !== undefined ? { model } : {}),
-          ...(ttftMs !== undefined ? { ttftMs } : {}),
-          ...(detail !== undefined ? { detail } : {}),
-        },
-        ...(sessionId !== undefined ? { sessionId } : {}),
-      };
-    }
-    case 'text_delta':
-      return { kind: 'agent', payload: { type: 'text_delta', delta: asString(rawEvent.delta) } };
-    case 'thinking_start':
-      return { kind: 'agent', payload: { type: 'thinking_start' } };
-    case 'thinking_delta':
-      return { kind: 'agent', payload: { type: 'thinking_delta', delta: asString(rawEvent.delta) } };
-    case 'tool_use':
-      return {
-        kind: 'agent',
-        payload: {
-          type: 'tool_use',
-          id: asString(rawEvent.id),
-          name: asString(rawEvent.name),
-          input: rawEvent.input ?? null,
-        },
-      };
-    case 'tool_input_delta':
-      return {
-        kind: 'agent',
-        payload: {
-          type: 'tool_input_delta',
-          id: asString(rawEvent.id),
-          name: asString(rawEvent.name),
-          delta: asString(rawEvent.delta),
-        },
-      };
-    case 'tool_result': {
-      const isError = typeof rawEvent.isError === 'boolean' ? rawEvent.isError : undefined;
-      return {
-        kind: 'agent',
-        payload: {
-          type: 'tool_result',
-          toolUseId: asString(rawEvent.toolUseId),
-          content: asString(rawEvent.content),
-          ...(isError !== undefined ? { isError } : {}),
-        },
-      };
-    }
-    case 'usage':
-      return { kind: 'agent', payload: translateUsagePayload(rawEvent) };
-    case 'raw':
-      return { kind: 'agent', payload: { type: 'raw', line: asString(rawEvent.line) } };
-    case 'error': {
-      const code = asOptionalString(rawEvent.code);
-      const message = asString(rawEvent.message, 'Unknown agent error');
-      return {
-        kind: 'error',
-        payload: { message, ...(code !== undefined ? { error: { code, message } } : {}) },
-      };
-    }
-    case 'turn_end': {
-      // Claude-specific per-turn boundary. Not forwarded as an 'agent'
-      // event (no RunAgentPayload variant represents it) — run() reacts to
-      // it directly to close stdin (or, for gap 3, decide whether to inject
-      // a tool result and keep it open instead). See module doc.
-      const stopReason = asOptionalString(rawEvent.stopReason);
-      return { kind: 'turn-end', ...(stopReason !== undefined ? { stopReason } : {}) };
-    }
-    default:
-      return { kind: 'ignored' };
-  }
+  const translator = EVENT_TYPE_TRANSLATORS[rawEvent.type];
+  return translator ? translator(rawEvent) : { kind: 'ignored' };
 }
 
 /** Machine-readable failure reasons `run()` can reject with — every one is preceded by a `lifecycle.finish({status:'failed'})` call (see module doc's Invariant section). */
@@ -1708,6 +1759,38 @@ function translateAcpError(payload: unknown): RunErrorPayload {
   };
 }
 
+/** The side-effect signals {@link applyAgentTranslationSideEffects} reports through, one callback per signal so a caller only wires the ones it actually tracks. */
+interface AgentTranslationSideEffectSink {
+  readonly onSessionId: (sessionId: string) => void;
+  readonly onToolCall: () => void;
+  readonly onUserVisibleOutput: () => void;
+}
+
+/**
+ * Applies one already-translated `'agent'`-kind event's side-effect signals — a captured session id
+ * (gap 5), and the `toolCallSeen`/`userVisibleOutputSeen` pair every `wire*Lifecycle` driver tracks
+ * for `FailureClassificationContext.sideEffects` — through `sink`. Extracted from `wireAcpLifecycle`'s
+ * `send()`, where this exact three-level-deep nesting (session-id check, then tool_use/else-if
+ * delta-length check) was that function's largest single cognitive-complexity contributor. Pure
+ * except for calling the injected `sink` callbacks.
+ * @param payload - The translated event's `RunAgentPayload`.
+ * @param sessionId - The translation's optional captured session id, or `undefined`.
+ * @param sink - The driver-specific effects to apply.
+ * @complexity O(1).
+ */
+export function applyAgentTranslationSideEffects(
+  payload: RunAgentPayload,
+  sessionId: string | undefined,
+  sink: AgentTranslationSideEffectSink,
+): void {
+  if (sessionId !== undefined) sink.onSessionId(sessionId);
+  if (payload.type === 'tool_use') {
+    sink.onToolCall();
+  } else if ((payload.type === 'text_delta' || payload.type === 'thinking_delta') && payload.delta.length > 0) {
+    sink.onUserVisibleOutput();
+  }
+}
+
 /**
  * Wires an ACP child to a run. Unlike the JSON-stream path, ACP owns the
  * prompt protocol and reports its parsed events through `attachAcpSession`'s
@@ -1802,15 +1885,11 @@ function wireAcpLifecycle(ctx: WireAcpLifecycleContext): AcpSessionController {
       if (event === 'agent') {
         const translation = translateAgentRuntimeEvent(payload);
         if (translation.kind === 'agent') {
-          if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
-          if (translation.payload.type === 'tool_use') {
-            toolCallSeen = true;
-          } else if (
-            (translation.payload.type === 'text_delta' || translation.payload.type === 'thinking_delta') &&
-            translation.payload.delta.length > 0
-          ) {
-            userVisibleOutputSeen = true;
-          }
+          applyAgentTranslationSideEffects(translation.payload, translation.sessionId, {
+            onSessionId: (sessionId) => { capturedSessionId = sessionId; },
+            onToolCall: () => { toolCallSeen = true; },
+            onUserVisibleOutput: () => { userVisibleOutputSeen = true; },
+          });
           enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: translation.payload }));
         } else if (translation.kind === 'error') {
           enqueueEmit(() => lifecycle.emit(runId, { event: 'error', data: translation.payload }));
@@ -2112,27 +2191,606 @@ export interface CreateAgentExecutorOptions {
  * @complexity `run()`'s own setup is O(1); steady-state cost is the chosen stream parser's.
  * @overallScore 100/100
  */
+/** `createAgentExecutor`'s internal `failBeforeSpawn` — a nested closure over `lifecycle`, so every extracted `run()` phase below takes it as an explicit injected collaborator rather than reaching for a module-level one. */
+type FailBeforeSpawn = (runId: string, code: AgentExecutorErrorCode, message: string) => Promise<never>;
+
+interface ResolvedAgentRuntimeDeps {
+  readonly getAgentDef: typeof getAgentDef;
+  readonly resolveAgentLaunch: typeof resolveAgentLaunch;
+  readonly applyAgentLaunchEnv: typeof applyAgentLaunchEnv;
+  readonly attachAcpSession: typeof attachAcpSession;
+  readonly attachPiRpcSession: typeof attachPiRpcSession;
+  readonly preparePromptFileForAgent: typeof preparePromptFileForAgent;
+  readonly prepareAgentLogFile: typeof prepareAgentLogFile;
+}
+
+/**
+ * Resolves `CreateAgentExecutorOptions`' agent-runtime collaborator seams (registry lookup, launch
+ * resolution, ACP/pi-rpc session attachment, prompt/log file staging) to their real
+ * `@jini-ai/agent-runtime` defaults. Split out of `createAgentExecutor` together with
+ * {@link resolveProcessDeps}/{@link resolveMiscExecutorDeps}: a flat 14-line `options.x ?? default`
+ * sequence was that function's entire cyclomatic-complexity excess (one branch point per default) —
+ * grouping the same defaults by concern keeps each resulting function's own complexity low without
+ * hiding which options belong together. Pure.
+ */
+function resolveAgentRuntimeDeps(options: CreateAgentExecutorOptions): ResolvedAgentRuntimeDeps {
+  return {
+    getAgentDef: options.getAgentDef ?? getAgentDef,
+    resolveAgentLaunch: options.resolveAgentLaunch ?? resolveAgentLaunch,
+    applyAgentLaunchEnv: options.applyAgentLaunchEnv ?? applyAgentLaunchEnv,
+    attachAcpSession: options.attachAcpSession ?? attachAcpSession,
+    attachPiRpcSession: options.attachPiRpcSession ?? attachPiRpcSession,
+    preparePromptFileForAgent: options.preparePromptFileForAgent ?? preparePromptFileForAgent,
+    prepareAgentLogFile: options.prepareAgentLogFile ?? prepareAgentLogFile,
+  };
+}
+
+interface ResolvedProcessDeps {
+  readonly createCommandInvocation: typeof createCommandInvocation;
+  readonly spawn: typeof nodeSpawn;
+  readonly listProcessSnapshots: typeof listProcessSnapshots;
+  readonly collectProcessTreePids: typeof collectProcessTreePids;
+  readonly stopProcesses: typeof stopProcesses;
+}
+
+/** Resolves the OS-process-facing collaborator seams — see {@link resolveAgentRuntimeDeps}'s doc. Pure. */
+function resolveProcessDeps(options: CreateAgentExecutorOptions): ResolvedProcessDeps {
+  return {
+    createCommandInvocation: options.createCommandInvocation ?? createCommandInvocation,
+    spawn: options.spawn ?? nodeSpawn,
+    listProcessSnapshots: options.listProcessSnapshots ?? listProcessSnapshots,
+    collectProcessTreePids: options.collectProcessTreePids ?? collectProcessTreePids,
+    stopProcesses: options.stopProcesses ?? stopProcesses,
+  };
+}
+
+interface ResolvedMiscExecutorDeps {
+  readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
+  readonly bufferedStdoutMaxBytes: number;
+}
+
+/** Resolves the two remaining defaultable options — see {@link resolveAgentRuntimeDeps}'s doc. Pure. */
+function resolveMiscExecutorDeps(options: CreateAgentExecutorOptions): ResolvedMiscExecutorDeps {
+  return {
+    onCleanupFailure: options.onCleanupFailure ?? defaultCleanupFailureSink,
+    bufferedStdoutMaxBytes: options.bufferedStdoutMaxBytes ?? DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// run() phases
+//
+// `run()` itself (below `createAgentExecutor`) was a single ~400-line function
+// (cyclomatic 63 / cognitive 49) sequencing ~15 guarded pre-spawn steps. Each
+// phase here owns one step's decision logic and, where the original step could
+// fail, its own `failBeforeSpawn`/`releaseStagedResources` call — so `run()`
+// reads as a flat sequence of `const x = await phase(...)` statements with no
+// guard clauses of its own. A phase that can fail is typed to return the
+// success shape and internally `return deps.failBeforeSpawn(...)` (a
+// `Promise<never>`, assignable to any return type) on failure; since
+// `failBeforeSpawn` always rejects, `run()` never needs to check the result —
+// the `await` alone propagates the rejection exactly as the original inline
+// `return failBeforeSpawn(...)` did. Every phase takes its collaborators as
+// explicit parameters (no closures over `createAgentExecutor`'s scope), so
+// each is independently constructible and testable.
+// ---------------------------------------------------------------------------
+
+interface ResolvedDefAndFormat {
+  readonly def: RuntimeAgentDef;
+  readonly streamFormat: SupportedStreamFormat;
+}
+
+/** Phase 1: registry lookup + `assessAgentExecutorCompatibility` guard. */
+export async function resolveDefAndStreamFormat(
+  input: Pick<AgentExecutorRunInput, 'runId' | 'agentId'>,
+  deps: { readonly getAgentDef: typeof getAgentDef; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<ResolvedDefAndFormat> {
+  const def = deps.getAgentDef(input.agentId);
+  if (!def) {
+    return deps.failBeforeSpawn(input.runId, 'AGENT_NOT_FOUND', `AgentExecutor: unknown agentId "${input.agentId}"`);
+  }
+  const compatibility = assessAgentExecutorCompatibility(def);
+  if (!compatibility.supported) {
+    return deps.failBeforeSpawn(input.runId, 'AGENT_RUNTIME_UNSUPPORTED', compatibility.reason);
+  }
+  return { def, streamFormat: compatibility.streamFormat };
+}
+
+/** Phase 2: image-prompt-delivery augmentation + argv-budget guard for argv-bound defs. */
+export async function resolveImageDeliveryAndArgvBudget(
+  input: {
+    readonly runId: string;
+    readonly def: RuntimeAgentDef;
+    readonly prompt: string;
+    readonly imagePaths: readonly string[] | undefined;
+    readonly extraAllowedDirs: readonly string[] | undefined;
+  },
+  deps: { readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<ImagePromptDelivery> {
+  const imageDelivery = applyImagePromptDelivery(input.def.imageDelivery, input.prompt, input.imagePaths, input.extraAllowedDirs);
+  const argvBudgetError = checkPromptArgvBudget(input.def, imageDelivery.prompt);
+  if (argvBudgetError) {
+    return deps.failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', argvBudgetError.message);
+  }
+  return imageDelivery;
+}
+
+/**
+ * Phase 3a: the subprocess environment this run's launch resolution and spawn should use — the
+ * caller-supplied escape hatch verbatim, or the deny-by-default `BASELINE_AGENT_ENV_KEYS` allowlist.
+ * Pure.
+ */
+export function resolveRunEnv(
+  input: Pick<AgentExecutorRunInput, 'env' | 'credentialEnv'>,
+  hostEnv: NodeJS.ProcessEnv,
+): Record<string, string> {
+  return input.env !== undefined ? toStringEnvRecord(input.env) : buildAgentEnv(hostEnv, input.credentialEnv);
+}
+
+/** A resolved launch whose `launchPath` is confirmed non-null — see {@link resolveLaunch}. */
+type ConfirmedAgentLaunchResolution = AgentLaunchResolution & { readonly launchPath: string };
+
+/** Phase 3b: launch-path resolution + binary-not-resolved guard. */
+export async function resolveLaunch(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly resolvedEnv: Record<string, string> },
+  deps: { readonly resolveAgentLaunch: typeof resolveAgentLaunch; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<ConfirmedAgentLaunchResolution> {
+  const launch = deps.resolveAgentLaunch(input.def, input.resolvedEnv);
+  if (!launch.launchPath) {
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_BINARY_NOT_RESOLVED',
+      `AgentExecutor: could not resolve an executable for agent "${input.def.id}" (bin "${input.def.bin}")`,
+    );
+  }
+  // Narrowed by the guard above; `resolveAgentLaunch`'s own return type still declares
+  // `launchPath: string | null` since it can't know this call site already checked.
+  return launch as ConfirmedAgentLaunchResolution;
+}
+
+/** Phase 4a: stage a `promptViaFile` def's prompt to a temp file (a no-op for every other def). */
+export async function stagePromptFile(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly prompt: string },
+  deps: { readonly preparePromptFileForAgent: typeof preparePromptFileForAgent; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<PreparedPromptFile | null> {
+  try {
+    return await deps.preparePromptFileForAgent(input.def, input.prompt, input.runId);
+  } catch (err) {
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not stage a prompt file for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/** Phase 4b: stage a `needsAgentLogFile` def's diagnostic-log path (a no-op for every other def). */
+export async function stageLogFile(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly preparedPromptFile: PreparedPromptFile | null },
+  deps: { readonly prepareAgentLogFile: typeof prepareAgentLogFile; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<PreparedAgentLogFile | null> {
+  try {
+    return await deps.prepareAgentLogFile(input.def, input.runId);
+  } catch (err) {
+    await (input.preparedPromptFile ? input.preparedPromptFile.cleanup() : Promise.resolve());
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not stage a log file for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/** Phase 5: resolves this run's MCP bridge delivery (credential resolution + {@link buildMcpBridgeDelivery}). */
+export async function resolveMcpBridgeForRun(
+  input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef },
+  deps: {
+    readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
+    readonly cleanupStagedFiles: () => Promise<void>;
+    readonly failBeforeSpawn: FailBeforeSpawn;
+  },
+): Promise<McpBridgeDelivery | null> {
+  try {
+    // Awaited here rather than inside `buildMcpBridgeDelivery` so that function stays pure and
+    // synchronous. `undefined` when the host supplied no resolver, which omits the token entirely.
+    const credential = deps.mcpJsonInjection !== undefined ? await deps.mcpJsonInjection.credential?.(input.runId) : undefined;
+    return buildMcpBridgeDelivery({
+      cwd: input.cwd,
+      runId: input.runId,
+      strategy: input.def.externalMcpInjection,
+      options: deps.mcpJsonInjection,
+      credential,
+    });
+  } catch (err) {
+    // Spawning a child that cannot authenticate would produce a run whose every bridged tool call
+    // 401s, so a rejecting credential resolver fails the run before spawn instead.
+    await deps.cleanupStagedFiles();
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not resolve the MCP bridge credential for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/**
+ * Phase 6a: the subprocess environment mechanism 3+4 (`'opencode-env-content'`/`'mimo-env-content'`)
+ * rides in — merged into whatever the host already set there, never a CLI argument (the config embeds
+ * `JINI_DAEMON_TOKEN`, and process arguments are readable by any other local user through `ps`). Pure.
+ */
+export function computeChildEnv(spawnEnv: NodeJS.ProcessEnv, mcpBridge: McpBridgeDelivery | null): NodeJS.ProcessEnv {
+  if (mcpBridge?.kind !== 'env-content') return spawnEnv;
+  return {
+    ...spawnEnv,
+    [mcpBridge.envVarName]: mergeEnvContentMcpConfig(spawnEnv[mcpBridge.envVarName], mcpBridge.serverEntry),
+  };
+}
+
+/** Phase 6b: the `RuntimeContext` `buildArgs` receives — `undefined` unless a file or bridge path was staged. Pure. */
+export function computeRuntimeContext(
+  preparedPromptFile: PreparedPromptFile | null,
+  preparedLogFile: PreparedAgentLogFile | null,
+  mcpBridge: McpBridgeDelivery | null,
+): RuntimeContext | undefined {
+  if (!preparedPromptFile && !preparedLogFile && mcpBridge?.kind !== 'claude-mcp-json') {
+    return undefined;
+  }
+  return {
+    ...(preparedPromptFile ? { promptFilePath: preparedPromptFile.path } : {}),
+    ...(preparedLogFile ? { agentLogFilePath: preparedLogFile.path } : {}),
+    // Safe to pass before the file exists: `writeMcpJsonForRun` runs after buildArgs but still
+    // before spawn, so the path is real by the time the child process starts.
+    ...(mcpBridge?.kind === 'claude-mcp-json' ? { mcpJsonPath: mcpBridge.mcpJsonPath } : {}),
+  };
+}
+
+/**
+ * Phase 7: acquires a `runtimeLock` def's process-global mutex before `buildArgs` runs — see
+ * `RuntimeLock`'s own doc for the concrete race. A no-op (`undefined`) for the 23 of 24 defs with no
+ * `runtimeLock` declared.
+ */
+async function acquireRuntimeLockIfConfigured(def: RuntimeAgentDef, model: string | undefined): Promise<RuntimeLockHold | undefined> {
+  return def.runtimeLock?.acquire({ model });
+}
+
+/**
+ * Phase 8: the host's `PromptAugmenter.systemOverlay()` result, if configured — see
+ * `CreateAgentExecutorOptions.promptAugmenter`'s doc for `turnIndex`'s coarse 0/1 proxy.
+ */
+function computeSystemPromptOverlay(
+  promptAugmenter: PromptAugmenter | undefined,
+  agentId: string,
+  runtimeContext: RuntimeContext | undefined,
+): string | null | undefined {
+  return promptAugmenter?.systemOverlay?.({
+    agentId,
+    turnIndex: runtimeContext?.hasPriorAssistantTurn ? 1 : 0,
+  });
+}
+
+/** Phase 9a: the def's `buildArgs` 4th argument — `undefined` when the run selects no model/reasoning/permissionMode/overlay at all (byte-identical to omitting the argument). Pure. */
+export function buildAgentBuildArgsOptions(
+  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode'>,
+  systemPromptOverlay: string | null | undefined,
+): RuntimeBuildOptions | undefined {
+  const hasOverlay = systemPromptOverlay !== undefined && systemPromptOverlay !== null;
+  if (input.model === undefined && input.reasoning === undefined && input.permissionMode === undefined && !hasOverlay) {
+    return undefined;
+  }
+  return {
+    ...(input.model !== undefined ? { model: input.model } : {}),
+    ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
+    ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+    ...(hasOverlay ? { systemPromptOverlay } : {}),
+  };
+}
+
+/** Phase 9b: calls the def's `buildArgs`, releasing staged resources and failing the run on a throw. */
+export async function buildRunArgs(
+  input: {
+    readonly runId: string;
+    readonly def: RuntimeAgentDef;
+    readonly imageDelivery: ImagePromptDelivery;
+    readonly imagePaths: readonly string[] | undefined;
+    readonly runInput: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode'>;
+    readonly systemPromptOverlay: string | null | undefined;
+    readonly runtimeContext: RuntimeContext | undefined;
+  },
+  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<string[]> {
+  try {
+    return input.def.buildArgs(
+      input.imageDelivery.prompt,
+      [...(input.imagePaths ?? [])],
+      input.imageDelivery.extraAllowedDirs === undefined ? undefined : [...input.imageDelivery.extraAllowedDirs],
+      buildAgentBuildArgsOptions(input.runInput, input.systemPromptOverlay),
+      input.runtimeContext,
+    );
+  } catch (err) {
+    await deps.releaseStagedResources();
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not build launch arguments for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/** Phase 10: mechanism 1 of 4's one effect — stages this run's own `.mcp.json`, returning the path `cleanupStagedFiles` should later remove (`undefined` for every other mechanism / unconfigured host). */
+export async function writeMcpJsonIfNeeded(
+  input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null },
+  deps: {
+    readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
+    readonly releaseStagedResources: () => Promise<void>;
+    readonly failBeforeSpawn: FailBeforeSpawn;
+  },
+): Promise<string | undefined> {
+  if (input.mcpBridge?.kind !== 'claude-mcp-json' || deps.mcpJsonInjection === undefined) {
+    return undefined;
+  }
+  try {
+    await writeMcpJsonForRun(input.cwd, input.mcpBridge, deps.mcpJsonInjection);
+    return input.mcpBridge.mcpJsonPath;
+  } catch (err) {
+    await deps.releaseStagedResources();
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not write .mcp.json for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/** Phase 11: post-`buildArgs` guard for argv-bound defs whose resolved binary is a Windows shim/.exe — a no-op off-Windows and for non-argv-bound defs. */
+export async function guardWindowsCommandLineBudget(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly launchPath: string; readonly args: readonly string[] },
+  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<void> {
+  const windowsBudgetError =
+    checkWindowsCmdShimCommandLineBudget(input.def, input.launchPath, input.args) ??
+    checkWindowsDirectExeCommandLineBudget(input.def, input.launchPath, input.args);
+  if (windowsBudgetError) {
+    await deps.releaseStagedResources();
+    await deps.failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', windowsBudgetError.message);
+  }
+}
+
+/** {@link spawnAgentChildProcess}'s result — a discriminated union rather than a thrown/rejected outcome so the call can stay synchronous; see that function's doc for why. */
+export type SpawnAgentChildProcessResult =
+  | { readonly kind: 'ok'; readonly child: ChildProcess }
+  | { readonly kind: 'error'; readonly error: unknown };
+
+/**
+ * Phase 12: the real `node:child_process.spawn` call.
+ *
+ * **Deliberately synchronous, unlike every other phase in this file.** A spawned child can emit
+ * `'error'` on the very next microtask tick (Node schedules it eagerly on some failure modes, and a
+ * test harness simulating "the child emits 'error' before 'spawn'" does so explicitly via
+ * `queueMicrotask`). `run()` must register its `'error'` listeners (`wireChildLifecycle`'s safety net,
+ * then `waitForSpawnOrError`'s `child.once('error', reject)`) in the *same synchronous turn* as this
+ * spawn call — Node's `EventEmitter` throws synchronously when `'error'` fires with zero listeners
+ * attached. Wrapping this call in an `async function` and `await`ing it (as every other phase here
+ * does) would insert a microtask tick between spawn and listener registration, occasionally losing
+ * that race — confirmed by a real test failure during this refactor (an uncaught `EventEmitter`
+ * `'error'` exception) before this function was changed back to a plain, unawaited call returning a
+ * result object instead of throwing/rejecting.
+ * @returns `{kind:'ok', child}` on success, `{kind:'error', error}` on a synchronous throw from `spawn`
+ * — `run()` itself is responsible for cleanup and `failBeforeSpawn` on the error variant, both of
+ * which are safe to make asynchronous since no child (and hence no listener race) exists yet.
+ * @complexity O(1) plus `spawn`'s own cost.
+ */
+export function spawnAgentChildProcess(
+  input: {
+    readonly cwd: string;
+    readonly childEnv: NodeJS.ProcessEnv;
+    readonly invocation: ReturnType<typeof createCommandInvocation>;
+  },
+  deps: { readonly spawn: typeof nodeSpawn },
+): SpawnAgentChildProcessResult {
+  try {
+    return {
+      kind: 'ok',
+      child: deps.spawn(input.invocation.command, input.invocation.args, {
+        cwd: input.cwd,
+        env: input.childEnv,
+        stdio: ['pipe', 'pipe', 'pipe'],
+        windowsVerbatimArguments: input.invocation.windowsVerbatimArguments,
+      }),
+    };
+  } catch (error) {
+    return { kind: 'error', error };
+  }
+}
+
+/** Named predicate replacing an inline `streamFormat === 'acp-json-rpc' || streamFormat === 'pi-rpc'` check — the two formats that own their own prompt/event protocol and skip `wireChildLifecycle`. */
+export function isStdinDrivenFormat(streamFormat: SupportedStreamFormat): streamFormat is ChildDrivenStreamFormat {
+  return streamFormat !== 'acp-json-rpc' && streamFormat !== 'pi-rpc';
+}
+
+/** Phase 13: awaits spawn confirmation, routing a failure through the same `failBeforeSpawn` shape every earlier guard uses. */
+export async function confirmChildSpawned(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly child: ChildProcess },
+  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<void> {
+  try {
+    await waitForSpawnOrError(input.child);
+  } catch (err) {
+    await deps.releaseStagedResources();
+    await deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: failed to spawn agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/** Phase 14: starts a `runtimeLock` def's handoff watcher once a live process exists to consume the locked side effect — a no-op when the def declared no `waitForHandoff`. Deliberately not awaited; see `RuntimeLockHold.waitForHandoff`'s own doc. */
+export function armHandoffWatcher(
+  runtimeLockHold: RuntimeLockHold | undefined,
+  handoffInput: { readonly logFilePath: string | undefined; readonly model: string | undefined; readonly processExited: AbortSignal },
+  release: () => void,
+): void {
+  if (!runtimeLockHold?.waitForHandoff) return;
+  void runtimeLockHold.waitForHandoff(handoffInput).then(release, release);
+}
+
+interface RunAcpDispatchInput {
+  readonly runId: string;
+  readonly agentId: string;
+  readonly child: ChildProcess;
+  readonly prompt: string;
+  readonly cwd: string;
+  readonly model: string | undefined;
+  readonly imagePaths: readonly string[];
+  readonly envFormat: 'array' | 'map' | undefined;
+  readonly mcpBridge: McpBridgeDelivery | null;
+}
+
+interface RunAcpDispatchDeps extends TerminateChildTreeDeps {
+  readonly lifecycle: RunLifecycle;
+  readonly attachAcpSession: typeof attachAcpSession;
+  readonly onPermissionRequest: AcpPermissionHandler | undefined;
+  readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
+  readonly cleanupStagedFiles: () => Promise<void>;
+  readonly journal: RunByteJournal | undefined;
+  readonly classifyFailure: ClassifyFailure | undefined;
+  readonly releaseStagedResources: () => Promise<void>;
+  readonly failBeforeSpawn: FailBeforeSpawn;
+}
+
+/** Phase 15 (ACP branch): attaches the ACP session, escalating process-tree teardown and failing the run through `failBeforeSpawn` on an attach-time throw. */
+export async function runAcpDispatch(input: RunAcpDispatchInput, deps: RunAcpDispatchDeps): Promise<void> {
+  try {
+    wireAcpLifecycle({
+      runId: input.runId,
+      agentId: input.agentId,
+      child: input.child,
+      lifecycle: deps.lifecycle,
+      prompt: input.prompt,
+      cwd: input.cwd,
+      model: input.model,
+      imagePaths: input.imagePaths,
+      envFormat: input.envFormat,
+      // Mechanism 2 of 4 — see `WireAcpLifecycleContext.mcpServers`. `undefined` for any def that
+      // did not declare `'acp-merge'` and for an unconfigured host.
+      mcpServers: input.mcpBridge?.kind === 'acp-merge' ? input.mcpBridge.mcpServers : undefined,
+      onPermissionRequest: deps.onPermissionRequest,
+      attachAcpSession: deps.attachAcpSession,
+      listProcessSnapshots: deps.listProcessSnapshots,
+      collectProcessTreePids: deps.collectProcessTreePids,
+      stopProcesses: deps.stopProcesses,
+      onCleanupFailure: deps.onCleanupFailure,
+      cleanupStagedFiles: deps.cleanupStagedFiles,
+      journal: deps.journal,
+      classifyFailure: deps.classifyFailure,
+    });
+  } catch (err) {
+    // Unlike the cancellation-listener call sites, we are already in an async function about to
+    // call finish() and throw — nothing else races this, so cleanup is awaited here rather than
+    // fired-and-forgotten (SEC-007: "await where lifecycle ordering allows it").
+    await terminateChildTreeBestEffort(
+      { listProcessSnapshots: deps.listProcessSnapshots, collectProcessTreePids: deps.collectProcessTreePids, stopProcesses: deps.stopProcesses },
+      input.child,
+      input.runId,
+      'acp-attach-failure',
+      deps.onCleanupFailure,
+    );
+    await deps.releaseStagedResources();
+    await deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not attach ACP session for agent "${input.agentId}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+interface RunPiRpcDispatchInput {
+  readonly runId: string;
+  readonly agentId: string;
+  readonly child: ChildProcess;
+  readonly prompt: string;
+  readonly cwd: string;
+  readonly model: string | undefined;
+  readonly imagePaths: readonly string[];
+  readonly uploadRoot: string | undefined;
+}
+
+interface RunPiRpcDispatchDeps extends TerminateChildTreeDeps {
+  readonly lifecycle: RunLifecycle;
+  readonly attachPiRpcSession: typeof attachPiRpcSession;
+  readonly onCleanupFailure: (context: AgentCleanupFailureContext) => void;
+  readonly cleanupStagedFiles: () => Promise<void>;
+  readonly journal: RunByteJournal | undefined;
+  readonly classifyFailure: ClassifyFailure | undefined;
+  readonly releaseStagedResources: () => Promise<void>;
+  readonly failBeforeSpawn: FailBeforeSpawn;
+}
+
+/** Phase 15 (pi-rpc branch): same discipline as {@link runAcpDispatch}, for the one `'pi-rpc'` def. */
+export async function runPiRpcDispatch(input: RunPiRpcDispatchInput, deps: RunPiRpcDispatchDeps): Promise<void> {
+  try {
+    wirePiRpcLifecycle({
+      runId: input.runId,
+      agentId: input.agentId,
+      child: input.child,
+      lifecycle: deps.lifecycle,
+      prompt: input.prompt,
+      cwd: input.cwd,
+      model: input.model,
+      imagePaths: input.imagePaths,
+      uploadRoot: input.uploadRoot,
+      attachPiRpcSession: deps.attachPiRpcSession,
+      listProcessSnapshots: deps.listProcessSnapshots,
+      collectProcessTreePids: deps.collectProcessTreePids,
+      stopProcesses: deps.stopProcesses,
+      onCleanupFailure: deps.onCleanupFailure,
+      cleanupStagedFiles: deps.cleanupStagedFiles,
+      journal: deps.journal,
+      classifyFailure: deps.classifyFailure,
+    });
+  } catch (err) {
+    // Same discipline as the ACP attach-failure path above: await cleanup here rather than
+    // fire-and-forget (SEC-007).
+    await terminateChildTreeBestEffort(
+      { listProcessSnapshots: deps.listProcessSnapshots, collectProcessTreePids: deps.collectProcessTreePids, stopProcesses: deps.stopProcesses },
+      input.child,
+      input.runId,
+      'pi-rpc-attach-failure',
+      deps.onCleanupFailure,
+    );
+    await deps.releaseStagedResources();
+    await deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not attach pi-rpc session for agent "${input.agentId}": ${errorMessage(err)}`,
+    );
+  }
+}
+
 export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentExecutor {
   const lifecycle = options.lifecycle;
-  const getAgentDefFn = options.getAgentDef ?? getAgentDef;
-  const resolveAgentLaunchFn = options.resolveAgentLaunch ?? resolveAgentLaunch;
-  const applyAgentLaunchEnvFn = options.applyAgentLaunchEnv ?? applyAgentLaunchEnv;
-  const createCommandInvocationFn = options.createCommandInvocation ?? createCommandInvocation;
-  const spawnFn = options.spawn ?? nodeSpawn;
-  const attachAcpSessionFn = options.attachAcpSession ?? attachAcpSession;
-  const attachPiRpcSessionFn = options.attachPiRpcSession ?? attachPiRpcSession;
-  const preparePromptFileForAgentFn = options.preparePromptFileForAgent ?? preparePromptFileForAgent;
-  const prepareAgentLogFileFn = options.prepareAgentLogFile ?? prepareAgentLogFile;
-  const listProcessSnapshotsFn = options.listProcessSnapshots ?? listProcessSnapshots;
-  const collectProcessTreePidsFn = options.collectProcessTreePids ?? collectProcessTreePids;
-  const stopProcessesFn = options.stopProcesses ?? stopProcesses;
-  const onCleanupFailureFn = options.onCleanupFailure ?? defaultCleanupFailureSink;
+  const {
+    getAgentDef: getAgentDefFn,
+    resolveAgentLaunch: resolveAgentLaunchFn,
+    applyAgentLaunchEnv: applyAgentLaunchEnvFn,
+    attachAcpSession: attachAcpSessionFn,
+    attachPiRpcSession: attachPiRpcSessionFn,
+    preparePromptFileForAgent: preparePromptFileForAgentFn,
+    prepareAgentLogFile: prepareAgentLogFileFn,
+  } = resolveAgentRuntimeDeps(options);
+  const {
+    createCommandInvocation: createCommandInvocationFn,
+    spawn: spawnFn,
+    listProcessSnapshots: listProcessSnapshotsFn,
+    collectProcessTreePids: collectProcessTreePidsFn,
+    stopProcesses: stopProcessesFn,
+  } = resolveProcessDeps(options);
+  const { onCleanupFailure: onCleanupFailureFn, bufferedStdoutMaxBytes } = resolveMiscExecutorDeps(options);
   const journal = options.journal;
   const continuation = options.continuation;
   const classifyFailure = options.classifyFailure;
   const mcpJsonInjection = options.mcpJsonInjection;
   const promptAugmenter = options.promptAugmenter;
-  const bufferedStdoutMaxBytes = options.bufferedStdoutMaxBytes ?? DEFAULT_BUFFERED_STDOUT_MAX_BYTES;
 
   /**
    * Transitions `runId` to `'failed'` (idempotent, never resumable — no
@@ -2163,19 +2821,10 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
    * @overallScore 100/100
    */
   async function run(input: AgentExecutorRunInput): Promise<void> {
-    const def = getAgentDefFn(input.agentId);
-    if (!def) {
-      return failBeforeSpawn(input.runId, 'AGENT_NOT_FOUND', `AgentExecutor: unknown agentId "${input.agentId}"`);
-    }
-
-    // Every compatibility guard lives in `assessAgentExecutorCompatibility` so discovery surfaces can
-    // ask the same question before a run exists — see that function's own doc. It returns the narrowed
-    // `streamFormat` on success, so this delegation costs no redundant re-check.
-    const compatibility = assessAgentExecutorCompatibility(def);
-    if (!compatibility.supported) {
-      return failBeforeSpawn(input.runId, 'AGENT_RUNTIME_UNSUPPORTED', compatibility.reason);
-    }
-    const streamFormat = compatibility.streamFormat;
+    const { def, streamFormat } = await resolveDefAndStreamFormat(
+      { runId: input.runId, agentId: input.agentId },
+      { getAgentDef: getAgentDefFn, failBeforeSpawn },
+    );
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
     // dirs" — a no-op (`{prompt: input.prompt, extraAllowedDirs: input.extraAllowedDirs}`,
@@ -2187,59 +2836,35 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // calls further down deliberately keep reading `input.prompt` verbatim, since those two
     // defs' own native protocol already delivers the image and must never also get this
     // treatment (the double-delivery hazard this mechanism exists to avoid).
-    const imageDelivery = applyImagePromptDelivery(def.imageDelivery, input.prompt, input.imagePaths, input.extraAllowedDirs);
+    const imageDelivery = await resolveImageDeliveryAndArgvBudget(
+      { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs },
+      { failBeforeSpawn },
+    );
 
-    // Argv-bound defs (aider, deepseek) — reject an oversized prompt before
-    // ever resolving a binary or touching the filesystem. A no-op for every
-    // def without `maxPromptArgBytes` (checkPromptArgvBudget's own guard).
-    const argvBudgetError = checkPromptArgvBudget(def, imageDelivery.prompt);
-    if (argvBudgetError) {
-      return failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', argvBudgetError.message);
-    }
-
-    const resolvedEnv: Record<string, string> =
-      input.env !== undefined ? toStringEnvRecord(input.env) : buildAgentEnv(process.env, input.credentialEnv);
-    const launch: AgentLaunchResolution = resolveAgentLaunchFn(def, resolvedEnv);
-    if (!launch.launchPath) {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_BINARY_NOT_RESOLVED',
-        `AgentExecutor: could not resolve an executable for agent "${def.id}" (bin "${def.bin}")`,
-      );
-    }
+    const resolvedEnv = resolveRunEnv(input, process.env);
+    const launch = await resolveLaunch(
+      { runId: input.runId, def, resolvedEnv },
+      { resolveAgentLaunch: resolveAgentLaunchFn, failBeforeSpawn },
+    );
 
     const spawnEnv = applyAgentLaunchEnvFn({ ...resolvedEnv }, launch);
 
-    // Stage a promptViaFile def's (grok-build) prompt to a temp file before
-    // buildArgs runs — its buildArgs throws without
-    // runtimeContext.promptFilePath. A no-op (returns null) for every def
-    // without promptViaFile: true (preparePromptFileForAgent's own guard).
-    let preparedPromptFile: PreparedPromptFile | null;
-    try {
-      preparedPromptFile = await preparePromptFileForAgentFn(def, imageDelivery.prompt, input.runId);
-    } catch (err) {
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_SPAWN_FAILED',
-        `AgentExecutor: could not stage a prompt file for agent "${def.id}": ${errorMessage(err)}`,
-      );
-    }
+    // Stage a promptViaFile def's (grok-build) prompt to a temp file before buildArgs runs — its
+    // buildArgs throws without runtimeContext.promptFilePath. A no-op (returns null) for every
+    // def without promptViaFile: true (preparePromptFileForAgent's own guard).
+    const preparedPromptFile = await stagePromptFile(
+      { runId: input.runId, def, prompt: imageDelivery.prompt },
+      { preparePromptFileForAgent: preparePromptFileForAgentFn, failBeforeSpawn },
+    );
     // Stage a needsAgentLogFile def's (antigravity) diagnostic-log path, on the same terms and at
     // the same point as the prompt file above: before buildArgs, since buildArgs is what turns the
     // path into a `--log-file <path>` argument. A no-op (returns null) for every def without
     // `needsAgentLogFile: true` (prepareAgentLogFile's own guard). Sequenced after the prompt file
-    // rather than concurrently so the failure path below has exactly one thing to clean up.
-    let preparedLogFile: PreparedAgentLogFile | null;
-    try {
-      preparedLogFile = await prepareAgentLogFileFn(def, input.runId);
-    } catch (err) {
-      await (preparedPromptFile ? preparedPromptFile.cleanup() : Promise.resolve());
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_SPAWN_FAILED',
-        `AgentExecutor: could not stage a log file for agent "${def.id}": ${errorMessage(err)}`,
-      );
-    }
+    // rather than concurrently so the failure path above has exactly one thing to clean up.
+    const preparedLogFile = await stageLogFile(
+      { runId: input.runId, def, preparedPromptFile },
+      { prepareAgentLogFile: prepareAgentLogFileFn, failBeforeSpawn },
+    );
 
     // Cleaned up after the child exits (wireChildLifecycle/wireAcpLifecycle/wirePiRpcLifecycle's
     // close handlers) and on every pre-spawn/spawn-failure path below — a leaked temp file
@@ -2269,56 +2894,20 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // resolving here means the per-run bearer credential is minted exactly once no matter which of
     // the four mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
-    let mcpBridge: McpBridgeDelivery | null;
-    try {
-      // Awaited here rather than inside `buildMcpBridgeDelivery` so that function stays pure and
-      // synchronous. `undefined` when the host supplied no resolver, which omits the token entirely.
-      const credential = mcpJsonInjection !== undefined ? await mcpJsonInjection.credential?.(input.runId) : undefined;
-      mcpBridge = buildMcpBridgeDelivery({
-        cwd: input.cwd,
-        runId: input.runId,
-        strategy: def.externalMcpInjection,
-        options: mcpJsonInjection,
-        credential,
-      });
-    } catch (err) {
-      // Spawning a child that cannot authenticate would produce a run whose every bridged tool call
-      // 401s, so a rejecting credential resolver fails the run before spawn instead.
-      await cleanupStagedFiles();
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_SPAWN_FAILED',
-        `AgentExecutor: could not resolve the MCP bridge credential for agent "${def.id}": ${errorMessage(err)}`,
-      );
-    }
-    // Mechanism 3+4 (`'opencode-env-content'`/`'mimo-env-content'`): the bridge rides in the child's
-    // *environment*, merged into whatever the host already set there. Deliberately not a `-c
-    // key=value`-style CLI argument — the config embeds `JINI_DAEMON_TOKEN`, and process arguments
-    // are readable by any other local user through `ps`, while a process's environment is not.
-    const childEnv: NodeJS.ProcessEnv =
-      mcpBridge?.kind === 'env-content'
-        ? {
-            ...spawnEnv,
-            [mcpBridge.envVarName]: mergeEnvContentMcpConfig(spawnEnv[mcpBridge.envVarName], mcpBridge.serverEntry),
-          }
-        : spawnEnv;
-    const runtimeContext: RuntimeContext | undefined =
-      preparedPromptFile || preparedLogFile || mcpBridge?.kind === 'claude-mcp-json'
-        ? {
-            ...(preparedPromptFile ? { promptFilePath: preparedPromptFile.path } : {}),
-            ...(preparedLogFile ? { agentLogFilePath: preparedLogFile.path } : {}),
-            // Safe to pass before the file exists: `writeMcpJsonForRun` runs after buildArgs but
-            // still before spawn, so the path is real by the time the child process starts.
-            ...(mcpBridge?.kind === 'claude-mcp-json' ? { mcpJsonPath: mcpBridge.mcpJsonPath } : {}),
-          }
-        : undefined;
+    const mcpBridge = await resolveMcpBridgeForRun(
+      { runId: input.runId, cwd: input.cwd, def },
+      { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn },
+    );
+
+    const childEnv = computeChildEnv(spawnEnv, mcpBridge);
+    const runtimeContext = computeRuntimeContext(preparedPromptFile, preparedLogFile, mcpBridge);
 
     // A `runtimeLock` def's buildArgs mutates process-global state its own CLI reads back at
     // startup, so the mutex must be held from before buildArgs until the spawned child has
     // demonstrably consumed it — see `RuntimeLock`'s own doc for the concrete race. Undefined for
     // 23 of 24 defs, in which case nothing below waits on anything.
     const selectedModel = input.model;
-    const runtimeLockHold: RuntimeLockHold | undefined = await def.runtimeLock?.acquire({ model: selectedModel });
+    const runtimeLockHold = await acquireRuntimeLockIfConfigured(def, selectedModel);
     // Aborts once the spawned process is gone — or immediately, on a path where no process ever
     // ran — so a def's own handoff watcher can never outlive the run it was polling for.
     const processExitedController = new AbortController();
@@ -2337,6 +2926,13 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       await cleanupStagedFiles();
     };
 
+    // Computed once per `run()`, not per-token/per-event: a system-prompt overlay is a spawn-time
+    // CLI arg, not something that varies mid-run. `turnIndex` is a coarse 0/1 proxy (no exact turn
+    // counter exists on this driver) — sufficient because every `PromptAugmenter.systemOverlay()`
+    // implementation this seam has today wants the same overlay on every turn, not a first-turn-only
+    // one; a caller that needs finer-grained turn numbering can track it itself and ignore this arg.
+    const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id, runtimeContext);
+
     // Guarded, like every other step between staging and spawn: a `runtimeLock` def's `buildArgs` is
     // guarded precisely *because* it performs real filesystem writes (antigravity writes its model
     // choice into a shared settings file), so EACCES on a read-only home, ENOSPC, or a malformed
@@ -2344,95 +2940,45 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
     // — and left the run `'running'` forever while still holding the process-global mutex and both
     // staged files, so no later run of that def could ever acquire the lock either.
-    // Computed once per `run()`, not per-token/per-event: a system-prompt overlay is a spawn-time
-    // CLI arg, not something that varies mid-run. `turnIndex` is a coarse 0/1 proxy (no exact turn
-    // counter exists on this driver) — sufficient because every `PromptAugmenter.systemOverlay()`
-    // implementation this seam has today wants the same overlay on every turn, not a first-turn-only
-    // one; a caller that needs finer-grained turn numbering can track it itself and ignore this arg.
-    const systemPromptOverlay = promptAugmenter?.systemOverlay?.({
-      agentId: def.id,
-      turnIndex: runtimeContext?.hasPriorAssistantTurn ? 1 : 0,
-    });
-
-    let args: string[];
-    try {
-      args = def.buildArgs(
-        imageDelivery.prompt,
-        [...(input.imagePaths ?? [])],
-        imageDelivery.extraAllowedDirs === undefined ? undefined : [...imageDelivery.extraAllowedDirs],
-        input.model !== undefined
-          || input.reasoning !== undefined
-          || input.permissionMode !== undefined
-          || (systemPromptOverlay !== undefined && systemPromptOverlay !== null)
-          ? {
-              ...(input.model !== undefined ? { model: input.model } : {}),
-              ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
-              ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
-              ...(systemPromptOverlay !== undefined && systemPromptOverlay !== null
-                ? { systemPromptOverlay }
-                : {}),
-            }
-          : undefined,
-        runtimeContext,
-      );
-    } catch (err) {
-      await releaseStagedResources();
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_SPAWN_FAILED',
-        `AgentExecutor: could not build launch arguments for agent "${def.id}": ${errorMessage(err)}`,
-      );
-    }
+    const args = await buildRunArgs(
+      { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, runtimeContext },
+      { releaseStagedResources, failBeforeSpawn },
+    );
 
     // Mechanism 1 of 4's one effect — stage this run's own MCP config file (run-scoped, see
     // `mcpJsonPathForRun`) before spawn so the `--mcp-config <path>` argv buildArgs just produced
     // points at a real file. Skipped entirely for the other three mechanisms and whenever no bridge
     // was resolved at all. `writtenMcpJsonPath` is set only once the write actually happens, so
     // `cleanupStagedFiles` knows there is a live-token file to remove afterward.
-    try {
-      if (mcpBridge?.kind === 'claude-mcp-json' && mcpJsonInjection !== undefined) {
-        await writeMcpJsonForRun(input.cwd, mcpBridge, mcpJsonInjection);
-        writtenMcpJsonPath = mcpBridge.mcpJsonPath;
-      }
-    } catch (err) {
-      await releaseStagedResources();
-      return failBeforeSpawn(
-        input.runId,
-        'AGENT_SPAWN_FAILED',
-        `AgentExecutor: could not write .mcp.json for agent "${def.id}": ${errorMessage(err)}`,
-      );
-    }
+    writtenMcpJsonPath = await writeMcpJsonIfNeeded(
+      { runId: input.runId, cwd: input.cwd, def, mcpBridge },
+      { mcpJsonInjection, releaseStagedResources, failBeforeSpawn },
+    );
 
     // Post-buildArgs guard for argv-bound defs whose resolved binary is a
     // Windows .cmd/.bat shim or a direct .exe: a prompt under the raw byte
     // budget can still expand past CreateProcess's command-line cap once
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
-    const windowsBudgetError =
-      checkWindowsCmdShimCommandLineBudget(def, launch.launchPath, args) ??
-      checkWindowsDirectExeCommandLineBudget(def, launch.launchPath, args);
-    if (windowsBudgetError) {
-      await releaseStagedResources();
-      return failBeforeSpawn(input.runId, 'AGENT_PROMPT_TOO_LARGE', windowsBudgetError.message);
-    }
+    await guardWindowsCommandLineBudget(
+      { runId: input.runId, def, launchPath: launch.launchPath, args },
+      { releaseStagedResources, failBeforeSpawn },
+    );
 
     const invocation = createCommandInvocationFn({ command: launch.launchPath, args, env: childEnv });
 
-    let child: ChildProcess;
-    try {
-      child = spawnFn(invocation.command, invocation.args, {
-        cwd: input.cwd,
-        env: childEnv,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsVerbatimArguments: invocation.windowsVerbatimArguments,
-      });
-    } catch (err) {
+    // Kept a synchronous call (no `await`) on purpose — see `spawnAgentChildProcess`'s own doc for
+    // the microtask-timing race this avoids. The error branch's own cleanup/failBeforeSpawn calls are
+    // async, which is fine: no child exists yet on that path, so nothing is racing a listener.
+    const spawnResult = spawnAgentChildProcess({ cwd: input.cwd, childEnv, invocation }, { spawn: spawnFn });
+    if (spawnResult.kind === 'error') {
       await releaseStagedResources();
       return failBeforeSpawn(
         input.runId,
         'AGENT_SPAWN_FAILED',
-        `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage(err)}`,
+        `AgentExecutor: spawn threw synchronously for agent "${def.id}": ${errorMessage(spawnResult.error)}`,
       );
     }
+    const child = spawnResult.child;
 
     // Registered before the spawn-confirmation await below, for the same reason
     // `wireChildLifecycle` is: a child that exits immediately must not slip past the listener.
@@ -2442,69 +2988,55 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // all emits no `'exit'`, and is covered instead by `releaseStagedResources` on the reject path.
     child.once('exit', releaseRuntimeLock);
 
-    const stdinHandle =
-      streamFormat === 'acp-json-rpc' || streamFormat === 'pi-rpc'
-        ? null
-        : wireChildLifecycle({
-            runId: input.runId,
-            def,
-            streamFormat,
-            child,
-            lifecycle,
-            listProcessSnapshots: listProcessSnapshotsFn,
-            collectProcessTreePids: collectProcessTreePidsFn,
-            stopProcesses: stopProcessesFn,
-            onCleanupFailure: onCleanupFailureFn,
-            cleanupStagedFiles,
-            journal,
-            continuation,
-            classifyFailure,
-            bufferedStdoutMaxBytes,
-          });
+    const stdinHandle = isStdinDrivenFormat(streamFormat)
+      ? wireChildLifecycle({
+          runId: input.runId,
+          def,
+          streamFormat,
+          child,
+          lifecycle,
+          listProcessSnapshots: listProcessSnapshotsFn,
+          collectProcessTreePids: collectProcessTreePidsFn,
+          stopProcesses: stopProcessesFn,
+          onCleanupFailure: onCleanupFailureFn,
+          cleanupStagedFiles,
+          journal,
+          continuation,
+          classifyFailure,
+          bufferedStdoutMaxBytes,
+        })
+      : null;
 
-    try {
-      await waitForSpawnOrError(child);
-    } catch (err) {
-      await releaseStagedResources();
-      await lifecycle.finish({ runId: input.runId, status: 'failed', code: null, signal: null, resumable: false });
-      throw new AgentExecutorError(
-        'AGENT_SPAWN_FAILED',
-        `AgentExecutor: failed to spawn agent "${def.id}": ${errorMessage(err)}`,
-      );
-    }
+    await confirmChildSpawned({ runId: input.runId, def, child }, { releaseStagedResources, failBeforeSpawn });
 
     // Now — and only now — is there a live process that could consume the locked side effect, so
     // this is where a def's handoff watcher starts. Deliberately not awaited: the whole point is to
     // release the lock as soon as the child confirms the handoff, in parallel with this run
     // continuing. Rejection releases too — a lock stuck open because a watcher threw is strictly
     // worse than releasing early (see `RuntimeLockHold.waitForHandoff`'s own doc).
-    if (runtimeLockHold?.waitForHandoff) {
-      void runtimeLockHold
-        .waitForHandoff({
-          logFilePath: preparedLogFile?.path,
-          model: selectedModel,
-          processExited: processExitedController.signal,
-        })
-        .then(releaseRuntimeLock, releaseRuntimeLock);
-    }
+    armHandoffWatcher(
+      runtimeLockHold,
+      { logFilePath: preparedLogFile?.path, model: selectedModel, processExited: processExitedController.signal },
+      releaseRuntimeLock,
+    );
 
     if (streamFormat === 'acp-json-rpc') {
-      try {
-        wireAcpLifecycle({
+      await runAcpDispatch(
+        {
           runId: input.runId,
           agentId: def.id,
           child,
-          lifecycle,
           prompt: input.prompt,
           cwd: input.cwd,
           model: input.model,
           imagePaths: input.imagePaths ?? [],
           envFormat: def.acpMcpEnvFormat,
-          // Mechanism 2 of 4 — see `WireAcpLifecycleContext.mcpServers`. `undefined` for any def
-          // that did not declare `'acp-merge'` and for an unconfigured host.
-          mcpServers: mcpBridge?.kind === 'acp-merge' ? mcpBridge.mcpServers : undefined,
-          onPermissionRequest: options.acpPermissionHandler,
+          mcpBridge,
+        },
+        {
+          lifecycle,
           attachAcpSession: attachAcpSessionFn,
+          onPermissionRequest: options.acpPermissionHandler,
           listProcessSnapshots: listProcessSnapshotsFn,
           collectProcessTreePids: collectProcessTreePidsFn,
           stopProcesses: stopProcessesFn,
@@ -2512,44 +3044,27 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           cleanupStagedFiles,
           journal,
           classifyFailure,
-        });
-      } catch (err) {
-        // Unlike the cancellation-listener call sites, we are already in an async function
-        // about to call finish() and throw — nothing else races this, so cleanup is awaited
-        // here rather than fired-and-forgotten (SEC-007: "await where lifecycle ordering allows it").
-        await terminateChildTreeBestEffort(
-          {
-            listProcessSnapshots: listProcessSnapshotsFn,
-            collectProcessTreePids: collectProcessTreePidsFn,
-            stopProcesses: stopProcessesFn,
-          },
-          child,
-          input.runId,
-          'acp-attach-failure',
-          onCleanupFailureFn,
-        );
-        await releaseStagedResources();
-        await lifecycle.finish({ runId: input.runId, status: 'failed', code: null, signal: null, resumable: false });
-        throw new AgentExecutorError(
-          'AGENT_SPAWN_FAILED',
-          `AgentExecutor: could not attach ACP session for agent \"${def.id}\": ${errorMessage(err)}`,
-        );
-      }
+          releaseStagedResources,
+          failBeforeSpawn,
+        },
+      );
       return;
     }
 
     if (streamFormat === 'pi-rpc') {
-      try {
-        wirePiRpcLifecycle({
+      await runPiRpcDispatch(
+        {
           runId: input.runId,
           agentId: def.id,
           child,
-          lifecycle,
           prompt: input.prompt,
           cwd: input.cwd,
           model: input.model,
           imagePaths: input.imagePaths ?? [],
           uploadRoot: input.uploadRoot,
+        },
+        {
+          lifecycle,
           attachPiRpcSession: attachPiRpcSessionFn,
           listProcessSnapshots: listProcessSnapshotsFn,
           collectProcessTreePids: collectProcessTreePidsFn,
@@ -2558,28 +3073,10 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           cleanupStagedFiles,
           journal,
           classifyFailure,
-        });
-      } catch (err) {
-        // Same discipline as the ACP attach-failure path directly above: await cleanup here
-        // rather than fire-and-forget (SEC-007).
-        await terminateChildTreeBestEffort(
-          {
-            listProcessSnapshots: listProcessSnapshotsFn,
-            collectProcessTreePids: collectProcessTreePidsFn,
-            stopProcesses: stopProcessesFn,
-          },
-          child,
-          input.runId,
-          'pi-rpc-attach-failure',
-          onCleanupFailureFn,
-        );
-        await releaseStagedResources();
-        await lifecycle.finish({ runId: input.runId, status: 'failed', code: null, signal: null, resumable: false });
-        throw new AgentExecutorError(
-          'AGENT_SPAWN_FAILED',
-          `AgentExecutor: could not attach pi-rpc session for agent \"${def.id}\": ${errorMessage(err)}`,
-        );
-      }
+          releaseStagedResources,
+          failBeforeSpawn,
+        },
+      );
       return;
     }
 

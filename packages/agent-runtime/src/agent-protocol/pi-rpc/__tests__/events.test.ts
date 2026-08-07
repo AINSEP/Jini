@@ -124,6 +124,26 @@ describe('mapPiRpcEvent', () => {
     expect(send).not.toHaveBeenCalled();
   });
 
+  it('message_update with a non-string assistantMessageEvent.type sends nothing', () => {
+    const send = vi.fn();
+    expect(
+      mapPiRpcEvent({ type: 'message_update', assistantMessageEvent: { type: 42 } }, send, ctx()),
+    ).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('message_update text_delta with a non-string delta sends nothing', () => {
+    const send = vi.fn();
+    mapPiRpcEvent({ type: 'message_update', assistantMessageEvent: { type: 'text_delta', delta: 7 } }, send, ctx());
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('message_update thinking_delta with a non-string delta sends nothing', () => {
+    const send = vi.fn();
+    mapPiRpcEvent({ type: 'message_update', assistantMessageEvent: { type: 'thinking_delta', delta: 7 } }, send, ctx());
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('message_update with a non-record assistantMessageEvent sends nothing (falls through)', () => {
     const send = vi.fn();
     expect(mapPiRpcEvent({ type: 'message_update', assistantMessageEvent: 'nope' }, send, ctx())).toBeNull();
@@ -250,6 +270,12 @@ describe('mapPiRpcEvent', () => {
   it('returns null and sends nothing for a completely unrecognised event type', () => {
     const send = vi.fn();
     expect(mapPiRpcEvent({ type: 'something_else' }, send, ctx())).toBeNull();
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it('returns null and sends nothing for a non-string event type', () => {
+    const send = vi.fn();
+    expect(mapPiRpcEvent({ type: 99 }, send, ctx())).toBeNull();
     expect(send).not.toHaveBeenCalled();
   });
 });

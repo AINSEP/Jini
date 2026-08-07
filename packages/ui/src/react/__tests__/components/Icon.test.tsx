@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { render } from '@testing-library/react';
+import { isValidElement } from 'react';
 import { describe, expect, it } from 'vitest';
-import { Icon, type IconName } from '../../components/Icon.js';
+import { Icon, ICON_RENDERERS, type IconName } from '../../components/Icon.js';
+import { ICON_NAMES } from '../../../icon-name.js';
 
 describe('Icon', () => {
   it('renders an svg with the requested size for a known name', () => {
@@ -25,28 +27,25 @@ describe('Icon', () => {
     expect(svg?.getAttribute('stroke-width')).toBe('1.6');
   });
 
-  // Every case arm of the switch — the whole icon set must render an svg.
-  const ALL_ICON_NAMES: IconName[] = [
-    'alert-triangle', 'arrow-left', 'arrow-up', 'attach', 'bell', 'blocks', 'check',
-    'chevron-down', 'chevron-left', 'chevron-right', 'close', 'copy', 'comment',
-    'message-circle', 'discord', 'download', 'draw', 'edit', 'eye', 'eye-off',
-    'external-link', 'log-out', 'file', 'file-code', 'folder', 'fork', 'folder-filled',
-    'github', 'github-filled', 'grip-vertical', 'grid', 'globe', 'puzzle', 'hammer',
-    'help-circle', 'history', 'home', 'home-filled', 'image', 'panel-left', 'slides',
-    'import', 'info', 'kanban', 'layers-filled', 'languages', 'lightbulb', 'link',
-    'lock', 'integrations-filled', 'mic', 'minus', 'more-horizontal', 'orbit',
-    'paint-bucket', 'palette', 'palette-filled', 'pencil', 'layout', 'smartphone',
-    'file-text', 'plus', 'plus-filled', 'play', 'present', 'refresh', 'reload',
-    'search', 'send', 'settings', 'share', 'sliders', 'spinner', 'sparkles', 'star',
-    'stop', 'swatchbook', 'sun', 'moon', 'sun-moon', 'terminal', 'thumbs-up',
-    'thumbs-down', 'tweaks', 'upload', 'volume', 'maximize', 'minimize', 'zoom-in',
-    'zoom-out', 'trash',
-  ];
-
+  // The full, runtime-enumerable icon set (see `icon-name.ts`'s `ICON_NAMES`)
+  // — every one of these must render an svg.
   it('renders an svg for every icon name', () => {
-    for (const name of ALL_ICON_NAMES) {
+    for (const name of ICON_NAMES) {
       const { container, unmount } = render(<Icon name={name} />);
       expect(container.querySelector('svg')).not.toBeNull();
+      unmount();
+    }
+  });
+
+  // Characterization pin for the name -> SVG mapping. The "renders an svg"
+  // test above only checks *that* something rendered; it would not notice a
+  // lookup-table rewrite that accidentally swapped two icons' markup (both
+  // still render *an* svg). This snapshots the exact rendered markup per
+  // name so a name -> wrong-content regression fails loudly.
+  it('renders the exact, unchanged markup for every icon name', () => {
+    for (const name of ICON_NAMES) {
+      const { container, unmount } = render(<Icon name={name} />);
+      expect(container.innerHTML).toMatchSnapshot(name);
       unmount();
     }
   });
@@ -59,5 +58,31 @@ describe('Icon', () => {
   it('honors an explicit strokeWidth', () => {
     const { container } = render(<Icon name="check" strokeWidth={3} />);
     expect(container.querySelector('svg')?.getAttribute('stroke-width')).toBe('3');
+  });
+});
+
+// `ICON_RENDERERS` exercised directly — a test seam exported from Icon.tsx
+// (not the package's public API; see the comment at its declaration and the
+// explicit named export in `packages/ui/src/index.ts`). These assertions
+// are the ones the rendered-markup snapshots above cannot make: they don't
+// prove the *key set* is complete, and they wouldn't catch an entry that
+// silently became `undefined` or a non-function after a future edit.
+describe('ICON_RENDERERS', () => {
+  it('has exactly one entry per IconName, no more, no fewer', () => {
+    // Catches both directions of drift: a name added to the `IconName`
+    // union with no matching table entry (already a TS compile error today,
+    // but this also guards a future non-Record refactor), and an entry
+    // keyed by a string that isn't a valid IconName at all (a `Record<IconName,
+    // ...>` doesn't prevent excess keys via the object literal itself, so
+    // that direction is untyped and only this runtime check catches it).
+    expect(Object.keys(ICON_RENDERERS).sort()).toEqual([...ICON_NAMES].sort());
+  });
+
+  it('is a function for every icon name that returns a renderable element', () => {
+    for (const name of ICON_NAMES) {
+      const render = ICON_RENDERERS[name];
+      expect(typeof render).toBe('function');
+      expect(isValidElement(render({}))).toBe(true);
+    }
   });
 });

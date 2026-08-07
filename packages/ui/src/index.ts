@@ -78,7 +78,10 @@ export * from './browser/useModalWindowDragGuard.js';
 
 export * from './browser/index.js';
 
-export * from './react/components/Icon.js';
+// Named (not `export *`): Icon.tsx also exports `ICON_RENDERERS`, a test
+// seam for asserting the name -> renderer lookup table directly. It must
+// not reach this published package's public surface.
+export { Icon, type IconName } from './react/components/Icon.js';
 export * from './react/components/RemixIcon.js';
 export * from './react/components/AgentIcon.js';
 export * from './react/components/Toast.js';

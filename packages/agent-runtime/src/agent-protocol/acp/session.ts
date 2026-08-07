@@ -5,6 +5,14 @@
  * replies, artifact-write mirroring, DSML text suppression, and clean abort.
  * Depends on every other acp/ file and the core JSON-line stream. Consumed by
  * connection-test and server entry points (via the acp/ barrel).
+ *
+ * The `session/update` and result-routing message-kind handlers below
+ * (`handleSessionUpdate`, `routeResultById`, and everything they call) are
+ * exported as free functions over an explicit `AcpSessionState` +
+ * `AcpSessionEffects` pair rather than closures, specifically so they are
+ * directly unit-testable without spinning up a whole session. They are not
+ * re-exported from the package barrel — only `attachAcpSession` and the
+ * public types are part of this package's supported surface.
  */
 import path from 'node:path';
 import type { ExecutionProfile } from './types.js';
@@ -142,6 +150,711 @@ export interface AttachAcpSessionOptions {
   onCliReady?: () => void;
   onSessionInit?: () => void;
 }
+
+// ---------------------------------------------------------------------------
+// Exported session-update / result-routing state machine.
+//
+// `attachAcpSession` owns exactly one `AcpSessionState` + `AcpSessionEffects`
+// pair per session and threads them through every handler call below. This
+// is what lets the per-message-kind handlers be free, exported, and
+// independently unit-testable (construct a state, a fake effects bundle with
+// `vi.fn()` stubs, and call the handler directly) instead of closures baked
+// into one giant function.
+// ---------------------------------------------------------------------------
+
+/**
+ * Mutable per-session state shared by the exported ACP handlers below.
+ * `attachAcpSession` creates one instance per session via
+ * {@link createAcpSessionState} and mutates it in place as messages arrive.
+ */
+export interface AcpSessionState {
+  // Handshake / JSON-RPC id routing.
+  expectedId: JsonRpcId;
+  nextId: number;
+  promptRequestId: JsonRpcId | null;
+  setModelRequestId: JsonRpcId | null;
+  sessionId: string | null;
+  // The durable upstream session handle reported by the agent on session/new
+  // or session/load (e.g. a vendor bridge's own session id). Distinct from
+  // `sessionId`, which is the ACP wrapper id.
+  durableSessionId: string | null;
+  activeModel: string | null;
+  modelConfigId: string | null;
+  // session/update: agent_thought_chunk / agent_message_chunk streaming.
+  emittedThinkingStart: boolean;
+  emittedTextChunk: boolean;
+  emittedVisibleTextChunk: boolean;
+  emittedTextBuffer: string;
+  // session/update: tool_call / tool_call_update.
+  emittedToolCall: boolean;
+  emittedConcreteToolEvent: boolean;
+  dsmlArtifactSuppressor: ArtifactTextSuppressor | null;
+  dsmlArtifactSuppressorLastSuppressedChars: number;
+  dsmlArtifactSuppressorToolCallId: string | null;
+  dsmlArtifactSuppressorArmedAfterText: boolean;
+  dsmlArtifactSuppressorSawIncrementalProse: boolean;
+  acpArtifactWriteToolCallIds: Set<string>;
+  // Per artifact-write tool call, accumulate the best concrete file path seen
+  // across its frames and whether we have already mirrored it into canonical
+  // tool_use/tool_result events. See `mirrorArtifactWriteToolEvent`.
+  acpArtifactRunEventState: Map<string, { path: string | null; emitted: boolean }>;
+}
+
+/** Builds a fresh {@link AcpSessionState} with every field at its initial value. */
+export function createAcpSessionState(): AcpSessionState {
+  return {
+    expectedId: 1,
+    nextId: 2,
+    promptRequestId: null,
+    setModelRequestId: null,
+    sessionId: null,
+    durableSessionId: null,
+    activeModel: null,
+    modelConfigId: null,
+    emittedThinkingStart: false,
+    emittedTextChunk: false,
+    emittedVisibleTextChunk: false,
+    emittedTextBuffer: '',
+    emittedToolCall: false,
+    emittedConcreteToolEvent: false,
+    dsmlArtifactSuppressor: null,
+    dsmlArtifactSuppressorLastSuppressedChars: 0,
+    dsmlArtifactSuppressorToolCallId: null,
+    dsmlArtifactSuppressorArmedAfterText: false,
+    dsmlArtifactSuppressorSawIncrementalProse: false,
+    acpArtifactWriteToolCallIds: new Set<string>(),
+    acpArtifactRunEventState: new Map(),
+  };
+}
+
+/**
+ * The narrow slice of `attachAcpSession`'s side-effect closures and
+ * read-only session config that the exported handlers below need.
+ * `attachAcpSession` builds exactly one of these per session; tests
+ * construct a fake one with `vi.fn()` stubs for the callbacks.
+ */
+export interface AcpSessionEffects {
+  send: (event: string, payload: unknown) => void;
+  fail: (
+    message: string,
+    options?: { forceModelUnavailable?: boolean; details?: unknown; retryable?: boolean },
+  ) => void;
+  failWithPayload: (payload: unknown) => void;
+  writeRpc: (id: JsonRpcId, method: string, params: unknown, timeoutLabel: string) => void;
+  sendPrompt: () => void;
+  recoverFromModelSelectionError: () => void;
+  finishCleanPrompt: (usageSource?: unknown) => void;
+  emitVisibleTextDelta: (delta: string) => void;
+  noteArtifactTextSuppression: (reason: string) => void;
+  noteToolCallTextSuppression: (reason: string) => void;
+  emitAcpRawShapeDiagnostic: (update: JsonObject) => void;
+  toolCallTextSuppressor: ArtifactTextSuppressor;
+  runStartedAt: number;
+  modelUnavailableErrorCode?: 'AMR_MODEL_UNAVAILABLE' | undefined;
+  accountFailureClassifier: AccountFailureClassifier;
+  model?: string | null | undefined;
+  onSessionInit?: (() => void) | undefined;
+  resumeSessionId?: string | null | undefined;
+  effectiveCwd: string;
+  mcpServers?: AcpMcpServerInput[] | undefined;
+  envFormat: 'array' | 'map';
+}
+
+/** `typeof value === 'string' ? value : null` as a named predicate — too trivial to export on its own. */
+function asOptionalString(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+/** Fires the optional `onSessionInit` callback; kept as a one-liner so the optional-chaining call is scored against this function, not its caller. */
+function notifySessionInit(effects: AcpSessionEffects): void {
+  effects.onSessionInit?.();
+}
+
+/** Resolves a `session/new` response's model config id, if any. */
+function resolveModelConfigId(modelConfig: { configId?: string } | null | undefined): string | null {
+  return modelConfig?.configId ?? null;
+}
+
+/**
+ * Handles a JSON-RPC error frame from the agent.
+ *
+ * -32603 unexpected-id errors are cleanup noise. Expected-id model selection
+ * failures are recoverable; all other RPC errors are real protocol failures
+ * for initialize/session/new/session/prompt.
+ */
+export function handleRpcError({
+  state,
+  effects,
+  obj,
+  error,
+  rpcErr,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  obj: JsonObject;
+  error: JsonObject | null;
+  rpcErr: string;
+}): void {
+  if (
+    obj.id === state.setModelRequestId &&
+    modelSelectionErrorIsRecoverable(error?.code) &&
+    state.promptRequestId === null
+  ) {
+    effects.recoverFromModelSelectionError();
+    return;
+  }
+  if (error?.code === -32603 && obj.id !== state.expectedId) {
+    return;
+  }
+  const details = rpcErrorData(obj);
+  const promotedPayload = promotedOpenCodeSessionErrorPayload(details, rpcErr);
+  if (promotedPayload) {
+    effects.failWithPayload(promotedPayload);
+    return;
+  }
+  const retryable = rpcErrorRetryable(details);
+  effects.fail(rpcErr, {
+    details,
+    ...(retryable === undefined ? {} : { retryable }),
+  });
+}
+
+/** Promotes an AMR retry-status `session/update` into a structured account-failure error, if the classifier matches. Returns `true` when it did (and thus failed the session). */
+export function tryPromoteAmrRetryStatus({
+  effects,
+  update,
+}: {
+  effects: AcpSessionEffects;
+  update: JsonObject;
+}): boolean {
+  const promotedPayload = promotedAmrRetryStatusPayload(update, effects.accountFailureClassifier);
+  if (!promotedPayload) return false;
+  effects.failWithPayload(promotedPayload);
+  return true;
+}
+
+/** Translates an `agent_thought_chunk` update into `thinking_start` (once) / `thinking_delta` events. */
+export function handleThoughtChunkUpdate({
+  state,
+  effects,
+  update,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  update: JsonObject;
+}): void {
+  effects.emitAcpRawShapeDiagnostic(update);
+  const text = extractAcpUpdateText(update);
+  if (!text) return;
+  if (!state.emittedThinkingStart) {
+    state.emittedThinkingStart = true;
+    effects.send('agent', { type: 'thinking_start' });
+  }
+  effects.send('agent', { type: 'thinking_delta', delta: text });
+}
+
+/** Strips tool-call XML from a raw message delta via the session's tool-call text suppressor, noting the suppression reason. */
+export function stripToolCallText({ effects, delta }: { effects: AcpSessionEffects; delta: string }): string {
+  const wasSuppressingToolCall = effects.toolCallTextSuppressor.isSuppressing();
+  const toolCallStrippedDelta = effects.toolCallTextSuppressor.strip(delta);
+  effects.noteToolCallTextSuppression(
+    wasSuppressingToolCall || toolCallStrippedDelta !== delta ? 'tool_call_xml' : 'tool_call_candidate',
+  );
+  return toolCallStrippedDelta;
+}
+
+/**
+ * Whether a non-cumulative message delta should be emitted as-is (prose)
+ * rather than the DSML artifact suppressor's stripped output. True when this
+ * delta isn't itself part of an artifact echo/candidate, AND either nothing
+ * was actually stripped, or the suppressor was armed mid-stream (after
+ * visible text) and prior deltas already established this is ordinary prose
+ * rather than the start of another artifact echo.
+ */
+export function shouldPreserveIncrementalProse(args: {
+  isCumulativeSnapshot: boolean;
+  wasSuppressingArtifact: boolean;
+  hadPendingArtifactCandidate: boolean;
+  hasOpenArtifactCandidate: boolean;
+  strippedDelta: string;
+  toolCallStrippedDelta: string;
+  dsmlArtifactSuppressorArmedAfterText: boolean;
+  dsmlArtifactSuppressorSawIncrementalProse: boolean;
+}): boolean {
+  const {
+    isCumulativeSnapshot,
+    wasSuppressingArtifact,
+    hadPendingArtifactCandidate,
+    hasOpenArtifactCandidate,
+    strippedDelta,
+    toolCallStrippedDelta,
+    dsmlArtifactSuppressorArmedAfterText,
+    dsmlArtifactSuppressorSawIncrementalProse,
+  } = args;
+  if (isCumulativeSnapshot || wasSuppressingArtifact || hadPendingArtifactCandidate || hasOpenArtifactCandidate) {
+    return false;
+  }
+  if (strippedDelta === toolCallStrippedDelta) return true;
+  return (
+    !dsmlArtifactSuppressorArmedAfterText &&
+    dsmlArtifactSuppressorSawIncrementalProse &&
+    !ACP_ARTIFACT_ECHO_START_RE.test(toolCallStrippedDelta)
+  );
+}
+
+/** Whether a delta passed through the DSML suppressor completely unchanged and there is no artifact suppression in progress. */
+export function isPlainIncrementalDelta(args: {
+  strippedDelta: string;
+  toolCallStrippedDelta: string;
+  wasSuppressingArtifact: boolean;
+  hadPendingArtifactCandidate: boolean;
+  hasOpenArtifactCandidate: boolean;
+}): boolean {
+  const {
+    strippedDelta,
+    toolCallStrippedDelta,
+    wasSuppressingArtifact,
+    hadPendingArtifactCandidate,
+    hasOpenArtifactCandidate,
+  } = args;
+  return (
+    strippedDelta === toolCallStrippedDelta &&
+    !wasSuppressingArtifact &&
+    !hadPendingArtifactCandidate &&
+    !hasOpenArtifactCandidate
+  );
+}
+
+/** Runs a tool-call-stripped delta through the DSML artifact suppressor, emits whatever should stay visible, and arms/disarms the "saw incremental prose" and suppressor-cleared state. */
+export function applyDsmlArtifactSuppression({
+  state,
+  effects,
+  suppressor,
+  toolCallStrippedDelta,
+  delta,
+  isCumulativeSnapshot,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  suppressor: ArtifactTextSuppressor;
+  toolCallStrippedDelta: string;
+  delta: string;
+  isCumulativeSnapshot: boolean;
+}): void {
+  const wasSuppressingArtifact = suppressor.isSuppressing();
+  const hadPendingArtifactCandidate = suppressor.hasPendingCandidate();
+  const strippedDelta = suppressor.strip(toolCallStrippedDelta);
+  effects.noteArtifactTextSuppression(
+    wasSuppressingArtifact || strippedDelta !== toolCallStrippedDelta ? 'artifact_echo' : 'artifact_candidate',
+  );
+  const hasOpenArtifactCandidate = suppressor.isSuppressing() || suppressor.hasPendingCandidate();
+  const consumedArtifactText = wasSuppressingArtifact || strippedDelta !== delta;
+  const preserveIncrementalProse = shouldPreserveIncrementalProse({
+    isCumulativeSnapshot,
+    wasSuppressingArtifact,
+    hadPendingArtifactCandidate,
+    hasOpenArtifactCandidate,
+    strippedDelta,
+    toolCallStrippedDelta,
+    dsmlArtifactSuppressorArmedAfterText: state.dsmlArtifactSuppressorArmedAfterText,
+    dsmlArtifactSuppressorSawIncrementalProse: state.dsmlArtifactSuppressorSawIncrementalProse,
+  });
+  const outputDelta = preserveIncrementalProse ? toolCallStrippedDelta : strippedDelta;
+  if (outputDelta) {
+    effects.emitVisibleTextDelta(outputDelta);
+  }
+  if (
+    isPlainIncrementalDelta({
+      strippedDelta,
+      toolCallStrippedDelta,
+      wasSuppressingArtifact,
+      hadPendingArtifactCandidate,
+      hasOpenArtifactCandidate,
+    })
+  ) {
+    state.dsmlArtifactSuppressorSawIncrementalProse = true;
+  }
+  if (consumedArtifactText && !hasOpenArtifactCandidate) {
+    state.dsmlArtifactSuppressor = null;
+    state.dsmlArtifactSuppressorToolCallId = null;
+    state.dsmlArtifactSuppressorArmedAfterText = false;
+    state.dsmlArtifactSuppressorSawIncrementalProse = false;
+  }
+}
+
+/** Translates an `agent_message_chunk` update into `text_delta` events, applying tool-call and DSML-artifact text suppression. */
+export function handleMessageChunkUpdate({
+  state,
+  effects,
+  update,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  update: JsonObject;
+}): void {
+  effects.emitAcpRawShapeDiagnostic(update);
+  const text = extractAcpUpdateText(update);
+  if (!text) return;
+  const isCumulativeSnapshot = text.startsWith(state.emittedTextBuffer);
+  const delta = isCumulativeSnapshot ? text.slice(state.emittedTextBuffer.length) : text;
+  if (delta.length === 0) return;
+  state.emittedTextChunk = true;
+  state.emittedTextBuffer += delta;
+  const toolCallStrippedDelta = stripToolCallText({ effects, delta });
+  if (!toolCallStrippedDelta) return;
+  if (state.dsmlArtifactSuppressor) {
+    applyDsmlArtifactSuppression({
+      state,
+      effects,
+      suppressor: state.dsmlArtifactSuppressor,
+      toolCallStrippedDelta,
+      delta,
+      isCumulativeSnapshot,
+    });
+  } else {
+    effects.emitVisibleTextDelta(toolCallStrippedDelta);
+  }
+}
+
+// Mirror artifact-write tool calls into the daemon's canonical
+// tool_use/tool_result event shape so a run-artifacts scanner can see
+// ACP file writes. Without this, an ACP agent that emits only
+// text/status/thinking events (never a tool_use/tool_result pair)
+// would report zero artifacts even when the run wrote artifacts.
+//
+// This path only feeds the NO-PROJECT fallback (project runs use the
+// filesystem snapshot). Two correctness rules, both learned the hard
+// way in review:
+//   1. Defer emission to the TERMINAL frame and accumulate the best
+//      concrete path across frames — ACP often sends `locations` only
+//      on the completing update, and emitting on the first frame would
+//      lock in a wrong/empty guess that a later path can't correct.
+//   2. Never fabricate an artifact extension. `isArtifactPath` is what
+//      decides whether a write counts; feeding it a real path lets it
+//      correctly EXCLUDE non-artifact edits (`config.json`, `README.md`)
+//      and INCLUDE real artifacts. A write that never carries a concrete
+//      path stays keyed on its (extension-less) toolCallId, so it is
+//      simply not counted rather than inflating the metric with a
+//      synthetic `.html` — under-counting a truly opaque write is
+//      acceptable; a false-positive artifact is not.
+export function mirrorArtifactWriteToolEvent({
+  state,
+  effects,
+  update,
+  toolCallId,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  update: JsonObject;
+  toolCallId: string | null;
+}): void {
+  if (!toolCallId) return;
+  const isWriteCall = isAcpArtifactWriteLabel(update) || state.acpArtifactWriteToolCallIds.has(toolCallId);
+  if (!isWriteCall) return;
+  let st = state.acpArtifactRunEventState.get(toolCallId);
+  if (!st) {
+    st = { path: null, emitted: false };
+    state.acpArtifactRunEventState.set(toolCallId, st);
+  }
+  if (!st.path) st.path = acpArtifactWritePath(update);
+  const failed = isAcpTerminalFailureStatus(update);
+  const shouldEmit = !st.emitted && (failed || isAcpCompletedStatus(update));
+  if (!shouldEmit) return;
+  st.emitted = true;
+  effects.send('agent', {
+    type: 'tool_use',
+    id: toolCallId,
+    name: 'Write',
+    input: { file_path: st.path ?? toolCallId },
+  });
+  effects.send('agent', { type: 'tool_result', toolUseId: toolCallId, isError: failed });
+  state.emittedConcreteToolEvent = true;
+}
+
+/** Arms the DSML artifact suppressor when a tool_call/tool_call_update completes an artifact write, or disarms it once its owning write call terminally fails. */
+export function updateDsmlSuppressorForToolCall({
+  state,
+  update,
+  toolCallId,
+}: {
+  state: AcpSessionState;
+  update: JsonObject;
+  toolCallId: string | null;
+}): void {
+  if (isAcpArtifactWriteUpdate(update, state.acpArtifactWriteToolCallIds)) {
+    state.dsmlArtifactSuppressor = createDsmlArtifactTextSuppressor();
+    state.dsmlArtifactSuppressorLastSuppressedChars = 0;
+    state.dsmlArtifactSuppressorToolCallId = toolCallId;
+    state.dsmlArtifactSuppressorArmedAfterText = state.emittedTextBuffer.length > 0;
+    state.dsmlArtifactSuppressorSawIncrementalProse = false;
+    if (toolCallId) state.acpArtifactWriteToolCallIds.delete(toolCallId);
+    return;
+  }
+  if (!toolCallId || !isAcpTerminalFailureStatus(update)) return;
+  const ownsPendingWriteSuppression = toolCallId === state.dsmlArtifactSuppressorToolCallId;
+  const ownsPendingWriteCall = state.acpArtifactWriteToolCallIds.has(toolCallId);
+  state.acpArtifactWriteToolCallIds.delete(toolCallId);
+  if (!ownsPendingWriteSuppression && !ownsPendingWriteCall) return;
+  state.dsmlArtifactSuppressor = null;
+  state.dsmlArtifactSuppressorToolCallId = null;
+  state.dsmlArtifactSuppressorArmedAfterText = false;
+  state.dsmlArtifactSuppressorSawIncrementalProse = false;
+}
+
+/** Translates a `tool_call` / `tool_call_update` update: tracks it as real turn output, mirrors artifact writes, and manages DSML suppressor arming. */
+export function handleToolCallUpdate({
+  state,
+  effects,
+  update,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  update: JsonObject;
+}): void {
+  // The turn did real work (a tool call / file edit), which is valid output even
+  // when the model emits no closing assistant text. Track it so the prompt-complete
+  // handler does not misreport such a turn as "no output / model unavailable".
+  state.emittedToolCall = true;
+  const toolCallId = acpToolCallId(update);
+  if (toolCallId && isAcpArtifactWriteLabel(update)) {
+    state.acpArtifactWriteToolCallIds.add(toolCallId);
+  }
+  mirrorArtifactWriteToolEvent({ state, effects, update, toolCallId });
+  updateDsmlSuppressorForToolCall({ state, update, toolCallId });
+}
+
+/** Top-level `session/update` dispatcher: emits a generic status for non-streaming update kinds, then routes to the matching per-kind handler. */
+export function handleSessionUpdate({
+  state,
+  effects,
+  update,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  update: JsonObject;
+}): void {
+  if (effects.modelUnavailableErrorCode && tryPromoteAmrRetryStatus({ effects, update })) return;
+  if (update.sessionUpdate !== 'agent_message_chunk' && update.sessionUpdate !== 'agent_thought_chunk') {
+    effects.send('agent', {
+      type: 'status',
+      label: String(update.sessionUpdate || 'session_update'),
+      elapsedMs: Date.now() - effects.runStartedAt,
+    });
+    effects.emitAcpRawShapeDiagnostic(update);
+  }
+  if (update.sessionUpdate === 'agent_thought_chunk') {
+    handleThoughtChunkUpdate({ state, effects, update });
+    return;
+  }
+  if (update.sessionUpdate === 'agent_message_chunk') {
+    handleMessageChunkUpdate({ state, effects, update });
+    return;
+  }
+  if (update.sessionUpdate === 'tool_call' || update.sessionUpdate === 'tool_call_update') {
+    handleToolCallUpdate({ state, effects, update });
+  }
+}
+
+/** Handles the `initialize` ack: sends `session/load` (resume) or `session/new` (fresh). */
+export function handleInitializeAck({ state, effects }: { state: AcpSessionState; effects: AcpSessionEffects }): void {
+  state.expectedId = state.nextId;
+  if (effects.resumeSessionId) {
+    // Resume the prior upstream session instead of creating a fresh one.
+    effects.writeRpc(
+      state.nextId,
+      'session/load',
+      { sessionId: effects.resumeSessionId, cwd: effects.effectiveCwd },
+      'session/load',
+    );
+  } else {
+    effects.writeRpc(
+      state.nextId,
+      'session/new',
+      buildAcpSessionNewParams(
+        effects.effectiveCwd,
+        effects.mcpServers ? { mcpServers: effects.mcpServers, envFormat: effects.envFormat } : { envFormat: effects.envFormat },
+      ),
+      'session/new',
+    );
+  }
+  state.nextId += 1;
+}
+
+/** Sends `session/set_model` (or `session/set_config_option`) when a non-default model was requested. Returns `true` when it did (caller should not send the prompt yet). */
+export function triggerSetModelIfNeeded({
+  state,
+  effects,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+}): boolean {
+  if (!state.sessionId || !effects.model || effects.model === 'default') return false;
+  state.setModelRequestId = state.nextId;
+  state.expectedId = state.nextId;
+  const setModelMethod = state.modelConfigId ? 'session/set_config_option' : 'session/set_model';
+  const setModelParams = state.modelConfigId
+    ? { sessionId: state.sessionId, configId: state.modelConfigId, value: effects.model }
+    : { sessionId: state.sessionId, modelId: effects.model };
+  effects.writeRpc(state.nextId, setModelMethod, setModelParams, setModelMethod);
+  state.nextId += 1;
+  return true;
+}
+
+/** Handles the `session/new` (or `session/load`) ack: records the session id, model config, and either triggers a model switch or sends the prompt. */
+export function handleSessionNewAck({
+  state,
+  effects,
+  result,
+  rawLine,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  result: JsonObject;
+  rawLine: string;
+}): void {
+  state.sessionId = asOptionalString(result.sessionId);
+  // The durable handle for resuming this session on the next turn.
+  state.durableSessionId = asOptionalString(result.openCodeSessionId);
+  // session/new acknowledged with a session id = handshake done.
+  if (state.sessionId) notifySessionInit(effects);
+  state.modelConfigId = resolveModelConfigId(findModelConfigOption(result.configOptions));
+  state.activeModel = currentModelFromSessionResult(result);
+  if (state.sessionId && state.activeModel) {
+    effects.send('agent', { type: 'status', label: 'model', model: state.activeModel });
+  }
+  if (triggerSetModelIfNeeded({ state, effects })) return;
+  if (!state.sessionId) {
+    effects.fail(`invalid session/new response: ${rawLine}`);
+    return;
+  }
+  effects.sendPrompt();
+}
+
+/** Handles the `session/prompt` ack: fails a turn that reported model activity but produced no visible output, otherwise flushes and finishes cleanly. */
+export function handlePromptResult({
+  state,
+  effects,
+  result,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  result: JsonObject;
+}): void {
+  const usage = formatUsage(result.usage);
+  if (!state.emittedVisibleTextChunk && !state.emittedConcreteToolEvent && effects.modelUnavailableErrorCode) {
+    const outputTokens = usage?.output_tokens;
+    const hadCompletionTokens = typeof outputTokens === 'number' && outputTokens > 0;
+    if (hadCompletionTokens || state.emittedToolCall || state.emittedTextChunk) {
+      effects.fail(
+        'ACP session completed after reporting model activity, but did not produce visible assistant text, concrete tool results, or artifacts.',
+        {
+          retryable: true,
+          details: {
+            kind: 'acp_no_visible_output',
+            output_tokens: outputTokens,
+            raw_tool_update_seen: state.emittedToolCall,
+            text_chunk_seen: state.emittedTextChunk,
+          },
+        },
+      );
+    } else {
+      effects.fail(
+        'ACP session completed without producing any assistant text. Refresh the AMR model list, choose a supported model, and retry this run.',
+        { forceModelUnavailable: true },
+      );
+    }
+    return;
+  }
+  effects.finishCleanPrompt(result.usage);
+}
+
+/** Whether an incoming result frame is the ack for an in-flight `session/set_model` (or `set_config_option`) request. */
+export function isModelSetAckExpected({
+  state,
+  effects,
+  obj,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  obj: JsonObject;
+}): boolean {
+  return Boolean(state.sessionId && effects.model && effects.model !== 'default' && obj.id === state.expectedId);
+}
+
+/** Handles the `session/set_model` (or `set_config_option`) ack: records the confirmed model and sends the prompt. */
+export function handleModelSetAck({
+  state,
+  effects,
+  result,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  result: JsonObject;
+}): void {
+  // `isModelSetAckExpected` already confirmed `effects.model` is a truthy
+  // string before this runs; the assertion is only to carry that narrowing
+  // across the function boundary for the type checker (it doesn't survive
+  // the call), not a behavior change.
+  state.activeModel = currentModelFromSessionResult(result) ?? (effects.model as string);
+  effects.send('agent', { type: 'status', label: 'model', model: state.activeModel });
+  effects.sendPrompt();
+}
+
+/** Top-level JSON-RPC result dispatcher, keyed by which request `expectedId`/`promptRequestId` is currently outstanding. */
+export function routeResultById({
+  state,
+  effects,
+  obj,
+  result,
+  rawLine,
+}: {
+  state: AcpSessionState;
+  effects: AcpSessionEffects;
+  obj: JsonObject;
+  result: JsonObject | null;
+  rawLine: string;
+}): void {
+  if (obj.id !== state.expectedId || !result) return;
+  if (state.expectedId === 1) {
+    handleInitializeAck({ state, effects });
+    return;
+  }
+  if (state.expectedId === 2) {
+    handleSessionNewAck({ state, effects, result, rawLine });
+    return;
+  }
+  if (state.promptRequestId !== null && obj.id === state.promptRequestId) {
+    handlePromptResult({ state, effects, result });
+    return;
+  }
+  if (isModelSetAckExpected({ state, effects, obj })) {
+    handleModelSetAck({ state, effects, result });
+  }
+}
+
+/** `AttachAcpSessionOptions` fields resolved to their defaults. Extracted so `attachAcpSession`'s own signature carries no default-value branches. */
+interface ResolvedAcpSessionOptions {
+  imagePaths: string[];
+  envFormat: 'array' | 'map';
+  clientName: string;
+  clientVersion: string;
+  stageTimeoutMs: number;
+  executionProfile: ExecutionProfile;
+  accountFailureClassifier: AccountFailureClassifier;
+}
+
+function resolveAcpSessionOptionDefaults(options: AttachAcpSessionOptions): ResolvedAcpSessionOptions {
+  return {
+    imagePaths: options.imagePaths ?? [],
+    envFormat: options.envFormat ?? 'array',
+    clientName: options.clientName ?? 'agent-runtime',
+    clientVersion: options.clientVersion ?? 'runtime-adapter',
+    stageTimeoutMs: options.stageTimeoutMs ?? DEFAULT_STAGE_TIMEOUT_MS,
+    executionProfile: options.executionProfile ?? 'filesystem',
+    accountFailureClassifier: options.accountFailureClassifier ?? noopAccountFailureClassifier,
+  };
+}
+
 /**
  * Attaches an ACP protocol session to an already-spawned child process and
  * drives the full JSON-RPC conversation from handshake to prompt completion.
@@ -167,26 +880,29 @@ export interface AttachAcpSessionOptions {
  * @returns A controller with `hasFatalError`, `getDurableSessionId`,
  *   `completedSuccessfully`, and `abort` methods.
  */
-export function attachAcpSession({
-  child,
-  prompt,
-  cwd,
-  model,
-  imagePaths = [],
-  mcpServers,
-  envFormat = 'array',
-  send,
-  clientName = 'agent-runtime',
-  clientVersion = 'runtime-adapter',
-  stageTimeoutMs = DEFAULT_STAGE_TIMEOUT_MS,
-  executionProfile = 'filesystem',
-  modelUnavailableErrorCode,
-  accountFailureClassifier = noopAccountFailureClassifier,
-  resumeSessionId,
-  onPermissionRequest,
-  onCliReady,
-  onSessionInit,
-}: AttachAcpSessionOptions): AcpSessionController {
+export function attachAcpSession(options: AttachAcpSessionOptions): AcpSessionController {
+  const {
+    child,
+    prompt,
+    cwd,
+    model,
+    mcpServers,
+    send,
+    modelUnavailableErrorCode,
+    resumeSessionId,
+    onPermissionRequest,
+    onCliReady,
+    onSessionInit,
+  } = options;
+  const {
+    imagePaths,
+    envFormat,
+    clientName,
+    clientVersion,
+    stageTimeoutMs,
+    executionProfile,
+    accountFailureClassifier,
+  } = resolveAcpSessionOptionDefaults(options);
   const runStartedAt = Date.now();
   const effectiveCwd = path.resolve(cwd || process.cwd());
   if (!child.stdin || !child.stdout) {
@@ -194,25 +910,8 @@ export function attachAcpSession({
   }
   const stdin = child.stdin;
   const stdout = child.stdout;
-  let expectedId = 1;
-  let nextId = 2;
-  let promptRequestId: JsonRpcId | null = null;
-  let setModelRequestId: JsonRpcId | null = null;
-  let sessionId: string | null = null;
-  // The durable upstream session handle reported by the agent on session/new or
-  // session/load (e.g. a vendor bridge's own session id). The caller stores it
-  // per conversation to resume next turn. Distinct from `sessionId`, which is
-  // the ACP wrapper id.
-  let durableSessionId: string | null = null;
-  let activeModel: string | null = null;
-  let modelConfigId: string | null = null;
-  let emittedThinkingStart = false;
+  const state = createAcpSessionState();
   let emittedFirstTokenStatus = false;
-  let emittedTextChunk = false;
-  let emittedVisibleTextChunk = false;
-  let emittedToolCall = false;
-  let emittedConcreteToolEvent = false;
-  let emittedTextBuffer = '';
   let rawAcpShapeDiagnosticCount = 0;
   let artifactSuppressionDiagnosticCount = 0;
   let amrStderrRetryTail = '';
@@ -220,11 +919,6 @@ export function attachAcpSession({
   let fatal = false;
   let aborted = false;
   let stageTimer: TimerHandle | null = null;
-  let dsmlArtifactSuppressor: ArtifactTextSuppressor | null = null;
-  let dsmlArtifactSuppressorLastSuppressedChars = 0;
-  let dsmlArtifactSuppressorToolCallId: string | null = null;
-  let dsmlArtifactSuppressorArmedAfterText = false;
-  let dsmlArtifactSuppressorSawIncrementalProse = false;
   const pendingPermissionRequestIds = new Set<JsonRpcId>();
   const toolCallTextSuppressor = createToolCallTextSuppressor();
   let toolCallTextSuppressorLastSuppressedChars = 0;
@@ -240,13 +934,6 @@ export function attachAcpSession({
     openedBlocks: 0,
     closedBlocks: 0,
   };
-  const acpArtifactWriteToolCallIds = new Set<string>();
-  // Per artifact-write tool call, accumulate the best concrete file path seen
-  // across its frames and whether we have already mirrored it into canonical
-  // tool_use/tool_result events. Emission is deferred to the terminal frame so
-  // a `locations`/`rawInput` path that ACP only sends on a later update is used
-  // for classification, instead of locking in a first-frame guess.
-  const acpArtifactRunEventState = new Map<string, { path: string | null; emitted: boolean }>();
 
   const stageWatchdogDisabled = stageTimeoutMs <= 0;
   const resetStageTimer = (label: string) => {
@@ -375,7 +1062,7 @@ export function attachAcpSession({
   // discipline (verified unreachable by tracing every call site — see
   // source-map.md), not suppressed.
   const emitVisibleTextDelta = (delta: string) => {
-    emittedVisibleTextChunk = true;
+    state.emittedVisibleTextChunk = true;
     if (!emittedFirstTokenStatus) {
       emittedFirstTokenStatus = true;
       send('agent', {
@@ -388,11 +1075,11 @@ export function attachAcpSession({
   };
 
   const noteArtifactTextSuppression = (reason: string) => {
-    if (!dsmlArtifactSuppressor) return;
-    const stats = dsmlArtifactSuppressor.stats();
-    const suppressedDelta = stats.suppressedChars - dsmlArtifactSuppressorLastSuppressedChars;
+    if (!state.dsmlArtifactSuppressor) return;
+    const stats = state.dsmlArtifactSuppressor.stats();
+    const suppressedDelta = stats.suppressedChars - state.dsmlArtifactSuppressorLastSuppressedChars;
     if (suppressedDelta <= 0) return;
-    dsmlArtifactSuppressorLastSuppressedChars = stats.suppressedChars;
+    state.dsmlArtifactSuppressorLastSuppressedChars = stats.suppressedChars;
     artifactTextSuppressionSummary.suppressedChars += suppressedDelta;
     artifactTextSuppressionSummary.suppressedChunks = stats.suppressedChunks;
     artifactTextSuppressionSummary.openedBlocks = stats.openedBlocks;
@@ -475,13 +1162,13 @@ export function attachAcpSession({
   };
 
   const sendPrompt = () => {
-    promptRequestId = nextId;
-    expectedId = promptRequestId;
+    state.promptRequestId = state.nextId;
+    state.expectedId = state.promptRequestId;
     writeRpc(
-      promptRequestId,
+      state.promptRequestId,
       'session/prompt',
       {
-        sessionId,
+        sessionId: state.sessionId,
         prompt: buildPromptBlocks(prompt, imagePaths),
       },
       'session/prompt',
@@ -491,20 +1178,22 @@ export function attachAcpSession({
       label: 'waiting_for_first_output',
       elapsedMs: Date.now() - runStartedAt,
     });
-    nextId += 1;
+    state.nextId += 1;
   };
 
-  // `finishCleanPrompt` has exactly one call site, inside the parser
-  // callback's promptRequestId-match branch, which is itself already gated
-  // by that same callback's own `if (aborted || finished) return;` at entry
-  // — so this function can never actually be invoked once `finished` is
-  // true. The origin file carried its own re-entry guard here anyway;
-  // removed per this package's coverage-driven dead-branch discipline. See
-  // source-map.md.
+  // `finishCleanPrompt` has exactly one call site (`handlePromptResult`,
+  // called only from `routeResultById`'s promptRequestId-match branch),
+  // which is itself only ever reached from the parser callback's own `if
+  // (aborted || finished) return;` guard at entry — so this function can
+  // never actually be invoked once `finished` is true. The origin file
+  // carried its own re-entry guard here anyway; removed per this package's
+  // coverage-driven dead-branch discipline. See source-map.md.
   const finishCleanPrompt = (usageSource?: unknown) => {
     const flushedToolText = toolCallTextSuppressor.flush();
     noteToolCallTextSuppression('tool_call_xml_flush');
-    const flushedText = flushedToolText ? (dsmlArtifactSuppressor?.strip(flushedToolText) ?? flushedToolText) : '';
+    const flushedText = flushedToolText
+      ? (state.dsmlArtifactSuppressor?.strip(flushedToolText) ?? flushedToolText)
+      : '';
     if (flushedText) {
       emitVisibleTextDelta(flushedText);
     }
@@ -595,10 +1284,34 @@ export function attachAcpSession({
   };
 
   const recoverFromModelSelectionError = () => {
-    setModelRequestId = null;
-    activeModel = activeModel || 'default';
-    send('agent', { type: 'status', label: 'model', model: activeModel });
+    state.setModelRequestId = null;
+    state.activeModel = state.activeModel || 'default';
+    send('agent', { type: 'status', label: 'model', model: state.activeModel });
     sendPrompt();
+  };
+
+  const effects: AcpSessionEffects = {
+    send,
+    fail,
+    failWithPayload,
+    writeRpc,
+    sendPrompt,
+    recoverFromModelSelectionError,
+    finishCleanPrompt,
+    emitVisibleTextDelta,
+    noteArtifactTextSuppression,
+    noteToolCallTextSuppression,
+    emitAcpRawShapeDiagnostic,
+    toolCallTextSuppressor,
+    runStartedAt,
+    modelUnavailableErrorCode,
+    accountFailureClassifier,
+    model,
+    onSessionInit,
+    resumeSessionId,
+    effectiveCwd,
+    mcpServers,
+    envFormat,
   };
 
   const parser = createJsonLineStream((raw, rawLine) => {
@@ -614,41 +1327,7 @@ export function attachAcpSession({
     const result = asObject(obj.result);
     const rpcErr = rpcErrorMessage(obj);
     if (rpcErr) {
-      // A late-arriving error from the agent after the session has already
-      // finished (pipe-broken, cleanup race conditions, etc.) would be safe
-      // to ignore here — but this whole callback is already gated by `if
-      // (aborted || finished) return;` at its own top (line 499), and
-      // nothing between there and here can flip `finished` to true
-      // mid-invocation, so a second, inner check of the same condition can
-      // never actually fire. Removed per this package's coverage-driven
-      // dead-branch discipline (verified unreachable by tracing the
-      // callback's own control flow — see source-map.md), not suppressed.
-      // JSON-RPC error handling:
-      // -32603 unexpected-id errors are cleanup noise. Expected-id model
-      // selection failures are recoverable; all other RPC errors are real
-      // protocol failures for initialize/session/new/session/prompt.
-      if (
-        obj.id === setModelRequestId &&
-        modelSelectionErrorIsRecoverable(error?.code) &&
-        promptRequestId === null
-      ) {
-        recoverFromModelSelectionError();
-        return;
-      }
-      if (error?.code === -32603 && obj.id !== expectedId) {
-        return;
-      }
-      const details = rpcErrorData(obj);
-      const promotedPayload = promotedOpenCodeSessionErrorPayload(details, rpcErr);
-      if (promotedPayload) {
-        failWithPayload(promotedPayload);
-        return;
-      }
-      const retryable = rpcErrorRetryable(details);
-      fail(rpcErr, {
-        details,
-        ...(retryable === undefined ? {} : { retryable }),
-      });
+      handleRpcError({ state, effects, obj, error, rpcErr });
       return;
     }
     if (obj.method === 'session/request_permission') {
@@ -657,280 +1336,10 @@ export function attachAcpSession({
     }
     const update = asObject(params?.update);
     if (obj.method === 'session/update' && update) {
-      if (modelUnavailableErrorCode) {
-        const promotedPayload = promotedAmrRetryStatusPayload(update, accountFailureClassifier);
-        if (promotedPayload) {
-          failWithPayload(promotedPayload);
-          return;
-        }
-      }
-      if (update.sessionUpdate !== 'agent_message_chunk' && update.sessionUpdate !== 'agent_thought_chunk') {
-        send('agent', {
-          type: 'status',
-          label: String(update.sessionUpdate || 'session_update'),
-          elapsedMs: Date.now() - runStartedAt,
-        });
-        emitAcpRawShapeDiagnostic(update);
-      }
-      if (update.sessionUpdate === 'agent_thought_chunk') {
-        emitAcpRawShapeDiagnostic(update);
-        const text = extractAcpUpdateText(update);
-        if (text) {
-          if (!emittedThinkingStart) {
-            emittedThinkingStart = true;
-            send('agent', { type: 'thinking_start' });
-          }
-          send('agent', { type: 'thinking_delta', delta: text });
-        }
-        return;
-      }
-      if (update.sessionUpdate === 'agent_message_chunk') {
-        emitAcpRawShapeDiagnostic(update);
-        const text = extractAcpUpdateText(update);
-        if (text) {
-          const isCumulativeSnapshot = text.startsWith(emittedTextBuffer);
-          const delta = isCumulativeSnapshot
-            ? text.slice(emittedTextBuffer.length)
-            : text;
-          if (delta.length > 0) {
-            emittedTextChunk = true;
-            emittedTextBuffer += delta;
-            const wasSuppressingToolCall = toolCallTextSuppressor.isSuppressing();
-            const toolCallStrippedDelta = toolCallTextSuppressor.strip(delta);
-            noteToolCallTextSuppression(
-              wasSuppressingToolCall || toolCallStrippedDelta !== delta
-                ? 'tool_call_xml'
-                : 'tool_call_candidate',
-            );
-            if (!toolCallStrippedDelta) {
-              return;
-            }
-            if (dsmlArtifactSuppressor) {
-              const wasSuppressingArtifact = dsmlArtifactSuppressor.isSuppressing();
-              const hadPendingArtifactCandidate = dsmlArtifactSuppressor.hasPendingCandidate();
-              const strippedDelta = dsmlArtifactSuppressor.strip(toolCallStrippedDelta);
-              noteArtifactTextSuppression(
-                wasSuppressingArtifact || strippedDelta !== toolCallStrippedDelta
-                  ? 'artifact_echo'
-                  : 'artifact_candidate',
-              );
-              const hasOpenArtifactCandidate =
-                dsmlArtifactSuppressor.isSuppressing() || dsmlArtifactSuppressor.hasPendingCandidate();
-              const consumedArtifactText = wasSuppressingArtifact || strippedDelta !== delta;
-              const shouldPreserveIncrementalProse =
-                !isCumulativeSnapshot &&
-                !wasSuppressingArtifact &&
-                !hadPendingArtifactCandidate &&
-                !hasOpenArtifactCandidate &&
-                (
-                  strippedDelta === toolCallStrippedDelta ||
-                  (
-                    !dsmlArtifactSuppressorArmedAfterText &&
-                    dsmlArtifactSuppressorSawIncrementalProse &&
-                    !ACP_ARTIFACT_ECHO_START_RE.test(toolCallStrippedDelta)
-                  )
-                );
-              const outputDelta = shouldPreserveIncrementalProse ? toolCallStrippedDelta : strippedDelta;
-              if (outputDelta) {
-                emitVisibleTextDelta(outputDelta);
-              }
-              if (
-                strippedDelta === toolCallStrippedDelta &&
-                !wasSuppressingArtifact &&
-                !hadPendingArtifactCandidate &&
-                !hasOpenArtifactCandidate
-              ) {
-                dsmlArtifactSuppressorSawIncrementalProse = true;
-              }
-              if (consumedArtifactText && !hasOpenArtifactCandidate) {
-                dsmlArtifactSuppressor = null;
-                dsmlArtifactSuppressorToolCallId = null;
-                dsmlArtifactSuppressorArmedAfterText = false;
-                dsmlArtifactSuppressorSawIncrementalProse = false;
-              }
-            } else {
-              emitVisibleTextDelta(toolCallStrippedDelta);
-            }
-          }
-        }
-        return;
-      }
-      if (
-        update.sessionUpdate === 'tool_call' ||
-        update.sessionUpdate === 'tool_call_update'
-      ) {
-        // The turn did real work (a tool call / file edit), which is valid output even
-        // when the model emits no closing assistant text. Track it so the prompt-complete
-        // handler does not misreport such a turn as "no output / model unavailable".
-        emittedToolCall = true;
-        const toolCallId = acpToolCallId(update);
-        if (toolCallId && isAcpArtifactWriteLabel(update)) {
-          acpArtifactWriteToolCallIds.add(toolCallId);
-        }
-        // Mirror artifact-write tool calls into the daemon's canonical
-        // tool_use/tool_result event shape so a run-artifacts scanner can see
-        // ACP file writes. Without this, an ACP agent that emits only
-        // text/status/thinking events (never a tool_use/tool_result pair)
-        // would report zero artifacts even when the run wrote artifacts.
-        //
-        // This path only feeds the NO-PROJECT fallback (project runs use the
-        // filesystem snapshot). Two correctness rules, both learned the hard
-        // way in review:
-        //   1. Defer emission to the TERMINAL frame and accumulate the best
-        //      concrete path across frames — ACP often sends `locations` only
-        //      on the completing update, and emitting on the first frame would
-        //      lock in a wrong/empty guess that a later path can't correct.
-        //   2. Never fabricate an artifact extension. `isArtifactPath` is what
-        //      decides whether a write counts; feeding it a real path lets it
-        //      correctly EXCLUDE non-artifact edits (`config.json`, `README.md`)
-        //      and INCLUDE real artifacts. A write that never carries a concrete
-        //      path stays keyed on its (extension-less) toolCallId, so it is
-        //      simply not counted rather than inflating the metric with a
-        //      synthetic `.html` — under-counting a truly opaque write is
-        //      acceptable; a false-positive artifact is not.
-        if (toolCallId) {
-          const isWriteCall =
-            isAcpArtifactWriteLabel(update) || acpArtifactWriteToolCallIds.has(toolCallId);
-          if (isWriteCall) {
-            let st = acpArtifactRunEventState.get(toolCallId);
-            if (!st) {
-              st = { path: null, emitted: false };
-              acpArtifactRunEventState.set(toolCallId, st);
-            }
-            if (!st.path) st.path = acpArtifactWritePath(update);
-            const failed = isAcpTerminalFailureStatus(update);
-            if (!st.emitted && (failed || isAcpCompletedStatus(update))) {
-              st.emitted = true;
-              send('agent', {
-                type: 'tool_use',
-                id: toolCallId,
-                name: 'Write',
-                input: { file_path: st.path ?? toolCallId },
-              });
-              send('agent', { type: 'tool_result', toolUseId: toolCallId, isError: failed });
-              emittedConcreteToolEvent = true;
-            }
-          }
-        }
-        if (isAcpArtifactWriteUpdate(update, acpArtifactWriteToolCallIds)) {
-          dsmlArtifactSuppressor = createDsmlArtifactTextSuppressor();
-          dsmlArtifactSuppressorLastSuppressedChars = 0;
-          dsmlArtifactSuppressorToolCallId = toolCallId;
-          dsmlArtifactSuppressorArmedAfterText = emittedTextBuffer.length > 0;
-          dsmlArtifactSuppressorSawIncrementalProse = false;
-          if (toolCallId) acpArtifactWriteToolCallIds.delete(toolCallId);
-        } else if (toolCallId && isAcpTerminalFailureStatus(update)) {
-          const ownsPendingWriteSuppression = toolCallId === dsmlArtifactSuppressorToolCallId;
-          const ownsPendingWriteCall = acpArtifactWriteToolCallIds.has(toolCallId);
-          acpArtifactWriteToolCallIds.delete(toolCallId);
-          if (ownsPendingWriteSuppression || ownsPendingWriteCall) {
-            dsmlArtifactSuppressor = null;
-            dsmlArtifactSuppressorToolCallId = null;
-            dsmlArtifactSuppressorArmedAfterText = false;
-            dsmlArtifactSuppressorSawIncrementalProse = false;
-          }
-        }
-        return;
-      }
+      handleSessionUpdate({ state, effects, update });
       return;
     }
-    if (obj.id !== expectedId || !result) {
-      return;
-    }
-    if (expectedId === 1) {
-      expectedId = nextId;
-      if (resumeSessionId) {
-        // Resume the prior upstream session instead of creating a fresh one.
-        writeRpc(
-          nextId,
-          'session/load',
-          { sessionId: resumeSessionId, cwd: effectiveCwd },
-          'session/load',
-        );
-      } else {
-        writeRpc(
-          nextId,
-          'session/new',
-          buildAcpSessionNewParams(
-            effectiveCwd,
-            mcpServers ? { mcpServers, envFormat } : { envFormat },
-          ),
-          'session/new',
-        );
-      }
-      nextId += 1;
-      return;
-    }
-    if (expectedId === 2) {
-      sessionId = typeof result.sessionId === 'string' ? result.sessionId : null;
-      // The durable handle for resuming this session on the next turn.
-      durableSessionId =
-        typeof result.openCodeSessionId === 'string' ? result.openCodeSessionId : null;
-      // session/new acknowledged with a session id = handshake done.
-      if (sessionId) onSessionInit?.();
-      const modelConfig = findModelConfigOption(result.configOptions);
-      modelConfigId = modelConfig?.configId ?? null;
-      activeModel = currentModelFromSessionResult(result);
-      if (sessionId && activeModel) {
-        send('agent', { type: 'status', label: 'model', model: activeModel });
-      }
-      if (sessionId && model && model !== 'default') {
-        setModelRequestId = nextId;
-        expectedId = nextId;
-        const setModelMethod = modelConfigId ? 'session/set_config_option' : 'session/set_model';
-        const setModelParams = modelConfigId
-          ? { sessionId, configId: modelConfigId, value: model }
-          : { sessionId, modelId: model };
-        writeRpc(
-          nextId,
-          setModelMethod,
-          setModelParams,
-          setModelMethod,
-        );
-        nextId += 1;
-        return;
-      }
-      if (!sessionId) {
-        fail(`invalid session/new response: ${rawLine}`);
-        return;
-      }
-      sendPrompt();
-      return;
-    }
-    if (promptRequestId !== null && obj.id === promptRequestId) {
-      const usage = formatUsage(result.usage);
-      if (!emittedVisibleTextChunk && !emittedConcreteToolEvent && modelUnavailableErrorCode) {
-        const outputTokens = usage?.output_tokens;
-        const hadCompletionTokens = typeof outputTokens === 'number' && outputTokens > 0;
-        if (hadCompletionTokens || emittedToolCall || emittedTextChunk) {
-          fail(
-            'ACP session completed after reporting model activity, but did not produce visible assistant text, concrete tool results, or artifacts.',
-            {
-              retryable: true,
-              details: {
-                kind: 'acp_no_visible_output',
-                output_tokens: outputTokens,
-                raw_tool_update_seen: emittedToolCall,
-                text_chunk_seen: emittedTextChunk,
-              },
-            },
-          );
-        } else {
-          fail(
-            'ACP session completed without producing any assistant text. Refresh the AMR model list, choose a supported model, and retry this run.',
-            { forceModelUnavailable: true },
-          );
-        }
-        return;
-      }
-      finishCleanPrompt(result.usage);
-      return;
-    }
-    if (sessionId && model && model !== 'default' && obj.id === expectedId) {
-      activeModel = currentModelFromSessionResult(result) ?? model;
-      send('agent', { type: 'status', label: 'model', model: activeModel });
-      sendPrompt();
-    }
+    routeResultById({ state, effects, obj, result, rawLine });
   });
 
   stdout.on('data', (chunk: string) => parser.feed(chunk));
@@ -959,6 +1368,33 @@ export function attachAcpSession({
     clientInfo: { name: clientName, version: clientVersion },
   }, 'initialize');
 
+  // ACP requires pending permission requests to receive a terminal
+  // `cancelled` response when the prompt turn is cancelled. Called before
+  // closing stdin, which may otherwise make the response impossible to
+  // deliver.
+  const cancelPendingPermissionRequests = (): void => {
+    for (const requestId of pendingPermissionRequestIds) {
+      try {
+        sendRpcResult(stdin, requestId, { outcome: { outcome: 'cancelled' } });
+      } catch {
+        // Closing stdin/process signalling below remains the fallback.
+      }
+    }
+    pendingPermissionRequestIds.clear();
+  };
+
+  // Only cancel an established session; before session/new resolves there is
+  // no sessionId to cancel, but the caller still closes stdin below.
+  const sendSessionCancelIfEstablished = (activeStdin: NonNullable<AcpChildProcess['stdin']>): void => {
+    if (!state.sessionId) return;
+    try {
+      sendRpc(activeStdin, state.nextId, 'session/cancel', { sessionId: state.sessionId });
+      state.nextId += 1;
+    } catch {
+      // The caller owns process-signal fallback if the ACP transport is gone.
+    }
+  };
+
   return {
     /** Returns `true` when the session ended with a fatal protocol or transport error, allowing the caller to surface the failure. */
     hasFatalError() {
@@ -969,7 +1405,7 @@ export function attachAcpSession({
     // session). Mirrors pi-rpc's getLastSessionPath().
     /** Returns the durable upstream session id (e.g. a vendor bridge's own session id) to persist for next-turn resume, or `null` when the agent did not report one. */
     getDurableSessionId() {
-      return durableSessionId;
+      return state.durableSessionId;
     },
     /** Returns `true` when the prompt request resolved cleanly without a fatal error and without an abort, even if the child process later exited via SIGTERM. */
     completedSuccessfully() {
@@ -990,30 +1426,10 @@ export function attachAcpSession({
       aborted = true;
       finished = true;
       clearStageTimer();
-      // ACP requires pending permission requests to receive a terminal
-      // `cancelled` response when the prompt turn is cancelled. Do this
-      // before closing stdin, which may otherwise make the response
-      // impossible to deliver.
-      for (const requestId of pendingPermissionRequestIds) {
-        try {
-          sendRpcResult(stdin, requestId, { outcome: { outcome: 'cancelled' } });
-        } catch {
-          // Closing stdin/process signalling below remains the fallback.
-        }
-      }
-      pendingPermissionRequestIds.clear();
+      cancelPendingPermissionRequests();
       if (!child.stdin || child.stdin.destroyed || child.stdin.writableEnded)
         return;
-      // Only cancel an established session; before session/new resolves there
-      // is no sessionId to cancel, but we must still close stdin below.
-      if (sessionId) {
-        try {
-          sendRpc(child.stdin, nextId, 'session/cancel', { sessionId });
-          nextId += 1;
-        } catch {
-          // The caller owns process-signal fallback if the ACP transport is gone.
-        }
-      }
+      sendSessionCancelIfEstablished(child.stdin);
       // Always close stdin so the agent receives EOF and shuts down its own
       // runtime — some ACP bridges tear down a private backing server on EOF —
       // instead of lingering (and leaking that server) until the caller's

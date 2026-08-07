@@ -302,6 +302,58 @@ function splitAzureToolResultContent(content: string | readonly AzureContentPart
 }
 
 /**
+ * Decides why the tool loop should stop after one request, or returns `null` when it should
+ * instead proceed to execute the pending tool calls — mirrors
+ * `anthropic-messages.ts#anthropicLoopExitReason`'s pure decision/effect split.
+ */
+export function azureLoopExitReason(outcome: OpenAiCompatibleRequestOutcome, toolTurns: number, maxToolTurns: number): AzureTurnEndReason | null {
+  if (outcome.finishReason !== 'tool_calls' || outcome.toolCalls.length === 0) return 'stop';
+  if (toolTurns >= maxToolTurns) return 'max_tool_turns';
+  return null;
+}
+
+/** Builds the assistant continuation's `tool_calls` field — same shape as `openai-chat.ts#buildOpenAiAssistantToolCallMessage`'s `tool_calls`, since Azure's wire body is byte-identical to plain OpenAI's (see module doc). */
+export function buildAzureAssistantToolCalls(toolCalls: readonly AzureToolCall[]): AzureToolCallParam[] {
+  return toolCalls.map((call) => ({ id: call.id, type: 'function' as const, function: { name: call.name, arguments: JSON.stringify(call.input) } }));
+}
+
+export interface AzureToolExecutionOutcome {
+  readonly toolResultMessages: AzureMessageParam[];
+  readonly followUpParts: AzureContentPart[];
+}
+
+/** Azure counterpart of `openai-chat.ts#executeOpenAiToolCalls` — same split (text-only `tool` message plus one labeled-image follow-up per batch) and same per-batch assembly discipline; see that function's doc and module doc's "synthetic follow-up message" note for why. */
+export async function executeAzureToolCalls(
+  executeTool: AzureToolExecutor,
+  calls: readonly AzureToolCall[],
+  onEvent: (event: AzureTurnEvent) => void,
+): Promise<AzureToolExecutionOutcome> {
+  const toolResultMessages: AzureMessageParam[] = [];
+  const followUpParts: AzureContentPart[] = [];
+  for (const call of calls) {
+    const result = await executeTool(call);
+    const sanitized = sanitizeAzureToolResult(result);
+    onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
+    const split = splitAzureToolResultContent(sanitized.content);
+    toolResultMessages.push({ role: 'tool', content: split.toolMessageContent, tool_call_id: call.id });
+    if (split.imageParts.length > 0) {
+      // Attribution label — see `openai-chat.ts`'s identical note for why this matters.
+      followUpParts.push({ type: 'text', text: `Image output from tool \`${call.name}\` (tool_call_id: ${call.id}):` });
+      followUpParts.push(...split.imageParts);
+    }
+  }
+  return { toolResultMessages, followUpParts };
+}
+
+/** Azure counterpart of `openai-chat.ts#buildOpenAiToolExchangeMessages` — appends the batch's `tool` messages plus, when present, the single labeled-image follow-up message. */
+export function buildAzureToolExchangeMessages(
+  toolResultMessages: readonly AzureMessageParam[],
+  followUpParts: readonly AzureContentPart[],
+): AzureMessageParam[] {
+  return [...toolResultMessages, ...(followUpParts.length > 0 ? [{ role: 'user' as const, content: followUpParts }] : [])];
+}
+
+/**
  * Runs a full Azure OpenAI Chat Completions turn, including the
  * tool-execution loop when `options.executeTool` is supplied and the model
  * requests a function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s
@@ -309,6 +361,7 @@ function splitAzureToolResultContent(content: string | readonly AzureContentPart
  */
 export async function runAzureToolTurn(options: AzureTurnOptions): Promise<AzureTurnResult> {
   const maxToolTurns = options.maxToolTurns ?? DEFAULT_MAX_TOOL_TURNS;
+  const executeTool = options.executeTool;
 
   const endGuard = createTurnEndGuard<AzureTurnEvent>(options.onEvent, (reason) => ({ type: 'end', reason }));
   const emitEnd = endGuard.emitEnd;
@@ -323,47 +376,24 @@ export async function runAzureToolTurn(options: AzureTurnOptions): Promise<Azure
 
     if (endGuard.hasEnded()) break;
 
-    if (outcome.finishReason !== 'tool_calls' || outcome.toolCalls.length === 0) {
-      emitEnd('stop');
+    const exitReason = azureLoopExitReason(outcome, toolTurns, maxToolTurns);
+    if (exitReason) {
+      emitEnd(exitReason);
       break;
     }
-    if (!options.executeTool) {
+    if (!executeTool) {
       emitEnd('stop');
-      break;
-    }
-    if (toolTurns >= maxToolTurns) {
-      emitEnd('max_tool_turns');
       break;
     }
     toolTurns += 1;
 
-    const assistantToolCalls: AzureToolCallParam[] = outcome.toolCalls.map((call) => ({
-      id: call.id,
-      type: 'function',
-      function: { name: call.name, arguments: JSON.stringify(call.input) },
-    }));
-    const toolResultMessages: AzureMessageParam[] = [];
-    // Same batching discipline as `openai-chat.ts`: every `tool` message for this batch goes here
-    // first; the follow-up is assembled but only ever appended once, after the loop.
-    const followUpParts: AzureContentPart[] = [];
-    for (const call of outcome.toolCalls) {
-      const result = await options.executeTool(call);
-      const sanitized = sanitizeAzureToolResult(result);
-      options.onEvent({ type: 'tool_result', toolUseId: call.id, content: sanitized.content, isError: sanitized.isError });
-      const split = splitAzureToolResultContent(sanitized.content);
-      toolResultMessages.push({ role: 'tool', content: split.toolMessageContent, tool_call_id: call.id });
-      if (split.imageParts.length > 0) {
-        // Attribution label — see `openai-chat.ts`'s identical note for why this matters.
-        followUpParts.push({ type: 'text', text: `Image output from tool \`${call.name}\` (tool_call_id: ${call.id}):` });
-        followUpParts.push(...split.imageParts);
-      }
-    }
+    const assistantToolCalls = buildAzureAssistantToolCalls(outcome.toolCalls);
+    const { toolResultMessages, followUpParts } = await executeAzureToolCalls(executeTool, outcome.toolCalls, options.onEvent);
 
     messages = [
       ...messages,
       { role: 'assistant', content: outcome.text || null, tool_calls: assistantToolCalls },
-      ...toolResultMessages,
-      ...(followUpParts.length > 0 ? [{ role: 'user' as const, content: followUpParts }] : []),
+      ...buildAzureToolExchangeMessages(toolResultMessages, followUpParts),
     ];
   }
 

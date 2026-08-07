@@ -23,6 +23,7 @@ import {
   mkdir,
   mkdtemp,
   readFile,
+  realpath,
   rm,
   rmdir,
   stat,
@@ -37,10 +38,17 @@ import {
   AttachmentRejectedError,
   createDiskAttachmentStore,
   detectAttachmentKind,
+  hasGifSignature,
+  hasJpegSignature,
+  hasPngSignature,
+  hasWebpSignature,
   isUnchangedAttachment,
   registerAttachmentRoutes,
+  reserveAttachmentRecords,
   sanitizeAttachmentName,
+  verifyClaimedAttachments,
   writeBoundedAttachmentBody,
+  type AttachmentRecord,
   type AttachmentsHttpDeps,
   type AttachmentStore,
   type CreateDiskAttachmentStoreOptions,
@@ -225,6 +233,44 @@ describe('detectAttachmentKind', () => {
 });
 
 // ---------------------------------------------------------------------------
+// The per-format signature predicates detectAttachmentKind is built from
+// ---------------------------------------------------------------------------
+
+describe('hasPngSignature', () => {
+  it('matches only a well-formed PNG signature', () => {
+    expect(hasPngSignature(PNG)).toBe(true);
+    expect(hasPngSignature(Uint8Array.from([0x89, 0x50, 0x4e]))).toBe(false); // too short
+    expect(hasPngSignature(Uint8Array.from([0x00, 0x50, 0x4e, 0x47, 0, 0, 0, 0]))).toBe(false);
+  });
+});
+
+describe('hasJpegSignature', () => {
+  it('matches only the JPEG start-of-image marker', () => {
+    expect(hasJpegSignature(Uint8Array.from([0xff, 0xd8, 0xff]))).toBe(true);
+    expect(hasJpegSignature(Uint8Array.from([0xff, 0xd8]))).toBe(false); // too short
+    expect(hasJpegSignature(Uint8Array.from([0xff, 0x00, 0xff]))).toBe(false);
+  });
+});
+
+describe('hasGifSignature', () => {
+  it('matches only GIF87a or GIF89a', () => {
+    expect(hasGifSignature(new TextEncoder().encode('GIF87a'))).toBe(true);
+    expect(hasGifSignature(new TextEncoder().encode('GIF89a'))).toBe(true);
+    expect(hasGifSignature(new TextEncoder().encode('GIF88a'))).toBe(false);
+    expect(hasGifSignature(new TextEncoder().encode('GIF8'))).toBe(false); // too short
+  });
+});
+
+describe('hasWebpSignature', () => {
+  it('matches only a RIFF container whose form type is WEBP', () => {
+    expect(hasWebpSignature(new TextEncoder().encode('RIFF0000WEBP'))).toBe(true);
+    expect(hasWebpSignature(new TextEncoder().encode('RIFF0000XXXX'))).toBe(false);
+    expect(hasWebpSignature(new TextEncoder().encode('XXXX0000WEBP'))).toBe(false);
+    expect(hasWebpSignature(new TextEncoder().encode('RIFF0000WEB'))).toBe(false); // too short
+  });
+});
+
+// ---------------------------------------------------------------------------
 // isUnchangedAttachment
 // ---------------------------------------------------------------------------
 
@@ -243,6 +289,199 @@ describe('isUnchangedAttachment', () => {
     expect(isUnchangedAttachment(recorded, { ...observed, dev: 99 })).toBe(false);
     expect(isUnchangedAttachment(recorded, { ...observed, ino: 99 })).toBe(false);
     expect(isUnchangedAttachment(recorded, { ...observed, size: 99 })).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reserveAttachmentRecords — claim()'s synchronous reservation phase
+// ---------------------------------------------------------------------------
+
+describe('reserveAttachmentRecords', () => {
+  function fakeRecord(overrides: Partial<AttachmentRecord> = {}): AttachmentRecord {
+    return {
+      id: 'attachment:a',
+      filePath: '/uploads/batch-aaaaaaaa/a.bin',
+      name: 'a.bin',
+      kind: 'file',
+      size: 3,
+      batchId: 'batch-aaaaaaaa',
+      batchDirectory: '/uploads/batch-aaaaaaaa',
+      dev: 1,
+      ino: 1,
+      createdAt: Date.now(),
+      ...overrides,
+    };
+  }
+
+  it('reserves every requested record for runId, in request order', () => {
+    const a = fakeRecord({ id: 'attachment:a' });
+    const b = fakeRecord({ id: 'attachment:b', filePath: '/uploads/batch-aaaaaaaa/b.bin' });
+    const records = new Map([[a.id, a], [b.id, b]]);
+
+    const claimed = reserveAttachmentRecords(
+      [{ path: a.id, name: 'x', kind: 'file' }, { path: b.id, name: 'y', kind: 'file' }],
+      records,
+      'run-1',
+      10,
+    );
+
+    expect(claimed).toEqual([a, b]);
+    expect(a.claimedRunId).toBe('run-1');
+    expect(b.claimedRunId).toBe('run-1');
+  });
+
+  it('rejects more attachments than maxAttachments, reserving none of them', () => {
+    const a = fakeRecord();
+    const records = new Map([[a.id, a]]);
+
+    expect(() => reserveAttachmentRecords(
+      [{ path: a.id, name: 'x', kind: 'file' }],
+      records,
+      'run-1',
+      0,
+    )).toThrow('Too many attachments');
+    expect(a.claimedRunId).toBeUndefined();
+  });
+
+  it('rejects the same capability id requested twice, reserving none of it', () => {
+    const a = fakeRecord();
+    const records = new Map([[a.id, a]]);
+
+    expect(() => reserveAttachmentRecords(
+      [{ path: a.id, name: 'x', kind: 'file' }, { path: a.id, name: 'x', kind: 'file' }],
+      records,
+      'run-1',
+      10,
+    )).toThrow('Duplicate attachment');
+    expect(a.claimedRunId).toBeUndefined();
+  });
+
+  it('rejects an unknown capability id', () => {
+    const records = new Map<string, AttachmentRecord>();
+
+    expect(() => reserveAttachmentRecords(
+      [{ path: 'attachment:ghost', name: 'x', kind: 'file' }],
+      records,
+      'run-1',
+      10,
+    )).toThrow('unknown or already claimed');
+  });
+
+  it('rejects a record another run already claimed', () => {
+    const a = fakeRecord({ claimedRunId: 'run-other' });
+    const records = new Map([[a.id, a]]);
+
+    expect(() => reserveAttachmentRecords(
+      [{ path: a.id, name: 'x', kind: 'file' }],
+      records,
+      'run-1',
+      10,
+    )).toThrow('unknown or already claimed');
+    expect(a.claimedRunId).toBe('run-other'); // untouched — never reserved for run-1
+  });
+
+  it('releases every record it reserved this call once a later one fails', () => {
+    const a = fakeRecord({ id: 'attachment:a' });
+    const b = fakeRecord({ id: 'attachment:b', filePath: '/uploads/batch-aaaaaaaa/b.bin' });
+    const records = new Map([[a.id, a], [b.id, b]]);
+
+    expect(() => reserveAttachmentRecords(
+      [
+        { path: a.id, name: 'x', kind: 'file' },
+        { path: 'attachment:ghost', name: 'y', kind: 'file' },
+      ],
+      records,
+      'run-1',
+      10,
+    )).toThrow('unknown or already claimed');
+
+    // `a` was reserved on the way to the failing `ghost` lookup, then released by the rollback.
+    expect(a.claimedRunId).toBeUndefined();
+    expect(b.claimedRunId).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verifyClaimedAttachments — claim()'s filesystem re-verification phase
+// ---------------------------------------------------------------------------
+
+describe('verifyClaimedAttachments', () => {
+  async function recordForFile(
+    filePath: string,
+    batchDirectory: string,
+    overrides: Partial<AttachmentRecord> = {},
+  ): Promise<AttachmentRecord> {
+    // Canonicalized, the same way `register()` records it: on some platforms (macOS's `/var` ->
+    // `/private/var` symlink) the raw tmpdir path and its realpath differ, and `isUnchangedAttachment`
+    // compares against the *canonical* path.
+    const canonicalPath = await realpath(filePath);
+    const info = await lstat(canonicalPath);
+    return {
+      id: 'attachment:fixture',
+      filePath: canonicalPath,
+      name: 'fixture.txt',
+      kind: 'file',
+      size: info.size,
+      batchId: 'batch-fixture0',
+      batchDirectory,
+      dev: info.dev,
+      ino: info.ino,
+      createdAt: Date.now(),
+      ...overrides,
+    };
+  }
+
+  it('returns the shared batch directory when every claimed record still matches its file', async () => {
+    const root = await tempDirectory();
+    const filePathA = resolve(root, 'a.txt');
+    const filePathB = resolve(root, 'b.txt');
+    await writeFile(filePathA, 'aaa', { mode: 0o600 });
+    await writeFile(filePathB, 'bbbb', { mode: 0o600 });
+    const recordA = await recordForFile(filePathA, root, { id: 'attachment:a' });
+    const recordB = await recordForFile(filePathB, root, { id: 'attachment:b' });
+
+    await expect(verifyClaimedAttachments([recordA, recordB])).resolves.toBe(root);
+  });
+
+  it('returns an empty string for an empty claim (a direct caller only — claim() never passes one in)', async () => {
+    await expect(verifyClaimedAttachments([])).resolves.toBe('');
+  });
+
+  it('rejects a record whose file grew since registration', async () => {
+    const root = await tempDirectory();
+    const filePath = resolve(root, 'a.txt');
+    await writeFile(filePath, 'aaa', { mode: 0o600 });
+    const record = await recordForFile(filePath, root);
+    await appendFile(filePath, 'more');
+
+    await expect(verifyClaimedAttachments([record])).rejects.toThrow('changed after upload');
+  });
+
+  it('rejects a record retargeted to a symlink after registration', async () => {
+    const root = await tempDirectory();
+    const filePath = resolve(root, 'a.txt');
+    const elsewhere = resolve(root, 'elsewhere.txt');
+    await writeFile(filePath, 'aaa', { mode: 0o600 });
+    const record = await recordForFile(filePath, root);
+    await writeFile(elsewhere, 'aaa', { mode: 0o600 });
+    await rm(filePath);
+    await symlink(elsewhere, filePath);
+
+    await expect(verifyClaimedAttachments([record])).rejects.toThrow('changed after upload');
+  });
+
+  it('rejects records spanning two batch directories', async () => {
+    const rootA = await tempDirectory();
+    const rootB = await tempDirectory();
+    const filePathA = resolve(rootA, 'a.txt');
+    const filePathB = resolve(rootB, 'b.txt');
+    await writeFile(filePathA, 'aaa', { mode: 0o600 });
+    await writeFile(filePathB, 'bbb', { mode: 0o600 });
+    const recordA = await recordForFile(filePathA, rootA, { id: 'attachment:a' });
+    const recordB = await recordForFile(filePathB, rootB, { id: 'attachment:b' });
+
+    await expect(verifyClaimedAttachments([recordA, recordB]))
+      .rejects.toThrow('must belong to one batch');
   });
 });
 

@@ -62,6 +62,15 @@ export const FIRE_AND_FORGET_METHODS = new Set([
  * @param writable - The child process stdin stream.
  * @param raw      - The parsed `extension_ui_request` RPC object from pi's stdout.
  */
+// select: pick the first option if available, else cancel.
+export function firstDialogOptionResult(opts: unknown): Record<string, unknown> {
+  if (!Array.isArray(opts) || opts.length === 0) return { cancelled: true };
+  const first = opts[0];
+  return typeof first === 'string'
+    ? { value: first }
+    : { value: getRecord(first)?.label ?? getRecord(first)?.value ?? '' };
+}
+
 export function replyExtensionUi(writable: Writable, raw: JsonRecord): void {
   if (raw?.id == null) return;
 
@@ -70,23 +79,11 @@ export function replyExtensionUi(writable: Writable, raw: JsonRecord): void {
 
   // Dialog methods: auto-resolve to keep pi unblocked.
   // confirm → true, select/input/editor → empty-ish default
-  let result;
-  if (raw.method === 'confirm') {
-    result = { confirmed: true };
-  } else {
-    // select: pick first option if available, else cancel
-    const params = getRecord(raw.params);
-    const opts = params?.options ?? raw.options;
-    if (Array.isArray(opts) && opts.length > 0) {
-      const first = opts[0];
-      result =
-        typeof first === 'string'
-          ? { value: first }
-          : { value: getRecord(first)?.label ?? getRecord(first)?.value ?? '' };
-    } else {
-      result = { cancelled: true };
-    }
-  }
+  const result =
+    raw.method === 'confirm'
+      ? { confirmed: true }
+      : firstDialogOptionResult(getRecord(raw.params)?.options ?? raw.options);
+
   writable.write(
     `${JSON.stringify({ type: 'extension_ui_response', id: raw.id, ...result })}\n`,
   );
@@ -158,6 +155,126 @@ export function resolveSessionPathChangedSince(
   // never actually be exercised.
   return changed.length === 1 ? changed[0]!.path : null;
 }
+
+export function piImageMimeType(ext: string): string {
+  if (ext === '.png') return 'image/png';
+  if (ext === '.gif') return 'image/gif';
+  if (ext === '.webp') return 'image/webp';
+  return 'image/jpeg'; // .jpg, .jpeg, and unknown
+}
+
+// Re-verify the resolved path stays inside the upload root. Without this, a
+// path that passed server.ts's safeImages prefix check (under UPLOAD_DIR)
+// could be a symlink pointing to a file outside UPLOAD_DIR, and we'd
+// read/base64-forward it to pi.
+// Exported for direct testing: the `+ path.sep` is load-bearing and easy to
+// drop in a later edit, so it is pinned by its own unit test rather than only
+// exercised through `tryReadImagePayload`.
+export function isPathUnderRoot(realPath: string, resolvedRoot: string): boolean {
+  return realPath === resolvedRoot || realPath.startsWith(resolvedRoot + path.sep);
+}
+
+/**
+ * Validates and reads one candidate image path for pi's `images` prompt
+ * field: resolves symlinks, re-verifies the resolved path is a regular file
+ * under `uploadRoot`, checks the extension allowlist, and enforces the
+ * remaining total-byte budget. Returns `null` for any rejection or read
+ * failure rather than throwing, so one bad image never fails the whole run.
+ */
+export function tryReadImagePayload(
+  imgPath: unknown,
+  uploadRoot: string | undefined,
+  totalBytesSoFar: number,
+): { payload: PiImagePayload; size: number } | null {
+  if (typeof imgPath !== 'string' || !imgPath.length) return null;
+  try {
+    // Resolve symlinks and verify it's a regular file.
+    const realPath = fs.realpathSync(imgPath);
+    const stat = fs.statSync(realPath);
+    if (!stat.isFile()) return null;
+
+    if (uploadRoot) {
+      const resolvedRoot = fs.realpathSync(uploadRoot);
+      if (!isPathUnderRoot(realPath, resolvedRoot)) return null;
+    }
+
+    const ext = path.extname(realPath).toLowerCase();
+    if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) return null;
+
+    // Enforce total byte budget.
+    if (totalBytesSoFar + stat.size > MAX_TOTAL_IMAGE_BYTES) return null;
+
+    const buf = fs.readFileSync(realPath);
+    return {
+      payload: { type: 'image', data: buf.toString('base64'), mimeType: piImageMimeType(ext) },
+      size: stat.size,
+    };
+  } catch (_err: unknown) {
+    // Skip unreadable images rather than failing the entire run.
+    return null;
+  }
+}
+
+/**
+ * Builds pi's base64-encoded `images` prompt payload from `imagePaths`,
+ * subject to `MAX_IMAGE_COUNT` and `MAX_TOTAL_IMAGE_BYTES` budgets to
+ * prevent large synchronous base64 reads from blocking the event loop. The
+ * daemon's safeImages guard already validated that each path exists under
+ * UPLOAD_DIR; see {@link tryReadImagePayload} for the per-path re-checks.
+ */
+export function buildPiImagePayloads(imagePaths: string[] | undefined, uploadRoot: string | undefined): PiImagePayload[] {
+  const images: PiImagePayload[] = [];
+  if (!Array.isArray(imagePaths) || imagePaths.length === 0) return images;
+  let totalBytes = 0;
+  for (const imgPath of imagePaths) {
+    if (images.length >= MAX_IMAGE_COUNT) break;
+    const read = tryReadImagePayload(imgPath, uploadRoot, totalBytes);
+    if (!read) continue;
+    images.push(read.payload);
+    totalBytes += read.size;
+  }
+  return images;
+}
+
+/**
+ * Routes one `response`-type frame from pi's RPC stdout: a rejected parent
+ * session fails the run immediately (a resumed turn must not continue
+ * without its prior context); an accepted parent session triggers the
+ * (previously withheld) prompt send; a rejected prompt fails the run;
+ * anything else (an accepted prompt, an unrelated response id) is a no-op.
+ * Exported as a free function — it only reads its explicit params and never
+ * touches `attachPiRpcSession`'s other session state — so it is directly
+ * testable without spinning up a session.
+ */
+export function handlePiResponseMessage({
+  raw,
+  parentSessionRpcId,
+  promptRpcId,
+  fail,
+  sendPromptCommand,
+}: {
+  raw: JsonRecord;
+  parentSessionRpcId: number | null;
+  promptRpcId: number | null;
+  fail: (message: string, code?: string) => void;
+  sendPromptCommand: () => void;
+}): void {
+  if (raw.id === parentSessionRpcId) {
+    if (raw.success === false) {
+      fail(
+        `parent session rejected: ${String(raw.error ?? 'unknown')}`,
+        'PI_PARENT_SESSION_FAILED',
+      );
+      return;
+    }
+    sendPromptCommand();
+    return;
+  }
+  if (raw.id === promptRpcId && raw.success === false) {
+    fail(`prompt rejected: ${String(raw.error ?? 'unknown')}`);
+  }
+}
+
 /**
  * Attaches the daemon's run lifecycle to an already-spawned `pi --mode rpc` child process.
  *
@@ -254,57 +371,8 @@ export function attachPiRpcSession({
   // new session, enabling conversational continuity across edit rounds.
   // Build the images array for pi's prompt command. pi's RPC protocol
   // accepts `images` as an array of {type, data, mimeType} objects where
-  // `data` is base64-encoded file contents. The daemon's safeImages guard
-  // already validated that each path exists under UPLOAD_DIR.
-  //
-  // Security: realpath resolves symlinks so we re-check that the resolved
-  // path is still a regular file (no /proc/self/mem or symlink escape).
-  // We also enforce a count and total-byte budget to prevent large
-  // synchronous base64 reads from blocking the event loop.
-  const images: PiImagePayload[] = [];
-  if (Array.isArray(imagePaths) && imagePaths.length > 0) {
-    let totalBytes = 0;
-    for (const imgPath of imagePaths) {
-      if (images.length >= MAX_IMAGE_COUNT) break;
-      if (typeof imgPath !== 'string' || !imgPath.length) continue;
-      try {
-        // Resolve symlinks and verify it's a regular file.
-        const realPath = fs.realpathSync(imgPath);
-        const stat = fs.statSync(realPath);
-        if (!stat.isFile()) continue;
-
-        // Re-verify the resolved path stays inside the upload root.
-        // Without this, a path that passed server.ts's safeImages prefix
-        // check (under UPLOAD_DIR) could be a symlink pointing to a file
-        // outside UPLOAD_DIR, and we'd read/base64-forward it to pi.
-        if (uploadRoot) {
-          const resolvedRoot = fs.realpathSync(uploadRoot);
-          if (realPath !== resolvedRoot && !realPath.startsWith(resolvedRoot + path.sep)) continue;
-        }
-
-        const ext = path.extname(realPath).toLowerCase();
-        if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) continue;
-
-        // Enforce total byte budget.
-        if (totalBytes + stat.size > MAX_TOTAL_IMAGE_BYTES) continue;
-
-        const buf = fs.readFileSync(realPath);
-        const mimeType =
-          ext === '.png' ? 'image/png' :
-          ext === '.gif' ? 'image/gif' :
-          ext === '.webp' ? 'image/webp' :
-          'image/jpeg'; // .jpg, .jpeg, and unknown
-        images.push({
-          type: 'image',
-          data: buf.toString('base64'),
-          mimeType,
-        });
-        totalBytes += stat.size;
-      } catch (_err: unknown) {
-        // Skip unreadable images rather than failing the entire run.
-      }
-    }
-  }
+  // `data` is base64-encoded file contents.
+  const images: PiImagePayload[] = buildPiImagePayloads(imagePaths, uploadRoot);
 
   const sendPromptCommand = (): void => {
     promptRpcId = sendCommand(stdin, 'prompt', {
@@ -325,6 +393,29 @@ export function attachPiRpcSession({
     sendPromptCommand();
   }
 
+  const handlePiAgentEnd = (): void => {
+    finished = true;
+    // Capture only the session file changed by this run. If another pi
+    // process wrote to the shared session directory concurrently, the
+    // resolver returns null instead of risking cross-conversation resume.
+    capturedSessionPath = resolveSessionPathChangedSince(cwd, sessionFilesBeforePrompt);
+    // pi's RPC process stays alive after agent_end (designed for
+    // multi-prompt sessions). The daemon's /api/chat is single-shot,
+    // so close stdin and let the process exit naturally, or kill it
+    // after a grace period.
+    try {
+      stdin.end();
+    } catch (err: unknown) {
+      fail(`stdin close: ${errorMessage(err)}`);
+    }
+    // Grace period before SIGTERM. Configurable via PI_GRACEFUL_SHUTDOWN_MS
+    // for resource-constrained machines where the event loop drains slowly.
+    const shutdownMs = Number(process.env.PI_GRACEFUL_SHUTDOWN_MS) || 5000;
+    setTimeout(() => {
+      if (!child.killed) child.kill('SIGTERM');
+    }, shutdownMs);
+  };
+
   // ---- Inbound: parse stdout events ----
   const parser = createJsonLineStream((raw: unknown) => {
     if (!isRecord(raw)) return;
@@ -340,50 +431,15 @@ export function attachPiRpcSession({
       return;
     }
 
-    // RPC responses (prompt accepted, set_model ack, etc.) — not
-    // agent events. Log the prompt acceptance, ignore the rest.
     if (raw.type === 'response') {
-      if (raw.id === parentSessionRpcId) {
-        if (raw.success === false) {
-          fail(
-            `parent session rejected: ${String(raw.error ?? 'unknown')}`,
-            'PI_PARENT_SESSION_FAILED',
-          );
-          return;
-        }
-        sendPromptCommand();
-        return;
-      }
-      if (raw.id === promptRpcId && raw.success === false) {
-        fail(`prompt rejected: ${String(raw.error ?? 'unknown')}`);
-      }
+      handlePiResponseMessage({ raw, parentSessionRpcId, promptRpcId, fail, sendPromptCommand });
       return;
     }
 
     // Agent events: delegate to the pure mapper.
     const result = mapPiRpcEvent(raw, send, { runStartedAt, sentFirstToken });
-
     if (result === 'agent_end') {
-      finished = true;
-      // Capture only the session file changed by this run. If another pi
-      // process wrote to the shared session directory concurrently, the
-      // resolver returns null instead of risking cross-conversation resume.
-      capturedSessionPath = resolveSessionPathChangedSince(cwd, sessionFilesBeforePrompt);
-      // pi's RPC process stays alive after agent_end (designed for
-      // multi-prompt sessions). The daemon's /api/chat is single-shot,
-      // so close stdin and let the process exit naturally, or kill it
-      // after a grace period.
-      try {
-        stdin.end();
-      } catch (err: unknown) {
-        fail(`stdin close: ${errorMessage(err)}`);
-      }
-      // Grace period before SIGTERM. Configurable via PI_GRACEFUL_SHUTDOWN_MS
-      // for resource-constrained machines where the event loop drains slowly.
-      const shutdownMs = Number(process.env.PI_GRACEFUL_SHUTDOWN_MS) || 5000;
-      setTimeout(() => {
-        if (!child.killed) child.kill('SIGTERM');
-      }, shutdownMs);
+      handlePiAgentEnd();
     }
   });
 

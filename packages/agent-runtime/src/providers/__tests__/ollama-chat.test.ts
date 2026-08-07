@@ -1,6 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runOllamaToolTurn, type OllamaMessageParam, type OllamaTurnEvent } from '../ollama-chat.js';
+import {
+  buildOllamaAssistantToolCalls,
+  executeOllamaToolCalls,
+  handleOllamaTextContent,
+  handleOllamaToolCallsField,
+  ollamaLoopExitReason,
+  parseNdjsonLine,
+  parseNdjsonLines,
+  parseOllamaToolCallArguments,
+  processOllamaLine,
+  resolveOllamaToolCall,
+  runOllamaToolTurn,
+  splitNdjsonLines,
+  type OllamaMessageParam,
+  type OllamaStreamState,
+  type OllamaToolCall,
+  type OllamaTurnEvent,
+} from '../ollama-chat.js';
 import { pinnedFetch } from '../connection-guard.js';
+import { createRoleMarkerGuard } from '../../role-marker-guard.js';
 
 /**
  * `pinnedFetch` (the transport `runSingleOllamaRequest` actually calls, since the DNS-rebinding
@@ -48,6 +66,10 @@ function okResponse(body: AsyncIterable<string>) {
 
 const baseMessages: OllamaMessageParam[] = [{ role: 'user', content: 'hi' }];
 const apiKey = 'sk-ollama-cloud';
+
+function freshOllamaState(): OllamaStreamState {
+  return { guard: createRoleMarkerGuard('test'), toolCalls: [], fullText: '', finishReason: null };
+}
 
 describe('runOllamaToolTurn', () => {
   afterEach(() => {
@@ -594,5 +616,257 @@ describe('runOllamaToolTurn', () => {
     expect(result).toEqual({ finishReason: 'tool_calls', toolTurns: 0 });
     expect(events.filter((e) => e.type === 'end')).toEqual([{ type: 'end', reason: 'stop' }]);
     expect(events).toContainEqual({ type: 'tool_use', id: 'call_1', name: 'noop', input: {} });
+  });
+});
+
+describe('unit: parseNdjsonLine', () => {
+  it('parses a well-formed JSON line', () => {
+    expect(parseNdjsonLine('{"a":1}')).toEqual({ a: 1 });
+  });
+
+  it('returns undefined for a malformed line', () => {
+    expect(parseNdjsonLine('{not json')).toBeUndefined();
+  });
+
+  it('returns undefined for an empty line', () => {
+    expect(parseNdjsonLine('')).toBeUndefined();
+  });
+
+  it('parses a bare JSON literal (null) as itself, not as "failed to parse"', () => {
+    expect(parseNdjsonLine('null')).toBeNull();
+  });
+});
+
+describe('unit: splitNdjsonLines', () => {
+  it('splits multiple newline-terminated lines and keeps the trailing partial line as remainder', () => {
+    const result = splitNdjsonLines('{"a":1}\n{"b":2}\npartial-no-newline');
+    expect(result.lines).toEqual(['{"a":1}', '{"b":2}']);
+    expect(result.remainder).toBe('partial-no-newline');
+  });
+
+  it('returns no lines and the whole buffer as remainder when there is no newline yet', () => {
+    const result = splitNdjsonLines('still-buffering');
+    expect(result.lines).toEqual([]);
+    expect(result.remainder).toBe('still-buffering');
+  });
+
+  it('returns an empty remainder when the buffer ends exactly on a newline', () => {
+    const result = splitNdjsonLines('{"a":1}\n');
+    expect(result.lines).toEqual(['{"a":1}']);
+    expect(result.remainder).toBe('');
+  });
+});
+
+describe('unit: parseNdjsonLines', () => {
+  it('yields only the lines that parse to something other than undefined, trimming and skipping blanks', () => {
+    const parsed = [...parseNdjsonLines(['{"a":1}', '  ', 'not-json', '{"b":2}'])];
+    expect(parsed).toEqual([{ a: 1 }, { b: 2 }]);
+  });
+
+  it('yields nothing for an all-blank/all-malformed input', () => {
+    expect([...parseNdjsonLines(['', '   ', 'not-json'])]).toEqual([]);
+  });
+});
+
+describe('unit: parseOllamaToolCallArguments', () => {
+  it('parses a stringified JSON arguments blob', () => {
+    expect(parseOllamaToolCallArguments('{"x":1}')).toEqual({ x: 1 });
+  });
+
+  it('falls back to the raw string when the string is malformed JSON', () => {
+    expect(parseOllamaToolCallArguments('not-json')).toBe('not-json');
+  });
+
+  it('passes a non-string value (already a native object) straight through', () => {
+    expect(parseOllamaToolCallArguments({ x: 1 })).toEqual({ x: 1 });
+  });
+});
+
+describe('unit: resolveOllamaToolCall', () => {
+  it('resolves a well-formed call, preferring the wire id when present', () => {
+    const call = resolveOllamaToolCall({ id: 'wire-id', function: { name: 'f', arguments: { a: 1 } } }, 3);
+    expect(call).toEqual({ id: 'wire-id', name: 'f', input: { a: 1 } });
+  });
+
+  it('synthesizes an id from the given index when the wire carries none', () => {
+    const call = resolveOllamaToolCall({ function: { name: 'f', arguments: {} } }, 2);
+    expect(call?.id).toBe('ollama-tool-2');
+  });
+
+  it('returns null when function is missing', () => {
+    expect(resolveOllamaToolCall({ id: 'x' }, 0)).toBeNull();
+  });
+
+  it('returns null when function.name is missing or empty', () => {
+    expect(resolveOllamaToolCall({ function: { arguments: {} } }, 0)).toBeNull();
+    expect(resolveOllamaToolCall({ function: { name: '', arguments: {} } }, 0)).toBeNull();
+  });
+
+  it('returns null for a non-record raw call', () => {
+    expect(resolveOllamaToolCall('not-a-record', 0)).toBeNull();
+  });
+});
+
+describe('unit: handleOllamaTextContent', () => {
+  it('appends safe text to fullText and emits a text_delta event', () => {
+    const state = freshOllamaState();
+    const events: OllamaTurnEvent[] = [];
+    const result = handleOllamaTextContent(state, 'hello', (e) => events.push(e));
+    expect(result).toBe('continue');
+    expect(state.fullText).toBe('hello');
+    expect(events).toEqual([{ type: 'text_delta', delta: 'hello' }]);
+  });
+
+  it('returns "break" and emits a warning once a fabricated role marker contaminates the text', () => {
+    const state = freshOllamaState();
+    const events: OllamaTurnEvent[] = [];
+    const result = handleOllamaTextContent(state, 'safe text\n## user\nmalicious continuation', (e) => events.push(e));
+    expect(result).toBe('break');
+    expect(events.some((e) => e.type === 'fabricated_role_marker')).toBe(true);
+  });
+});
+
+describe('unit: handleOllamaToolCallsField', () => {
+  it('resolves every tool call in the array and sets finishReason once at least one resolved', () => {
+    const state = freshOllamaState();
+    handleOllamaToolCallsField(state, { tool_calls: [{ function: { name: 'f1', arguments: {} } }, { function: { name: 'f2', arguments: {} } }] });
+    expect(state.toolCalls).toHaveLength(2);
+    expect(state.finishReason).toBe('tool_calls');
+  });
+
+  it('skips malformed entries in the batch without dropping the well-formed ones', () => {
+    const state = freshOllamaState();
+    handleOllamaToolCallsField(state, { tool_calls: [{ notAFunction: true }, { function: { name: 'f1', arguments: {} } }] });
+    expect(state.toolCalls).toEqual([{ id: 'ollama-tool-0', name: 'f1', input: {} }]);
+  });
+
+  it('is a no-op (and does not set finishReason) when message.tool_calls is not an array', () => {
+    const state = freshOllamaState();
+    handleOllamaToolCallsField(state, {});
+    expect(state.toolCalls).toHaveLength(0);
+    expect(state.finishReason).toBeNull();
+  });
+
+  it('is a no-op when every entry in tool_calls is malformed (nothing resolves, finishReason stays unset)', () => {
+    const state = freshOllamaState();
+    handleOllamaToolCallsField(state, { tool_calls: ['not-a-record', { function: { arguments: {} } }] });
+    expect(state.toolCalls).toHaveLength(0);
+    expect(state.finishReason).toBeNull();
+  });
+});
+
+describe('unit: processOllamaLine', () => {
+  it('returns "continue" for a line with no message and done: false', () => {
+    const state = freshOllamaState();
+    expect(processOllamaLine(state, {}, () => {}, () => {})).toBe('continue');
+  });
+
+  it('accumulates text content and resolves tool calls from the same line, then continues', () => {
+    const state = freshOllamaState();
+    const events: OllamaTurnEvent[] = [];
+    const result = processOllamaLine(
+      state,
+      { message: { content: 'hi', tool_calls: [{ function: { name: 'f', arguments: {} } }] } },
+      (e) => events.push(e),
+      () => {},
+    );
+    expect(result).toBe('continue');
+    expect(state.fullText).toBe('hi');
+    expect(state.finishReason).toBe('tool_calls');
+  });
+
+  it('returns "break" and emits end(contaminated) when the content delta trips the role-marker guard', () => {
+    const state = freshOllamaState();
+    const emitEnd = vi.fn();
+    const result = processOllamaLine(state, { message: { content: 'safe\n## user\nmalicious' } }, () => {}, emitEnd);
+    expect(result).toBe('break');
+    expect(state.finishReason).toBe('contaminated');
+    expect(emitEnd).toHaveBeenCalledWith('contaminated');
+  });
+
+  it('returns "done" and sets finishReason "stop" when line.done is true and nothing else set a reason', () => {
+    const state = freshOllamaState();
+    expect(processOllamaLine(state, { done: true }, () => {}, () => {})).toBe('done');
+    expect(state.finishReason).toBe('stop');
+  });
+
+  it('preserves an existing "tool_calls" finishReason on the terminal done line rather than overwriting it with "stop"', () => {
+    const state = freshOllamaState();
+    state.finishReason = 'tool_calls';
+    expect(processOllamaLine(state, { done: true }, () => {}, () => {})).toBe('done');
+    expect(state.finishReason).toBe('tool_calls');
+  });
+});
+
+describe('unit: ollamaLoopExitReason', () => {
+  it('returns "stop" when finishReason is not "tool_calls"', () => {
+    expect(ollamaLoopExitReason({ finishReason: 'stop', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+  });
+
+  it('returns "stop" when finishReason is "tool_calls" but toolCalls is empty', () => {
+    expect(ollamaLoopExitReason({ finishReason: 'tool_calls', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+  });
+
+  it('returns "max_tool_turns" once toolTurns reaches the ceiling', () => {
+    const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
+    expect(ollamaLoopExitReason(outcome, 8, 8)).toBe('max_tool_turns');
+  });
+
+  it('returns null (continue the loop) when there are pending tool calls under the ceiling', () => {
+    const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
+    expect(ollamaLoopExitReason(outcome, 2, 8)).toBeNull();
+  });
+});
+
+describe('unit: buildOllamaAssistantToolCalls', () => {
+  it('builds one native { function: { name, arguments } } entry per call, with no id/type field on the wire', () => {
+    const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: { a: 1 } }];
+    const built = buildOllamaAssistantToolCalls(calls);
+    expect(built).toEqual([{ function: { name: 'f1', arguments: { a: 1 } } }]);
+    expect('id' in built[0]!).toBe(false);
+  });
+
+  it('returns an empty array for no calls', () => {
+    expect(buildOllamaAssistantToolCalls([])).toEqual([]);
+  });
+});
+
+describe('unit: executeOllamaToolCalls', () => {
+  it('runs each call and reduces it into a tool-role continuation message associated by tool_name', async () => {
+    const executeTool = vi.fn().mockResolvedValue({ content: 'ok' });
+    const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
+    const events: OllamaTurnEvent[] = [];
+    const messages = await executeOllamaToolCalls(executeTool, calls, (e) => events.push(e));
+    expect(messages).toEqual([{ role: 'tool', content: 'ok', tool_name: 'f1' }]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'c1', content: 'ok', isError: false }]);
+  });
+
+  it('rejects a data:-URI-prefixed image via guardToolResult, surfacing isError: true', async () => {
+    const executeTool = vi.fn().mockResolvedValue({ content: 'ok', images: ['data:image/png;base64,x'] });
+    const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
+    const events: OllamaTurnEvent[] = [];
+    const messages = await executeOllamaToolCalls(executeTool, calls, (e) => events.push(e));
+    expect(messages[0]).toMatchObject({ role: 'tool', tool_name: 'f1' });
+    expect(events[0]).toMatchObject({ isError: true });
+  });
+
+  it('carries bare-base64 images through unchanged onto both the event and the continuation message', async () => {
+    const executeTool = vi.fn().mockResolvedValue({ content: 'ok', images: ['YWJj'] });
+    const calls: OllamaToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
+    const messages = await executeOllamaToolCalls(executeTool, calls, () => {});
+    expect(messages[0]).toEqual({ role: 'tool', content: 'ok', tool_name: 'f1', images: ['YWJj'] });
+  });
+
+  it('runs multiple calls in order, one continuation message per call', async () => {
+    const executeTool = vi.fn().mockResolvedValueOnce({ content: 'first' }).mockResolvedValueOnce({ content: 'second' });
+    const calls: OllamaToolCall[] = [
+      { id: 'c1', name: 'f1', input: {} },
+      { id: 'c2', name: 'f2', input: {} },
+    ];
+    const messages = await executeOllamaToolCalls(executeTool, calls, () => {});
+    expect(messages).toEqual([
+      { role: 'tool', content: 'first', tool_name: 'f1' },
+      { role: 'tool', content: 'second', tool_name: 'f2' },
+    ]);
   });
 });

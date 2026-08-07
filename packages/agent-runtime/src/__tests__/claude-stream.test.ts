@@ -1,5 +1,34 @@
-import { describe, expect, it } from 'vitest';
-import { createClaudeStreamHandler } from '../claude-stream.js';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  applyInputJsonDelta,
+  applyTaskCreate,
+  applyTaskUpdate,
+  artifactOpenCandidateLength,
+  assistantText,
+  createClaudeStreamHandler,
+  emitAssistantErrorIfPresent,
+  emitCanonicalTaskSnapshot,
+  fileWriteContent,
+  handleSystemMessage,
+  handleUserMessage,
+  isFileWriteToolUse,
+  isHtmlWriteToolInput,
+  isRedundantWrittenArtifact,
+  isUnstreamedTextBlock,
+  isUnstreamedThinkingBlock,
+  normalizeTaskStatus,
+  runtimeTaskIdFromCreate,
+  stringifyToolResult,
+  toolInputPath,
+  type ClaudeStreamEvent,
+  type RuntimeTask,
+  type RuntimeTaskIdCounter,
+  type TaskRegistry,
+} from '../claude-stream.js';
+
+function freshTaskRegistry(): TaskRegistry {
+  return { tasks: new Map<string, RuntimeTask>(), counter: { next: 1 }, seenToolUseIds: new Set<string>() };
+}
 
 /**
  * Behavioral replay test: feeds a hand-built JSONL trace shaped like a real
@@ -516,6 +545,21 @@ describe('createClaudeStreamHandler', () => {
       expect(events).toEqual([{ type: 'text_delta', delta: 'ok' }]);
     });
 
+    it('ignores an assistant frame with no message field', () => {
+      const events = run([{ type: 'assistant' }]);
+      expect(events).toEqual([]);
+    });
+
+    it('ignores an assistant frame whose message is not a record', () => {
+      const events = run([{ type: 'assistant', message: 'not an object' }]);
+      expect(events).toEqual([]);
+    });
+
+    it('ignores an assistant frame whose message.content is not an array', () => {
+      const events = run([{ type: 'assistant', message: { id: 'm_bad_content', content: 'not an array' } }]);
+      expect(events).toEqual([]);
+    });
+
     it('does not re-emit assistant text/thinking already streamed via deltas for the same message id', () => {
       const events = run([
         { type: 'stream_event', event: { type: 'message_start', message: { id: 'm_dup' } } },
@@ -625,6 +669,16 @@ describe('createClaudeStreamHandler', () => {
         { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't4', content: 'ok' }] } },
       ]);
       expect(events[0]).toMatchObject({ isError: false });
+    });
+
+    it('ignores a user frame with no message field', () => {
+      const events = run([{ type: 'user' }]);
+      expect(events).toEqual([]);
+    });
+
+    it('ignores a user frame whose message.content is not an array', () => {
+      const events = run([{ type: 'user', message: { content: 'not an array' } }]);
+      expect(events).toEqual([]);
     });
   });
 
@@ -1234,5 +1288,561 @@ describe('createClaudeStreamHandler', () => {
       const events = run([null]);
       expect(events).toEqual([]);
     });
+  });
+});
+
+// The remaining describe blocks unit-test the exported decision logic
+// `createClaudeStreamHandler` is built from, in isolation from the
+// streaming handler. These are *in addition to* the end-to-end tests
+// above, not a replacement — a green unit test on a helper proves that
+// helper's own branches are correct, not that the whole pipeline still
+// behaves the same.
+
+describe('toolInputPath', () => {
+  it('prefers file_path over path', () => {
+    expect(toolInputPath({ file_path: 'a.txt', path: 'b.txt' })).toBe('a.txt');
+  });
+
+  it('falls back to path when file_path is absent', () => {
+    expect(toolInputPath({ path: 'b.txt' })).toBe('b.txt');
+  });
+
+  it('returns an empty string when neither field is a string', () => {
+    expect(toolInputPath({})).toBe('');
+    expect(toolInputPath({ file_path: 42 })).toBe('');
+  });
+});
+
+describe('normalizeTaskStatus', () => {
+  it('passes through the four canonical statuses unchanged', () => {
+    expect(normalizeTaskStatus('completed')).toBe('completed');
+    expect(normalizeTaskStatus('in_progress')).toBe('in_progress');
+    expect(normalizeTaskStatus('stopped')).toBe('stopped');
+    expect(normalizeTaskStatus('pending')).toBe('pending');
+  });
+
+  it('maps known wire-format aliases to their canonical status', () => {
+    expect(normalizeTaskStatus('complete')).toBe('completed');
+    expect(normalizeTaskStatus('done')).toBe('completed');
+    expect(normalizeTaskStatus('doing')).toBe('in_progress');
+    expect(normalizeTaskStatus('active')).toBe('in_progress');
+    expect(normalizeTaskStatus('failed')).toBe('stopped');
+    expect(normalizeTaskStatus('canceled')).toBe('stopped');
+    expect(normalizeTaskStatus('cancelled')).toBe('stopped');
+  });
+
+  it('defaults to pending for an unrecognized string', () => {
+    expect(normalizeTaskStatus('bogus')).toBe('pending');
+  });
+
+  it('defaults to pending for a non-string value', () => {
+    expect(normalizeTaskStatus(undefined)).toBe('pending');
+    expect(normalizeTaskStatus(42)).toBe('pending');
+    expect(normalizeTaskStatus(null)).toBe('pending');
+  });
+});
+
+describe('runtimeTaskIdFromCreate', () => {
+  it('generates a sequential id when taskId is absent', () => {
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    expect(runtimeTaskIdFromCreate({}, counter)).toBe('1');
+    expect(runtimeTaskIdFromCreate({}, counter)).toBe('2');
+    expect(counter.next).toBe(3);
+  });
+
+  it('uses an explicit taskId verbatim', () => {
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    expect(runtimeTaskIdFromCreate({ taskId: 'custom-id' }, counter)).toBe('custom-id');
+    expect(counter.next).toBe(1);
+  });
+
+  it('bumps the counter past a numeric explicit taskId so future generated ids never collide', () => {
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    expect(runtimeTaskIdFromCreate({ taskId: '5' }, counter)).toBe('5');
+    expect(counter.next).toBe(6);
+    expect(runtimeTaskIdFromCreate({}, counter)).toBe('6');
+  });
+
+  it('does not move the counter backwards for a numeric taskId below the current counter', () => {
+    const counter: RuntimeTaskIdCounter = { next: 10 };
+    expect(runtimeTaskIdFromCreate({ taskId: '3' }, counter)).toBe('3');
+    expect(counter.next).toBe(10);
+  });
+
+  it('treats a non-numeric explicit taskId as opaque and does not touch the counter', () => {
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    expect(runtimeTaskIdFromCreate({ taskId: 'abc' }, counter)).toBe('abc');
+    expect(counter.next).toBe(1);
+  });
+
+  it('treats an empty-string taskId as absent and generates one instead', () => {
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    expect(runtimeTaskIdFromCreate({ taskId: '' }, counter)).toBe('1');
+  });
+});
+
+describe('applyTaskCreate', () => {
+  it('creates a task from subject and returns true', () => {
+    const tasks = new Map<string, RuntimeTask>();
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    expect(applyTaskCreate({ subject: 'Write tests' }, tasks, counter)).toBe(true);
+    expect(tasks.get('1')).toEqual({ id: '1', content: 'Write tests', status: 'pending' });
+  });
+
+  it('falls back to description when subject is absent', () => {
+    const tasks = new Map<string, RuntimeTask>();
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    applyTaskCreate({ description: 'Refactor module' }, tasks, counter);
+    expect(tasks.get('1')?.content).toBe('Refactor module');
+  });
+
+  it('returns false and creates nothing when neither subject nor description is present', () => {
+    const tasks = new Map<string, RuntimeTask>();
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    expect(applyTaskCreate({}, tasks, counter)).toBe(false);
+    expect(tasks.size).toBe(0);
+  });
+
+  it('includes activeForm only when provided as a string', () => {
+    const tasks = new Map<string, RuntimeTask>();
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    applyTaskCreate({ subject: 'A', activeForm: 'Doing A' }, tasks, counter);
+    expect(tasks.get('1')?.activeForm).toBe('Doing A');
+
+    applyTaskCreate({ subject: 'B' }, tasks, counter);
+    expect(tasks.get('2')).not.toHaveProperty('activeForm');
+  });
+
+  it('normalizes status through normalizeTaskStatus', () => {
+    const tasks = new Map<string, RuntimeTask>();
+    const counter: RuntimeTaskIdCounter = { next: 1 };
+    applyTaskCreate({ subject: 'A', status: 'doing' }, tasks, counter);
+    expect(tasks.get('1')?.status).toBe('in_progress');
+  });
+});
+
+describe('applyTaskUpdate', () => {
+  it('returns false when taskId is not a string', () => {
+    const tasks = new Map<string, RuntimeTask>();
+    expect(applyTaskUpdate({}, tasks)).toBe(false);
+  });
+
+  it('returns false when the referenced task does not exist', () => {
+    const tasks = new Map<string, RuntimeTask>();
+    expect(applyTaskUpdate({ taskId: 'missing' }, tasks)).toBe(false);
+  });
+
+  it('updates content from subject, falling back to description, then to the existing content', () => {
+    const tasks = new Map<string, RuntimeTask>([['1', { id: '1', content: 'orig', status: 'pending' }]]);
+    applyTaskUpdate({ taskId: '1', subject: 'new subject' }, tasks);
+    expect(tasks.get('1')?.content).toBe('new subject');
+
+    applyTaskUpdate({ taskId: '1', description: 'new description' }, tasks);
+    expect(tasks.get('1')?.content).toBe('new description');
+
+    applyTaskUpdate({ taskId: '1' }, tasks);
+    expect(tasks.get('1')?.content).toBe('new description');
+  });
+
+  it('updates activeForm from input, falling back to the existing activeForm', () => {
+    const tasks = new Map<string, RuntimeTask>([
+      ['1', { id: '1', content: 'orig', status: 'pending', activeForm: 'Doing orig' }],
+    ]);
+    applyTaskUpdate({ taskId: '1' }, tasks);
+    expect(tasks.get('1')?.activeForm).toBe('Doing orig');
+
+    applyTaskUpdate({ taskId: '1', activeForm: 'Doing new' }, tasks);
+    expect(tasks.get('1')?.activeForm).toBe('Doing new');
+  });
+
+  it('normalizes status through normalizeTaskStatus and returns true', () => {
+    const tasks = new Map<string, RuntimeTask>([['1', { id: '1', content: 'orig', status: 'pending' }]]);
+    expect(applyTaskUpdate({ taskId: '1', status: 'done' }, tasks)).toBe(true);
+    expect(tasks.get('1')?.status).toBe('completed');
+  });
+});
+
+describe('emitCanonicalTaskSnapshot', () => {
+  it('returns false for a non-string toolUseId, non-string name, or non-record input', () => {
+    const onEvent = vi.fn();
+    expect(emitCanonicalTaskSnapshot(42, 'TaskCreate', {}, freshTaskRegistry(), onEvent)).toBe(false);
+    expect(emitCanonicalTaskSnapshot('t1', 42, {}, freshTaskRegistry(), onEvent)).toBe(false);
+    expect(emitCanonicalTaskSnapshot('t1', 'TaskCreate', 'not-a-record', freshTaskRegistry(), onEvent)).toBe(false);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns true without re-emitting for a tool-use id already applied', () => {
+    const registry = freshTaskRegistry();
+    registry.seenToolUseIds.add('t1');
+    const onEvent = vi.fn();
+    expect(emitCanonicalTaskSnapshot('t1', 'TaskCreate', { subject: 'x' }, registry, onEvent)).toBe(true);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns false for a tool name that is neither TaskCreate nor TaskUpdate', () => {
+    const onEvent = vi.fn();
+    expect(emitCanonicalTaskSnapshot('t1', 'Read', { file_path: 'a' }, freshTaskRegistry(), onEvent)).toBe(false);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns false when TaskCreate has no usable content', () => {
+    const onEvent = vi.fn();
+    expect(emitCanonicalTaskSnapshot('t1', 'TaskCreate', {}, freshTaskRegistry(), onEvent)).toBe(false);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('applies a TaskCreate, marks the id seen, and emits a TodoWrite snapshot', () => {
+    const registry = freshTaskRegistry();
+    const onEvent = vi.fn();
+    const applied = emitCanonicalTaskSnapshot('t1', 'TaskCreate', { subject: 'Write tests' }, registry, onEvent);
+    expect(applied).toBe(true);
+    expect(registry.seenToolUseIds.has('t1')).toBe(true);
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'tool_use',
+      id: 't1:todo-task',
+      name: 'TodoWrite',
+      input: { todos: [{ content: 'Write tests', status: 'pending' }] },
+    });
+  });
+
+  it('applies a TaskUpdate against an existing registry and emits a TodoWrite snapshot', () => {
+    const registry = freshTaskRegistry();
+    registry.tasks.set('1', { id: '1', content: 'orig', status: 'pending' });
+    const onEvent = vi.fn();
+    const applied = emitCanonicalTaskSnapshot('t2', 'TaskUpdate', { taskId: '1', status: 'done' }, registry, onEvent);
+    expect(applied).toBe(true);
+    expect(registry.tasks.get('1')?.status).toBe('completed');
+    expect(onEvent).toHaveBeenCalledOnce();
+  });
+
+  it('preserves task insertion order in the todos snapshot across creates and updates, and does not reorder an updated task', () => {
+    // `todos` is `Array.from(registry.tasks.values())`, so this pins two
+    // invariants a downstream consumer (packages/daemon's AgentExecutor,
+    // which renders the todo list) relies on: (1) the same `registry.tasks`
+    // Map reference is mutated in place across calls — a defensive copy
+    // anywhere in this chain would make later snapshots forget earlier
+    // tasks; (2) `Map.set` on an already-present key updates the value
+    // without moving its position, so updating task "a" must not shuffle
+    // it past "b" and "c" in the rendered list.
+    const registry = freshTaskRegistry();
+    const onEvent = vi.fn();
+
+    emitCanonicalTaskSnapshot('t-a', 'TaskCreate', { taskId: 'a', subject: 'first' }, registry, onEvent);
+    emitCanonicalTaskSnapshot('t-b', 'TaskCreate', { taskId: 'b', subject: 'second' }, registry, onEvent);
+    emitCanonicalTaskSnapshot('t-c', 'TaskCreate', { taskId: 'c', subject: 'third' }, registry, onEvent);
+    // Update the *first* task last — if update reordered it, "first" would
+    // land at the end of the array below.
+    emitCanonicalTaskSnapshot('t-a2', 'TaskUpdate', { taskId: 'a', status: 'completed' }, registry, onEvent);
+
+    expect(onEvent).toHaveBeenCalledTimes(4);
+    const lastSnapshot = onEvent.mock.calls.at(-1)![0] as ClaudeStreamEvent & { input: { todos: unknown[] } };
+    expect(lastSnapshot.input.todos).toEqual([
+      { content: 'first', status: 'completed' },
+      { content: 'second', status: 'pending' },
+      { content: 'third', status: 'pending' },
+    ]);
+  });
+});
+
+describe('isFileWriteToolUse', () => {
+  it('returns false for a non-string name or non-record input', () => {
+    expect(isFileWriteToolUse(42, {})).toBe(false);
+    expect(isFileWriteToolUse('Write', 'not-a-record')).toBe(false);
+  });
+
+  it('returns false for a tool name that does not write files', () => {
+    expect(isFileWriteToolUse('Read', { file_path: 'a.txt', content: 'x' })).toBe(false);
+  });
+
+  it('returns true when the path has a recognized text-file extension', () => {
+    expect(isFileWriteToolUse('Write', { file_path: 'index.html' })).toBe(true);
+    expect(isFileWriteToolUse('Edit', { path: 'styles.css' })).toBe(true);
+  });
+
+  it('returns true for a write tool with a content or new_string field even without a recognized extension', () => {
+    expect(isFileWriteToolUse('write_file', { path: 'noext', content: 'hi' })).toBe(true);
+    expect(isFileWriteToolUse('replace', { path: 'noext', new_string: 'hi' })).toBe(true);
+  });
+
+  it('returns false for a write tool with no recognized extension and no content/new_string field', () => {
+    expect(isFileWriteToolUse('Write', { file_path: 'noext' })).toBe(false);
+  });
+});
+
+describe('fileWriteContent', () => {
+  it('returns the content field when present', () => {
+    expect(fileWriteContent({ content: 'hello' })).toBe('hello');
+  });
+
+  it('falls back to new_string when content is absent', () => {
+    expect(fileWriteContent({ new_string: 'hello' })).toBe('hello');
+  });
+
+  it('returns null when neither field is a string', () => {
+    expect(fileWriteContent({})).toBeNull();
+  });
+});
+
+describe('isHtmlWriteToolInput', () => {
+  it('returns true for a recognized html file_path extension', () => {
+    expect(isHtmlWriteToolInput({ file_path: 'index.html' })).toBe(true);
+    expect(isHtmlWriteToolInput({ file_path: 'page.xhtml' })).toBe(true);
+  });
+
+  it('falls back to filePath when file_path is absent', () => {
+    expect(isHtmlWriteToolInput({ filePath: 'index.htm' })).toBe(true);
+  });
+
+  it('returns true when the content looks like an HTML document', () => {
+    expect(isHtmlWriteToolInput({ path: 'noext', content: '<!doctype html><html></html>' })).toBe(true);
+    expect(isHtmlWriteToolInput({ path: 'noext', content: '<html><body/></html>' })).toBe(true);
+  });
+
+  it('returns false when neither the path nor the content indicates HTML', () => {
+    expect(isHtmlWriteToolInput({ path: 'noext', content: 'plain text' })).toBe(false);
+  });
+});
+
+describe('artifactOpenCandidateLength', () => {
+  it('returns the length of the longest suffix that is a prefix of the open tag', () => {
+    expect(artifactOpenCandidateLength('hello <art', '<artifact')).toBe(4);
+    expect(artifactOpenCandidateLength('hello <', '<artifact')).toBe(1);
+  });
+
+  it('returns 0 when no suffix matches the open tag prefix', () => {
+    expect(artifactOpenCandidateLength('hello world', '<artifact')).toBe(0);
+  });
+
+  it('matches a suffix one character short of the full open tag', () => {
+    expect(artifactOpenCandidateLength('x<artifac', '<artifact')).toBe(8);
+  });
+});
+
+describe('isRedundantWrittenArtifact', () => {
+  const baseCtx = { suppressHtmlArtifactsAfterFileWrite: false, wroteHtmlFileThisTurn: false, recentWriteContents: [] as string[] };
+
+  it('returns false when the candidate has no `>` or no closing tag', () => {
+    expect(isRedundantWrittenArtifact('<artifact', baseCtx)).toBe(false);
+    expect(isRedundantWrittenArtifact('<artifact>no close', baseCtx)).toBe(false);
+  });
+
+  it('returns true for an html artifact after a file write when suppression is enabled', () => {
+    const ctx = { suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: true, recentWriteContents: [] };
+    const candidate = '<artifact type="text/html">whatever</artifact>';
+    expect(isRedundantWrittenArtifact(candidate, ctx)).toBe(true);
+  });
+
+  it('does not take the html short-circuit when suppression is disabled, wroteHtmlFileThisTurn is false, or the artifact is not html', () => {
+    const candidate = '<artifact type="text/html">body</artifact>';
+    expect(isRedundantWrittenArtifact(candidate, { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: false, wroteHtmlFileThisTurn: true })).toBe(false);
+    expect(isRedundantWrittenArtifact(candidate, { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: false })).toBe(false);
+    const nonHtmlCandidate = '<artifact type="text/markdown">body</artifact>';
+    expect(isRedundantWrittenArtifact(nonHtmlCandidate, { ...baseCtx, suppressHtmlArtifactsAfterFileWrite: true, wroteHtmlFileThisTurn: true })).toBe(false);
+  });
+
+  it('returns true when the artifact body matches a recent write, after normalization', () => {
+    const ctx = { ...baseCtx, recentWriteContents: ['hello world'] };
+    expect(isRedundantWrittenArtifact('<artifact>hello world</artifact>', ctx)).toBe(true);
+    // Normalization strips a BOM, normalizes CRLF, and trims surrounding whitespace/escaped-whitespace.
+    expect(isRedundantWrittenArtifact('<artifact>\r\n  hello world  \r\n</artifact>', ctx)).toBe(true);
+  });
+
+  it('returns false when the artifact body does not match any recent write', () => {
+    const ctx = { ...baseCtx, recentWriteContents: ['something else'] };
+    expect(isRedundantWrittenArtifact('<artifact>hello world</artifact>', ctx)).toBe(false);
+  });
+});
+
+describe('assistantText', () => {
+  it('joins text blocks with a newline', () => {
+    expect(assistantText([{ type: 'text', text: 'line one' }, { type: 'text', text: 'line two' }])).toBe(
+      'line one\nline two',
+    );
+  });
+
+  it('skips non-record and non-text blocks', () => {
+    expect(assistantText([null, 42, { type: 'thinking', thinking: 'nope' }, { type: 'text', text: 'kept' }])).toBe(
+      'kept',
+    );
+  });
+
+  it('trims surrounding whitespace from the joined result', () => {
+    expect(assistantText([{ type: 'text', text: '  padded  ' }])).toBe('padded');
+  });
+
+  it('returns an empty string for content with no text blocks', () => {
+    expect(assistantText([])).toBe('');
+  });
+});
+
+describe('isUnstreamedTextBlock', () => {
+  it('returns true for a non-empty text block that has not already streamed', () => {
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, false)).toBe(true);
+  });
+
+  it('returns false when alreadyStreamed is true', () => {
+    expect(isUnstreamedTextBlock({ type: 'text', text: 'hi' }, true)).toBe(false);
+  });
+
+  it('returns false for a non-text block type', () => {
+    expect(isUnstreamedTextBlock({ type: 'thinking', text: 'hi' }, false)).toBe(false);
+  });
+
+  it('returns false when text is missing or not a string', () => {
+    expect(isUnstreamedTextBlock({ type: 'text' }, false)).toBe(false);
+    expect(isUnstreamedTextBlock({ type: 'text', text: 42 }, false)).toBe(false);
+  });
+
+  it('returns false for an empty text string', () => {
+    expect(isUnstreamedTextBlock({ type: 'text', text: '' }, false)).toBe(false);
+  });
+});
+
+describe('isUnstreamedThinkingBlock', () => {
+  it('returns true for a non-empty thinking block that has not already streamed', () => {
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, false)).toBe(true);
+  });
+
+  it('returns false when alreadyStreamed is true', () => {
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 'hmm' }, true)).toBe(false);
+  });
+
+  it('returns false for a non-thinking block type', () => {
+    expect(isUnstreamedThinkingBlock({ type: 'text', thinking: 'hmm' }, false)).toBe(false);
+  });
+
+  it('returns false when thinking is missing, not a string, or empty', () => {
+    expect(isUnstreamedThinkingBlock({ type: 'thinking' }, false)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: 42 }, false)).toBe(false);
+    expect(isUnstreamedThinkingBlock({ type: 'thinking', thinking: '' }, false)).toBe(false);
+  });
+});
+
+describe('handleSystemMessage', () => {
+  it('emits an initializing status for subtype init, defaulting model/sessionId to null', () => {
+    const onEvent = vi.fn();
+    handleSystemMessage({ type: 'system', subtype: 'init' }, onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: null, sessionId: null });
+  });
+
+  it('passes through model and session_id for subtype init', () => {
+    const onEvent = vi.fn();
+    handleSystemMessage({ type: 'system', subtype: 'init', model: 'claude-x', session_id: 's1' }, onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: 'claude-x', sessionId: 's1' });
+  });
+
+  it('emits a status event for subtype status, defaulting the label to working', () => {
+    const onEvent = vi.fn();
+    handleSystemMessage({ type: 'system', subtype: 'status' }, onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'working' });
+
+    onEvent.mockClear();
+    handleSystemMessage({ type: 'system', subtype: 'status', status: 'thinking' }, onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'thinking' });
+  });
+
+  it('does nothing for an unrecognized subtype', () => {
+    const onEvent = vi.fn();
+    handleSystemMessage({ type: 'system', subtype: 'other' }, onEvent);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('stringifyToolResult', () => {
+  it('returns a string content as-is', () => {
+    expect(stringifyToolResult('hello')).toBe('hello');
+  });
+
+  it('joins an array of blocks, extracting text from text blocks and JSON-stringifying the rest', () => {
+    expect(stringifyToolResult([{ type: 'text', text: 'line one' }, { type: 'image', data: 'xyz' }])).toBe(
+      `line one\n${JSON.stringify({ type: 'image', data: 'xyz' })}`,
+    );
+  });
+
+  it('JSON-stringifies a non-string, non-array content value', () => {
+    expect(stringifyToolResult({ code: 1 })).toBe(JSON.stringify({ code: 1 }));
+  });
+});
+
+describe('handleUserMessage', () => {
+  it('does nothing when message is not a record or content is not an array', () => {
+    const onEvent = vi.fn();
+    handleUserMessage({}, onEvent);
+    handleUserMessage({ message: 'not-a-record' }, onEvent);
+    handleUserMessage({ message: { content: 'not-an-array' } }, onEvent);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('skips non-record and non-tool_result content blocks', () => {
+    const onEvent = vi.fn();
+    handleUserMessage({ message: { content: [null, { type: 'text', text: 'ignored' }] } }, onEvent);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('emits a tool_result event, defaulting isError to false when is_error is absent', () => {
+    const onEvent = vi.fn();
+    handleUserMessage(
+      { message: { content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } },
+      onEvent,
+    );
+    expect(onEvent).toHaveBeenCalledWith({ type: 'tool_result', toolUseId: 't1', content: 'ok', isError: false });
+  });
+});
+
+describe('applyInputJsonDelta', () => {
+  it('does nothing when state is undefined', () => {
+    const onEvent = vi.fn();
+    expect(() => applyInputJsonDelta(undefined, '{}', onEvent)).not.toThrow();
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when state.type is not tool_use', () => {
+    const onEvent = vi.fn();
+    const state = { type: 'text', input: '' };
+    applyInputJsonDelta(state, 'x', onEvent);
+    expect(state.input).toBe('');
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('appends partialJson to state.input and emits tool_input_delta when id and name are strings', () => {
+    const onEvent = vi.fn();
+    const state = { type: 'tool_use', id: 'id1', name: 'Write', input: '{"a":' };
+    applyInputJsonDelta(state, '1}', onEvent);
+    expect(state.input).toBe('{"a":1}');
+    expect(onEvent).toHaveBeenCalledWith({ type: 'tool_input_delta', id: 'id1', name: 'Write', delta: '1}' });
+  });
+
+  it('still appends to state.input but does not emit when id or name is missing', () => {
+    const onEvent = vi.fn();
+    const state = { type: 'tool_use', input: '' };
+    applyInputJsonDelta(state, 'x', onEvent);
+    expect(state.input).toBe('x');
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe('emitAssistantErrorIfPresent', () => {
+  it('does nothing when error is not a string', () => {
+    const onEvent = vi.fn();
+    emitAssistantErrorIfPresent({}, [], onEvent);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('does nothing when error is an empty or whitespace-only string', () => {
+    const onEvent = vi.fn();
+    emitAssistantErrorIfPresent({ error: '   ' }, [], onEvent);
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it('emits an error event using assistantText(content) as the message when available', () => {
+    const onEvent = vi.fn();
+    emitAssistantErrorIfPresent({ error: 'boom' }, [{ type: 'text', text: 'context' }], onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'error', message: 'context', code: 'boom' });
+  });
+
+  it('falls back to the raw error string as the message when assistantText(content) is empty', () => {
+    const onEvent = vi.fn();
+    emitAssistantErrorIfPresent({ error: 'boom' }, [], onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'error', message: 'boom', code: 'boom' });
   });
 });

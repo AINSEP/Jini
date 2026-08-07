@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { ParseFailure } from '../agent-to-renderer.js';
 import { createLabCatalog } from '../catalog.js';
-import { createA2uiInterpreter } from '../interpreter.js';
+import type { LocalFunctionAction } from '../common-types.js';
+import { buildParseFailureResult, createA2uiInterpreter, runLocalFunctionAction } from '../interpreter.js';
 import { parseRendererToAgentMessage } from '../renderer-to-agent.js';
 
 const CATALOG_ID = createLabCatalog().catalogId;
@@ -599,5 +601,100 @@ describe('createA2uiInterpreter — subscribe', () => {
     unsubscribe();
     interpreter.applyAgentMessage(createSurfaceMsg('s2'));
     expect(calls).toBe(1);
+  });
+});
+
+describe('buildParseFailureResult', () => {
+  it('routes every envelope-shape failure code straight to the out-of-band channel, never a wire message', () => {
+    for (const code of ['MISSING_VERSION', 'UNSUPPORTED_VERSION', 'NO_MESSAGE_KEY', 'AMBIGUOUS_MESSAGE'] as const) {
+      const parsed: ParseFailure = { ok: false, code, message: `msg-${code}` };
+      expect(buildParseFailureResult(parsed, {})).toEqual({
+        rendererMessages: [],
+        unattributedViolation: `msg-${code}`,
+      });
+    }
+  });
+
+  it('attributes a VALIDATION_FAILED failure to the surfaceId readable off the one recognized message-type key', () => {
+    const parsed: ParseFailure = {
+      ok: false,
+      code: 'VALIDATION_FAILED',
+      message: 'path must be a string',
+      path: '/updateDataModel/path',
+    };
+    const raw = { version: 'v1.0', updateDataModel: { surfaceId: 's1', path: 123, value: 'x' } };
+
+    expect(buildParseFailureResult(parsed, raw)).toEqual({
+      rendererMessages: [{
+        version: 'v1.0',
+        error: { code: 'VALIDATION_FAILED', surfaceId: 's1', path: '/updateDataModel/path', message: 'path must be a string' },
+      }],
+    });
+  });
+
+  it('falls back to the out-of-band channel when no known message-type key carries a readable surfaceId', () => {
+    const parsed: ParseFailure = {
+      ok: false,
+      code: 'VALIDATION_FAILED',
+      message: 'functionCallId is required',
+      path: '/functionCallId',
+    };
+    const raw = { version: 'v1.0', callFunction: { call: 'greetUser' } };
+
+    expect(buildParseFailureResult(parsed, raw)).toEqual({
+      rendererMessages: [],
+      unattributedViolation: 'functionCallId is required',
+    });
+  });
+
+  it('ignores a surfaceId-shaped field sitting under a key that is not one of the six known message types', () => {
+    const parsed: ParseFailure = {
+      ok: false,
+      code: 'VALIDATION_FAILED',
+      message: 'value is required',
+      path: '/updateDataModel/value',
+    };
+    const raw = { version: 'v1.0', notAKnownKey: { surfaceId: 'wrong' }, updateDataModel: { surfaceId: 's1' } };
+
+    expect(buildParseFailureResult(parsed, raw)).toMatchObject({
+      rendererMessages: [{ error: { surfaceId: 's1' } }],
+    });
+  });
+});
+
+describe('runLocalFunctionAction', () => {
+  it('resolves a rendererOrAgent local functionCall against the given catalog', () => {
+    const catalog = createLabCatalog();
+    const action: LocalFunctionAction = { functionCall: { call: 'greetUser', args: { name: 'Ada' } } };
+
+    expect(runLocalFunctionAction({}, catalog, action)).toEqual({ ok: true, kind: 'local', result: 'Hello, Ada!' });
+  });
+
+  it('resolves functionCall args as DataBindings against the supplied data model', () => {
+    const catalog = createLabCatalog();
+    const action: LocalFunctionAction = { functionCall: { call: 'greetUser', args: { name: { path: '/name' } } } };
+
+    expect(runLocalFunctionAction({ name: 'Grace' }, catalog, action))
+      .toEqual({ ok: true, kind: 'local', result: 'Hello, Grace!' });
+  });
+
+  it('refuses a call that crosses the callableFrom boundary (agentOnly, invoked from the renderer side) rather than running it', () => {
+    const catalog = createLabCatalog();
+    const action: LocalFunctionAction = { functionCall: { call: 'logServerEvent' } };
+
+    const result = runLocalFunctionAction({}, catalog, action);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected refusal');
+    expect(result.reason).toMatch(/logServerEvent/);
+  });
+
+  it('refuses a call to a function not registered in the catalog at all', () => {
+    const catalog = createLabCatalog();
+    const action: LocalFunctionAction = { functionCall: { call: 'neverHeardOfIt' } };
+
+    const result = runLocalFunctionAction({}, catalog, action);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('expected refusal');
+    expect(result.reason).toMatch(/neverHeardOfIt/);
   });
 });

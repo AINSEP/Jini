@@ -33,15 +33,16 @@
 // (Today the hook is single-consumer per the slice's feature-local rule, so
 // this is defence-in-depth, not a live bug.)
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Dispatch, SetStateAction } from 'react';
 import { applyConnectorStatuses, hasConnectorStatusChanges } from '../../../connectors/rules.js';
-import type { Connector, ConnectorStatusMap } from '../../../connectors/types.js';
+import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../../../connectors/types.js';
 import { createAsyncCommitGuard } from '../../async-commit-guard.js';
 import {
   DEFAULT_CONNECTOR_PROVIDER,
   MEMORY_CONNECTOR_APP_IDS,
   MEMORY_CONNECTOR_APP_LABELS,
 } from '../../constants.js';
-import { describeConnectorReadIssue, describeExtractionFailure } from '../../formatters.js';
+import { describeExtractionFailure } from '../../formatters.js';
 import type { MemoryConnectorsPort } from '../../ports.js';
 import {
   applyMemoryConnectorStatus,
@@ -55,6 +56,13 @@ import type {
   MemorySuggestion,
 } from '../../types.js';
 import { memoryConnectorsPort } from '../../dependencies.js';
+import {
+  describeConnectorSuggestionOutcome,
+  describeConnectorSuggestionsSaveOutcome,
+  isRecentFailedConnectorExtraction,
+  withoutKey,
+  withoutSetMember,
+} from './useMemoryConnectors.rules.js';
 
 /** Runtime coordination the connectors hook receives from a host: the
  *  entries reload (saving a suggestion mutates the memory list), the extraction
@@ -102,6 +110,107 @@ export interface MemoryConnectorsController {
   onSuggestConnectorMemory: () => Promise<void>;
   onDiscardConnectorSuggestions: () => void;
   onSaveConnectorSuggestions: () => Promise<void>;
+}
+
+/** `onSaveConnectorSuggestions`'s save loop, isolated: writes each selected
+ *  suggestion as a memory entry in order, collecting which ones landed and
+ *  the first thrown failure (a later item's failure does not roll back an
+ *  earlier item's success). The caller decides what to do with the result —
+ *  this only performs the writes. Exported for direct unit testing; not part
+ *  of this package's public barrel. */
+export async function saveSelectedConnectorSuggestions({
+  suggestions,
+  port,
+}: {
+  suggestions: MemorySuggestion[];
+  port: Pick<MemoryConnectorsPort, 'saveMemoryEntry'>;
+}): Promise<{ savedSuggestionIds: Set<string>; failure: unknown }> {
+  const savedSuggestionIds = new Set<string>();
+  let failure: unknown;
+  try {
+    for (const suggestion of suggestions) {
+      const entry = await port.saveMemoryEntry({
+        id: memoryEntryIdForConnectorSuggestion(suggestion),
+        name: suggestion.name,
+        description: suggestion.description ?? '',
+        type: suggestion.type,
+        body: suggestion.body,
+      });
+      if (entry) {
+        savedSuggestionIds.add(suggestion.id);
+      }
+    }
+  } catch (err) {
+    failure = err;
+  }
+  return { savedSuggestionIds, failure };
+}
+
+/** `onConnectMemoryConnector`'s "the port call itself threw" path (as
+ *  opposed to a resolved `{ error }` result) — must still land in
+ *  connect-error state instead of propagating as an unhandled rejection.
+ *  Exported for direct unit testing; not part of this package's public
+ *  barrel. */
+export function applyMemoryConnectorConnectThrown(
+  { connectorId, err }: { connectorId: string; err: unknown },
+  {
+    setConnectorConnectErrors,
+    setPendingConnectorAuthIds,
+  }: {
+    setConnectorConnectErrors: Dispatch<SetStateAction<Record<string, string>>>;
+    setPendingConnectorAuthIds: Dispatch<SetStateAction<Set<string>>>;
+  },
+): void {
+  setConnectorConnectErrors((prev) => ({ ...prev, [connectorId]: err instanceof Error ? err.message : String(err) }));
+  setPendingConnectorAuthIds((prev) => withoutSetMember(prev, connectorId));
+}
+
+/** `onConnectMemoryConnector`'s "the port call resolved" path: decides and
+ *  applies the connector upsert, pending-auth membership, and connect-error
+ *  state from the result. Returns whether the caller should follow up with a
+ *  status refresh (skipped when the resolved result reported its own error).
+ *  Exported for direct unit testing; not part of this package's public
+ *  barrel. */
+export function applyMemoryConnectorConnectResult(
+  {
+    connectorId,
+    result,
+    port,
+  }: { connectorId: string; result: ConnectorActionResult; port: Pick<MemoryConnectorsPort, 'notifyConnectorsChanged'> },
+  {
+    setConnectors,
+    setConnectorConnectErrors,
+    setPendingConnectorAuthIds,
+    invalidateCatalogueGuard,
+  }: {
+    setConnectors: Dispatch<SetStateAction<Connector[]>>;
+    setConnectorConnectErrors: Dispatch<SetStateAction<Record<string, string>>>;
+    setPendingConnectorAuthIds: Dispatch<SetStateAction<Set<string>>>;
+    invalidateCatalogueGuard: () => void;
+  },
+): boolean {
+  if (result.connector?.status === 'connected') port.notifyConnectorsChanged();
+  const requiresAuthorizationCompletion = result.auth?.kind === 'redirect_required' || result.auth?.kind === 'pending';
+  setConnectors((prev) =>
+    upsertMemoryConnector(
+      prev,
+      requiresAuthorizationCompletion && result.connector ? connectorWithPendingAuthorization(result.connector) : result.connector,
+    ),
+  );
+  // This upsert just committed newer-than-any-in-flight-discovery truth for
+  // this connector. Invalidate any older `reloadConnectors` catalogue fetch
+  // so its (now stale) wholesale replace can't land after this and silently
+  // overwrite what was just connected.
+  invalidateCatalogueGuard();
+  if (result.error) {
+    setConnectorConnectErrors((prev) => ({ ...prev, [connectorId]: result.error! }));
+    setPendingConnectorAuthIds((prev) => withoutSetMember(prev, connectorId));
+    return false;
+  }
+  setPendingConnectorAuthIds((prev) =>
+    requiresAuthorizationCompletion ? new Set(prev).add(connectorId) : withoutSetMember(prev, connectorId),
+  );
+  return true;
 }
 
 export function useMemoryConnectors(
@@ -346,67 +455,25 @@ export function useMemoryConnectors(
       if (connectingConnectorIdsRef.current.has(connectorId)) return;
       connectingConnectorIdsRef.current.add(connectorId);
       setConnectingConnectorIds((prev) => new Set(prev).add(connectorId));
-      setConnectorConnectErrors((prev) => {
-        if (prev[connectorId] === undefined) return prev;
-        const next = { ...prev };
-        delete next[connectorId];
-        return next;
-      });
+      setConnectorConnectErrors((prev) => withoutKey(prev, connectorId));
       try {
-        let result: Awaited<ReturnType<MemoryConnectorsPort['connectConnector']>>;
+        let result: ConnectorActionResult;
         try {
           result = await port.connectConnector(connectorId);
         } catch (err) {
-          // A thrown connect (as opposed to a resolved `{ error }` result) must
-          // still land in connect-error state instead of propagating as an
-          // unhandled rejection — the same fix already applied to
-          // refreshConnectorStatuses above, for the call one step earlier.
-          setConnectorConnectErrors((prev) => ({
-            ...prev,
-            [connectorId]: err instanceof Error ? err.message : String(err),
-          }));
-          setPendingConnectorAuthIds((prev) => {
-            if (!prev.has(connectorId)) return prev;
-            const next = new Set(prev);
-            next.delete(connectorId);
-            return next;
-          });
+          applyMemoryConnectorConnectThrown({ connectorId, err }, { setConnectorConnectErrors, setPendingConnectorAuthIds });
           return;
         }
-        if (result.connector?.status === 'connected') port.notifyConnectorsChanged();
-        const requiresAuthorizationCompletion = result.auth?.kind === 'redirect_required' || result.auth?.kind === 'pending';
-        setConnectors((prev) =>
-          upsertMemoryConnector(
-            prev,
-            requiresAuthorizationCompletion && result.connector ? connectorWithPendingAuthorization(result.connector) : result.connector,
-          ),
+        const shouldRefresh = applyMemoryConnectorConnectResult(
+          { connectorId, result, port },
+          {
+            setConnectors,
+            setConnectorConnectErrors,
+            setPendingConnectorAuthIds,
+            invalidateCatalogueGuard: () => connectorCatalogueGuardRef.current.invalidate(),
+          },
         );
-        // This upsert just committed newer-than-any-in-flight-discovery truth
-        // for this connector. Invalidate any older `reloadConnectors` catalogue
-        // fetch so its (now stale) wholesale replace can't land after this and
-        // silently overwrite what was just connected.
-        connectorCatalogueGuardRef.current.invalidate();
-        if (result.error) {
-          setConnectorConnectErrors((prev) => ({ ...prev, [connectorId]: result.error! }));
-          setPendingConnectorAuthIds((prev) => {
-            if (!prev.has(connectorId)) return prev;
-            const next = new Set(prev);
-            next.delete(connectorId);
-            return next;
-          });
-          return;
-        }
-        if (result.auth?.kind === 'redirect_required' || result.auth?.kind === 'pending') {
-          setPendingConnectorAuthIds((prev) => new Set(prev).add(connectorId));
-        } else {
-          setPendingConnectorAuthIds((prev) => {
-            if (!prev.has(connectorId)) return prev;
-            const next = new Set(prev);
-            next.delete(connectorId);
-            return next;
-          });
-        }
-        await refreshConnectorStatuses();
+        if (shouldRefresh) await refreshConnectorStatuses();
       } finally {
         // The ref guard above means only one call per connectorId is ever
         // in-flight at a time, and nothing else touches this state — `prev`
@@ -456,28 +523,18 @@ export function useMemoryConnectors(
         return;
       }
       const latestExtractions = await reloadExtractions();
-      const latestFailure = latestExtractions.find(
-        (record) => record.kind === 'connector' && record.phase === 'failed' && record.startedAt >= startedAt - 5_000,
-      );
+      const latestFailure = latestExtractions.find((record) => isRecentFailedConnectorExtraction(record, startedAt));
       const friendlyFailure = latestFailure ? describeExtractionFailure(latestFailure) : null;
       setConnectorAttempts(result.connectors);
       setConnectorContextBytes(result.contextBytes);
       const succeeded = result.connectors.filter((connector) => connector.status === 'succeeded').length;
-      if (friendlyFailure) {
-        setConnectorError([friendlyFailure.title, friendlyFailure.detail, friendlyFailure.action].filter(Boolean).join(' '));
-      } else if (result.suggestions.length > 0) {
-        setConnectorSuggestions(result.suggestions);
-        setSelectedSuggestionIds(new Set(result.suggestions.map((suggestion) => suggestion.id)));
-        setConnectorStatus(
-          `Found ${result.suggestions.length} suggested memor${result.suggestions.length === 1 ? 'y' : 'ies'} from ${succeeded} app${succeeded === 1 ? '' : 's'}. Review before saving.`,
-        );
-      } else if (!result.attemptedLLM) {
-        setConnectorError(
-          describeConnectorReadIssue(result) ?? 'No memory suggestions found. Could not read useful content from the selected app yet.',
-        );
-      } else {
-        setConnectorStatus(`Checked ${succeeded} selected app${succeeded === 1 ? '' : 's'}, but found no new memory suggestions.`);
+      const outcome = describeConnectorSuggestionOutcome({ result, friendlyFailure, succeeded });
+      if (outcome.suggestions) {
+        setConnectorSuggestions(outcome.suggestions);
+        setSelectedSuggestionIds(new Set(outcome.suggestions.map((suggestion) => suggestion.id)));
       }
+      if (outcome.status) setConnectorStatus(outcome.status);
+      if (outcome.error) setConnectorError(outcome.error);
     } catch (err) {
       setConnectorError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -500,28 +557,15 @@ export function useMemoryConnectors(
     setConnectorSaving(true);
     setConnectorError(null);
     try {
-      const savedSuggestionIds = new Set<string>();
-      let failure: unknown;
-      try {
-        for (const suggestion of selectedConnectorSuggestions) {
-          const entry = await port.saveMemoryEntry({
-            id: memoryEntryIdForConnectorSuggestion(suggestion),
-            name: suggestion.name,
-            description: suggestion.description ?? '',
-            type: suggestion.type,
-            body: suggestion.body,
-          });
-          if (entry) {
-            savedSuggestionIds.add(suggestion.id);
-          }
-        }
-      } catch (err) {
-        failure = err;
-      }
+      const { savedSuggestionIds, failure: saveFailure } = await saveSelectedConnectorSuggestions({
+        suggestions: selectedConnectorSuggestions,
+        port,
+      });
 
       // A save can succeed before a later request fails. Refresh and reconcile
       // those confirmed writes before reporting the failure, so saved suggestions
       // do not remain visible as retryable rows.
+      let failure = saveFailure;
       if (savedSuggestionIds.size > 0 || !failure) {
         try {
           await reload();
@@ -536,20 +580,19 @@ export function useMemoryConnectors(
         // is in flight. Reconcile against that CURRENT selection rather than
         // restoring the callback's stale snapshot of selected suggestions.
         setSelectedSuggestionIds((prev) => new Set([...prev].filter((suggestionId) => !savedSuggestionIds.has(suggestionId))));
-        setConnectorStatus(`Saved ${savedSuggestionIds.size} memor${savedSuggestionIds.size === 1 ? 'y' : 'ies'} from connected apps.`);
       }
 
       // The `selectedConnectorSuggestions.length === 0` early-return above
       // guarantees the list is non-empty here, so a zero-saved outcome always
       // has `size !== length` and is already covered by the branch below —
       // there is no separate "0 of 0" case to report.
-      if (failure) {
-        setConnectorError(failure instanceof Error ? failure.message : String(failure));
-      } else if (savedSuggestionIds.size !== selectedConnectorSuggestions.length) {
-        setConnectorError(
-          `Saved ${savedSuggestionIds.size} of ${selectedConnectorSuggestions.length} selected memories. Please try the remaining items again.`,
-        );
-      }
+      const { status, error } = describeConnectorSuggestionsSaveOutcome({
+        savedCount: savedSuggestionIds.size,
+        totalCount: selectedConnectorSuggestions.length,
+        failure,
+      });
+      if (status) setConnectorStatus(status);
+      if (error) setConnectorError(error);
     } finally {
       connectorSaveInFlightRef.current = false;
       setConnectorSaving(false);

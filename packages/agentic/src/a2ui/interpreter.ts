@@ -41,7 +41,7 @@
  *    identifier into a wire-conformant shape.
  */
 import { AGENT_TO_RENDERER_MESSAGE_KEYS, parseAgentToRendererMessage } from './agent-to-renderer.js';
-import type { AgentToRendererMessage, ComponentsList } from './agent-to-renderer.js';
+import type { AgentToRendererMessage, ComponentsList, ParseFailure } from './agent-to-renderer.js';
 import { WireComponentSchema } from './agent-to-renderer.js';
 import {
   buildActionMessage,
@@ -53,7 +53,13 @@ import type { ActionMessagePayload, RendererToAgentMessage } from './renderer-to
 import { setAtPointer } from './json-pointer.js';
 import { isComponentAllowed, type Catalog } from './catalog.js';
 import { resolveDynamicValue } from './resolve.js';
-import { isLocalFunctionAction, type Action, type DynamicValue } from './common-types.js';
+import {
+  isLocalFunctionAction,
+  type Action,
+  type AgentActionEvent,
+  type DynamicValue,
+  type LocalFunctionAction,
+} from './common-types.js';
 
 export interface ComponentInstance {
   readonly id: string;
@@ -101,6 +107,83 @@ function nextActionId(): string {
   return `a2ui-action-${actionIdCounter}-${Date.now().toString(36)}`;
 }
 
+/**
+ * Best-effort `surfaceId` extraction from a raw envelope's message-type-keyed body, without
+ * assuming the envelope is well-formed. Used only to attribute a parse failure to a surface when
+ * possible (see `buildParseFailureResult`); never trusted for anything else.
+ */
+function bestEffortSurfaceId(raw: unknown, key: string): string | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const body = (raw as Record<string, unknown>)[key];
+  if (typeof body !== 'object' || body === null) return undefined;
+  const surfaceId = (body as Record<string, unknown>).surfaceId;
+  return typeof surfaceId === 'string' ? surfaceId : undefined;
+}
+
+/**
+ * Turns a `ParseFailure` (from `parseAgentToRendererMessage`) into what `applyAgentMessage`
+ * returns for it. See this module's doc, decision 4: an envelope malformed enough to carry no
+ * attributable `surfaceId`/`functionCallId` cannot be turned into a spec-shaped `error` message —
+ * `renderer_to_agent.json`'s own generic-error schema *requires* one of those two identifiers —
+ * so it surfaces out-of-band via `unattributedViolation` (a string, not sent over the wire)
+ * instead of forcing a fake identifier into a wire-conformant shape.
+ *
+ * Exported and pure — it only reads `parsed`/`raw`, so the surfaceId-attribution rule can be
+ * tested directly, without a live interpreter instance.
+ */
+export function buildParseFailureResult(parsed: ParseFailure, raw: unknown): ApplyMessageResult {
+  if (
+    parsed.code === 'MISSING_VERSION'
+    || parsed.code === 'UNSUPPORTED_VERSION'
+    || parsed.code === 'NO_MESSAGE_KEY'
+    || parsed.code === 'AMBIGUOUS_MESSAGE'
+  ) {
+    return { rendererMessages: [], unattributedViolation: parsed.message };
+  }
+  // VALIDATION_FAILED from the dispatcher: either `raw` wasn't even an object (`bestEffortSurfaceId`
+  // safely returns `undefined` for that, same as every other shape it doesn't recognize — no
+  // separate guard needed here), or exactly one of the six known message-type keys was present
+  // and its body failed schema validation. Checked against the *known* keys specifically
+  // (`AGENT_TO_RENDERER_MESSAGE_KEYS`), not "whatever the first non-version object key happens to
+  // be" — an envelope could carry unrelated extra top-level junk ahead of the real message key in
+  // insertion order, and grabbing that first would attribute the error to the wrong place. Best-
+  // effort surfaceId extraction so this can still be a spec-shaped error where possible
+  // (createSurface/updateComponents/updateDataModel/deleteSurface all carry surfaceId at the top
+  // of their body even when some other field is what actually failed validation); callFunction/
+  // actionResponse have no surfaceId at all, so those fall back to the out-of-band channel too.
+  const surfaceId = AGENT_TO_RENDERER_MESSAGE_KEYS.map((key) => bestEffortSurfaceId(raw, key)).find(
+    (id): id is string => id !== undefined,
+  );
+  if (surfaceId) {
+    // `parsed.path` is guaranteed set here: `ParseFailure.path` is only ever omitted for the
+    // "raw input wasn't even an object" case (`agent-to-renderer.ts`'s very first guard), and
+    // `surfaceId` above could only have resolved to a truthy value if `raw` *was* an object
+    // (`bestEffortSurfaceId` requires that) — so this specific combination (object-shaped raw,
+    // yet no `path`) cannot occur. Asserted, not defensively branched, per this package's
+    // testing discipline (see the zod-issues-array comments elsewhere in this file).
+    return { rendererMessages: [buildValidationFailedMessage(surfaceId, parsed.path!, parsed.message)] };
+  }
+  return { rendererMessages: [], unattributedViolation: parsed.message };
+}
+
+/**
+ * Runs a component's local `functionCall` action synchronously against `dataModel` — no network
+ * round trip, no pending-action bookkeeping (that only applies to the agent-event branch; see
+ * `interpreter`'s `buildAction`/`buildAgentEventAction`).
+ *
+ * Exported and pure given its inputs, so "a local action resolves against the surface's actual
+ * data model, and a resolution failure becomes a typed refusal rather than a thrown error" can be
+ * tested without a live interpreter instance.
+ */
+export function runLocalFunctionAction(
+  dataModel: unknown,
+  catalog: Catalog,
+  action: LocalFunctionAction,
+): BuildActionResult {
+  const result = resolveDynamicValue(action.functionCall, { dataModel, catalog, side: 'renderer' });
+  return result.ok ? { ok: true, kind: 'local', result: result.value } : { ok: false, reason: result.detail };
+}
+
 export interface A2uiInterpreter {
   applyAgentMessage(raw: unknown): ApplyMessageResult;
   getSurface(surfaceId: string): SurfaceSnapshot | undefined;
@@ -119,14 +202,6 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
 
   function notify(): void {
     for (const listener of listeners) listener();
-  }
-
-  function bestEffortSurfaceId(raw: unknown, key: string): string | undefined {
-    if (typeof raw !== 'object' || raw === null) return undefined;
-    const body = (raw as Record<string, unknown>)[key];
-    if (typeof body !== 'object' || body === null) return undefined;
-    const surfaceId = (body as Record<string, unknown>).surfaceId;
-    return typeof surfaceId === 'string' ? surfaceId : undefined;
   }
 
   function applyComponentsList(surface: SurfaceState, wireComponents: ComponentsList): RendererToAgentMessage[] {
@@ -247,47 +322,21 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
     return [];
   }
 
+  /** Routes one successfully-parsed envelope to its message-type handler. */
+  function dispatchAgentMessage(message: AgentToRendererMessage): RendererToAgentMessage[] {
+    if ('createSurface' in message) return handleCreateSurface(message);
+    if ('updateComponents' in message) return handleUpdateComponents(message);
+    if ('updateDataModel' in message) return handleUpdateDataModel(message);
+    if ('deleteSurface' in message) return handleDeleteSurface(message);
+    if ('callFunction' in message) return handleCallFunction(message);
+    return handleActionResponse(message);
+  }
+
   function applyAgentMessage(raw: unknown): ApplyMessageResult {
     const parsed = parseAgentToRendererMessage(raw);
-    if (!parsed.ok) {
-      if (parsed.code === 'MISSING_VERSION' || parsed.code === 'UNSUPPORTED_VERSION' || parsed.code === 'NO_MESSAGE_KEY' || parsed.code === 'AMBIGUOUS_MESSAGE') {
-        return { rendererMessages: [], unattributedViolation: parsed.message };
-      }
-      // VALIDATION_FAILED from the dispatcher: either `raw` wasn't even an object (`bestEffortSurfaceId`
-      // safely returns `undefined` for that, same as every other shape it doesn't recognize — no
-      // separate guard needed here), or exactly one of the six known message-type keys was present
-      // and its body failed schema validation. Checked against the *known* keys specifically
-      // (`AGENT_TO_RENDERER_MESSAGE_KEYS`), not "whatever the first non-version object key happens to
-      // be" — an envelope could carry unrelated extra top-level junk ahead of the real message key in
-      // insertion order, and grabbing that first would attribute the error to the wrong place. Best-
-      // effort surfaceId extraction so this can still be a spec-shaped error where possible
-      // (createSurface/updateComponents/updateDataModel/deleteSurface all carry surfaceId at the top
-      // of their body even when some other field is what actually failed validation); callFunction/
-      // actionResponse have no surfaceId at all, so those fall back to the out-of-band channel too.
-      const surfaceId = AGENT_TO_RENDERER_MESSAGE_KEYS.map((key) => bestEffortSurfaceId(raw, key)).find(
-        (id): id is string => id !== undefined,
-      );
-      if (surfaceId) {
-        // `parsed.path` is guaranteed set here: `ParseFailure.path` is only ever omitted for the
-        // "raw input wasn't even an object" case (`agent-to-renderer.ts`'s very first guard), and
-        // `surfaceId` above could only have resolved to a truthy value if `raw` *was* an object
-        // (`bestEffortSurfaceId` requires that) — so this specific combination (object-shaped raw,
-        // yet no `path`) cannot occur. Asserted, not defensively branched, per this package's
-        // testing discipline (see the zod-issues-array comments elsewhere in this file).
-        return { rendererMessages: [buildValidationFailedMessage(surfaceId, parsed.path!, parsed.message)] };
-      }
-      return { rendererMessages: [], unattributedViolation: parsed.message };
-    }
+    if (!parsed.ok) return buildParseFailureResult(parsed, raw);
 
-    const message = parsed.message;
-    let rendererMessages: RendererToAgentMessage[];
-    if ('createSurface' in message) rendererMessages = handleCreateSurface(message);
-    else if ('updateComponents' in message) rendererMessages = handleUpdateComponents(message);
-    else if ('updateDataModel' in message) rendererMessages = handleUpdateDataModel(message);
-    else if ('deleteSurface' in message) rendererMessages = handleDeleteSurface(message);
-    else if ('callFunction' in message) rendererMessages = handleCallFunction(message);
-    else rendererMessages = handleActionResponse(message);
-
+    const rendererMessages = dispatchAgentMessage(parsed.message);
     notify();
     return { rendererMessages };
   }
@@ -317,26 +366,29 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
     return resolved;
   }
 
-  function buildAction(surfaceId: string, componentId: string, now: () => number = Date.now): BuildActionResult {
+  /** Looks up the surface, component, and `action` prop `buildAction` needs, or the specific reason it can't. */
+  function resolveActionTarget(
+    surfaceId: string,
+    componentId: string,
+  ): { ok: true; surface: SurfaceState; action: Action } | { ok: false; reason: string } {
     const surface = surfaces.get(surfaceId);
     if (!surface) return { ok: false, reason: `unknown surfaceId "${surfaceId}"` };
     const component = surface.components.get(componentId);
     if (!component) return { ok: false, reason: `unknown componentId "${componentId}" on surface "${surfaceId}"` };
     const action = component.props.action as Action | undefined;
     if (!action) return { ok: false, reason: `component "${componentId}" has no action` };
+    return { ok: true, surface, action };
+  }
 
-    if (isLocalFunctionAction(action)) {
-      const result = resolveDynamicValue(action.functionCall, { dataModel: surface.dataModel, catalog, side: 'renderer' });
-      return result.ok ? { ok: true, kind: 'local', result: result.value } : { ok: false, reason: result.detail };
-    }
-    // `ActionSchema` (validated when this component's props were ingested — see
-    // `applyComponentsList`) is a closed 2-branch union: `{event}` | `{functionCall}`. Having
-    // already eliminated the `functionCall` branch above, TypeScript itself narrows `action` to
-    // the `event` branch here — no runtime `isAgentEventAction` re-check is reachable to fail; a
-    // malformed third shape could never have made it into `component.props.action` in the first
-    // place. (Not defensively branched-and-left-untested, per this package's own testing
-    // discipline — see the zod-issues-array comments above for the same principle.)
-    const { name, context, wantResponse, responsePath } = action.event;
+  /** Builds the `action` wire envelope for an agent-event action, registering a pending response if `wantResponse` was set. */
+  function buildAgentEventAction(
+    surface: SurfaceState,
+    surfaceId: string,
+    componentId: string,
+    event: AgentActionEvent,
+    now: () => number,
+  ): BuildActionResult {
+    const { name, context, wantResponse, responsePath } = event;
     const actionId = wantResponse ? nextActionId() : undefined;
     if (actionId) {
       surface.pendingActions.set(actionId, { name, sourceComponentId: componentId, responsePath });
@@ -351,6 +403,24 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
       ...(actionId !== undefined ? { actionId } : {}),
     };
     return { ok: true, kind: 'agent', message: buildActionMessage(payload) };
+  }
+
+  function buildAction(surfaceId: string, componentId: string, now: () => number = Date.now): BuildActionResult {
+    const target = resolveActionTarget(surfaceId, componentId);
+    if (!target.ok) return target;
+    const { surface, action } = target;
+
+    if (isLocalFunctionAction(action)) {
+      return runLocalFunctionAction(surface.dataModel, catalog, action);
+    }
+    // `ActionSchema` (validated when this component's props were ingested — see
+    // `applyComponentsList`) is a closed 2-branch union: `{event}` | `{functionCall}`. Having
+    // already eliminated the `functionCall` branch above, TypeScript itself narrows `action` to
+    // the `event` branch here — no runtime `isAgentEventAction` re-check is reachable to fail; a
+    // malformed third shape could never have made it into `component.props.action` in the first
+    // place. (Not defensively branched-and-left-untested, per this package's own testing
+    // discipline — see the zod-issues-array comments above for the same principle.)
+    return buildAgentEventAction(surface, surfaceId, componentId, action.event, now);
   }
 
   return {

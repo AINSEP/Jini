@@ -155,27 +155,52 @@ function isValidId(id: string): boolean {
   return /^[a-z0-9_]+$/.test(id) && id.length <= 96;
 }
 
+/** True when `subdir` is not a non-empty string of at most 128 characters. */
+export function hasInvalidSubdirLength(subdir: unknown): boolean {
+  return typeof subdir !== 'string' || subdir.length === 0 || subdir.length > 128;
+}
+
+/** True for the two relative-path segments that never denote a real subdirectory name. */
+export function isReservedRelativeSegment(subdir: string): boolean {
+  return subdir === '.' || subdir === '..';
+}
+
+/** True when `subdir` contains a POSIX/Windows path separator or an embedded NUL. */
+export function containsPathSeparatorOrNul(subdir: string): boolean {
+  return subdir.includes('/') || subdir.includes('\\') || subdir.includes('\0');
+}
+
+/**
+ * True when `subdir` is not a single literal path segment once parsed as a
+ * Windows path — checked against `path.win32` unconditionally, not the
+ * platform-bound `path` import: a drive-relative segment like `"C:foo"` has
+ * no `/`/`\` (so `containsPathSeparatorOrNul` doesn't catch it), yet
+ * `path.win32.basename` strips the `"C:"` prefix
+ * (`path.win32.basename('C:foo') === 'foo'`) — a real parse-ambiguity
+ * `@jini-ai/sqlite`-adjacent code would only see on an actual Windows host,
+ * if this were checked via the platform-bound `path` module instead. Using
+ * `path.win32` explicitly makes this validation's outcome identical on every
+ * host OS this daemon might run on, rather than silently depending on which
+ * platform happens to run it (`path.win32` is a strict superset of
+ * `path.posix`'s own separator handling — accepting both `/` and `\` — so
+ * this subsumes the POSIX check too, not just adds a Windows-only one).
+ */
+export function isMultiSegmentOrAbsoluteWin32Path(subdir: string): boolean {
+  return path.win32.basename(subdir) !== subdir || path.win32.isAbsolute(subdir);
+}
+
 /** A `config.subdir` must be exactly one safe, literal path segment — never a traversal or an absolute/rooted path. */
 function assertSafeSubdir(subdir: string): void {
-  if (typeof subdir !== 'string' || subdir.length === 0 || subdir.length > 128) {
+  if (hasInvalidSubdirLength(subdir)) {
     throw new Error('invalid note store subdir: must be a non-empty string of at most 128 characters');
   }
-  if (subdir === '.' || subdir === '..') {
+  if (isReservedRelativeSegment(subdir)) {
     throw new Error(`invalid note store subdir "${subdir}": must be a single path segment, not "." or ".."`);
   }
-  if (subdir.includes('/') || subdir.includes('\\') || subdir.includes('\0')) {
+  if (containsPathSeparatorOrNul(subdir)) {
     throw new Error(`invalid note store subdir "${subdir}": must not contain path separators`);
   }
-  // Checked against `path.win32` unconditionally, not the platform-bound `path` import: a
-  // drive-relative segment like `"C:foo"` has no `/`/`\` (so the check above doesn't catch it),
-  // yet `path.win32.basename` strips the `"C:"` prefix (`path.win32.basename('C:foo') === 'foo'`)
-  // — a real parse-ambiguity `@jini-ai/sqlite`-adjacent code would only see on an actual Windows
-  // host, if this were checked via the platform-bound `path` module instead. Using `path.win32`
-  // explicitly makes this validation's outcome identical on every host OS this daemon might run
-  // on, rather than silently depending on which platform happens to run it (`path.win32` is a
-  // strict superset of `path.posix`'s own separator handling — accepting both `/` and `\` — so
-  // this subsumes the POSIX check too, not just adds a Windows-only one).
-  if (path.win32.basename(subdir) !== subdir || path.win32.isAbsolute(subdir)) {
+  if (isMultiSegmentOrAbsoluteWin32Path(subdir)) {
     throw new Error(`invalid note store subdir "${subdir}": must be a single path segment`);
   }
 }
@@ -283,6 +308,51 @@ function escapeIndexText(value: string): string {
 
 function capitalize(s: string): string {
   return s.length === 0 ? s : s[0]!.toUpperCase() + s.slice(1);
+}
+
+/**
+ * True when an `upsertEntry` input has a non-empty `name` and a `type` the
+ * host taxonomy recognizes. `isType` is the store's own `isValidType` check,
+ * passed in explicitly (per the two-object dependency convention) since
+ * "valid type" is bound to a specific store's `validTypes` set.
+ */
+export function isValidUpsertInput(
+  { name, type }: { name: string; type: string },
+  { isType }: { isType: (type: unknown) => boolean },
+): boolean {
+  return Boolean(name) && isType(type);
+}
+
+/**
+ * Resolves the id an upsert should write to: the caller-supplied id when
+ * present and well-formed, otherwise one derived from `type`/`name`.
+ * `isId`/`deriveId` are passed in explicitly rather than closed over, so the
+ * decision is testable independent of the filesystem-backed store.
+ */
+export function resolveUpsertEntryId(
+  { id, type, name }: { id?: string | undefined; type: string; name: string },
+  { isId, deriveId: deriveIdFn }: { isId: (id: string) => boolean; deriveId: (type: string, name: string) => string },
+): string {
+  return id && isId(id) ? id : deriveIdFn(type, name);
+}
+
+/**
+ * Builds the `change` event payload for a successful upsert. `source` is
+ * only included when the caller actually supplied one, matching the
+ * store's existing "omit rather than send `undefined`" event shape.
+ */
+export function buildUpsertChangeEvent(
+  { entry }: { entry: NoteEntrySummary },
+  { source }: { source?: string | undefined } = {},
+): Omit<NoteChangeEvent, 'at'> {
+  return {
+    kind: 'upsert',
+    id: entry.id,
+    name: entry.name,
+    description: entry.description,
+    type: entry.type,
+    ...(source !== undefined ? { source } : {}),
+  };
 }
 
 /**
@@ -522,25 +592,16 @@ export function createNoteStore(config: NoteStoreConfig): NoteStore {
   ): Promise<NoteEntry> {
     const { name, type, body } = input;
     const description = input.description ?? '';
-    if (!name || !isValidType(type)) {
+    if (!isValidUpsertInput({ name, type }, { isType: isValidType })) {
       throw new Error('note entry requires `name` and a valid `type`');
     }
-    const id = input.id && isValidId(input.id) ? input.id : deriveId(type, name);
+    const id = resolveUpsertEntryId({ id: input.id, type, name }, { isId: isValidId, deriveId });
     const filePath = await containedEntryPath(dataDir, id, true);
     await atomicWriteFile(filePath, renderEntryFrontmatter({ name, description, type }, body ?? ''));
     await ensureIndexHasEntry(dataDir, id, name, description);
     const entry = await readEntry(dataDir, id);
     if (!entry) throw new Error('failed to read note entry after write');
-    if (!options?.silent) {
-      emitChange({
-        kind: 'upsert',
-        id: entry.id,
-        name: entry.name,
-        description: entry.description,
-        type: entry.type,
-        ...(options?.source !== undefined ? { source: options.source } : {}),
-      });
-    }
+    if (!options?.silent) emitChange(buildUpsertChangeEvent({ entry }, { source: options?.source }));
     return entry;
   }
 

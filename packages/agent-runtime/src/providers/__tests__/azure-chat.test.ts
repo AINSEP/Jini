@@ -1,5 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { runAzureToolTurn, type AzureMessageParam, type AzureTurnEvent } from '../azure-chat.js';
+import {
+  azureLoopExitReason,
+  buildAzureAssistantToolCalls,
+  buildAzureToolExchangeMessages,
+  executeAzureToolCalls,
+  runAzureToolTurn,
+  type AzureContentPart,
+  type AzureMessageParam,
+  type AzureToolCall,
+  type AzureTurnEvent,
+} from '../azure-chat.js';
 import { pinnedFetch } from '../connection-guard.js';
 
 /**
@@ -560,5 +570,97 @@ describe('runAzureToolTurn', () => {
         ],
       });
     });
+  });
+});
+
+describe('unit: azureLoopExitReason', () => {
+  it('returns "stop" when finishReason is not "tool_calls"', () => {
+    expect(azureLoopExitReason({ finishReason: 'stop', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+  });
+
+  it('returns "stop" when finishReason is "tool_calls" but toolCalls is empty', () => {
+    expect(azureLoopExitReason({ finishReason: 'tool_calls', toolCalls: [], text: '' }, 0, 8)).toBe('stop');
+  });
+
+  it('returns "max_tool_turns" once toolTurns reaches the ceiling', () => {
+    const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
+    expect(azureLoopExitReason(outcome, 8, 8)).toBe('max_tool_turns');
+  });
+
+  it('returns null (continue the loop) when there are pending tool calls under the ceiling', () => {
+    const outcome = { finishReason: 'tool_calls', toolCalls: [{ id: '1', name: 'f', input: {} }], text: '' };
+    expect(azureLoopExitReason(outcome, 2, 8)).toBeNull();
+  });
+});
+
+describe('unit: buildAzureAssistantToolCalls', () => {
+  it('builds one { id, type: "function", function: { name, arguments } } entry per call, JSON-stringifying input', () => {
+    const calls: AzureToolCall[] = [{ id: 'c1', name: 'f1', input: { a: 1 } }];
+    expect(buildAzureAssistantToolCalls(calls)).toEqual([{ id: 'c1', type: 'function', function: { name: 'f1', arguments: '{"a":1}' } }]);
+  });
+
+  it('returns an empty array for no calls', () => {
+    expect(buildAzureAssistantToolCalls([])).toEqual([]);
+  });
+});
+
+describe('unit: executeAzureToolCalls', () => {
+  it('runs each call and reduces a string result into a text-only tool message with no follow-up', async () => {
+    const executeTool = vi.fn().mockResolvedValue({ content: 'ok' });
+    const calls: AzureToolCall[] = [{ id: 'c1', name: 'f1', input: {} }];
+    const events: AzureTurnEvent[] = [];
+    const outcome = await executeAzureToolCalls(executeTool, calls, (e) => events.push(e));
+    expect(outcome.toolResultMessages).toEqual([{ role: 'tool', content: 'ok', tool_call_id: 'c1' }]);
+    expect(outcome.followUpParts).toEqual([]);
+    expect(events).toEqual([{ type: 'tool_result', toolUseId: 'c1', content: 'ok', isError: false }]);
+  });
+
+  it('splits an image-carrying result onto a labeled followUpParts entry, leaving the tool message text-only', async () => {
+    const imagePart: AzureContentPart = { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } };
+    const executeTool = vi.fn().mockResolvedValue({ content: [imagePart] });
+    const calls: AzureToolCall[] = [{ id: 'c1', name: 'shot', input: {} }];
+    const outcome = await executeAzureToolCalls(executeTool, calls, () => {});
+    expect(outcome.toolResultMessages[0]).toMatchObject({ role: 'tool', tool_call_id: 'c1' });
+    expect(outcome.followUpParts[0]).toEqual({ type: 'text', text: 'Image output from tool `shot` (tool_call_id: c1):' });
+    expect(outcome.followUpParts[1]).toEqual(imagePart);
+  });
+
+  it('rejects an unsupported image media type, surfacing isError: true in both the event and the tool message', async () => {
+    const badPart: AzureContentPart = { type: 'image_url', image_url: { url: 'data:image/bmp;base64,YQ==' } };
+    const executeTool = vi.fn().mockResolvedValue({ content: [badPart] });
+    const events: AzureTurnEvent[] = [];
+    const calls: AzureToolCall[] = [{ id: 'c1', name: 'shot', input: {} }];
+    const outcome = await executeAzureToolCalls(executeTool, calls, (e) => events.push(e));
+    expect(events[0]).toMatchObject({ isError: true });
+    expect(outcome.toolResultMessages[0]).toMatchObject({ role: 'tool' });
+  });
+
+  it('runs multiple calls in order, batching every tool message before any image follow-up', async () => {
+    const imagePart: AzureContentPart = { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } };
+    const executeTool = vi.fn().mockResolvedValueOnce({ content: 'first' }).mockResolvedValueOnce({ content: [imagePart] });
+    const calls: AzureToolCall[] = [
+      { id: 'c1', name: 'f1', input: {} },
+      { id: 'c2', name: 'f2', input: {} },
+    ];
+    const outcome = await executeAzureToolCalls(executeTool, calls, () => {});
+    expect(outcome.toolResultMessages).toHaveLength(2);
+    expect(outcome.followUpParts).toHaveLength(2); // label + image, only for c2
+  });
+});
+
+describe('unit: buildAzureToolExchangeMessages', () => {
+  it('appends no follow-up message when followUpParts is empty', () => {
+    const toolMessages: AzureMessageParam[] = [{ role: 'tool', content: 'ok', tool_call_id: 'c1' }];
+    expect(buildAzureToolExchangeMessages(toolMessages, [])).toEqual(toolMessages);
+  });
+
+  it('appends exactly one user-role follow-up message carrying every followUpParts entry when non-empty', () => {
+    const toolMessages: AzureMessageParam[] = [{ role: 'tool', content: 'ok', tool_call_id: 'c1' }];
+    const followUpParts: AzureContentPart[] = [
+      { type: 'text', text: 'label' },
+      { type: 'image_url', image_url: { url: 'data:image/png;base64,YQ==' } },
+    ];
+    const result = buildAzureToolExchangeMessages(toolMessages, followUpParts);
+    expect(result).toEqual([...toolMessages, { role: 'user', content: followUpParts }]);
   });
 });

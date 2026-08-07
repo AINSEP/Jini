@@ -28,7 +28,6 @@ import {
   mergeRects,
   normalizedRectFromPoints,
   buildSubmitOptionRules,
-  MARK_TOOL_OPTION_RULES,
   dockPlacementEquals,
 } from '../../rules.js';
 import { redrawStrokesAndBoxes, textFontSizePx, compositeMarksOntoCanvas } from '../../drawing.js';
@@ -47,6 +46,18 @@ import type {
   TextMark,
 } from '../../types.js';
 import { useT } from '../../../react/i18n.js';
+import {
+  attemptCapture,
+  buildMarkToolOptionControllers,
+  buildSubmitOptionControllers,
+  buildSubmitPayload,
+  canAttemptSend,
+  deriveCanvasVisibility,
+  deriveSendGate,
+  deriveSentWarning,
+  deriveUndoRedoAvailability,
+  describeSubmitFailure,
+} from './useAnnotationCanvas.controller.js';
 
 const DEFAULT_DOCKED_STYLE = {
   left: 'calc(50% - 52px)',
@@ -799,51 +810,54 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
 
   async function send(action: AnnotationAction) {
     const hasTarget = Boolean(captureTarget);
-    const shouldCapture = hasInk || hasBox || hasText || hasTarget || captureViewport;
-    const canSubmitNow = shouldCapture || Boolean(note.trim()) || extraFiles.length > 0;
-    if (sending || !canSubmitNow) return;
-    if (action === 'send' && sendDisabled) return;
+    const noteTrimmed = note.trim();
+    const { shouldCapture, canSubmitNow } = deriveSendGate({
+      hasInk,
+      hasBox,
+      hasText,
+      hasCaptureTarget: hasTarget,
+      captureViewport,
+      noteTrimmed,
+      extraFilesCount: extraFiles.length,
+    });
+    if (!canAttemptSend({ sending, canSubmitNow, action, sendDisabled })) return;
     onToolbarClick?.('annotation_submit', action);
     setCaptureWarning(null);
     setPendingAction(action);
     try {
       let file: File | null = null;
       if (shouldCapture) {
-        const snap = await requestSnapshot();
-        const blob = snap ? await compositeWithBackground(snap) : null;
-        if (blob) {
-          const ts = new Date().toISOString().replace(/[:.]/g, '-');
-          file = new File([blob], `annotation-${ts}.png`, { type: 'image/png' });
-        } else if (!note.trim() && extraFiles.length === 0) {
-          setCaptureWarning({
-            action,
-            message: captureViewport && !hasInk && !hasBox && !hasTarget ? t('No screenshot was captured for this annotation.') : t('No screenshot was captured for this mark.'),
-          });
+        const capture = await attemptCapture({
+          hasInk,
+          hasBox,
+          hasCaptureTarget: hasTarget,
+          captureViewport,
+          noteTrimmed,
+          extraFilesCount: extraFiles.length,
+          requestSnapshot,
+          compositeWithBackground,
+          t,
+        });
+        if (capture.kind === 'warned') {
+          setCaptureWarning({ action, message: capture.message });
           return;
         }
+        if (capture.kind === 'captured') file = capture.file;
       }
       const kind = markKind();
+      const payload = buildSubmitPayload({ file, note: noteTrimmed, action, filePath, captureTarget, markKind: kind, bounds: annotationBounds(), extraFiles });
       const result = await Promise.race([
-        port.onSubmit({
-          file,
-          note: note.trim(),
-          action,
-          filePath: captureTarget?.filePath || filePath,
-          markKind: kind,
-          bounds: kind ? annotationBounds() : undefined,
-          target: captureTarget,
-          extraFiles: extraFiles.length ? extraFiles : undefined,
-        }),
+        port.onSubmit(payload),
         new Promise<{ ok: boolean; message?: string }>((resolve) =>
           setTimeout(() => resolve({ ok: false, message: t('Timed out waiting to submit this annotation.') }), SUBMIT_TIMEOUT_MS),
         ),
       ]);
       if (!result.ok) {
-        setCaptureWarning({ action, message: result.message || t('Could not submit this annotation.') });
+        setCaptureWarning({ action, message: describeSubmitFailure(result, t) });
         return;
       }
       clearInk();
-      setCaptureWarning(shouldCapture && !file ? { action, message: t('Sent without a screenshot — the note still went through.') } : null);
+      setCaptureWarning(deriveSentWarning({ shouldCapture, file, action }, t));
       setNote('');
       setExtraFiles([]);
       setPreviewIndex(null);
@@ -897,33 +911,28 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     return () => ro.disconnect();
   }, [active]);
 
-  const showCanvas = active || hasInk || hasBox || hasText;
-  const textLayerVisible = active || hasText;
-  const chromeHidden = capturing || hideChrome;
-  const canSubmitValue = hasInk || hasBox || hasText || Boolean(captureTarget) || captureViewport || Boolean(note.trim()) || extraFiles.length > 0;
-  const canUndo = (undoCount > 0 || hasBox) && !sending;
-  const canRedo = redoCount > 0 && !sending;
+  const { showCanvas, textLayerVisible, chromeHidden } = deriveCanvasVisibility({ active, hasInk, hasBox, hasText, capturing, hideChrome });
+  const { canSubmitNow: canSubmitValue } = deriveSendGate({
+    hasInk,
+    hasBox,
+    hasText,
+    hasCaptureTarget: Boolean(captureTarget),
+    captureViewport,
+    noteTrimmed: note.trim(),
+    extraFilesCount: extraFiles.length,
+  });
+  const { canUndo, canRedo } = deriveUndoRedoAvailability({ undoCount, hasBox, redoCount, sending });
 
   const submitRules = buildSubmitOptionRules({ canSubmit: canSubmitValue, sendDisabled });
-  const submitOptions: SubmitOptionController[] = submitRules.map((rule) => ({
-    action: rule.action,
-    label: t(rule.labelKey),
-    pendingLabel: t(rule.pendingLabelKey),
-    title: rule.action === 'send' && sendDisabled ? options.sendDisabledReason ?? t('Sending is unavailable right now.') : t(rule.labelKey),
-    enabled: rule.enabled,
-  }));
-  // The `?? submitOptions[0]!` fallback is a TS-only safety net: `submitAction`
-  // is typed `AnnotationAction`, and `buildSubmitOptionRules` always returns
-  // exactly one entry per `AnnotationAction` value, so `.find` can never
-  // actually miss — not covered by a test for the same reason a `!` assertion
-  // isn't.
-  const currentSubmit = submitOptions.find((opt) => opt.action === submitAction) ?? submitOptions[0]!;
+  const { submitOptions, currentSubmit } = buildSubmitOptionControllers({
+    submitRules,
+    sendDisabled,
+    sendDisabledReason: options.sendDisabledReason,
+    submitAction,
+    t,
+  });
 
-  const markToolOptions: MarkToolOptionController[] = MARK_TOOL_OPTION_RULES.map((rule) => ({ tool: rule.tool, label: t(rule.labelKey) }));
-  // Same reasoning as `currentSubmit` above: `markTool` is typed `MarkTool`
-  // and `MARK_TOOL_OPTION_RULES` covers every `MarkTool` value, so `.find`
-  // can never miss.
-  const currentMarkTool = markToolOptions.find((item) => item.tool === markTool) ?? markToolOptions[0]!;
+  const { markToolOptions, currentMarkTool } = buildMarkToolOptionControllers({ markTool, t });
 
   const textMarksWithEditing: TextMarkController[] = textMarks.map((mark) => ({ ...mark, editing: editingTextId === mark.id }));
 
