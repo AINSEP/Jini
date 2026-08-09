@@ -204,6 +204,25 @@ export function SettingsDialogShell<T extends SettingsDialogTab>({
                   aria-pressed={active}
                   onClick={() => shell.setActiveTabId(tab.id)}
                   data-testid={`settings-dialog-nav-${tab.id}`}
+                  /*
+                   * Not tagged in modal presentation. This shell can be mounted twice on the same
+                   * page at once — an inline instance plus a modal preview of the identical tab
+                   * set (`SettingsUi.tsx`'s "Open as dialog") — and `data-agent-element` handles
+                   * must be unique within whatever root the host's page driver scans; two buttons
+                   * both publishing `tab-execution` would make that handle ambiguous and refuse to
+                   * click (`dom-page-driver.ts`'s `ambiguousHandleError`). The inline instance is
+                   * always the primary, always-present surface, so it keeps the handle; the modal
+                   * is a secondary, user-opened preview no host publishes as agent-reachable on its
+                   * own, so leaving it untagged here costs nothing.
+                   *
+                   * `tab-${tab.id}`, not `settings-tab-${tab.id}`: this shell is generic — Tovu
+                   * also mounts it for non-Settings tabbed sections (`PlaceholderTabs.tsx`, e.g.
+                   * Payments/Deployment) — so a handle naming "settings" would misdescribe every
+                   * other host of this component.
+                   */
+                  data-agent-element={isModal ? undefined : `tab-${tab.id}`}
+                  data-agent-role={isModal ? undefined : 'button'}
+                  data-agent-label={isModal ? undefined : tab.label}
                 >
                   {/* The icon cell always renders, even when a tab has no icon.
                       This row is a 2-column grid (icon | label); an omitted icon

@@ -47,6 +47,25 @@ describe('SettingsDialogShell', () => {
     expect(screen.getByTestId('panel-notifications')).toBeInTheDocument();
   });
 
+  it('publishes each inline nav button as an agent-clickable tab', () => {
+    render(<SettingsDialogShell tabs={makeTabs()} initialActiveTabId="appearance" />);
+    const appearanceNav = screen.getByTestId('settings-dialog-nav-appearance');
+    expect(appearanceNav).toHaveAttribute('data-agent-element', 'tab-appearance');
+    expect(appearanceNav).toHaveAttribute('data-agent-role', 'button');
+    expect(appearanceNav).toHaveAttribute('data-agent-label', 'Appearance');
+  });
+
+  it('leaves modal nav buttons untagged, so a same-page inline instance keeps a unique handle', () => {
+    // `SettingsUi.tsx` mounts an inline shell and, once opened, a modal preview of the identical
+    // tab set at the same time — if both published `data-agent-element="tab-appearance"`, the
+    // handle would be ambiguous and a page driver would refuse to click either one.
+    render(<SettingsDialogShell tabs={makeTabs()} onClose={() => {}} initialActiveTabId="appearance" />);
+    const appearanceNav = screen.getByTestId('settings-dialog-nav-appearance');
+    expect(appearanceNav).not.toHaveAttribute('data-agent-element');
+    expect(appearanceNav).not.toHaveAttribute('data-agent-role');
+    expect(appearanceNav).not.toHaveAttribute('data-agent-label');
+  });
+
   it('calls onClose on backdrop click but not on inner dialog click', async () => {
     const onClose = vi.fn();
     render(<SettingsDialogShell tabs={makeTabs()} onClose={onClose} />);
