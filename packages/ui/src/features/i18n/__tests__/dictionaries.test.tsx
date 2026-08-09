@@ -7,25 +7,38 @@ import {
   SETTINGS_DIALOG_ES,
 } from '../dictionaries/index.js';
 
-describe('settings-dialog dictionaries: EN/ES key parity', () => {
-  it('ship the exact same key set in both locales', () => {
-    const enKeys = Object.keys(SETTINGS_DIALOG_EN).sort();
-    const esKeys = Object.keys(SETTINGS_DIALOG_ES).sort();
+/**
+ * One parity test regardless of how many locales `SETTINGS_DIALOG_DICTIONARIES` grows to -- per-
+ * locale test cases must NOT be added here as new languages ship. Adding e.g. French means adding
+ * `settings-dialog.fr.ts` plus one property in `dictionaries/index.ts`; this file keeps verifying
+ * structure generically across every locale actually present, not re-asserting each language's
+ * literal text as its own test case.
+ */
+describe('settings-dialog dictionaries: cross-locale key parity', () => {
+  const locales = Object.keys(SETTINGS_DIALOG_DICTIONARIES);
 
-    const missingFromEs = enKeys.filter((key) => !(key in SETTINGS_DIALOG_ES));
-    const missingFromEn = esKeys.filter((key) => !(key in SETTINGS_DIALOG_EN));
-
-    expect(missingFromEs).toEqual([]);
-    expect(missingFromEn).toEqual([]);
-    expect(esKeys).toEqual(enKeys);
+  it('has more than one locale', () => {
+    expect(locales.length).toBeGreaterThan(1);
   });
 
-  it('has a non-empty translation for every key in both locales', () => {
-    for (const [key, value] of Object.entries(SETTINGS_DIALOG_EN)) {
-      expect(value.length, `EN value for ${JSON.stringify(key)} should not be empty`).toBeGreaterThan(0);
+  it('ship the exact same key set across every locale', () => {
+    const referenceKeys = Object.keys(SETTINGS_DIALOG_EN).sort();
+    for (const locale of locales) {
+      const dict = SETTINGS_DIALOG_DICTIONARIES[locale as keyof typeof SETTINGS_DIALOG_DICTIONARIES]!;
+      const keys = Object.keys(dict).sort();
+      const missing = referenceKeys.filter((key) => !(key in dict));
+      const extra = keys.filter((key) => !(key in SETTINGS_DIALOG_EN));
+      expect(missing, `${locale} is missing keys`).toEqual([]);
+      expect(extra, `${locale} has extra keys not in EN`).toEqual([]);
     }
-    for (const [key, value] of Object.entries(SETTINGS_DIALOG_ES)) {
-      expect(value.length, `ES value for ${JSON.stringify(key)} should not be empty`).toBeGreaterThan(0);
+  });
+
+  it('has a non-empty translation for every key in every locale', () => {
+    for (const locale of locales) {
+      const dict = SETTINGS_DIALOG_DICTIONARIES[locale as keyof typeof SETTINGS_DIALOG_DICTIONARIES]!;
+      for (const [key, value] of Object.entries(dict)) {
+        expect(value.length, `${locale} value for ${JSON.stringify(key)} should not be empty`).toBeGreaterThan(0);
+      }
     }
   });
 
@@ -33,7 +46,7 @@ describe('settings-dialog dictionaries: EN/ES key parity', () => {
     expect(Object.keys(SETTINGS_DIALOG_EN).length).toBeGreaterThanOrEqual(230);
   });
 
-  it('bundles both locales under SETTINGS_DIALOG_DICTIONARIES for direct I18nProvider use', () => {
+  it('bundles every locale under SETTINGS_DIALOG_DICTIONARIES for direct I18nProvider use', () => {
     expect(SETTINGS_DIALOG_DICTIONARIES.en).toBe(SETTINGS_DIALOG_EN);
     expect(SETTINGS_DIALOG_DICTIONARIES.es).toBe(SETTINGS_DIALOG_ES);
   });
