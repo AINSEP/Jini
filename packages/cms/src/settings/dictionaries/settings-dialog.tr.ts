@@ -1,0 +1,28 @@
+/** @file tr translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_TR: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "Yerel CLI veya BYOK seçin.",
+  "Instructions": "Talimatlar",
+  "Applied to every assistant conversation in this workspace.": "Bu çalışma alanındaki her asistan konuşmasına uygulanır.",
+  "Notifications": "Bildirimler",
+  "How you're told a task finished. Saved per operator, not per workspace.": "Bir görevin tamamlandığının size nasıl bildirileceği. Çalışma alanına göre değil, operatöre göre kaydedilir.",
+  "Privacy": "Gizlilik",
+  "Dialog appearance": "İletişim kutusu görünümü",
+  "Theme and accent color for this settings surface. Saved per operator.": "Bu ayarlar ekranı için tema ve vurgu rengi. Operatöre göre kaydedilir.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "Yönetici arayüzü dili. Yalnızca bu ayarlar panelinin sekme içeriğine uygulanır.",
+  "MCP server": "MCP sunucusu",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Bir MCP istemcisi bağlayın. Örnek çıktı gösteriliyor — henüz canlı bir sunucuya bağlanmadı.",
+  "API keys for image, video, and audio generation.": "Görsel, video ve ses oluşturma için API anahtarları.",
+  "Third-party accounts and APIs via Composio.": "Composio üzerinden üçüncü taraf hesapları ve API'ler.",
+  "Memory": "Bellek",
+  "Saved facts and context for future chats.": "Gelecekteki sohbetler için kaydedilmiş bilgiler ve bağlam.",
+  "External MCP": "Harici MCP",
+  "Add MCP tools from external services.": "Harici hizmetlerden MCP araçları ekleyin.",
+  "Skills": "Beceriler",
+  "Custom skills your assistant can invoke mid-task.": "Asistanınızın görev sırasında çağırabileceği özel beceriler.",
+  "Version and runtime details.": "Sürüm ve çalışma zamanı ayrıntıları.",
+  "Version": "Sürüm",
+  "Open as dialog": "İletişim kutusu olarak aç",
+  "No MCP config store to connect to yet.": "Henüz bağlanılacak bir MCP yapılandırma deposu yok.",
+  "All changes saved": "Tüm değişiklikler kaydedildi",
+};

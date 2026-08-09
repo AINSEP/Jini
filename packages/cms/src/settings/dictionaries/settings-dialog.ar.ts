@@ -1,0 +1,28 @@
+/** @file ar translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_AR: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "اختر واجهة سطر أوامر محلية أو BYOK.",
+  "Instructions": "التعليمات",
+  "Applied to every assistant conversation in this workspace.": "تُطبَّق على كل محادثة مع المساعد في مساحة العمل هذه.",
+  "Notifications": "الإشعارات",
+  "How you're told a task finished. Saved per operator, not per workspace.": "كيفية إعلامك بانتهاء المهمة. يُحفظ هذا لكل مشغّل، وليس لكل مساحة عمل.",
+  "Privacy": "الخصوصية",
+  "Dialog appearance": "مظهر مربع الحوار",
+  "Theme and accent color for this settings surface. Saved per operator.": "السمة ولون التمييز لواجهة الإعدادات هذه. يُحفظ لكل مشغّل.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "لغة واجهة الإدارة. تنطبق فقط على محتوى علامات تبويب لوحة الإعدادات هذه.",
+  "MCP server": "خادم MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "اربط عميل MCP. يُعرض ناتج نموذجي — لم يتم ربطه بعد بخادم فعلي.",
+  "API keys for image, video, and audio generation.": "مفاتيح API لإنشاء الصور والفيديو والصوت.",
+  "Third-party accounts and APIs via Composio.": "حسابات وواجهات برمجة تطبيقات تابعة لجهات خارجية عبر Composio.",
+  "Memory": "الذاكرة",
+  "Saved facts and context for future chats.": "حقائق وسياق محفوظان للمحادثات المستقبلية.",
+  "External MCP": "MCP خارجي",
+  "Add MCP tools from external services.": "أضف أدوات MCP من خدمات خارجية.",
+  "Skills": "المهارات",
+  "Custom skills your assistant can invoke mid-task.": "مهارات مخصصة يمكن لمساعدك استدعاؤها في منتصف المهمة.",
+  "Version and runtime details.": "تفاصيل الإصدار وبيئة التشغيل.",
+  "Version": "الإصدار",
+  "Open as dialog": "فتح كمربع حوار",
+  "No MCP config store to connect to yet.": "لا يوجد مخزن تهيئة MCP للاتصال به بعد.",
+  "All changes saved": "تم حفظ جميع التغييرات",
+};

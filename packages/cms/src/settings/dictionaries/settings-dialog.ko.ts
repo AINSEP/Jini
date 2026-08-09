@@ -1,0 +1,28 @@
+/** @file ko translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_KO: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "로컬 CLI 또는 BYOK 중에서 선택하세요.",
+  "Instructions": "지침",
+  "Applied to every assistant conversation in this workspace.": "이 작업 공간의 모든 어시스턴트 대화에 적용됩니다.",
+  "Notifications": "알림",
+  "How you're told a task finished. Saved per operator, not per workspace.": "작업 완료를 알리는 방식입니다. 작업 공간이 아니라 운영자별로 저장됩니다.",
+  "Privacy": "개인정보 보호",
+  "Dialog appearance": "대화 상자 모양",
+  "Theme and accent color for this settings surface. Saved per operator.": "이 설정 화면의 테마와 강조 색상입니다. 운영자별로 저장됩니다.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "관리 인터페이스 언어입니다. 이 설정 패널의 탭 콘텐츠에만 적용됩니다.",
+  "MCP server": "MCP 서버",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "MCP 클라이언트를 연결합니다. 예시 출력을 표시하고 있으며, 아직 실제 서버에 연결되어 있지 않습니다.",
+  "API keys for image, video, and audio generation.": "이미지, 동영상, 오디오 생성을 위한 API 키입니다.",
+  "Third-party accounts and APIs via Composio.": "Composio를 통한 타사 계정 및 API입니다.",
+  "Memory": "메모리",
+  "Saved facts and context for future chats.": "향후 대화를 위해 저장된 사실 및 컨텍스트입니다.",
+  "External MCP": "외부 MCP",
+  "Add MCP tools from external services.": "외부 서비스에서 MCP 도구를 추가합니다.",
+  "Skills": "스킬",
+  "Custom skills your assistant can invoke mid-task.": "작업 도중 어시스턴트가 호출할 수 있는 사용자 지정 스킬입니다.",
+  "Version and runtime details.": "버전 및 런타임 세부 정보입니다.",
+  "Version": "버전",
+  "Open as dialog": "대화 상자로 열기",
+  "No MCP config store to connect to yet.": "아직 연결할 MCP 설정 저장소가 없습니다.",
+  "All changes saved": "모든 변경 사항이 저장되었습니다",
+};

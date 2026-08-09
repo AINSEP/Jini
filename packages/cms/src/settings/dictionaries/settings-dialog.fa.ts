@@ -1,0 +1,28 @@
+/** @file fa translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_FA: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "CLI محلی یا BYOK را انتخاب کنید.",
+  "Instructions": "دستورالعمل‌ها",
+  "Applied to every assistant conversation in this workspace.": "به هر گفتگوی دستیار در این فضای کاری اعمال می‌شود.",
+  "Notifications": "اعلان‌ها",
+  "How you're told a task finished. Saved per operator, not per workspace.": "نحوهٔ اطلاع‌رسانی پایان یک وظیفه به شما. به‌ازای هر اپراتور ذخیره می‌شود، نه به‌ازای فضای کاری.",
+  "Privacy": "حریم خصوصی",
+  "Dialog appearance": "ظاهر پنجرهٔ گفتگو",
+  "Theme and accent color for this settings surface. Saved per operator.": "پوسته و رنگ تأکیدی برای این صفحهٔ تنظیمات. به‌ازای هر اپراتور ذخیره می‌شود.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "زبان رابط کاربری مدیریت. فقط روی محتوای زبانه‌های این پنل تنظیمات اعمال می‌شود.",
+  "MCP server": "سرور MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "یک کلاینت MCP متصل کنید. خروجی نمونه نمایش داده می‌شود — هنوز به سرور واقعی متصل نشده است.",
+  "API keys for image, video, and audio generation.": "کلیدهای API برای تولید تصویر، ویدئو و صدا.",
+  "Third-party accounts and APIs via Composio.": "حساب‌ها و APIهای شخص ثالث از طریق Composio.",
+  "Memory": "حافظه",
+  "Saved facts and context for future chats.": "واقعیت‌ها و زمینهٔ ذخیره‌شده برای گفتگوهای آینده.",
+  "External MCP": "MCP خارجی",
+  "Add MCP tools from external services.": "ابزارهای MCP را از سرویس‌های خارجی اضافه کنید.",
+  "Skills": "مهارت‌ها",
+  "Custom skills your assistant can invoke mid-task.": "مهارت‌های سفارشی که دستیار شما می‌تواند در میانهٔ یک وظیفه فراخوانی کند.",
+  "Version and runtime details.": "جزئیات نسخه و زمان اجرا.",
+  "Version": "نسخه",
+  "Open as dialog": "باز کردن به‌صورت پنجرهٔ گفتگو",
+  "No MCP config store to connect to yet.": "هنوز هیچ مخزن پیکربندی MCP‌ای برای اتصال وجود ندارد.",
+  "All changes saved": "همهٔ تغییرات ذخیره شد",
+};

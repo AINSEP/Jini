@@ -1,0 +1,28 @@
+/** @file ja translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_JA: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "ローカルCLIまたはBYOKを選択してください。",
+  "Instructions": "指示",
+  "Applied to every assistant conversation in this workspace.": "このワークスペース内のすべてのアシスタントとの会話に適用されます。",
+  "Notifications": "通知",
+  "How you're told a task finished. Saved per operator, not per workspace.": "タスク完了の通知方法です。ワークスペースごとではなく、オペレーターごとに保存されます。",
+  "Privacy": "プライバシー",
+  "Dialog appearance": "ダイアログの外観",
+  "Theme and accent color for this settings surface. Saved per operator.": "この設定画面のテーマとアクセントカラーです。オペレーターごとに保存されます。",
+  "Admin interface language. Applies to this settings panel's tab content only.": "管理インターフェースの言語です。この設定パネルのタブ内容にのみ適用されます。",
+  "MCP server": "MCPサーバー",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "MCPクライアントに接続します。サンプル出力を表示しています — まだ実際のサーバーには接続されていません。",
+  "API keys for image, video, and audio generation.": "画像、動画、音声生成用のAPIキーです。",
+  "Third-party accounts and APIs via Composio.": "Composio経由のサードパーティアカウントとAPIです。",
+  "Memory": "メモリー",
+  "Saved facts and context for future chats.": "今後のチャットのために保存された事実とコンテキストです。",
+  "External MCP": "外部MCP",
+  "Add MCP tools from external services.": "外部サービスからMCPツールを追加します。",
+  "Skills": "スキル",
+  "Custom skills your assistant can invoke mid-task.": "タスクの途中でアシスタントが呼び出せるカスタムスキルです。",
+  "Version and runtime details.": "バージョンとランタイムの詳細です。",
+  "Version": "バージョン",
+  "Open as dialog": "ダイアログとして開く",
+  "No MCP config store to connect to yet.": "接続できるMCP設定ストアがまだありません。",
+  "All changes saved": "すべての変更が保存されました",
+};

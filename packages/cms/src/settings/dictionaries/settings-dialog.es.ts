@@ -1,0 +1,28 @@
+/** @file es translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_ES: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "Elige CLI local o BYOK.",
+  "Instructions": "Instrucciones",
+  "Applied to every assistant conversation in this workspace.": "Se aplica a cada conversación del asistente en este espacio de trabajo.",
+  "Notifications": "Notificaciones",
+  "How you're told a task finished. Saved per operator, not per workspace.": "Cómo te avisamos cuando termina una tarea. Se guarda por operador, no por espacio de trabajo.",
+  "Privacy": "Privacidad",
+  "Dialog appearance": "Apariencia del diálogo",
+  "Theme and accent color for this settings surface. Saved per operator.": "Tema y color de acento para esta pantalla de configuración. Se guarda por operador.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "Idioma de la interfaz de administración. Solo se aplica al contenido de las pestañas de este panel de configuración.",
+  "MCP server": "Servidor MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Conecta un cliente MCP. Se muestra un resultado de ejemplo — aún no está conectado a un servidor real.",
+  "API keys for image, video, and audio generation.": "Claves de API para generar imágenes, video y audio.",
+  "Third-party accounts and APIs via Composio.": "Cuentas y APIs de terceros a través de Composio.",
+  "Memory": "Memoria",
+  "Saved facts and context for future chats.": "Datos y contexto guardados para futuras conversaciones.",
+  "External MCP": "MCP externo",
+  "Add MCP tools from external services.": "Añade herramientas MCP de servicios externos.",
+  "Skills": "Habilidades",
+  "Custom skills your assistant can invoke mid-task.": "Habilidades personalizadas que tu asistente puede usar durante una tarea.",
+  "Version and runtime details.": "Detalles de versión y del entorno de ejecución.",
+  "Version": "Versión",
+  "Open as dialog": "Abrir como diálogo",
+  "No MCP config store to connect to yet.": "Aún no hay un almacén de configuración MCP al que conectarse.",
+  "All changes saved": "Todos los cambios guardados",
+};

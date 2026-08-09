@@ -1,0 +1,28 @@
+/** @file pt-BR translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_PT_BR: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "Escolha CLI local ou BYOK.",
+  "Instructions": "Instruções",
+  "Applied to every assistant conversation in this workspace.": "Aplicado a cada conversa do assistente neste espaço de trabalho.",
+  "Notifications": "Notificações",
+  "How you're told a task finished. Saved per operator, not per workspace.": "Como você é avisado quando uma tarefa termina. Salvo por operador, não por espaço de trabalho.",
+  "Privacy": "Privacidade",
+  "Dialog appearance": "Aparência do diálogo",
+  "Theme and accent color for this settings surface. Saved per operator.": "Tema e cor de destaque para esta tela de configurações. Salvo por operador.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "Idioma da interface de administração. Aplica-se apenas ao conteúdo das abas deste painel de configurações.",
+  "MCP server": "Servidor MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Conecte um cliente MCP. Mostrando uma saída de exemplo — ainda não conectado a um servidor real.",
+  "API keys for image, video, and audio generation.": "Chaves de API para geração de imagem, vídeo e áudio.",
+  "Third-party accounts and APIs via Composio.": "Contas e APIs de terceiros via Composio.",
+  "Memory": "Memória",
+  "Saved facts and context for future chats.": "Fatos e contexto salvos para conversas futuras.",
+  "External MCP": "MCP externo",
+  "Add MCP tools from external services.": "Adicione ferramentas MCP de serviços externos.",
+  "Skills": "Habilidades",
+  "Custom skills your assistant can invoke mid-task.": "Habilidades personalizadas que seu assistente pode invocar durante uma tarefa.",
+  "Version and runtime details.": "Detalhes de versão e do ambiente de execução.",
+  "Version": "Versão",
+  "Open as dialog": "Abrir como diálogo",
+  "No MCP config store to connect to yet.": "Ainda não há um armazenamento de configuração MCP para se conectar.",
+  "All changes saved": "Todas as alterações salvas",
+};

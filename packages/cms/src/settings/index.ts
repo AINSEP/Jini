@@ -149,3 +149,6 @@ export {
   settingsDerivedRisk,
   type SettingsToolDeps,
 } from "./tool-registrations.js";
+
+/** The settings-dialog chrome copy (24 generic tab labels/subtitles), shared across every host. */
+export { SETTINGS_DIALOG_DICTIONARIES, translateSettingsDialog } from "./dictionaries/index.js";

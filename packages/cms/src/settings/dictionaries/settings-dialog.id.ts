@@ -1,0 +1,28 @@
+/** @file id translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_ID: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "Pilih CLI lokal atau BYOK.",
+  "Instructions": "Instruksi",
+  "Applied to every assistant conversation in this workspace.": "Diterapkan ke setiap percakapan asisten di workspace ini.",
+  "Notifications": "Notifikasi",
+  "How you're told a task finished. Saved per operator, not per workspace.": "Cara Anda diberi tahu bahwa tugas telah selesai. Disimpan per operator, bukan per workspace.",
+  "Privacy": "Privasi",
+  "Dialog appearance": "Tampilan dialog",
+  "Theme and accent color for this settings surface. Saved per operator.": "Tema dan warna aksen untuk panel pengaturan ini. Disimpan per operator.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "Bahasa antarmuka admin. Hanya berlaku untuk konten tab panel pengaturan ini.",
+  "MCP server": "Server MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Hubungkan klien MCP. Menampilkan output contoh — belum terhubung ke server sesungguhnya.",
+  "API keys for image, video, and audio generation.": "Kunci API untuk pembuatan gambar, video, dan audio.",
+  "Third-party accounts and APIs via Composio.": "Akun dan API pihak ketiga melalui Composio.",
+  "Memory": "Memori",
+  "Saved facts and context for future chats.": "Fakta dan konteks tersimpan untuk percakapan mendatang.",
+  "External MCP": "MCP eksternal",
+  "Add MCP tools from external services.": "Tambahkan alat MCP dari layanan eksternal.",
+  "Skills": "Skill",
+  "Custom skills your assistant can invoke mid-task.": "Skill kustom yang dapat dipanggil asisten Anda di tengah tugas.",
+  "Version and runtime details.": "Detail versi dan runtime.",
+  "Version": "Versi",
+  "Open as dialog": "Buka sebagai dialog",
+  "No MCP config store to connect to yet.": "Belum ada penyimpanan konfigurasi MCP untuk dihubungkan.",
+  "All changes saved": "Semua perubahan tersimpan",
+};

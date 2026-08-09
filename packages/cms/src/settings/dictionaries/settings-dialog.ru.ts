@@ -1,0 +1,28 @@
+/** @file ru translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_RU: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "Выберите локальный CLI или BYOK.",
+  "Instructions": "Инструкции",
+  "Applied to every assistant conversation in this workspace.": "Применяется к каждому диалогу с ассистентом в этом рабочем пространстве.",
+  "Notifications": "Уведомления",
+  "How you're told a task finished. Saved per operator, not per workspace.": "Как вам сообщают о завершении задачи. Сохраняется для каждого оператора, а не для рабочего пространства.",
+  "Privacy": "Конфиденциальность",
+  "Dialog appearance": "Внешний вид диалога",
+  "Theme and accent color for this settings surface. Saved per operator.": "Тема и акцентный цвет для этой панели настроек. Сохраняется для каждого оператора.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "Язык интерфейса администратора. Применяется только к содержимому вкладок этой панели настроек.",
+  "MCP server": "Сервер MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Подключите клиент MCP. Показан пример вывода — пока не подключено к реальному серверу.",
+  "API keys for image, video, and audio generation.": "Ключи API для генерации изображений, видео и аудио.",
+  "Third-party accounts and APIs via Composio.": "Сторонние аккаунты и API через Composio.",
+  "Memory": "Память",
+  "Saved facts and context for future chats.": "Сохранённые факты и контекст для будущих диалогов.",
+  "External MCP": "Внешний MCP",
+  "Add MCP tools from external services.": "Добавляйте инструменты MCP из внешних сервисов.",
+  "Skills": "Навыки",
+  "Custom skills your assistant can invoke mid-task.": "Пользовательские навыки, которые ваш ассистент может вызывать в процессе выполнения задачи.",
+  "Version and runtime details.": "Сведения о версии и среде выполнения.",
+  "Version": "Версия",
+  "Open as dialog": "Открыть как диалог",
+  "No MCP config store to connect to yet.": "Пока нет хранилища конфигурации MCP для подключения.",
+  "All changes saved": "Все изменения сохранены",
+};

@@ -1,0 +1,28 @@
+/** @file th translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_TH: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "เลือก CLI ในเครื่อง หรือ BYOK",
+  "Instructions": "คำสั่ง",
+  "Applied to every assistant conversation in this workspace.": "ใช้กับทุกบทสนทนากับผู้ช่วยในพื้นที่ทำงานนี้",
+  "Notifications": "การแจ้งเตือน",
+  "How you're told a task finished. Saved per operator, not per workspace.": "วิธีที่คุณจะได้รับแจ้งเมื่องานเสร็จสิ้น บันทึกแยกตามผู้ปฏิบัติงาน ไม่ใช่ตามพื้นที่ทำงาน",
+  "Privacy": "ความเป็นส่วนตัว",
+  "Dialog appearance": "รูปลักษณ์ของกล่องโต้ตอบ",
+  "Theme and accent color for this settings surface. Saved per operator.": "ธีมและสีเน้นสำหรับหน้าจอการตั้งค่านี้ บันทึกแยกตามผู้ปฏิบัติงาน",
+  "Admin interface language. Applies to this settings panel's tab content only.": "ภาษาของอินเทอร์เฟซผู้ดูแลระบบ มีผลกับเนื้อหาในแท็บของแผงการตั้งค่านี้เท่านั้น",
+  "MCP server": "เซิร์ฟเวอร์ MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "เชื่อมต่อไคลเอนต์ MCP กำลังแสดงผลลัพธ์ตัวอย่าง — ยังไม่ได้เชื่อมต่อกับเซิร์ฟเวอร์จริง",
+  "API keys for image, video, and audio generation.": "คีย์ API สำหรับสร้างภาพ วิดีโอ และเสียง",
+  "Third-party accounts and APIs via Composio.": "บัญชีและ API ของบุคคลที่สามผ่าน Composio",
+  "Memory": "หน่วยความจำ",
+  "Saved facts and context for future chats.": "ข้อเท็จจริงและบริบทที่บันทึกไว้สำหรับการสนทนาในอนาคต",
+  "External MCP": "MCP ภายนอก",
+  "Add MCP tools from external services.": "เพิ่มเครื่องมือ MCP จากบริการภายนอก",
+  "Skills": "ทักษะ",
+  "Custom skills your assistant can invoke mid-task.": "ทักษะที่กำหนดเองซึ่งผู้ช่วยของคุณสามารถเรียกใช้ระหว่างทำงานได้",
+  "Version and runtime details.": "รายละเอียดเวอร์ชันและสภาพแวดล้อมรันไทม์",
+  "Version": "เวอร์ชัน",
+  "Open as dialog": "เปิดเป็นกล่องโต้ตอบ",
+  "No MCP config store to connect to yet.": "ยังไม่มีที่เก็บการกำหนดค่า MCP ให้เชื่อมต่อ",
+  "All changes saved": "บันทึกการเปลี่ยนแปลงทั้งหมดแล้ว",
+};

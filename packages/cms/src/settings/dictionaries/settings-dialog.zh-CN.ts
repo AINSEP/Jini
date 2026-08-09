@@ -1,0 +1,28 @@
+/** @file zh-CN translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_ZH_CN: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "选择本地 CLI 或 BYOK。",
+  "Instructions": "指令",
+  "Applied to every assistant conversation in this workspace.": "应用于此工作区中的每一次助手对话。",
+  "Notifications": "通知",
+  "How you're told a task finished. Saved per operator, not per workspace.": "任务完成时如何通知你。按操作者保存，而非按工作区保存。",
+  "Privacy": "隐私",
+  "Dialog appearance": "对话框外观",
+  "Theme and accent color for this settings surface. Saved per operator.": "此设置界面的主题和强调色，按操作者保存。",
+  "Admin interface language. Applies to this settings panel's tab content only.": "管理界面语言，仅适用于此设置面板的标签页内容。",
+  "MCP server": "MCP 服务器",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "连接一个 MCP 客户端。当前显示的是示例输出——尚未接入实际服务器。",
+  "API keys for image, video, and audio generation.": "用于生成图像、视频和音频的 API 密钥。",
+  "Third-party accounts and APIs via Composio.": "通过 Composio 接入的第三方账户和 API。",
+  "Memory": "记忆",
+  "Saved facts and context for future chats.": "为后续对话保存的事实和上下文。",
+  "External MCP": "外部 MCP",
+  "Add MCP tools from external services.": "从外部服务添加 MCP 工具。",
+  "Skills": "技能",
+  "Custom skills your assistant can invoke mid-task.": "你的助手可以在任务执行过程中调用的自定义技能。",
+  "Version and runtime details.": "版本和运行时详细信息。",
+  "Version": "版本",
+  "Open as dialog": "以对话框方式打开",
+  "No MCP config store to connect to yet.": "目前还没有可连接的 MCP 配置存储。",
+  "All changes saved": "所有更改均已保存",
+};

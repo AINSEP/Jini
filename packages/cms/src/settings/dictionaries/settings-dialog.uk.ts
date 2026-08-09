@@ -1,0 +1,28 @@
+/** @file uk translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_UK: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "Виберіть локальний CLI або BYOK.",
+  "Instructions": "Інструкції",
+  "Applied to every assistant conversation in this workspace.": "Застосовується до кожної розмови з асистентом у цьому робочому просторі.",
+  "Notifications": "Сповіщення",
+  "How you're told a task finished. Saved per operator, not per workspace.": "Як вам повідомляють про завершення завдання. Зберігається для кожного оператора, а не для робочого простору.",
+  "Privacy": "Конфіденційність",
+  "Dialog appearance": "Зовнішній вигляд діалогу",
+  "Theme and accent color for this settings surface. Saved per operator.": "Тема й акцентний колір для цього екрана налаштувань. Зберігається для кожного оператора.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "Мова інтерфейсу адміністрування. Застосовується лише до вмісту вкладок цієї панелі налаштувань.",
+  "MCP server": "Сервер MCP",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Підключіть клієнт MCP. Показано приклад виведення — ще не підключено до реального сервера.",
+  "API keys for image, video, and audio generation.": "Ключі API для генерації зображень, відео та аудіо.",
+  "Third-party accounts and APIs via Composio.": "Сторонні облікові записи та API через Composio.",
+  "Memory": "Пам'ять",
+  "Saved facts and context for future chats.": "Збережені факти та контекст для майбутніх чатів.",
+  "External MCP": "Зовнішній MCP",
+  "Add MCP tools from external services.": "Додайте інструменти MCP із зовнішніх сервісів.",
+  "Skills": "Навички",
+  "Custom skills your assistant can invoke mid-task.": "Власні навички, які ваш асистент може викликати під час виконання завдання.",
+  "Version and runtime details.": "Відомості про версію та середовище виконання.",
+  "Version": "Версія",
+  "Open as dialog": "Відкрити як діалог",
+  "No MCP config store to connect to yet.": "Поки що немає сховища конфігурації MCP для підключення.",
+  "All changes saved": "Усі зміни збережено",
+};

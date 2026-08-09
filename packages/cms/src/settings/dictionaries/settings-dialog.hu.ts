@@ -1,0 +1,28 @@
+/** @file hu translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_HU: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "Válassz Helyi CLI vagy BYOK között.",
+  "Instructions": "Utasítások",
+  "Applied to every assistant conversation in this workspace.": "Ebben a munkaterületen minden asszisztens-beszélgetésre érvényes.",
+  "Notifications": "Értesítések",
+  "How you're told a task finished. Saved per operator, not per workspace.": "Így értesülsz egy feladat befejezéséről. Operátoronként, nem munkaterületenként kerül mentésre.",
+  "Privacy": "Adatvédelem",
+  "Dialog appearance": "Párbeszédablak megjelenése",
+  "Theme and accent color for this settings surface. Saved per operator.": "Ennek a beállításfelületnek a témája és kiemelőszíne. Operátoronként kerül mentésre.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "Az adminisztrációs felület nyelve. Csak ennek a beállításpanelnek a lapjainak tartalmára vonatkozik.",
+  "MCP server": "MCP-szerver",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "Csatlakoztass egy MCP-klienst. Egy minta kimenet látható — még nincs élő szerverhez kapcsolva.",
+  "API keys for image, video, and audio generation.": "API-kulcsok kép-, videó- és hanggeneráláshoz.",
+  "Third-party accounts and APIs via Composio.": "Harmadik féltől származó fiókok és API-k a Composión keresztül.",
+  "Memory": "Memória",
+  "Saved facts and context for future chats.": "Mentett tények és kontextus a jövőbeli beszélgetésekhez.",
+  "External MCP": "Külső MCP",
+  "Add MCP tools from external services.": "MCP-eszközök hozzáadása külső szolgáltatásokból.",
+  "Skills": "Képességek",
+  "Custom skills your assistant can invoke mid-task.": "Egyéni képességek, amelyeket az asszisztensed egy feladat közben hívhat meg.",
+  "Version and runtime details.": "Verzió- és futásidő-részletek.",
+  "Version": "Verzió",
+  "Open as dialog": "Megnyitás párbeszédablakként",
+  "No MCP config store to connect to yet.": "Még nincs MCP-konfigurációtár, amelyhez csatlakozni lehetne.",
+  "All changes saved": "Minden módosítás mentve",
+};
