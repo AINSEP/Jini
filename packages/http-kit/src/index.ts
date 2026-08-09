@@ -265,6 +265,18 @@ export {
 } from './tool-catalog.js';
 
 export type {
+  ComponentCatalogEntry,
+  ComponentCatalogHttpDeps,
+  ComponentCatalogQuery,
+  ComponentCatalogSearchHit,
+} from './component-catalog.js';
+export {
+  registerComponentCatalogRoutes,
+  componentCatalogDescribeRoute,
+  componentCatalogSearchRoute,
+} from './component-catalog.js';
+
+export type {
   DelegatedToolExecuteRequest,
   DelegatedToolExecuteResponse,
   DelegatedToolsHttpDeps,

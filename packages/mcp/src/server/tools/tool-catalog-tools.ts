@@ -33,7 +33,7 @@ interface ToolCatalogSearchResponse {
 export const searchToolsTool: McpToolDef = {
   name: 'search_tools',
   description:
-    'Search the durable tool catalog. Returns ranked {id, description, source, score} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool.',
+    'Search the durable tool catalog. Returns ranked {id, description, source, score} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool. If nothing in the results fits, re-search with a higher limit or different phrasing rather than assuming the tool does not exist.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -63,7 +63,20 @@ export const searchToolsTool: McpToolDef = {
       // route agree: otherwise `0`/`1.5` pass here and are refused downstream, and `26`
       // passes here and is silently clamped — the caller is told one contract and given
       // another.
-      limit: { type: 'integer', minimum: 1, maximum: 25, description: 'Max hits to return (1-25). Optional, defaults to 10.' },
+      // The escalation clause is the cheap half of a measured ceiling. On the same n=130 blind set,
+      // with the host's operator-vocabulary + doc2query index folded in, the right tool is in the
+      // default top 10 for 98% of cases and in the top 20 for 100% — so the residual misses are
+      // ranked just below the cutoff, never absent. Raising the DEFAULT to 20 would buy those 2
+      // cases at ~900 extra tokens on every single call; telling the caller to escalate on demand
+      // buys the same ceiling only when it is needed. Same lever as the descriptive-phrasing fix
+      // above: a prompt change, not an LLM call.
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 25,
+        description:
+          'Max hits to return (1-25). Optional, defaults to 10. If none of the returned candidates fit what you need, search again with a HIGHER limit (try 25) before concluding no tool exists — the right tool is in the top 10 about 98% of the time and in the top 20 100% of the time, so a near-miss is ranked just below the default cutoff rather than missing.',
+      },
     },
     required: ['query'],
     additionalProperties: false,

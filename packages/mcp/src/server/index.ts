@@ -5,7 +5,8 @@
  * (`resource-protocol.ts`), the daemon transport (`daemon-client.ts`), the
  * `Server`/`StdioServerTransport` wiring (`tool-server.ts`), the concrete
  * kernel-run tool defs (`tools/run-tools.ts`), the tool-catalog discovery
- * defs (`tools/tool-catalog-tools.ts`), the concrete kernel
+ * defs (`tools/tool-catalog-tools.ts`), the component-catalog discovery
+ * defs (`tools/component-catalog-tools.ts`), the concrete kernel
  * resource defs (`resources/active-resource.ts`), and the delegated-tool
  * execution def (`tools/delegated-tool.ts`).
  */
@@ -16,4 +17,5 @@ export * from './tool-server.js';
 export * from './tools/run-tools.js';
 export * from './tools/delegated-tool.js';
 export * from './tools/tool-catalog-tools.js';
+export * from './tools/component-catalog-tools.js';
 export * from './resources/active-resource.js';

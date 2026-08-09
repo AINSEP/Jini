@@ -43,6 +43,7 @@ import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerOp
 import type { McpToolDef } from '../server/tool-protocol.js';
 import { RUN_TOOLS } from '../server/tools/run-tools.js';
 import { TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
+import { COMPONENT_CATALOG_TOOLS } from '../server/tools/component-catalog-tools.js';
 import { createExecuteDelegatedToolTool } from '../server/tools/delegated-tool.js';
 import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
 
@@ -137,6 +138,7 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
   const tools: readonly McpToolDef[] = [
     ...RUN_TOOLS,
     ...TOOL_CATALOG_TOOLS,
+    ...COMPONENT_CATALOG_TOOLS,
     createExecuteDelegatedToolTool({
       runId,
       ...(deps.generateToolUseId !== undefined ? { generateToolUseId: deps.generateToolUseId } : {}),
