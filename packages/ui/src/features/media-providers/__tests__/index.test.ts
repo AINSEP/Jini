@@ -20,4 +20,9 @@ describe('media-providers tab barrel', () => {
     expect(typeof MediaProvidersBarrel.MediaProvidersTab).toBe('function');
     expect(typeof MediaProvidersBarrel.useMediaProvidersTab).toBe('function');
   });
+
+  it('exports the default provider catalog', () => {
+    expect(Array.isArray(MediaProvidersBarrel.DEFAULT_MEDIA_PROVIDER_CATALOG)).toBe(true);
+    expect(MediaProvidersBarrel.DEFAULT_MEDIA_PROVIDER_CATALOG.length).toBeGreaterThan(0);
+  });
 });

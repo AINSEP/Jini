@@ -11,6 +11,7 @@ import {
   resolveProviderBaseUrl,
   sortProvidersByConfigured,
 } from '../../rules.js';
+import { DEFAULT_MEDIA_PROVIDER_CATALOG } from '../../constants.js';
 import type { MediaProviderMap, MediaProviderOption } from '../../types.js';
 import { useMediaProvidersTab } from '../hooks/useMediaProvidersTab.js';
 
@@ -47,10 +48,10 @@ export interface MediaProvidersTabLabels {
 
 export interface MediaProvidersTabProps {
   port: MediaProvidersPort;
-  /** The host's own provider catalog — see `MediaProviderOption`'s doc for
-   *  why this ships empty from this feature's `types.ts` rather than a
-   *  baked-in vendor list. */
-  catalog: readonly MediaProviderOption[];
+  /** The provider catalog to render. Optional — defaults to
+   *  `DEFAULT_MEDIA_PROVIDER_CATALOG`; see `MediaProviderOption`'s doc for
+   *  the host-override convention. */
+  catalog?: readonly MediaProviderOption[];
   /** Host-persisted local edits from before this tab mounted. See
    *  `useMediaProvidersTab`'s doc for how this feeds the first-load merge. */
   initialProviders?: MediaProviderMap;
@@ -66,7 +67,12 @@ export interface MediaProvidersTabProps {
  * decorations outside this package's boundary; see `MediaProviderOption`'s
  * doc and this tab's `ports.ts` header for the full provenance note.
  */
-export function MediaProvidersTab({ port, catalog, initialProviders, labels }: MediaProvidersTabProps) {
+export function MediaProvidersTab({
+  port,
+  catalog = DEFAULT_MEDIA_PROVIDER_CATALOG,
+  initialProviders,
+  labels,
+}: MediaProvidersTabProps) {
   const t = useT();
   const { providers, load, save, hasAnyConfigured, pendingProviderIds, updateProvider, clearProvider, saveChanges, reload } =
     useMediaProvidersTab({ port, initialProviders });
@@ -164,14 +170,16 @@ export function MediaProvidersTab({ port, catalog, initialProviders, labels }: M
                 {saved ? (
                   // `maskedLabel` is guaranteed non-null here — see its
                   // definition above — so no fallback is reachable to test.
-                  <span className="jini-field-status-badge">{t(savedWithMaskTemplate, { mask: maskedLabel! })}</span>
+                  <span className="jini-field-status-badge jini-field-status-badge-success">
+                    {t(savedWithMaskTemplate, { mask: maskedLabel! })}
+                  </span>
                 ) : null}
                 {!saved && pendingProviderIds.has(option.id) ? <span className="jini-field-status-badge">{unsavedLabel}</span> : null}
               </div>
 
-              <label className="jini-field">
-                <span className="jini-field-label">{apiKeyLabel}</span>
-                <span className="jini-field-input-row">
+              <div className="jini-media-provider-fields">
+                <label className="jini-media-provider-field jini-media-provider-field--secret">
+                  <span className="jini-field-label jini-sr-only">{apiKeyLabel}</span>
                   <input
                     className="jini-input"
                     type={keyVisible ? 'text' : 'password'}
@@ -191,61 +199,61 @@ export function MediaProvidersTab({ port, catalog, initialProviders, labels }: M
                   >
                     <Icon name={keyVisible ? 'eye-off' : 'eye'} size={14} />
                   </button>
-                </span>
-              </label>
+                </label>
 
-              <label className="jini-field">
-                <span className="jini-field-label">{baseUrlLabel}</span>
-                <input
-                  className="jini-input"
-                  type="url"
-                  inputMode="url"
-                  spellCheck={false}
-                  placeholder={option.defaultBaseUrl || baseUrlPlaceholder}
-                  aria-label={`${option.label} ${baseUrlLabel}`}
-                  value={rawBaseUrl}
-                  aria-invalid={baseUrlInvalid || undefined}
-                  onChange={(event) => updateProvider(option.id, { baseUrl: event.target.value })}
-                />
-                {baseUrlInvalid ? (
-                  <span className="jini-field-hint jini-hint-error" role="alert">
-                    {baseUrlInvalidLabel}
-                  </span>
-                ) : !rawBaseUrl.trim() && effectiveBaseUrl ? (
-                  <span className="jini-field-hint">{t(baseUrlDefaultHintTemplate, { url: effectiveBaseUrl })}</span>
-                ) : null}
-              </label>
+                <label className="jini-media-provider-field">
+                  <span className="jini-field-label jini-sr-only">{baseUrlLabel}</span>
+                  <input
+                    className="jini-input"
+                    type="url"
+                    inputMode="url"
+                    spellCheck={false}
+                    placeholder={option.defaultBaseUrl || baseUrlPlaceholder}
+                    aria-label={`${option.label} ${baseUrlLabel}`}
+                    value={rawBaseUrl}
+                    aria-invalid={baseUrlInvalid || undefined}
+                    onChange={(event) => updateProvider(option.id, { baseUrl: event.target.value })}
+                  />
+                </label>
 
-              <label className="jini-field">
-                <span className="jini-field-label">{modelLabel}</span>
-                <input
-                  className="jini-input"
-                  list={option.models && option.models.length > 0 ? modelListId : undefined}
-                  spellCheck={false}
-                  placeholder={modelPlaceholder}
-                  aria-label={`${option.label} ${modelLabel}`}
-                  value={entry.model ?? ''}
-                  onChange={(event) => updateProvider(option.id, { model: event.target.value })}
-                />
                 {option.models && option.models.length > 0 ? (
-                  <datalist id={modelListId}>
-                    {option.models.map((model) => (
-                      <option key={model} value={model} />
-                    ))}
-                  </datalist>
+                  <label className="jini-media-provider-field">
+                    <span className="jini-field-label jini-sr-only">{modelLabel}</span>
+                    <input
+                      className="jini-input"
+                      list={modelListId}
+                      spellCheck={false}
+                      placeholder={modelPlaceholder}
+                      aria-label={`${option.label} ${modelLabel}`}
+                      value={entry.model ?? ''}
+                      onChange={(event) => updateProvider(option.id, { model: event.target.value })}
+                    />
+                    <datalist id={modelListId}>
+                      {option.models.map((model) => (
+                        <option key={model} value={model} />
+                      ))}
+                    </datalist>
+                  </label>
                 ) : null}
-              </label>
 
-              <button
-                type="button"
-                className="jini-button jini-button-ghost"
-                disabled={!clearable}
-                aria-label={`${option.label} ${clearLabel}`}
-                onClick={() => clearProvider(option.id)}
-              >
-                <Icon name="trash" size={13} />
-                <span>{clearLabel}</span>
-              </button>
+                <button
+                  type="button"
+                  className="jini-button jini-button-ghost"
+                  disabled={!clearable}
+                  aria-label={`${option.label} ${clearLabel}`}
+                  onClick={() => clearProvider(option.id)}
+                >
+                  {clearLabel}
+                </button>
+              </div>
+
+              {baseUrlInvalid ? (
+                <span className="jini-field-hint jini-hint-error" role="alert">
+                  {baseUrlInvalidLabel}
+                </span>
+              ) : !rawBaseUrl.trim() && effectiveBaseUrl ? (
+                <span className="jini-field-hint">{t(baseUrlDefaultHintTemplate, { url: effectiveBaseUrl })}</span>
+              ) : null}
             </div>
           );
         })}

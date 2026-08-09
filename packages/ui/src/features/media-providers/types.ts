@@ -9,12 +9,14 @@
  * None of that is product-bound — it is the same problem any host has once
  * credentials can live in two places at once.
  *
- * What is deliberately NOT ported: the origin's `MEDIA_PROVIDERS` catalog
+ * What is NOT ported verbatim: the origin's full `MEDIA_PROVIDERS` catalog
  * (`media/models.ts`, 761 lines of concrete image/video vendors with their
- * endpoints and model lists). That is product content, exactly like the
- * origin's 19-locale table that `LanguageTab` also left behind — a host
- * supplies its own `MediaProviderOption[]`, matching the convention already
- * set by `ProviderPreset` and `LocaleOption`.
+ * endpoints and model lists). Instead this feature ships a small, curated
+ * `DEFAULT_MEDIA_PROVIDER_CATALOG` (see `constants.ts`) as a starting point,
+ * not a fixed list — same convention as `execution/constants.ts`'s
+ * `DEFAULT_PROVIDER_PRESETS`. A host with its own provider roster (or a
+ * larger/different one) passes its own `catalog` to `MediaProvidersTab` to
+ * replace this wholesale.
  *
  * Also not ported: the origin's functions take and return its whole
  * `AppConfig`. Here they take and return the providers RECORD alone. Threading
@@ -53,10 +55,9 @@ export interface MediaProviderCredentials {
 export type MediaProviderMap = Record<string, MediaProviderCredentials>;
 
 /**
- * One selectable provider in the host's own catalog.
- *
- * Host-supplied — see this file's header for why the origin's concrete vendor
- * list is not ported.
+ * One selectable provider in the catalog. A host supplies its own catalog —
+ * this package ships `DEFAULT_MEDIA_PROVIDER_CATALOG` as a starting point,
+ * not as a fixed list (same convention as `ProviderPreset`).
  */
 export interface MediaProviderOption {
   id: string;

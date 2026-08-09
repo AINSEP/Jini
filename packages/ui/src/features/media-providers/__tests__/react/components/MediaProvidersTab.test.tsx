@@ -2,6 +2,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
+import { DEFAULT_MEDIA_PROVIDER_CATALOG } from '../../../constants.js';
 import { createFakeMediaProvidersPort } from '../../../dependencies.js';
 import type { MediaProvidersPort } from '../../../ports.js';
 import type { MediaProviderOption } from '../../../types.js';
@@ -22,6 +23,14 @@ describe('MediaProvidersTab', () => {
 
     const headings = screen.getAllByText(/Alpha Images|Bravo Video/).map((el) => el.textContent);
     expect(headings.indexOf('Bravo Video')).toBeLessThan(headings.indexOf('Alpha Images'));
+  });
+
+  it('falls back to DEFAULT_MEDIA_PROVIDER_CATALOG when no catalog prop is passed', async () => {
+    const port = createFakeMediaProvidersPort();
+    render(<MediaProvidersTab port={port} />);
+    const [firstProvider] = DEFAULT_MEDIA_PROVIDER_CATALOG;
+    if (!firstProvider) throw new Error('DEFAULT_MEDIA_PROVIDER_CATALOG is empty');
+    await screen.findByText(firstProvider.label);
   });
 
   it('shows a masked Saved badge for a marker-only entry', async () => {
@@ -133,7 +142,7 @@ describe('MediaProvidersTab', () => {
     expect(await screen.findByText('Unsaved')).toBeInTheDocument();
   });
 
-  it('offers a model datalist only for a catalog entry that advertises models', async () => {
+  it('renders a Model field with a datalist only for a catalog entry that advertises models', async () => {
     const port = createFakeMediaProvidersPort();
     const { container } = render(<MediaProvidersTab port={port} catalog={CATALOG} />);
     await screen.findByText('No media providers configured yet.');
@@ -142,8 +151,10 @@ describe('MediaProvidersTab', () => {
     expect(bravoModelInput).toHaveAttribute('list');
     expect(container.querySelectorAll('option[value="bravo-fast"]')).toHaveLength(1);
 
-    const alphaModelInput = screen.getByLabelText('Alpha Images Model');
-    expect(alphaModelInput).not.toHaveAttribute('list');
+    // Alpha's catalog entry has no `models`, so — matching the origin's
+    // per-provider variation (e.g. OpenAI, ElevenLabs) — it gets no Model
+    // field at all, not an empty one. See `MediaProvidersTab.tsx`.
+    expect(screen.queryByLabelText('Alpha Images Model')).not.toBeInTheDocument();
   });
 
   it('shows an unreachable notice and preserves local edits instead of clearing the form', async () => {

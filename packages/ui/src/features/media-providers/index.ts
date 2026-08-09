@@ -1,3 +1,4 @@
+export { DEFAULT_MEDIA_PROVIDER_CATALOG } from './constants.js';
 export { createFakeMediaProvidersPort, type FakeMediaProvidersPortOptions } from './dependencies.js';
 export type { MediaProvidersPort } from './ports.js';
 export {
