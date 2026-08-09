@@ -14,6 +14,7 @@
     "runtime": "universal",
     "entries": {
       ".": "universal",
+      "./core": "universal",
       "./dom": "browser",
       "./a2ui": "universal"
     }
@@ -28,15 +29,20 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
     "./dom": {
-      "types": "./dist/dom/index.d.ts",
-      "import": "./dist/dom/index.js",
-      "default": "./dist/dom/index.js"
+      "types": "./dist/core/dom/index.d.ts",
+      "import": "./dist/core/dom/index.js",
+      "default": "./dist/core/dom/index.js"
     },
     "./a2ui": {
-      "types": "./dist/a2ui/index.d.ts",
-      "import": "./dist/a2ui/index.js",
-      "default": "./dist/a2ui/index.js"
+      "types": "./dist/core/a2ui/index.d.ts",
+      "import": "./dist/core/a2ui/index.js",
+      "default": "./dist/core/a2ui/index.js"
     }
   },
   "files": [

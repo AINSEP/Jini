@@ -264,8 +264,11 @@ interface ChatPaneComposerAreaProps {
   t: (key: string) => string;
 }
 
-/** The drop target, composer, working-directory block, and cancel-run control — everything below
- * the status banners that reads/writes the live pane. */
+/** The drop target, composer, and working-directory block — everything below the status banners
+ * that reads/writes the live pane. Cancelling an in-flight run is not a separate control here: it
+ * lives in the composer's own trailing button, which swaps from send to stop while streaming (see
+ * `Composer`'s `running`/`onCancel` props) — the same control an operator's attention is already
+ * on, rather than a second affordance elsewhere in the pane they'd have to go find. */
 function ChatPaneComposerArea({
   fileDrop,
   uploadAttachments,
@@ -279,35 +282,30 @@ function ChatPaneComposerArea({
   t,
 }: ChatPaneComposerAreaProps): ReactNode {
   return (
-    <>
-      <div
-        className={`jini-chat-pane__drop-target${fileDrop.draggingFiles ? ' is-dragging-files' : ''}`}
-        data-testid="chat-pane-file-drop-target"
-        data-dragging-files={fileDrop.draggingFiles ? 'true' : 'false'}
-        {...resolveDropTargetProps(uploadAttachments, fileDrop)}
-      >
-        {fileDrop.draggingFiles ? (
-          <span className="jini-chat-pane__drop-announcement" role="status">
-            {t('Drop files to attach')}
-          </span>
-        ) : null}
-        <Composer
-          composer={pane.composer}
-          onSend={() => void pane.send()}
-          disabled={disabled || unavailable || pane.conversation.isStreaming}
-          sendDisabled={!pane.canSend}
-          {...definedProps({ placeholder })}
-          slots={slots}
-          {...resolveComposerAttachmentPicker(uploadAttachments, pane, attachmentAccept)}
-        />
-        <ChatPaneWorkingDirectoryBlock workingDirectoryAccess={workingDirectoryAccess} pane={pane} t={t} />
-      </div>
-      {pane.conversation.isStreaming ? (
-        <button type="button" className="jini-chat-pane__cancel" onClick={pane.conversation.cancel}>
-          {t('Stop run')}
-        </button>
+    <div
+      className={`jini-chat-pane__drop-target${fileDrop.draggingFiles ? ' is-dragging-files' : ''}`}
+      data-testid="chat-pane-file-drop-target"
+      data-dragging-files={fileDrop.draggingFiles ? 'true' : 'false'}
+      {...resolveDropTargetProps(uploadAttachments, fileDrop)}
+    >
+      {fileDrop.draggingFiles ? (
+        <span className="jini-chat-pane__drop-announcement" role="status">
+          {t('Drop files to attach')}
+        </span>
       ) : null}
-    </>
+      <Composer
+        composer={pane.composer}
+        onSend={() => void pane.send()}
+        disabled={disabled || unavailable || pane.conversation.isStreaming}
+        sendDisabled={!pane.canSend}
+        running={pane.conversation.isStreaming}
+        onCancel={pane.conversation.cancel}
+        {...definedProps({ placeholder })}
+        slots={slots}
+        {...resolveComposerAttachmentPicker(uploadAttachments, pane, attachmentAccept)}
+      />
+      <ChatPaneWorkingDirectoryBlock workingDirectoryAccess={workingDirectoryAccess} pane={pane} t={t} />
+    </div>
   );
 }
 

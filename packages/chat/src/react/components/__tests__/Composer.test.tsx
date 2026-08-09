@@ -94,6 +94,33 @@ describe('Composer', () => {
     expect(screen.getByRole('button', { name: 'Attaching files…' })).toBeDisabled();
   });
 
+  it('swaps the send button for a stop button while running, calling onCancel instead of onSend', async () => {
+    const onSend = vi.fn();
+    const onCancel = vi.fn();
+    const { result } = renderHook(() => useComposer());
+    render(<Composer composer={result.current} onSend={onSend} running onCancel={onCancel} />);
+
+    expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    const stop = screen.getByRole('button', { name: 'Stop run' });
+    await userEvent.click(stop);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('keeps the stop button clickable even when disabled/sendDisabled would gate the send button', async () => {
+    // `disabled`/`sendDisabled` gate submitting a NEW draft — irrelevant to cancelling a run
+    // already in flight, which is why running ignores both rather than inheriting them.
+    const onCancel = vi.fn();
+    const { result } = renderHook(() => useComposer());
+    render(
+      <Composer composer={result.current} onSend={() => {}} disabled sendDisabled running onCancel={onCancel} />,
+    );
+    const stop = screen.getByRole('button', { name: 'Stop run' });
+    expect(stop).not.toBeDisabled();
+    await userEvent.click(stop);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
   it('can disable only submission while keeping draft editing available', async () => {
     const onSend = vi.fn();
     const { result } = renderHook(() => useComposer({ initialDraft: 'editable' }));

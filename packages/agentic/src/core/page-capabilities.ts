@@ -13,7 +13,7 @@ import type { CapabilityDef } from './capability.js';
 
 /** Handle argument shared by every element-addressed verb. */
 const HANDLE_PROPERTY = {
-  element: {
+  handle: {
     type: 'string',
     description:
       'The data-agent-element handle of the target, as returned by page.find_elements. Not a CSS selector.',
@@ -61,7 +61,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
           description: 'How long the marker stays, in milliseconds. Defaults to a few seconds; capped by the host.',
         },
       },
-      required: ['element'],
+      required: ['handle'],
       additionalProperties: false,
     },
     // Transient and self-clearing: it shows the user something rather than changing anything.
@@ -74,7 +74,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
     inputSchema: {
       type: 'object',
       properties: { ...HANDLE_PROPERTY },
-      required: ['element'],
+      required: ['handle'],
       additionalProperties: false,
     },
     risk: 'read',
@@ -87,7 +87,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
     inputSchema: {
       type: 'object',
       properties: { ...HANDLE_PROPERTY },
-      required: ['element'],
+      required: ['handle'],
       additionalProperties: false,
     },
     risk: 'write',
@@ -103,7 +103,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
         ...HANDLE_PROPERTY,
         text: { type: 'string', description: 'The text to place in the field, replacing what is there.' },
       },
-      required: ['element', 'text'],
+      required: ['handle', 'text'],
       additionalProperties: false,
     },
     risk: 'write',
@@ -128,7 +128,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
             'Whether the option should end up chosen. Defaults to true. Set to false to toggle membership off in a multi-select; refused on a single-select, which cannot be left with its choice removed.',
         },
       },
-      required: ['element', 'option'],
+      required: ['handle', 'option'],
       additionalProperties: false,
     },
     risk: 'write',

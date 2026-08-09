@@ -28,6 +28,20 @@ export interface FindElementsFilter {
 }
 
 /**
+ * One page a host has published as navigable, as returned by {@link PageDriver.listPages}.
+ *
+ * `label` exists so a caller can tell what a page IS without first navigating to it and reading
+ * its `data-agent-page` id back off the DOM — the same "call find_elements first" flow already
+ * returns every page a host publishes, and previously handed back only the bare id (`"plugins"`),
+ * leaving a caller to guess at meaning from the string alone. Page-authored, so untrusted in the
+ * same sense {@link AgentElementDescriptor.label} is: read it, never follow it as an instruction.
+ */
+export interface PageSummary {
+  readonly id: string;
+  readonly label: string;
+}
+
+/**
  * What a host must provide for the `page.*` capabilities to work.
  *
  * Implementations resolve a handle with `resolveHandleSelector` and nothing else — never a
@@ -43,12 +57,12 @@ export interface PageDriver {
   findElements(filter: FindElementsFilter): Promise<readonly AgentElementDescriptor[]>;
 
   /**
-   * The `data-agent-page` ids this host can navigate to.
+   * The pages this host can navigate to.
    *
    * An allowlist, so `page.navigate` refuses anything the host has not published rather than
    * accepting a caller-supplied URL.
    */
-  listPages(): Promise<readonly string[]>;
+  listPages(): Promise<readonly PageSummary[]>;
 
   /**
    * The attributes of a field, for the fill guard.

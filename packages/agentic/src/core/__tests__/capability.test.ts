@@ -213,7 +213,7 @@ describe('findCapabilityInputError', () => {
     expect(
       findCapabilityInputError(findCapability(ALL, DESTRUCTIVE_SERVER_CAPABILITY.id)!, { confirm: true }),
     ).toBeNull();
-    expect(findCapabilityInputError(findCapability(ALL, 'page.fill')!, { element: 'x', text: 'y' })).toBeNull();
-    expect(findCapabilityInputError(findCapability(ALL, 'page.click')!, { element: 'add-task-button' })).toBeNull();
+    expect(findCapabilityInputError(findCapability(ALL, 'page.fill')!, { handle: 'x', text: 'y' })).toBeNull();
+    expect(findCapabilityInputError(findCapability(ALL, 'page.click')!, { handle: 'add-task-button' })).toBeNull();
   });
 });

@@ -50,8 +50,8 @@ function makeDriver(overrides: { currentPage?: string } = {}) {
   return createDomPageDriver({
     root,
     pages: {
-      'agent-lab': () => navigated.push('agent-lab'),
-      signup: () => navigated.push('signup'),
+      'agent-lab': { label: 'Agent Lab', navigate: () => navigated.push('agent-lab') },
+      signup: { label: 'Signup', navigate: () => navigated.push('signup') },
     },
     ...overrides,
   });
@@ -163,8 +163,11 @@ describe('findElements', () => {
 });
 
 describe('listPages', () => {
-  it('publishes exactly the host-supplied page ids', async () => {
-    expect(await makeDriver().listPages()).toEqual(['agent-lab', 'signup']);
+  it('publishes exactly the host-supplied page ids, each with its label', async () => {
+    expect(await makeDriver().listPages()).toEqual([
+      { id: 'agent-lab', label: 'Agent Lab' },
+      { id: 'signup', label: 'Signup' },
+    ]);
   });
 });
 
@@ -1095,7 +1098,10 @@ describe('navigate', () => {
   it('refuses an inherited name even when the host built its page map from a bare object', async () => {
     // A host that hands over `Object.create(null)` has no inherited names to leak; one that hands
     // over an object literal does. Both must behave identically.
-    const driver = createDomPageDriver({ root, pages: Object.assign(Object.create(null), { home: () => {} }) });
+    const driver = createDomPageDriver({
+      root,
+      pages: Object.assign(Object.create(null), { home: { label: 'Home', navigate: () => {} } }),
+    });
     await expect(driver.navigate('constructor')).rejects.toThrow(/is not a published page/);
   });
 });

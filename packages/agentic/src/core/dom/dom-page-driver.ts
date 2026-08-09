@@ -218,11 +218,19 @@ function describe(element: Element, page: string | undefined): AgentElementDescr
   };
 }
 
+/** One page a host allows navigation to: its human label, and how to actually get there. */
+export interface DomPageDriverPage {
+  /** Shown to a caller by `page.find_elements`/`page.navigate`'s refusal message — see
+   *  `PageSummary.label` for why this exists at all. */
+  readonly label: string;
+  readonly navigate: () => void;
+}
+
 export interface DomPageDriverOptions {
   /** The subtree to expose. Never pass `document`. */
   readonly root: ParentNode & { querySelector: Element['querySelector'] };
-  /** Page ids this driver may navigate to, and how to get there. */
-  readonly pages: Readonly<Record<string, () => void>>;
+  /** Page ids this driver may navigate to, each with its label and how to get there. */
+  readonly pages: Readonly<Record<string, DomPageDriverPage>>;
   /**
    * The id of the page currently shown, reported on every element.
    *
@@ -344,7 +352,10 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     },
 
     async listPages() {
-      return Object.keys(pages);
+      // `Object.entries`, same own-enumerable-keys-only guarantee `Object.keys` gives `navigate`'s
+      // own `hasOwnProperty` check above — no risk of a `pages.label`/`pages.navigate`-shaped
+      // prototype entry leaking in as a fake page id.
+      return Object.entries(pages).map(([id, page]) => ({ id, label: page.label }));
     },
 
     async describeField(handle) {
@@ -582,7 +593,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       // the executor entirely, hands `page` in unsanitized, so the same bound-and-strip treatment
       // applies here too rather than assuming the only caller is the one that already checked.
       if (!published) throw new Error(`"${normalizeAgentLabel(page).text}" is not a published page`);
-      pages[page]!();
+      pages[page]!.navigate();
     },
   };
 }

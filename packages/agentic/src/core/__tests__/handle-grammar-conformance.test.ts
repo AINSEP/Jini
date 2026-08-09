@@ -25,7 +25,7 @@ import { isValidElementHandle } from '../element-handles.js';
  * exactly the "must be revisited deliberately" the other module asks for.
  */
 const REGIONS_SOURCE_PATH = fileURLToPath(
-  new URL('../../../vibecoding/src/html/regions.ts', import.meta.url),
+  new URL('../../../../vibecoding/src/html/regions.ts', import.meta.url),
 );
 
 function extractRegionGrammar(): { test: (handle: string) => boolean } {

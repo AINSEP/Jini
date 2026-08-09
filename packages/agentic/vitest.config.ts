@@ -2,11 +2,12 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // The root half of this package (everything outside src/dom/) is DOM-free by construction —
-    // see tsconfig.json's exclude and source-map.md's "DOM split" section — so it runs under
-    // vitest's default 'node' environment. Only src/dom/** (the browser PageDriver) needs a DOM
-    // to exercise, hence the scoped override rather than a package-wide 'jsdom' environment.
-    environmentMatchGlobs: [['src/dom/**', 'jsdom']],
+    // The root half of this package (everything outside src/core/dom/) is DOM-free by
+    // construction — see tsconfig.json's exclude and source-map.md's "DOM split" section — so it
+    // runs under vitest's default 'node' environment. Only src/core/dom/** (the browser
+    // PageDriver) needs a DOM to exercise, hence the scoped override rather than a package-wide
+    // 'jsdom' environment.
+    environmentMatchGlobs: [['src/core/dom/**', 'jsdom']],
     coverage: {
       provider: 'v8',
       // The v8 text table silently drops rows once there are many files —

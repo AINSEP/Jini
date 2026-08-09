@@ -18,7 +18,7 @@ import { createDomPageDriver } from '../dom-page-driver.js';
 let root: HTMLElement;
 
 function makeDriver() {
-  return createDomPageDriver({ root, pages: { home: () => undefined } });
+  return createDomPageDriver({ root, pages: { home: { label: 'Home', navigate: () => undefined } } });
 }
 
 function mount(html: string): void {

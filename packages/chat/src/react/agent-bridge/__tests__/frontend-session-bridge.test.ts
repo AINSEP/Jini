@@ -58,7 +58,7 @@ function createDriver(overrides: Partial<PageDriver> = {}): PageDriver {
     findElements: vi.fn(async () => [
       { handle: 'save-button', role: 'button' as const, label: 'Save', labelTruncated: false, page: 'home' },
     ]),
-    listPages: vi.fn(async () => ['home']),
+    listPages: vi.fn(async () => [{ id: 'home', label: 'Home' }]),
     selectOption: vi.fn(async () => undefined),
     describeField: vi.fn(async () => null),
     highlight: vi.fn(async () => undefined),
@@ -138,7 +138,7 @@ describe('attachment', () => {
     const bridge = createFrontendSessionBridge({ pageDriver: createDriver() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's2', bindToken: 't2' });
-    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } });
+    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
     expect(fetchMock.mock.calls[0]?.[0]).toContain('/api/frontend-sessions/s2/responses');
   });
@@ -181,7 +181,7 @@ describe('routing invocations', () => {
     const driver = createDriver();
     const bridge = createFrontendSessionBridge({ pageDriver: driver });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
-    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } });
+    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
 
     expect(driver.click).toHaveBeenCalledWith('save-button');
@@ -240,7 +240,7 @@ describe('routing invocations', () => {
     // schema to a validation-error message (ai-control-plane.md §29.4's "schema-on-error"), so the
     // real refusal text is longer than this test's original snapshot — the intent here is "the
     // executor's refusal propagates unmodified", not "the message never changes shape".
-    expect(postedBodies()[0]).toMatchObject({ ok: false, message: expect.stringContaining('page.click: "element" is required') });
+    expect(postedBodies()[0]).toMatchObject({ ok: false, message: expect.stringContaining('page.click: "handle" is required') });
     void bridge;
   });
 
@@ -257,9 +257,9 @@ describe('routing invocations', () => {
     const onInvocation = vi.fn();
     createFrontendSessionBridge({ pageDriver: createDriver(), onInvocation });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
-    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } });
+    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
-    expect(onInvocation).toHaveBeenCalledWith({ invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } });
+    expect(onInvocation).toHaveBeenCalledWith({ invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
   });
 });
 
@@ -269,7 +269,7 @@ describe('replay suppression', () => {
     const driver = createDriver();
     createFrontendSessionBridge({ pageDriver: driver });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
-    const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } };
+    const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
     await flush();
     FakeEventSource.last?.emit(frame);
@@ -283,7 +283,7 @@ describe('replay suppression', () => {
     const onInvocation = vi.fn();
     createFrontendSessionBridge({ pageDriver: createDriver(), onInvocation });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
-    const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } };
+    const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
     FakeEventSource.last?.emit(frame);
     await flush();
@@ -295,16 +295,16 @@ describe('replay suppression', () => {
     createFrontendSessionBridge({ pageDriver: driver });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     for (let index = 0; index < 300; index += 1) {
-      FakeEventSource.last?.emit({ type: 'invocation', invocationId: `i${index}`, capabilityId: 'page.click', input: { element: 'save-button' } });
+      FakeEventSource.last?.emit({ type: 'invocation', invocationId: `i${index}`, capabilityId: 'page.click', input: { handle: 'save-button' } });
     }
     await flush();
     // The very first id has aged out, so its redelivery runs again — the deliberate trade for a
     // bounded set. Recent ids, which are the ones a retry actually concerns, are still protected.
-    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i0', capabilityId: 'page.click', input: { element: 'save-button' } });
+    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i0', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
     expect(driver.click).toHaveBeenCalledTimes(301);
 
-    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i299', capabilityId: 'page.click', input: { element: 'save-button' } });
+    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i299', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
     expect(driver.click).toHaveBeenCalledTimes(301);
   });
@@ -348,9 +348,9 @@ describe('malformed and unexpected frames', () => {
     const onError = vi.fn();
     createFrontendSessionBridge({ pageDriver: driver, onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
-    FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { element: 'a' } });
+    FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { handle: 'a' } });
     await flush();
-    FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { element: 'b' } });
+    FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click', input: { handle: 'b' } });
     await flush();
     expect(driver.click).not.toHaveBeenCalled();
     expect(onError).toHaveBeenCalledTimes(2);
@@ -388,7 +388,7 @@ describe('answering the daemon', () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     createFrontendSessionBridge({ pageDriver: createDriver(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
-    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } });
+    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await flush();
     expect(onError).toHaveBeenCalled();
   });
@@ -397,7 +397,7 @@ describe('answering the daemon', () => {
     fetchMock.mockRejectedValue(new Error('offline'));
     createFrontendSessionBridge({ pageDriver: createDriver() });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
-    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { element: 'save-button' } });
+    FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } });
     await expect(flush()).resolves.toBeUndefined();
   });
 

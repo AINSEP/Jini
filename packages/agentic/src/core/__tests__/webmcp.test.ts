@@ -27,13 +27,13 @@ describe('webmcp projection', () => {
     // WebMCP names the schema field `inputSchema` — see ag-ui.test for the contrast.
     expect(tool.inputSchema).toBe(HIGHLIGHT.inputSchema);
 
-    await tool.execute({ element: 'task-water-plants' });
-    expect(execute).toHaveBeenCalledWith('page.highlight', { element: 'task-water-plants' });
+    await tool.execute({ handle: 'task-water-plants' });
+    expect(execute).toHaveBeenCalledWith('page.highlight', { handle: 'task-water-plants' });
   });
 
   // Uses page.find_elements rather than page.highlight (used above): every field on that
   // capability is optional, so `{}` is a genuinely *valid* call under the schema-on-error check
-  // added below. page.highlight requires `element` — substituting `{}` for "nothing passed" would
+  // added below. page.highlight requires `handle` — substituting `{}` for "nothing passed" would
   // now correctly be refused as a missing-required-field error, which is a different behavior
   // (covered in "schema-on-error discipline" below) and would make this test assert the wrong
   // thing if it kept using HIGHLIGHT.
@@ -233,7 +233,7 @@ describe('schema-on-error discipline (matches page-executor.ts for page.*)', () 
     const execute = vi.fn();
     const tool = toWebMcpTool(HIGHLIGHT, execute);
     await expect(tool.execute({})).rejects.toThrow(
-      `page.highlight: "element" is required. Expected input: ${JSON.stringify(HIGHLIGHT.inputSchema)}`,
+      `page.highlight: "handle" is required. Expected input: ${JSON.stringify(HIGHLIGHT.inputSchema)}`,
     );
     expect(execute).not.toHaveBeenCalled();
   });
@@ -241,14 +241,14 @@ describe('schema-on-error discipline (matches page-executor.ts for page.*)', () 
   it('refuses a call whose field has the wrong type', async () => {
     const execute = vi.fn();
     const tool = toWebMcpTool(HIGHLIGHT, execute);
-    await expect(tool.execute({ element: 42 })).rejects.toThrow(/"element" must be a string/);
+    await expect(tool.execute({ handle: 42 })).rejects.toThrow(/"handle" must be a string/);
     expect(execute).not.toHaveBeenCalled();
   });
 
   it('refuses an unknown argument when the schema declares additionalProperties: false', async () => {
     const execute = vi.fn();
     const tool = toWebMcpTool(HIGHLIGHT, execute);
-    await expect(tool.execute({ element: 'x', bogus: true })).rejects.toThrow(/unknown argument: bogus/);
+    await expect(tool.execute({ handle: 'x', bogus: true })).rejects.toThrow(/unknown argument: bogus/);
     expect(execute).not.toHaveBeenCalled();
   });
 

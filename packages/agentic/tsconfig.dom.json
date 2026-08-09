@@ -5,5 +5,5 @@
     "rootDir": "src",
     "lib": ["ES2023", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/dom"]
+  "include": ["src/core/dom"]
 }

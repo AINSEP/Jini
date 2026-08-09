@@ -31,6 +31,16 @@ export interface ComposerProps {
     accept?: string;
     uploading?: boolean;
   };
+  /**
+   * A run is currently streaming. Swaps the trailing send button for a stop button in the same
+   * position — same control an operator already has their attention on, rather than a second,
+   * separately placed cancel affordance elsewhere in the pane. Always clickable when true,
+   * regardless of `disabled`/`sendDisabled`/`composer.canSubmit`: those all gate *submitting a new
+   * draft*, which has nothing to do with whether a caller may cancel the run already in flight.
+   */
+  running?: boolean;
+  /** Cancels the in-flight run. Required when `running` is true; ignored otherwise. */
+  onCancel?: () => void;
 }
 
 /**
@@ -47,6 +57,8 @@ export function Composer({
   placeholder,
   slots,
   attachmentPicker,
+  running = false,
+  onCancel,
 }: ComposerProps) {
   const t = useT();
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
@@ -119,9 +131,15 @@ export function Composer({
             ))}
           </div>
         ) : null}
-        <button type="button" className="jini-composer-send" disabled={disabled || sendDisabled || !composer.canSubmit} onClick={onSend} title={t('Send')} aria-label={t('Send')}>
-          <RemixIcon name="send-plane-2-line" size={16} />
-        </button>
+        {running ? (
+          <button type="button" className="jini-composer-send jini-composer-send--stop" onClick={onCancel} title={t('Stop run')} aria-label={t('Stop run')}>
+            <RemixIcon name="stop-fill" size={14} />
+          </button>
+        ) : (
+          <button type="button" className="jini-composer-send" disabled={disabled || sendDisabled || !composer.canSubmit} onClick={onSend} title={t('Send')} aria-label={t('Send')}>
+            <RemixIcon name="send-plane-2-line" size={16} />
+          </button>
+        )}
       </div>
     </div>
   );

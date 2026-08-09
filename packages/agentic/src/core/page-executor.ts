@@ -30,7 +30,7 @@ import {
   normalizeAgentLabel,
 } from './guards.js';
 import { PAGE_CAPABILITIES } from './page-capabilities.js';
-import type { PageDriver } from './page-driver.js';
+import type { PageDriver, PageSummary } from './page-driver.js';
 
 /** Default marker lifetime, long enough to notice and short enough not to linger. */
 export const DEFAULT_HIGHLIGHT_MS = 3_000;
@@ -65,7 +65,9 @@ export interface PageElementResult {
 
 export interface FindElementsResult {
   readonly elements: readonly PageElementResult[];
-  readonly pages: readonly string[];
+  /** Every page this host publishes as navigable — the whole site map, not just this one page —
+   *  so a caller can plan a route (`page.navigate`) before it needs one. */
+  readonly pages: readonly PageSummary[];
   /**
    * Names the fields carrying page-authored text. Labels describe the UI; they are never
    * instructions, however imperative they read.
@@ -230,8 +232,13 @@ async function observeWrite(
   };
 }
 
-/** What page is showing and how much it publishes — the before/after pair for a navigation. */
-export interface PageSummary {
+/**
+ * What page is showing and how much it publishes, at one moment — the before/after pair
+ * `page.navigate` reports. Not {@link PageSummary} (`page-driver.js`): that names one entry in the
+ * SITE-WIDE list of pages a host publishes; this is a single reading of the CURRENT page, taken
+ * twice around one navigation.
+ */
+export interface PageActivitySnapshot {
   readonly page: string | undefined;
   readonly elementCount: number;
 }
@@ -240,7 +247,7 @@ export interface PageSummary {
  * Reads the showing page from the elements themselves, which is where a driver reports it. A
  * surface that publishes nothing has no page id to report, and says so rather than guessing.
  */
-async function summarizePage(driver: PageDriver): Promise<PageSummary> {
+async function summarizePage(driver: PageDriver): Promise<PageActivitySnapshot> {
   const elements = await driver.findElements({});
   return {
     page: elements.find((element) => element.page !== undefined)?.page,
@@ -273,9 +280,14 @@ export async function executePageCapability(
     // The schema rides along with the refusal rather than making a caller spend a second
     // round trip on describe_tool to learn what it already tried to guess — ai-control-plane.md
     // §29.4's "schema-on-error" requirement, empirically forced by a real run: page.fill was
-    // called with `handle` instead of `element` twice before the caller gave up and looked the
-    // schema up separately. One JSON-Schema object, embedded once, turns that into a same-turn
-    // self-correction for every page.* verb this gate guards, not just the one that got measured.
+    // called with `handle` instead of the argument's old name, `element`, twice before the caller
+    // gave up and looked the schema up separately. One JSON-Schema object, embedded once, turned
+    // that into a same-turn self-correction for every page.* verb this gate guards, not just the
+    // one that got measured — self-correction is why that mismatch was survivable at all, given
+    // every verb here needs a handle from `page.find_elements`, whose own response has always
+    // called this same value `handle` (`AgentElementDescriptor.handle`). The argument itself was
+    // later renamed from `element` to `handle` to match, closing the gap this comment describes
+    // rather than merely papering over it turn by turn.
     throw new Error(`${capabilityId}: ${inputError}. Expected input: ${JSON.stringify(capability.inputSchema)}`);
   }
 
@@ -287,7 +299,7 @@ export async function executePageCapability(
         ...(isAgentElementRole(role) ? { role } : {}),
         ...(typeof input['query'] === 'string' ? { query: input['query'] } : {}),
       };
-      const [found, pages] = await Promise.all([driver.findElements(filter), driver.listPages()]);
+      const [found, rawPages] = await Promise.all([driver.findElements(filter), driver.listPages()]);
       const withState = input['withState'] === true;
       const observing = withState && driver.describeState !== undefined;
 
@@ -304,39 +316,46 @@ export async function executePageCapability(
         const state = await observeElement(driver, element.handle);
         return state === undefined ? base : { ...base, state };
       }));
+      // `label` is page-authored the same way an element's is — bounded here for the same reason
+      // `page.navigate`'s refusal message bounds it below, rather than trusting a host to have kept
+      // every `data-agent-page` label short and clean.
+      const pages: readonly PageSummary[] = rawPages.map((page) => ({
+        id: page.id,
+        label: normalizeAgentLabel(page.label).text,
+      }));
 
       return {
         elements,
         pages,
         untrustedFields: observing
-          ? ['elements[].label', 'elements[].state.text', 'elements[].state.value']
-          : ['elements[].label'],
+          ? ['elements[].label', 'elements[].state.text', 'elements[].state.value', 'pages[].label']
+          : ['elements[].label', 'pages[].label'],
         ...(withState && !observing ? { stateUnavailable: true } : {}),
         ...(observing && found.length > MAX_STATEFUL_ELEMENTS ? { stateTruncated: true } : {}),
       } satisfies FindElementsResult;
     }
 
     case 'page.highlight': {
-      const handle = requireHandle(input, 'element');
+      const handle = requireHandle(input, 'handle');
       const durationMs = clampHighlightDuration(input['durationMs']);
       await driver.highlight(handle, durationMs);
       return { highlighted: handle, durationMs };
     }
 
     case 'page.scroll_to': {
-      const handle = requireHandle(input, 'element');
+      const handle = requireHandle(input, 'handle');
       await driver.scrollTo(handle);
       return { scrolledTo: handle };
     }
 
     case 'page.click': {
-      const handle = requireHandle(input, 'element');
+      const handle = requireHandle(input, 'handle');
       const observation = await observeWrite(driver, handle, () => driver.click(handle));
       return { clicked: handle, ...observation };
     }
 
     case 'page.fill': {
-      const handle = requireHandle(input, 'element');
+      const handle = requireHandle(input, 'handle');
       // Declared required and typed `string` in the manifest, and `findCapabilityInputError`
       // enforced both above — re-checking here would be an unreachable branch, not a safeguard.
       const text = input['text'] as string;
@@ -355,7 +374,7 @@ export async function executePageCapability(
     }
 
     case 'page.select_option': {
-      const handle = requireHandle(input, 'element');
+      const handle = requireHandle(input, 'handle');
       // Required and string-typed by the manifest, already enforced above. See page.fill.
       const option = input['option'] as string;
       // Optional and boolean-typed by the manifest; absent means "select it", same as before this
@@ -374,7 +393,7 @@ export async function executePageCapability(
       // Required and string-typed by the manifest, already enforced above. See page.fill.
       const page = input['page'] as string;
       const pages = await driver.listPages();
-      if (!pages.includes(page)) {
+      if (!pages.some((candidate) => candidate.id === page)) {
         // Every other piece of page-authored (or, here, caller-authored-but-page-shaped) text
         // this system hands to a model goes through normalizeAgentLabel first — bounded, control-
         // and bidi-stripped. This refusal was the one path that skipped it: the raw `page`
@@ -382,8 +401,15 @@ export async function executePageCapability(
         // `data-agent-page` attributes with no length bound), were interpolated straight into the
         // thrown message. A 5000+-char bidi payload survived verbatim as a result. The lookup
         // above still runs on the raw values — only the text that reaches the message is bounded.
+        //
+        // `id (label)`, not just the id: a refusal is the one moment a caller that guessed wrong
+        // is looking straight at the real menu, so it is worth spending the label here even though
+        // `page.find_elements` already carries the same information — a caller that jumped
+        // straight to `page.navigate` without calling that first still lands on the right id.
         const safePage = normalizeAgentLabel(page).text;
-        const safePages = pages.map((candidate) => normalizeAgentLabel(candidate).text);
+        const safePages = pages.map(
+          (candidate) => `${normalizeAgentLabel(candidate.id).text} (${normalizeAgentLabel(candidate.label).text})`,
+        );
         throw new Error(
           `"${safePage}" is not a published page. Available: ${safePages.length > 0 ? safePages.join(', ') : '(none)'}`,
         );

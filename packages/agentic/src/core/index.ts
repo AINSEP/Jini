@@ -27,7 +27,7 @@ export {
   type CapabilitySurface,
 } from './capability.js';
 
-export type { PageDriver, FindElementsFilter } from './page-driver.js';
+export type { PageDriver, FindElementsFilter, PageSummary } from './page-driver.js';
 
 export {
   executePageCapability,
@@ -37,7 +37,7 @@ export {
   MAX_STATEFUL_ELEMENTS,
   type FindElementsResult,
   type PageElementResult,
-  type PageSummary,
+  type PageActivitySnapshot,
   type PageWriteObservation,
 } from './page-executor.js';
 

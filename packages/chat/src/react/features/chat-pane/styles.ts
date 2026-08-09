@@ -398,17 +398,6 @@ export const CHAT_PANE_STYLES = `
   background: #ece8e2;
   cursor: default;
 }
-.jini-chat-pane__cancel {
-  position: absolute;
-  right: 48px;
-  bottom: 22px;
-  padding: 5px 9px;
-  color: var(--jini-chat-muted);
-  background: var(--jini-chat-panel);
-  border: 1px solid var(--jini-chat-border);
-  border-radius: 7px;
-  cursor: pointer;
-}
 .jini-chat-pane__workdir {
   display: flex;
   align-items: center;

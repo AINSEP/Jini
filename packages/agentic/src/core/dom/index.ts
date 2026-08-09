@@ -7,7 +7,12 @@
  *
  * `@jini-ai/chat-react` is this package's one in-repo consumer today.
  */
-export { createDomPageDriver, currentAgentPage, type DomPageDriverOptions } from './dom-page-driver.js';
+export {
+  createDomPageDriver,
+  currentAgentPage,
+  type DomPageDriverOptions,
+  type DomPageDriverPage,
+} from './dom-page-driver.js';
 
 /**
  * WebMCP feature detection — moved 2026-07-26 from `@jini-ai/ui`'s `agent-tools/model-context.ts`
