@@ -1,0 +1,4 @@
+{
+  "$comment": "Example only, not real config. `com.anthropic.claude-code` follows the reverse-DNS convention Agent Plugins §8.2 describes (a client that controls a domain uses its reverse), but the spec publishes no namespace registry — this string is a plausible guess, not a confirmed/registered Claude Code identifier. The spec assigns no portable semantics to what's inside a client's own namespace directory in any case, so this file's shape is illustrative only.",
+  "hooks": []
+}

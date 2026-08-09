@@ -1,0 +1,54 @@
+{
+  "name": "@jini-ai/plugins",
+  "version": "0.1.0",
+  "description": "Agent Plugins (open standard) packaging support for Jini: manifest types and validation in `/core`, plus ready-to-use sample plugins under `samples/`.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugins"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "agent-plugin-packaging",
+    "runtime": "universal"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "samples",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9"
+  }
+}
