@@ -11,10 +11,15 @@
  *
  * ## Styling contract
  *
- * **Every component here is unstyled.** They emit stable class names (`.cms-nav`, `.row-menu-*`,
- * `.confirm-dialog`, `.btn-danger`, `.btn-warning`, `.btn-secondary`, `.visually-hidden`) and ship
- * no CSS whatsoever. The host owns the stylesheet. Inline styles appear only where a value must be
- * measured at runtime — portal coordinates in `Sidebar`'s rail tooltip and `RowMenu`'s popup.
+ * **Every component here is unstyled**, with one narrow exception. Most emit stable class names
+ * (`.cms-nav`, `.row-menu-*`, `.confirm-dialog`, `.btn-danger`, `.btn-warning`, `.btn-secondary`,
+ * `.visually-hidden`) and ship no CSS whatsoever — the host owns the stylesheet. Inline styles
+ * appear only where a value must be measured at runtime — portal coordinates in `Sidebar`'s rail
+ * tooltip and `RowMenu`'s popup. `InteractiveHtmlEditor` is the exception: it (transitively, via
+ * `@jini-ai/ui/html-editor`, which this file's own `InteractiveHtmlEditor` composes with a
+ * Tovu-specific embed-protection predicate) imports GrapesJS's own vendor stylesheet, because it
+ * wraps a third-party editor whose chrome does not render without it — see that primitive's file
+ * header for why this isn't authored styling the exception undoes.
  *
  * A few behaviors documented in these files assume the host defines a matching rule (for instance
  * that `.visually-hidden` is `position: absolute`, so `ConfirmButton`'s live region does not
@@ -43,6 +48,12 @@ export type { ConfirmDialogProps } from './components/ConfirmDialog/ConfirmDialo
 export { DataTable } from './components/DataTable.js';
 export type { DataTableColumn, DataTableProps } from './components/DataTable.js';
 
+// Visual click-into-text editing surface for a bespoke HTML document, built on GrapesJS. See its
+// own file header for the styling-contract exception it carries (vendor CSS import) and the
+// embed-placeholder protection it owns.
+export { InteractiveHtmlEditor } from './components/InteractiveHtmlEditor/InteractiveHtmlEditor.js';
+export type { InteractiveHtmlEditorProps } from './components/InteractiveHtmlEditor/InteractiveHtmlEditor.js';
+
 export { RowMenu } from './components/RowMenu/RowMenu.js';
 export type { RowMenuItem, RowMenuProps } from './components/RowMenu/RowMenu.js';
 
@@ -62,3 +73,5 @@ export type {
 
 export { DEFAULT_SIDEBAR_RAIL_STORAGE_KEY, useSidebarRail } from './hooks/use-sidebar-rail.js';
 export type { SidebarRail } from './hooks/use-sidebar-rail.js';
+export { DEFAULT_NAV_SECTIONS_STORAGE_KEY, useNavSections } from './hooks/use-nav-sections.js';
+export type { NavSections, NavSectionState } from './hooks/use-nav-sections.js';

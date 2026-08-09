@@ -107,17 +107,30 @@ export function panelHref(panelId: string): string {
 /**
  * The agent-navigable page ids: panel id -> route path.
  *
- * Derived from `agentReachable`, which defaults false — so this is an allowlist populated only by
- * deliberate opt-in, exactly as the reference implementation's hand-maintained page-map module
- * was. Detail routes are never included; see `AdminPanel.agentReachable`.
+ * Derived from `agentReachable`, which is left unset on most panels and falls back to
+ * `options.defaultReachable` (itself defaulting to `false`) — so with no options this is an
+ * allowlist populated only by deliberate opt-in, exactly as the reference implementation's
+ * hand-maintained page-map module was. An explicit `agentReachable: false` on a panel always
+ * excludes it regardless of `defaultReachable`, so a host that flips the default can still opt a
+ * specific panel back out. Detail routes are never gated by either — see `AdminPanel.agentReachable`.
+ *
+ * `defaultReachable: true` is for a host that has decided navigation-only reachability (getting an
+ * agent TO a page) carries no meaningful risk on its own — actually operating a page's controls is
+ * a separate, still per-element opt-in (`data-agent-element`) that this default has no effect on.
+ * A host for which that isn't true (a panel an agent should never even be told exists) should keep
+ * the default false and opt in per panel instead.
  *
  * Note the ordering dependency: callers must pass the **resolved** panel set, not the raw one, or
  * an agent could navigate to a panel whose capability is not wired.
  */
-export function buildAgentPageMap<T>(panels: readonly AdminPanel<T>[]): Readonly<Record<string, string>> {
+export function buildAgentPageMap<T>(
+  panels: readonly AdminPanel<T>[],
+  options: { readonly defaultReachable?: boolean } = {},
+): Readonly<Record<string, string>> {
+  const defaultReachable = options.defaultReachable ?? false;
   const map: Record<string, string> = {};
   panels.forEach((panel) => {
-    if (panel.agentReachable === true) map[panel.id] = panelHref(panel.id);
+    if ((panel.agentReachable ?? defaultReachable) === true) map[panel.id] = panelHref(panel.id);
 
     // A param-free detail route carrying an `agentPageId` is a destination in its own right —
     // the reference implementation publishes `widget-regions -> /widgets/regions` exactly this

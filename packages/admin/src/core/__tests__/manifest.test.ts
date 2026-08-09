@@ -157,6 +157,28 @@ describe('buildAgentPageMap', () => {
     ];
     expect(buildAgentPageMap(panels)).toEqual({});
   });
+
+  describe('defaultReachable', () => {
+    it('includes a panel that left agentReachable unset, when the host opts into the flipped default', () => {
+      const panels = [p('users'), p('dashboard')];
+      expect(buildAgentPageMap(panels, { defaultReachable: true })).toEqual({ users: '/users', dashboard: '/' });
+    });
+
+    it('still excludes a panel with an explicit agentReachable: false, even under the flipped default', () => {
+      const panels = [p('secrets', { agentReachable: false })];
+      expect(buildAgentPageMap(panels, { defaultReachable: true })).toEqual({});
+    });
+
+    it('still includes an explicit agentReachable: true, whichever way the default is set', () => {
+      const panels = [p('users', { agentReachable: true })];
+      expect(buildAgentPageMap(panels, { defaultReachable: false })).toEqual({ users: '/users' });
+    });
+
+    it('defaults to false when omitted — identical to calling with no options at all', () => {
+      const panels = [p('secrets')];
+      expect(buildAgentPageMap(panels, {})).toEqual({});
+    });
+  });
 });
 
 describe('resolveAgentPageId', () => {

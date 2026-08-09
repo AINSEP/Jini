@@ -13,6 +13,7 @@ import {
 import { createPortal } from 'react-dom';
 import type { AdminNavGroup, AdminNavItem } from '../../core/manifest/rules.js';
 import { DEFAULT_ADMIN_BASE, adminHref } from '../../core/routing/rules.js';
+import { useNavSections } from '../hooks/use-nav-sections.js';
 import { useSidebarRail } from '../hooks/use-sidebar-rail.js';
 
 /**
@@ -304,19 +305,64 @@ export interface SidebarNavProps {
    *  `activeId`; `href` already has the base applied. Use for a host that needs a framework
    *  `<Link>` instead of an `<a>`. */
   renderItem?: (item: AdminNavItem, ctx: { active: boolean; href: string; collapsed: boolean }) => ReactNode;
+  /**
+   * Labels of groups whose heading toggles the section open/closed, persisted per
+   * `useNavSections`. Defaults to none, so a host that does not opt in renders exactly as before —
+   * this is additive, and an accordion appearing unannounced in an existing product would be a
+   * regression dressed as a feature.
+   *
+   * Matched against `AdminNavGroup.label` because that is the only stable identifier a group has
+   * (`buildNav` assigns no id), which also makes it the persistence key — see `useNavSections`.
+   */
+  collapsibleGroups?: readonly string[];
 }
 
 function SidebarNav(props: SidebarNavProps) {
   const { activeId, base, collapsed, railTooltipProps } = useSidebar();
+  const sections = useNavSections();
 
   return (
     <>
-      {props.groups.map((group, gi) => (
+      {props.groups.map((group, gi) => {
+        /**
+         * Rail mode force-expands every section, deliberately. Collapsed to a rail the group
+         * heading is a 1px divider with no visible label (see `.cms-nav.is-rail .cms-group`), so a
+         * closed section there would be items missing from the nav with nothing on screen to
+         * indicate a control exists, let alone where. The stored preference is untouched and
+         * returns intact when the rail expands — this only overrides what is rendered.
+         */
+        const collapsible = Boolean(group.label) && !collapsed && (props.collapsibleGroups ?? []).includes(group.label as string);
+        const open = !collapsible || sections.isOpen(group.label as string);
+        const panelId = `cms-section-${(group.label ?? `top-${gi}`).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+
+        return (
         <div className="cms-section" key={group.label ?? `top-${gi}`}>
           {/* Expected to become a plain divider rule in rail mode rather than vanishing — two
               dozen items across five groups with zero separation once the labels are gone is a
               scanning problem of its own. The label text stays in the DOM either way. */}
-          {group.label ? <div className="cms-group">{group.label}</div> : null}
+          {group.label && collapsible ? (
+            // A real `<button>`, not a click-handled `<div>`: keyboard focus, Enter/Space
+            // activation, and the button role all come free, and `aria-expanded` only carries its
+            // meaning on an element that is actually a control.
+            <button
+              type="button"
+              className={`cms-group cms-group-toggle${open ? '' : ' is-closed'}`}
+              aria-expanded={open}
+              aria-controls={panelId}
+              onClick={() => sections.toggle(group.label as string)}
+            >
+              <span>{group.label}</span>
+              <svg className="cms-group-chevron" viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                <path d="M5 7l4 4 4-4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          ) : group.label ? (
+            <div className="cms-group">{group.label}</div>
+          ) : null}
+          {/* `hidden` rather than unmounting the items: it removes them from the accessibility tree
+              and tab order exactly as unmounting would, but leaves `aria-controls` pointing at an
+              element that actually exists, which is what makes the relationship announceable. */}
+          <div className="cms-section-items" id={panelId} hidden={!open}>
           {group.items.map((item) => {
             const active = item.id === activeId;
             const href = adminHref(item.href, base);
@@ -373,8 +419,10 @@ function SidebarNav(props: SidebarNavProps) {
               </a>
             );
           })}
+          </div>
         </div>
-      ))}
+        );
+      })}
     </>
   );
 }
