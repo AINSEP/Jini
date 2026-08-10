@@ -24,7 +24,10 @@
  * Neither existing kind expressed that: `password` masks the whole blob
  * (including the names) and collapses a textarea to one line, while plain
  * `textarea` claims nothing is sensitive and rendered live tokens verbatim in
- * the read-only card. See {@link maskFieldValue}.
+ * the read-only card. See {@link maskFieldValue}. Its reveal gate (masked +
+ * read-only until "Show" is clicked) in `SourceConfigField` only applies to a
+ * field that already has a stored value — a field with nothing to protect is
+ * immediately editable.
  */
 export type SourceFieldKind = 'text' | 'url' | 'password' | 'select' | 'textarea' | 'secret-textarea';
 

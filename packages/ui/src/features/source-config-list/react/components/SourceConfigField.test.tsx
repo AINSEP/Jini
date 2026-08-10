@@ -159,7 +159,7 @@ describe('SourceConfigField', () => {
       expect(screen.getByLabelText('API Key', { exact: false })).toHaveAttribute('type', 'password');
     });
 
-    it('masks each env VALUE but keeps its NAME visible, and reveals on demand', async () => {
+    it('masks each env VALUE but keeps its NAME visible, and reveals on demand (existing-secret reveal-gate)', async () => {
       const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
       render(<SourceConfigField spec={spec} value={'GITHUB_TOKEN=ghp_liveSecret\nDEBUG=true'} onChange={vi.fn()} />);
 
@@ -171,6 +171,47 @@ describe('SourceConfigField', () => {
 
       await userEvent.click(screen.getByRole('button', { name: 'Show' }));
       expect((screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement).value).toContain('ghp_liveSecret');
+    });
+
+    it('is immediately editable for a first-time/empty secret-textarea — nothing to reveal, so no reveal-gate blocks input', async () => {
+      // Regression coverage: this kind was designed for "editing an EXISTING
+      // secret" (mask + read-only until "Show" is clicked), but an always-empty
+      // field (e.g. Tovu's external-MCP credentials block on first entry) has
+      // nothing to protect, so gating it behind a reveal click blocked all
+      // typing. Discovered by Tovu's external-MCP feature hitting this wall on
+      // a brand-new field.
+      const onChange = vi.fn();
+      const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
+      render(<SourceConfigField spec={spec} value="" onChange={onChange} />);
+
+      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      // No reveal-gate at all when there is nothing stored: not read-only, and
+      // no "Show" click is required before typing works.
+      expect(box).not.toHaveAttribute('readonly');
+      await userEvent.type(box, 'G');
+      expect(onChange).toHaveBeenCalledWith('G');
+    });
+
+    it('does not re-lock a first-time secret-textarea after the first keystroke, once the controlled value stops being empty', async () => {
+      // A naive fix ("mask/read-only whenever the CURRENT value is non-empty")
+      // would pass the empty-first-entry test above for exactly one character,
+      // then re-engage the gate as soon as `value` becomes non-empty as a
+      // direct result of the user's own typing — locking them out again
+      // mid-entry. Simulates the controlled round-trip (parent re-renders with
+      // the new value after onChange) to prove the gate stays open for the
+      // rest of this first-time entry.
+      const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };
+      const { rerender } = render(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
+
+      rerender(<SourceConfigField spec={spec} value="G" onChange={vi.fn()} />);
+      const box = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      expect(box).not.toHaveAttribute('readonly');
+      expect(box.value).toBe('G');
+
+      rerender(<SourceConfigField spec={spec} value="GITHUB_TOKEN=ghp_newSecret" onChange={vi.fn()} />);
+      const boxAfterMore = screen.getByLabelText('Env', { exact: false }) as HTMLTextAreaElement;
+      expect(boxAfterMore).not.toHaveAttribute('readonly');
+      expect(boxAfterMore.value).toBe('GITHUB_TOKEN=ghp_newSecret');
     });
 
     it('leaves a plain textarea unmasked and editable', async () => {
