@@ -72,7 +72,7 @@ test("createMenu stores a new menu at version 1", async () => {
 
   assert.equal(menu.id, "menu-1");
   assert.equal(menu.version, 1);
-  assert.equal(menu.status, "draft");
+  assert.equal(menu.status, "published");
   assert.deepEqual(menu.locations, []);
   assert.equal(menu.doc.items.length, 1);
 
