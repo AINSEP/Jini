@@ -53,6 +53,9 @@ import { SETTINGS_DIALOG_UK } from './settings-dialog.uk.js';
 import { SETTINGS_DIALOG_TR } from './settings-dialog.tr.js';
 import { SETTINGS_DIALOG_TH } from './settings-dialog.th.js';
 import { SETTINGS_DIALOG_IT } from './settings-dialog.it.js';
+import { SETTINGS_DIALOG_HI } from './settings-dialog.hi.js';
+import { SETTINGS_DIALOG_UR } from './settings-dialog.ur.js';
+import { SETTINGS_DIALOG_BN } from './settings-dialog.bn.js';
 import type { SettingsDialogDict } from './types.js';
 
 export { SETTINGS_DIALOG_EN } from './settings-dialog.en.js';
@@ -74,6 +77,9 @@ export { SETTINGS_DIALOG_UK } from './settings-dialog.uk.js';
 export { SETTINGS_DIALOG_TR } from './settings-dialog.tr.js';
 export { SETTINGS_DIALOG_TH } from './settings-dialog.th.js';
 export { SETTINGS_DIALOG_IT } from './settings-dialog.it.js';
+export { SETTINGS_DIALOG_HI } from './settings-dialog.hi.js';
+export { SETTINGS_DIALOG_UR } from './settings-dialog.ur.js';
+export { SETTINGS_DIALOG_BN } from './settings-dialog.bn.js';
 export type { SettingsDialogDict } from './types.js';
 
 /** Every locale this package ships a settings-dialog translation for. */
@@ -97,4 +103,7 @@ export const SETTINGS_DIALOG_DICTIONARIES: Partial<Record<Locale, SettingsDialog
   tr: SETTINGS_DIALOG_TR,
   th: SETTINGS_DIALOG_TH,
   it: SETTINGS_DIALOG_IT,
+  hi: SETTINGS_DIALOG_HI,
+  ur: SETTINGS_DIALOG_UR,
+  bn: SETTINGS_DIALOG_BN,
 };
