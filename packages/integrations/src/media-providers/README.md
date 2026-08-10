@@ -1,4 +1,4 @@
-# `@jini-ai/media`
+# `@jini-ai/integrations/media-providers`
 
 A gateway for generating images, video, and audio across many vendors behind one call. You register
 model capabilities (which models exist, what sizes/durations/aspect ratios each accepts, whether it
@@ -11,7 +11,7 @@ placeholder.
 ## Install
 
 ```sh
-npm install @jini-ai/media
+npm install @jini-ai/integrations
 ```
 
 No peer dependencies. `@jini-ai/core`, `undici`, and `better-sqlite3` are regular dependencies.
@@ -94,7 +94,7 @@ import {
   createInMemoryMediaTaskStore,
   resolveProviderCredentialsFromEnv,
   MEDIA_CAPABILITY_SEED,
-} from '@jini-ai/media';
+} from '@jini-ai/integrations/media-providers';
 
 const registry = createCapabilityRegistry(MEDIA_CAPABILITY_SEED);
 

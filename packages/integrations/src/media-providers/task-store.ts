@@ -114,7 +114,7 @@ export interface MediaTaskReconcileResult {
 
 /**
  * A replayable, ownerRef-scoped store for async media-generation tasks.
- * `@jini-ai/media` ships `createInMemoryMediaTaskStore` as the reference
+ * `@jini-ai/integrations/media-providers` ships `createInMemoryMediaTaskStore` as the reference
  * implementation; a durable adapter implements the same interface.
  */
 export interface MediaTaskStore {

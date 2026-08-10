@@ -1,5 +1,9 @@
 # @jini-ai/media
 
+> Historical changelog of the former standalone `@jini-ai/media`
+> package, retained here for provenance. This package is now the `./media-providers` subpath of
+> `@jini-ai/integrations`; see the root `CHANGELOG.md` for changes from this point forward.
+
 ## 0.1.2
 
 ### Patch Changes

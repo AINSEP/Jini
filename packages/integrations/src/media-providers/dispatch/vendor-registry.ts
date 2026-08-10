@@ -59,7 +59,7 @@ export function createVendorAdapterRegistry(): VendorAdapterRegistry {
 /**
  * The shared registry every migrated vendor module registers into at import
  * time, and `engine.ts` consults for dispatch. A host embedding
- * `@jini-ai/media` that wants a clean, isolated registry (e.g. to register its
+ * `@jini-ai/integrations/media-providers` that wants a clean, isolated registry (e.g. to register its
  * own vendor adapters without touching this module's set) can still call
  * `createVendorAdapterRegistry()` directly instead of using this singleton.
  */

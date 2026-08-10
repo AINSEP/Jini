@@ -143,7 +143,7 @@ export interface SqliteMediaTaskStore extends MediaTaskStore {
  * rather than statically at module scope (mirroring `@jini-ai/daemon`'s
  * `loadRealSpawnPty`/`node-pty` pattern) — this package's root barrel
  * re-exports this module unconditionally, so a static top-level import would
- * force every consumer of `@jini-ai/media`, even one wanting only
+ * force every consumer of `@jini-ai/integrations/media-providers`, even one wanting only
  * `renderStub`, to load the native binary at module-evaluation time. Now
  * only an actual `createSqliteMediaTaskStore` call pays that cost, and it
  * fails cleanly (a rejected promise) rather than crashing unrelated imports

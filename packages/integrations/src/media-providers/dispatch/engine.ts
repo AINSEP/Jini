@@ -168,7 +168,7 @@ export function createMediaDispatchEngine(options: MediaDispatchEngineOptions = 
 
       const def: MediaModel | null = findMediaModel(model);
       if (!def) {
-        throw new Error(`unknown model: ${model}. Pass a model from the registered catalogue (see @jini-ai/media's modelsForSurface()).`);
+        throw new Error(`unknown model: ${model}. Pass a model from the registered catalogue (see @jini-ai/integrations/media-providers's modelsForSurface()).`);
       }
       const resolvedAudioKind = surface === 'audio' ? request.audioKind || 'music' : undefined;
       const allowed = modelsForSurface(surface, resolvedAudioKind);

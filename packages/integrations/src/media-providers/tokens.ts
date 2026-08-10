@@ -1,5 +1,5 @@
 /**
- * Typed DI tokens for `@jini-ai/media`'s ports, following the exact pattern
+ * Typed DI tokens for `@jini-ai/integrations/media-providers`'s ports, following the exact pattern
  * `@jini-ai/core`'s `token()` establishes (see `packages/core/src/token.ts`)
  * and the naming convention `@jini-ai/daemon`'s `src/tokens.ts` already set
  * (bare-interface-name-suffixed-`Token`, not extraction-plan §2.2's
