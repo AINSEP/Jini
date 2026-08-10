@@ -7,8 +7,8 @@ function file(overrides: Partial<ArtifactFile> = {}): ArtifactFile {
 }
 
 describe('ReactComponentRenderer', () => {
-  it('matches via legacy inference from a .tsx entry', () => {
-    expect(ReactComponentRenderer.canRender({ file: file() })).toBe(true);
+  it('no longer matches via legacy inference from a .tsx entry (inference removed)', () => {
+    expect(ReactComponentRenderer.canRender({ file: file() })).toBe(false);
   });
 
   it('matches an explicit react-component manifest', () => {
@@ -28,7 +28,7 @@ describe('ReactComponentRenderer', () => {
     expect(ReactComponentRenderer.canRender({ file: file({ manifest }) })).toBe(false);
   });
 
-  it('refuses when nothing can be inferred', () => {
+  it('refuses a file with no manifest and an unrecognized extension', () => {
     expect(ReactComponentRenderer.canRender({ file: file({ name: 'data.bin' }) })).toBe(false);
   });
 });

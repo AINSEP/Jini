@@ -10,9 +10,7 @@
  * {@link ArtifactRenderer} into the registry instance it constructs instead
  * of this package shipping one. See `source-map.md`.
  */
-import type { ArtifactManifest } from '@jini-ai/chat';
-import { inferLegacyManifest } from '@jini-ai/chat';
-import type { ArtifactFile } from './types.js';
+import type { ArtifactFile, ArtifactManifest } from './types.js';
 
 export interface ArtifactRendererContext {
   file: ArtifactFile;
@@ -39,8 +37,19 @@ export interface ArtifactRenderMatch {
   manifest: ArtifactManifest;
 }
 
+/**
+ * Returns `file`'s own manifest, or `null` when it has none.
+ *
+ * This does not guess a manifest from `file.name`'s extension. Inferring a
+ * legacy manifest from a bare file extension is a *caller* concern (it
+ * depends on a product's own naming conventions and artifact-kind
+ * vocabulary), not something a generic renderer registry should do on a
+ * caller's behalf. A caller that still needs that legacy inference should
+ * resolve a manifest for the file itself — see `@jini-ai/chat`'s
+ * `inferLegacyManifest` — before handing the file to this registry.
+ */
 export function resolveArtifactManifest(file: ArtifactFile): ArtifactManifest | null {
-  return file.manifest ?? inferLegacyManifest({ entry: file.name });
+  return file.manifest ?? null;
 }
 
 export class RendererRegistry {

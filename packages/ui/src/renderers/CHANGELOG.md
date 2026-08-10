@@ -1,5 +1,10 @@
 # @jini-ai/renderers-react
 
+> This is the historical changelog of the former standalone `@jini-ai/renderers-react`
+> package, retained here for provenance after it was folded into `@jini-ai/ui` as the
+> `./renderers` subpath (see `../../../CHANGELOG.md` for `@jini-ai/ui`'s own changelog
+> going forward).
+
 ## 0.1.2
 
 ### Patch Changes

@@ -7,8 +7,8 @@ function file(overrides: Partial<ArtifactFile> = {}): ArtifactFile {
 }
 
 describe('HtmlRenderer', () => {
-  it('matches a plain html file with no manifest', () => {
-    expect(HtmlRenderer.canRender({ file: file() })).toBe(true);
+  it('no longer matches a plain html file with no manifest (inference removed)', () => {
+    expect(HtmlRenderer.canRender({ file: file() })).toBe(false);
   });
 
   it('matches an explicit html manifest renderer', () => {

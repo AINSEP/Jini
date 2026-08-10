@@ -4,10 +4,25 @@ import { ArtifactView } from '../ArtifactView.js';
 import { createDefaultRendererRegistry } from '../../../renderers/index.js';
 import { RendererRegistry } from '../../../registry.js';
 import { I18nProvider } from '../../i18n.js';
-import type { ArtifactFile } from '../../../types.js';
+import type { ArtifactFile, ArtifactManifest } from '../../../types.js';
 import { createFakeAnnotationCanvasPort } from '../../../annotation-canvas/index.js';
 
 const registry = createDefaultRendererRegistry();
+
+// resolveArtifactManifest no longer infers a manifest from a bare file name
+// (extension-based inference was removed — see registry.ts), so every test
+// below that needs the registry to actually resolve a renderer now attaches
+// one of these explicitly instead of relying on 'index.html'/'notes.md' to
+// be inferred.
+const htmlManifest: ArtifactManifest = { version: 1, kind: 'html', title: 'Index', entry: 'index.html', renderer: 'html', exports: [] };
+const markdownManifest: ArtifactManifest = {
+  version: 1,
+  kind: 'markdown-document',
+  title: 'Notes',
+  entry: 'notes.md',
+  renderer: 'markdown',
+  exports: [],
+};
 
 describe('ArtifactView', () => {
   it('shows a fallback message when no renderer resolves', () => {
@@ -17,13 +32,13 @@ describe('ArtifactView', () => {
   });
 
   it('renders markdown artifacts inline via renderMarkdownToSafeHtml', () => {
-    const file: ArtifactFile = { name: 'notes.md', kind: 'text', content: '# Hello' };
+    const file: ArtifactFile = { name: 'notes.md', kind: 'text', content: '# Hello', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={registry} />);
     expect(container.querySelector('h1')).toHaveTextContent('Hello');
   });
 
   it('renders html artifacts through the sandboxed iframe', () => {
-    const file: ArtifactFile = { name: 'index.html', kind: 'html', content: '<p>hi</p>' };
+    const file: ArtifactFile = { name: 'index.html', kind: 'html', content: '<p>hi</p>', manifest: htmlManifest };
     render(<ArtifactView file={file} registry={registry} />);
     const iframe = document.querySelector('iframe') as HTMLIFrameElement;
     expect(iframe).toBeInTheDocument();
@@ -49,7 +64,7 @@ describe('ArtifactView', () => {
   });
 
   it('prefers a host-supplied slot over built-in rendering', () => {
-    const file: ArtifactFile = { name: 'index.html', kind: 'html', content: '<p>hi</p>' };
+    const file: ArtifactFile = { name: 'index.html', kind: 'html', content: '<p>hi</p>', manifest: htmlManifest };
     render(
       <ArtifactView
         file={file}
@@ -72,7 +87,7 @@ describe('ArtifactView', () => {
   });
 
   it('wraps the resolved rendering in an AnnotationCanvas overlay when `annotation` is supplied — the renderer-registry integration point, not a standalone bolt-on', () => {
-    const file: ArtifactFile = { name: 'index.html', kind: 'html', content: '<p>hi</p>' };
+    const file: ArtifactFile = { name: 'index.html', kind: 'html', content: '<p>hi</p>', manifest: htmlManifest };
     render(
       <ArtifactView
         file={file}
@@ -104,7 +119,7 @@ describe('ArtifactView', () => {
   });
 
   it('treats a missing `content` as an empty document for the sandboxed html/svg renderer', () => {
-    const file: ArtifactFile = { name: 'index.html', kind: 'html' };
+    const file: ArtifactFile = { name: 'index.html', kind: 'html', manifest: htmlManifest };
     render(<ArtifactView file={file} registry={registry} />);
     const iframe = document.querySelector('iframe') as HTMLIFrameElement;
     expect(iframe).toBeInTheDocument();
@@ -114,7 +129,7 @@ describe('ArtifactView', () => {
   });
 
   it('treats a missing `content` as empty markdown rather than rendering the literal string "undefined"', () => {
-    const file: ArtifactFile = { name: 'notes.md', kind: 'text' };
+    const file: ArtifactFile = { name: 'notes.md', kind: 'text', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={registry} />);
     expect(container.textContent).not.toContain('undefined');
   });
@@ -129,7 +144,7 @@ describe('ArtifactView', () => {
       supportsStreaming: false,
       canRender: ({ file }) => file.name.endsWith('.md'),
     });
-    const file: ArtifactFile = { name: 'notes.md', kind: 'text', content: '# Fallback works' };
+    const file: ArtifactFile = { name: 'notes.md', kind: 'text', content: '# Fallback works', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={customRegistry} />);
     expect(container.querySelector('h1')).toHaveTextContent('Fallback works');
   });
@@ -145,7 +160,7 @@ describe('ArtifactView', () => {
       supportsStreaming: false,
       canRender: ({ file }) => file.name.endsWith('.md'),
     });
-    const file: ArtifactFile = { name: 'notes.md', kind: 'text' };
+    const file: ArtifactFile = { name: 'notes.md', kind: 'text', manifest: markdownManifest };
     const { container } = render(<ArtifactView file={file} registry={customRegistry} />);
     expect(container.textContent).not.toContain('undefined');
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RendererRegistry, resolveArtifactManifest, type ArtifactRenderer } from '../registry.js';
-import type { ArtifactFile } from '../types.js';
+import type { ArtifactFile, ArtifactManifest } from '../types.js';
 
 const alwaysHtml: ArtifactRenderer = {
   id: 'html',
@@ -18,8 +18,19 @@ function file(overrides: Partial<ArtifactFile> = {}): ArtifactFile {
   return { name: 'index.html', kind: 'html', content: '<p>hi</p>', ...overrides };
 }
 
+// A manifest attached explicitly, used wherever a test needs `resolve()` to
+// get past its manifest gate and actually exercise renderer matching.
+const sampleManifest: ArtifactManifest = {
+  version: 1,
+  kind: 'html',
+  title: 'Sample',
+  entry: 'index.html',
+  renderer: 'html',
+  exports: [],
+};
+
 describe('resolveArtifactManifest', () => {
-  it('prefers an explicit manifest over legacy inference', () => {
+  it("returns the file's explicit manifest when present", () => {
     const manifest = {
       version: 1 as const,
       kind: 'markdown-document' as const,
@@ -31,13 +42,11 @@ describe('resolveArtifactManifest', () => {
     expect(resolveArtifactManifest(file({ manifest }))).toEqual(manifest);
   });
 
-  it('falls back to legacy inference from the file name', () => {
-    const manifest = resolveArtifactManifest(file({ name: 'notes.md' }));
-    expect(manifest?.kind).toBe('markdown-document');
-    expect(manifest?.renderer).toBe('markdown');
+  it('no longer infers a manifest from the file name (inference removed)', () => {
+    expect(resolveArtifactManifest(file({ name: 'notes.md' }))).toBeNull();
   });
 
-  it('returns null when nothing can be inferred', () => {
+  it('returns null when the file has no manifest', () => {
     expect(resolveArtifactManifest(file({ name: 'data.bin' }))).toBeNull();
   });
 });
@@ -45,7 +54,7 @@ describe('resolveArtifactManifest', () => {
 describe('RendererRegistry', () => {
   it('resolves the first renderer whose canRender matches', () => {
     const registry = new RendererRegistry([neverMatches, alwaysHtml]);
-    const match = registry.resolve({ file: file() });
+    const match = registry.resolve({ file: file({ manifest: sampleManifest }) });
     expect(match?.renderer.id).toBe('html');
   });
 
@@ -56,7 +65,7 @@ describe('RendererRegistry', () => {
 
   it('returns null when no renderer matches', () => {
     const registry = new RendererRegistry([neverMatches]);
-    expect(registry.resolve({ file: file() })).toBeNull();
+    expect(registry.resolve({ file: file({ manifest: sampleManifest }) })).toBeNull();
   });
 
   it('list() exposes renderers in resolution order', () => {
@@ -69,9 +78,9 @@ describe('RendererRegistry', () => {
     const replaced: ArtifactRenderer = { id: 'never', supportsStreaming: false, canRender: () => true };
     const next = registry.register(replaced);
     expect(next.list()).toHaveLength(1);
-    expect(next.resolve({ file: file() })?.renderer).toBe(replaced);
+    expect(next.resolve({ file: file({ manifest: sampleManifest }) })?.renderer).toBe(replaced);
     // original registry is untouched
-    expect(registry.resolve({ file: file() })).toBeNull();
+    expect(registry.resolve({ file: file({ manifest: sampleManifest }) })).toBeNull();
   });
 
   it('register() appends a renderer with a new id', () => {

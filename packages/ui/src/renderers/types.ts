@@ -1,6 +1,64 @@
-import type { ArtifactManifest } from '@jini-ai/chat';
+/**
+ * `ArtifactKind`/`ArtifactRendererId`/`ArtifactExportKind`/`ArtifactStatus`/
+ * `ArtifactManifest` below were previously re-exported from `@jini-ai/chat`.
+ * They are now owned here instead: a renderer registry package must not
+ * depend on a chat package (folding this package into `@jini-ai/ui`, which
+ * `@jini-ai/chat` already depends on, would otherwise create a `ui ↔ chat`
+ * cycle). Shapes are copied verbatim from `@jini-ai/chat`'s
+ * `src/core/util/types.ts` — keep the two in sync by hand if that shape
+ * changes.
+ */
+export type ArtifactKind =
+  | 'html'
+  | 'deck'
+  | 'react-component'
+  | 'markdown-document'
+  | 'svg'
+  | 'diagram'
+  | 'code-snippet'
+  | 'mini-app'
+  | 'design-system';
 
-export type { ArtifactManifest, ArtifactKind, ArtifactRendererId, ArtifactExportKind, ArtifactStatus } from '@jini-ai/chat';
+export type ArtifactRendererId =
+  | 'html'
+  | 'deck-html'
+  | 'react-component'
+  | 'markdown'
+  | 'svg'
+  | 'diagram'
+  | 'code'
+  | 'mini-app'
+  | 'design-system';
+
+export type ArtifactExportKind = 'html' | 'pdf' | 'zip' | 'jsx' | 'md' | 'svg' | 'txt';
+
+export type ArtifactStatus = 'streaming' | 'complete' | 'error';
+
+/**
+ * The sidecar manifest an artifact-producing turn writes alongside its
+ * generated file, describing how to render/export it. Generic across
+ * artifact kinds — a host's own artifact-file type carries this manifest,
+ * not the other way around (see `ArtifactFile` below).
+ */
+export interface ArtifactManifest {
+  version: 1;
+  kind: ArtifactKind;
+  title: string;
+  entry: string;
+  renderer: ArtifactRendererId;
+  /** Optional for backward compatibility with older manifests; treat missing as `'complete'`. */
+  status?: ArtifactStatus | undefined;
+  exports: ArtifactExportKind[];
+  /** Optional primary-entry hint for multi-file outputs; fall back to renderable-file heuristics when omitted. */
+  primary?: string | boolean | undefined;
+  /** Reserved for future multi-file artifact packaging; not yet populated by any known generator. */
+  supportingFiles?: string[] | undefined;
+  createdAt?: string | undefined;
+  updatedAt?: string | undefined;
+  sourceSkillId?: string | undefined;
+  designSystemId?: string | null | undefined;
+  metadata?: Record<string, unknown> | undefined;
+}
 
 export interface SandboxedDocumentOptions {
   /**

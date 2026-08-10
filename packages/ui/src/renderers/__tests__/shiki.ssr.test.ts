@@ -5,9 +5,9 @@
 // which holds only under Node's default (non-jsdom) environment — this
 // package's package-wide default is jsdom, which always defines `document`.
 // Splitting this assertion into its own `node`-environment file (matching
-// `@jini-ai/ui`'s `features/sketch-editor/dom.ssr.test.ts` precedent) exercises
+// this package's own `features/sketch-editor/dom.ssr.test.ts` precedent) exercises
 // the real SSR guard instead of a source change or a suppression comment.
-// See `packages/renderers-react/source-map.md`.
+// See `packages/ui/src/renderers/source-map.md`.
 import { describe, expect, it } from 'vitest';
 import { highlightCode } from '../shiki.js';
 

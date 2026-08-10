@@ -7,12 +7,12 @@ function file(overrides: Partial<ArtifactFile> = {}): ArtifactFile {
 }
 
 describe('SvgRenderer', () => {
-  it('matches an image-kind file with an .svg extension', () => {
-    expect(SvgRenderer.canRender({ file: file() })).toBe(true);
+  it('no longer matches an image-kind file with an .svg extension when no manifest is present (inference removed)', () => {
+    expect(SvgRenderer.canRender({ file: file() })).toBe(false);
   });
 
-  it('matches a sketch-kind file with an .svg extension', () => {
-    expect(SvgRenderer.canRender({ file: file({ kind: 'sketch' }) })).toBe(true);
+  it('no longer matches a sketch-kind file with an .svg extension when no manifest is present (inference removed)', () => {
+    expect(SvgRenderer.canRender({ file: file({ kind: 'sketch' }) })).toBe(false);
   });
 
   it('refuses a non-svg extension', () => {
@@ -24,9 +24,10 @@ describe('SvgRenderer', () => {
   });
 
   it('refuses a file kind that is neither image nor sketch when an explicit non-svg manifest is set', () => {
-    // A bare .svg name always legacy-infers to the svg renderer (see the test
-    // above), so the file.kind fallback only matters once an explicit
-    // manifest overrides that inference to something else.
+    // canRender requires an explicit manifest before it ever reaches the
+    // file.kind fallback (extension-based inference was removed — see the
+    // tests above), so this exercises that fallback with a manifest present
+    // but not svg.
     const manifest = { version: 1 as const, kind: 'html' as const, title: 't', entry: 'a', renderer: 'html' as const, exports: [] };
     expect(SvgRenderer.canRender({ file: file({ kind: 'text', manifest }) })).toBe(false);
   });
