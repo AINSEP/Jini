@@ -1,0 +1,28 @@
+/** @file ur translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_UR: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "لوکل CLI یا BYOK منتخب کریں۔",
+  "Instructions": "ہدایات",
+  "Applied to every assistant conversation in this workspace.": "اس ورک اسپیس کی ہر اسسٹنٹ گفتگو پر لاگو ہوتا ہے۔",
+  "Notifications": "اطلاعات",
+  "How you're told a task finished. Saved per operator, not per workspace.": "کام مکمل ہونے پر آپ کو کیسے بتایا جاتا ہے۔ ورک اسپیس کے بجائے فی آپریٹر محفوظ ہوتا ہے۔",
+  "Privacy": "رازداری",
+  "Dialog appearance": "ڈائیلاگ کی ظاہری شکل",
+  "Theme and accent color for this settings surface. Saved per operator.": "اس سیٹنگز صفحے کے لیے تھیم اور نمایاں رنگ۔ فی آپریٹر محفوظ ہوتا ہے۔",
+  "Admin interface language. Applies to this settings panel's tab content only.": "ایڈمن انٹرفیس کی زبان۔ صرف اس سیٹنگز پینل کے ٹیب مواد پر لاگو ہوتی ہے۔",
+  "MCP server": "MCP سرور",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "ایک MCP کلائنٹ کنیکٹ کریں۔ نمونہ آؤٹ پٹ دکھایا جا رہا ہے — ابھی تک کسی لائیو سرور سے منسلک نہیں۔",
+  "API keys for image, video, and audio generation.": "تصویر، ویڈیو اور آڈیو تخلیق کے لیے API کیز۔",
+  "Third-party accounts and APIs via Composio.": "Composio کے ذریعے تھرڈ پارٹی اکاؤنٹس اور APIs۔",
+  "Memory": "میموری",
+  "Saved facts and context for future chats.": "مستقبل کی گفتگو کے لیے محفوظ شدہ حقائق اور سیاق و سباق۔",
+  "External MCP": "خارجی MCP",
+  "Add MCP tools from external services.": "بیرونی سروسز سے MCP ٹولز شامل کریں۔",
+  "Skills": "مہارتیں",
+  "Custom skills your assistant can invoke mid-task.": "کسٹم مہارتیں جنہیں آپ کا اسسٹنٹ کام کے دوران استعمال کر سکتا ہے۔",
+  "Version and runtime details.": "ورژن اور رن ٹائم تفصیلات۔",
+  "Version": "ورژن",
+  "Open as dialog": "ڈائیلاگ کے طور پر کھولیں",
+  "No MCP config store to connect to yet.": "کنیکٹ کرنے کے لیے ابھی تک کوئی MCP کنفیگ اسٹور موجود نہیں۔",
+  "All changes saved": "تمام تبدیلیاں محفوظ ہو گئیں",
+};

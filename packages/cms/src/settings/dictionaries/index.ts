@@ -33,6 +33,9 @@ import { SETTINGS_DIALOG_UK } from './settings-dialog.uk.js';
 import { SETTINGS_DIALOG_TR } from './settings-dialog.tr.js';
 import { SETTINGS_DIALOG_TH } from './settings-dialog.th.js';
 import { SETTINGS_DIALOG_IT } from './settings-dialog.it.js';
+import { SETTINGS_DIALOG_HI } from './settings-dialog.hi.js';
+import { SETTINGS_DIALOG_UR } from './settings-dialog.ur.js';
+import { SETTINGS_DIALOG_BN } from './settings-dialog.bn.js';
 
 export {
   SETTINGS_DIALOG_ES,
@@ -53,6 +56,9 @@ export {
   SETTINGS_DIALOG_TR,
   SETTINGS_DIALOG_TH,
   SETTINGS_DIALOG_IT,
+  SETTINGS_DIALOG_HI,
+  SETTINGS_DIALOG_UR,
+  SETTINGS_DIALOG_BN,
 };
 
 /** Every non-English locale this dictionary covers, keyed the same way `@jini-ai/ui`'s
@@ -76,6 +82,9 @@ export const SETTINGS_DIALOG_DICTIONARIES: Readonly<Record<string, Record<string
   tr: SETTINGS_DIALOG_TR,
   th: SETTINGS_DIALOG_TH,
   it: SETTINGS_DIALOG_IT,
+  hi: SETTINGS_DIALOG_HI,
+  ur: SETTINGS_DIALOG_UR,
+  bn: SETTINGS_DIALOG_BN,
 };
 
 /** `dict[locale]?.[key] ?? key` — no separate English dict to fall back to, since the key
