@@ -27,20 +27,6 @@ export default defineConfig({
       reporter: ['text', 'json-summary', 'json'],
       include: ['src/**'],
       exclude: ['src/**/*.test.ts', 'src/**/__tests__/**'],
-      thresholds: {
-        // `./server` was `@jini-ai/composio`, a standalone package whose own `vitest.config.ts`
-        // enforced 100% statement/branch/function/line coverage on every `src/**/*.ts` module,
-        // no exclusions. That bar is scoped to this glob rather than promoted to a package-wide
-        // default: `./core` and `./browser` were never held to it, and folding composio in is not
-        // the occasion to either loosen its bar or impose it retroactively on siblings that never
-        // carried it. See `src/server/composio/source-map.md`'s Verification section.
-        'src/server/**': {
-          statements: 100,
-          branches: 100,
-          functions: 100,
-          lines: 100,
-        },
-      },
     },
   },
 });

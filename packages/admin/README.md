@@ -111,48 +111,14 @@ the server. A bug here can only show or hide a control; it cannot grant or block
 operation, because every mutation must be independently re-checked server-side. Do not import
 these into server code.
 
-## `/server`: Composio integration
+## Composio integration has moved
 
-`@jini-ai/admin/server` was `@jini-ai/composio`, a standalone package, until it was folded in here
-as a subpath (see `src/server/composio/source-map.md` for the full provenance and security-model writeup).
-It was never a standalone concern — its only consumer was ever going to be an admin surface, so a
-separate vendor-adapter package bought nothing but an extra install/version boundary. Unlike
-`/core` and `/browser`, it is Node-only (`node:fs`, `node:crypto`, `node:path`) and does **not**
-share a runtime with either of them — that is why it is not under `/core` despite being
-framework-free, and why it gets its own `jini.entries` runtime (`"node"`).
-
-```ts
-import {
-  ComposioConnectorProvider,
-  ComposioConnectorService,
-  ConnectorStatusService,
-  FileConnectorCredentialStore,
-  createFileComposioConfigStore,
-} from '@jini-ai/admin/server';
-
-const configStore = createFileComposioConfigStore({
-  filePath: '/var/lib/example/composio/config.json',
-});
-const credentialStore = new FileConnectorCredentialStore({
-  filePath: '/var/lib/example/composio/credentials.json',
-});
-const provider = new ComposioConnectorProvider({
-  userId: 'user_123',
-  configStore,
-  catalogCachePath: '/var/lib/example/composio/catalog-cache.json',
-});
-const service = new ComposioConnectorService({
-  provider,
-  statusService: new ConnectorStatusService({ credentialStore }),
-});
-```
-
-It is headless: no HTTP routes, no UI code, no assumed host layout. A host injects the user id,
-config store, fetch implementation, cache path, and optional curation data. Connected-account
-ownership, connector/toolkit/auth-config state, and credential evidence are all revalidated before
-execution or disconnection — a provider-reported connected state alone is never sufficient. See
-`src/server/composio/source-map.md` for the full boundary list (schema validation, output bounding, secret
-file handling, locking) and the accepted live-credential E2E gap.
+`@jini-ai/admin/server` no longer exists. Composio started as its own standalone package
+(`@jini-ai/composio`), was folded into this package as `./server` on 2026-08-01, and has since
+moved back out — now `@jini-ai/integrations/composio`, one of two subpaths (alongside
+`@jini-ai/integrations/media-providers`) under the single `@jini-ai/integrations` package
+(`packages/integrations/`). See that package's own `README.md` and `src/composio/source-map.md`
+for full provenance. Import it directly rather than through `@jini-ai/admin`.
 
 ## Before writing a panel: check `@jini-ai/ui-core` first
 
@@ -167,6 +133,6 @@ unrelated domain features to get a type.
 
 ## Status
 
-Slice 1: `/core` and `/browser`, 76 tests. `/server` (folded in from `@jini-ai/composio`
-2026-08-01): 123 tests, 100% statement/branch/function/line coverage. `/react` is not built yet,
+Slice 1: `/core` and `/browser`, 76 tests. `/server` (Composio, folded in 2026-08-01, moved back out
+to `@jini-ai/integrations/composio`) no longer exists in this package. `/react` is not built yet,
 and of the twelve planned ports only `AdminIdentityPort` is specified.
