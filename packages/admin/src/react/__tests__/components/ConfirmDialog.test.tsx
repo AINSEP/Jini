@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
+import type { UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 
 function renderDialog(props: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) {
   const onConfirm = vi.fn();
@@ -220,5 +221,32 @@ describe('ConfirmDialog dialog-hook injection', () => {
     fireEvent.click(dialog());
     expect(fakeHandleBackdropClick).toHaveBeenCalledOnce();
     expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  it('accepts a substitute declared against the published UseConfirmDialog contract, holding no React state at all', () => {
+    // The point of typing `useDialog` against `UseConfirmDialog` rather than
+    // `typeof useConfirmDialog`: a consumer can write a substitute against the PUBLISHED contract
+    // without importing, reading, or structurally matching the default hook. This one holds no
+    // state and calls no React hook — the annotation, not the inference, is what says that is
+    // allowed, because `typeof` names an implementation while this names a contract.
+    const handleBackdropClick = vi.fn();
+    const stateless: UseConfirmDialog = (open, pending, onCancel) => ({
+      titleId: 'contract-title-id',
+      dialogRef: { current: null },
+      cancelRef: { current: null },
+      handleNativeCancel: () => {
+        if (open && !pending) onCancel();
+      },
+      handleBackdropClick,
+    });
+
+    renderDialog({ useDialog: stateless });
+
+    expect(screen.getByRole('heading', { name: 'Delete post?', hidden: true })).toHaveAttribute(
+      'id',
+      'contract-title-id',
+    );
+    fireEvent.click(dialog());
+    expect(handleBackdropClick).toHaveBeenCalledOnce();
   });
 });

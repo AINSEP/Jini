@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, type MouseEvent, type SyntheticEvent } from 'react';
+import { useEffect, useId, useRef, type MouseEvent, type RefObject, type SyntheticEvent } from 'react';
 
 /**
  * @file `ConfirmDialog`'s open/close and focus-management state, split out of the component so it
@@ -14,6 +14,34 @@ import { useEffect, useId, useRef, type MouseEvent, type SyntheticEvent } from '
  */
 
 /**
+ * What `ConfirmDialog` needs back from whatever drives its dialog lifecycle: the two refs it
+ * attaches and the two handlers it wires, plus the id its `aria-labelledby` points at.
+ *
+ * Declared as its own interface rather than left to be inferred from {@link useConfirmDialog}'s
+ * return object. That inference is what made the injectable `useDialog` prop couple to the concrete
+ * implementation: `typeof useConfirmDialog` meant every internal detail of the default hook's shape
+ * became part of the component's PUBLIC contract, so adding a field for the default's own
+ * convenience would silently break every substitute a consumer had already written. Naming the
+ * contract inverts that — the hook now has to satisfy the component, not the other way round.
+ */
+export interface ConfirmDialogController {
+  /** Id for the dialog's `<h2>`, unique per mounted instance — see {@link useConfirmDialog}. */
+  titleId: string;
+  dialogRef: RefObject<HTMLDialogElement | null>;
+  cancelRef: RefObject<HTMLButtonElement | null>;
+  handleNativeCancel: (event: SyntheticEvent<HTMLDialogElement>) => void;
+  handleBackdropClick: (event: MouseEvent<HTMLDialogElement>) => void;
+}
+
+/** The signature `ConfirmDialogProps.useDialog` accepts. Any hook matching this can drive the
+ *  component; it does not have to be {@link useConfirmDialog}, or even use React state at all. */
+export type UseConfirmDialog = (
+  open: boolean,
+  pending: boolean | undefined,
+  onCancel: () => void,
+) => ConfirmDialogController;
+
+/**
  * Owns the `<dialog>` element's open/close lifecycle and focus management for `ConfirmDialog`.
  *
  * The caller keeps `ConfirmDialog` mounted and toggles `open` — it is never conditionally rendered
@@ -25,7 +53,11 @@ import { useEffect, useId, useRef, type MouseEvent, type SyntheticEvent } from '
  *
  * @complexity O(1) per open/close transition — one `showModal`/`close` call and one focus move.
  */
-export function useConfirmDialog(open: boolean, pending: boolean | undefined, onCancel: () => void) {
+export function useConfirmDialog(
+  open: boolean,
+  pending: boolean | undefined,
+  onCancel: () => void,
+): ConfirmDialogController {
   // `useId()`, not a string literal — a hardcoded id breaks the moment a screen mounts two
   // `ConfirmDialog`s at once (a delete-role and a delete-policy confirm on one page, both
   // stay-mounted/toggle-`open` per this hook's own doc comment above): two `<h2>`s share one

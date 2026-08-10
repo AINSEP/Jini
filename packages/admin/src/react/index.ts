@@ -42,6 +42,9 @@ export type { ConfirmButtonProps } from './components/ConfirmButton/ConfirmButto
 
 export { ConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.js';
 export type { ConfirmDialogProps } from './components/ConfirmDialog/ConfirmDialog.js';
+// The `useDialog` seam's contract. Exported so a consumer substituting its own dialog hook can
+// declare against the interface rather than reverse-engineering the default hook's return shape.
+export type { ConfirmDialogController, UseConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.hooks.js';
 
 // The list table. Deliberately has no sorting, pagination or row selection — see its file header
 // for the corpus evidence behind each omission.
