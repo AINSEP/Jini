@@ -4,7 +4,7 @@ import { test } from "vitest";
 import { assignLocation, createMenu } from "../menu-service.js";
 import { InMemoryMenuRepo, InMemoryNavLocationBindingRepo } from "../repo.memory.js";
 import { resolveForLocation, type ResolveTargetHrefFn } from "../resolver.js";
-import type { NavItemNode, NavTarget } from "../types.js";
+import { NAV_DOC_TYPE, type NavItemNode, type NavMenuEntry, type NavTarget } from "../types.js";
 
 function fakeClock(iso = "2026-07-10T00:00:00.000Z") {
   return { nowIso: () => iso };
@@ -190,4 +190,95 @@ test("resolveForLocation computes isCurrent/isActive against the current path", 
   assert.equal(resolved.items[0]!.isActive, true);
   assert.equal(resolved.items[1]!.isCurrent, false);
   assert.equal(resolved.items[1]!.isActive, false);
+});
+
+// ---------------------------------------------------------------------------
+// Default-selection coverage: what resolveForLocation does when there is no
+// *currently valid* binding to resolve. Before this suite, only the
+// "no binding row at all" case (above) was exercised. Two other early-return
+// defaults reachable from the same function were completely untested:
+//
+// 1. Status independence — a documented (menu-service.ts `createMenu` doc
+//    comment, 2026-08-09) but previously unverified product decision that a
+//    menu's `status` never gates resolution, only the trash/purge lifecycle
+//    does. `deleteMenu`'s first call flips status to `trash` and returns
+//    WITHOUT touching bindings, so a trashed-but-not-yet-purged menu stays
+//    bound and must keep resolving. A test that only ever seeds `published`
+//    menus (as every test above this point does, via `createMenu`) can never
+//    catch a regression that starts filtering on status.
+// 2. Stale binding — the resolver's own defensive `if (!menu) return null`
+//    guard (see its "Defensive note" doc comment) for when the derived
+//    `nav_location_bindings` index points at a menu id the menu repo no
+//    longer has. This produces the same `null` result as "no binding at all",
+//    so any test asserting only the end result — "nothing rendered" — cannot
+//    tell the two branches apart; a regression in the `!menu` guard
+//    specifically (e.g. it starts throwing, or dereferences `menu` before the
+//    null check) would pass unnoticed if the only observed signal is the
+//    final `null`/non-null outcome. Each test below seeds ONLY the state
+//    needed to force its own branch, isolating the mechanism rather than the
+//    rendered output.
+// ---------------------------------------------------------------------------
+
+test("resolveForLocation resolves a trashed (soft-deleted) menu exactly like a published one — status never gates resolution, only the purge lifecycle does", async () => {
+  const repo = new InMemoryMenuRepo();
+  const bindingRepo = new InMemoryNavLocationBindingRepo();
+
+  // Constructed directly (not via createMenu + deleteMenu) so this test
+  // isolates resolver.ts's own status-agnostic behavior from menu-service.ts's
+  // deleteMenu logic — going through the full ladder would conflate two units
+  // and could pass or fail for reasons unrelated to resolution itself.
+  const trashedMenu: NavMenuEntry = {
+    id: "menu-1",
+    workspaceId: "ws-1",
+    slug: "primary-nav",
+    title: "Primary Nav",
+    status: "trash",
+    doc: {
+      type: NAV_DOC_TYPE,
+      version: 1,
+      items: [{ id: "item-1", label: "Home", target: { kind: "url", href: "/" } }],
+    },
+    locations: ["primary"],
+    updatedAt: "2026-07-10T00:00:00.000Z",
+    version: 2,
+  };
+  await repo.save(trashedMenu);
+  await bindingRepo.upsert({
+    workspaceId: "ws-1",
+    locationKey: "primary",
+    menuId: "menu-1",
+    boundAt: "2026-07-10T00:00:00.000Z",
+  });
+
+  const resolved = await resolveForLocation({
+    deps: { menuRepo: repo, bindingRepo, resolveTargetHref: fakeResolveTargetHref },
+    input: { workspaceId: "ws-1", locationKey: "primary" },
+  });
+
+  assert.ok(resolved, "a trashed-but-still-bound menu must still resolve, not silently disappear");
+  assert.equal(resolved.items.length, 1);
+  assert.equal(resolved.items[0]!.href, "/");
+  assert.equal(resolved.items[0]!.available, true);
+});
+
+test("resolveForLocation returns null, not a throw, when the binding index points at a menu id with no backing menu row (a stale/dangling derived-index entry)", async () => {
+  const repo = new InMemoryMenuRepo();
+  const bindingRepo = new InMemoryNavLocationBindingRepo();
+
+  // Seeded directly on the binding repo — bypassing assignLocation, which
+  // requires a real menu to exist — specifically to reach resolveForLocation's
+  // `!menu` guard without ever exercising its `!binding` guard.
+  await bindingRepo.upsert({
+    workspaceId: "ws-1",
+    locationKey: "footer",
+    menuId: "menu-does-not-exist",
+    boundAt: "2026-07-10T00:00:00.000Z",
+  });
+
+  const result = await resolveForLocation({
+    deps: { menuRepo: repo, bindingRepo, resolveTargetHref: fakeResolveTargetHref },
+    input: { workspaceId: "ws-1", locationKey: "footer" },
+  });
+
+  assert.equal(result, null);
 });
