@@ -11,12 +11,20 @@
  * the slots a host supplies; it does not itself know what a "library
  * picker" or "session mode" is.
  */
-import { useRef, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react';
 import { RemixIcon } from '@jini-ai/ui';
 import { useT } from '../hooks/context.js';
 import { AttachmentTray } from './AttachmentTray.js';
 import type { UseComposerResult } from '../hooks/useComposer.js';
 import type { ComposerSlots } from '../slots.js';
+import { ComposerDiscoveryMenu, ComposerSlashMenu } from './ComposerDiscovery.js';
+import {
+  appendComposerDiscovery,
+  filterComposerDiscovery,
+  parseComposerSlashQuery,
+  replaceComposerSlashTrigger,
+  resolveComposerSlashKeyAction,
+} from './composer-discovery.js';
 
 export interface ComposerProps {
   composer: UseComposerResult;
@@ -62,10 +70,58 @@ export function Composer({
 }: ComposerProps) {
   const t = useT();
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [discoveryMenuOpen, setDiscoveryMenuOpen] = useState(false);
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const [dismissedSlashDraft, setDismissedSlashDraft] = useState<string | null>(null);
   const resolvedPlaceholder = placeholder ?? t('Send a message…');
+  const discoveryGroups = slots?.discoveryGroups ?? [];
+  const hasDiscoveryItems = discoveryGroups.some((group) => group.items.length > 0);
+  const slashQuery = parseComposerSlashQuery(composer.draft);
+  const slashMatches = slashQuery === null ? [] : filterComposerDiscovery(discoveryGroups, slashQuery);
+  const slashOpen = slashMatches.length > 0 && dismissedSlashDraft !== composer.draft;
+
+  function restoreComposerFocus() {
+    textareaRef.current?.focus();
+  }
+
+  function notifyDiscovery(item: (typeof slashMatches)[number]['item'], source: 'plus' | 'slash') {
+    void slots?.onDiscoverySelect?.({ item, source });
+  }
+
+  function selectSlashItem(index: number) {
+    const match = slashMatches[index];
+    if (!match) return;
+    composer.setDraft(replaceComposerSlashTrigger(composer.draft, match.item.insertText ?? match.item.label));
+    setDismissedSlashDraft(null);
+    notifyDiscovery(match.item, 'slash');
+    restoreComposerFocus();
+  }
+
+  function selectPlusItem(item: (typeof slashMatches)[number]['item']) {
+    if (item.insertText) composer.setDraft(appendComposerDiscovery(composer.draft, item.insertText));
+    setDiscoveryMenuOpen(false);
+    notifyDiscovery(item, 'plus');
+    restoreComposerFocus();
+  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
+    if (event.nativeEvent.isComposing) return;
+    if (slashOpen) {
+      const action = resolveComposerSlashKeyAction(event.key, event.shiftKey);
+      if (action.type !== 'none') {
+        event.preventDefault();
+        if (action.type === 'move') {
+          setSlashActiveIndex((current) => (current + action.offset + slashMatches.length) % slashMatches.length);
+        } else if (action.type === 'select') {
+          selectSlashItem(Math.min(slashActiveIndex, slashMatches.length - 1));
+        } else {
+          setDismissedSlashDraft(composer.draft);
+        }
+        return;
+      }
+    }
+    if (event.key !== 'Enter' || event.shiftKey) return;
     event.preventDefault();
     if (!disabled && !sendDisabled && composer.canSubmit) onSend();
   }
@@ -81,16 +137,36 @@ export function Composer({
       {slots?.leadingAccessories ? <div className="jini-composer-leading">{slots.leadingAccessories}</div> : null}
       <AttachmentTray attachments={composer.attachments} onRemove={composer.removeAttachment} />
       <textarea
+        ref={textareaRef}
         className="jini-composer-input"
         value={composer.draft}
         placeholder={resolvedPlaceholder}
         disabled={disabled}
-        onChange={(e) => composer.setDraft(e.target.value)}
+        onChange={(e) => {
+          composer.setDraft(e.target.value);
+          setSlashActiveIndex(0);
+          setDismissedSlashDraft(null);
+        }}
         onKeyDown={handleKeyDown}
+        aria-controls={slashOpen ? 'jini-composer-slash-menu' : undefined}
+        aria-expanded={slashOpen}
+        aria-activedescendant={
+          slashOpen
+            ? `jini-composer-slash-option-${Math.min(slashActiveIndex, slashMatches.length - 1)}`
+            : undefined
+        }
         rows={3}
       />
+      {slashOpen ? (
+        <ComposerSlashMenu
+          matches={slashMatches}
+          activeIndex={Math.min(slashActiveIndex, slashMatches.length - 1)}
+          onSelect={(item) => selectSlashItem(slashMatches.findIndex((match) => match.item === item))}
+          t={t}
+        />
+      ) : null}
       <div className="jini-composer-footer">
-        {attachmentPicker ? (
+        {attachmentPicker && !hasDiscoveryItems ? (
           <div className="jini-composer-attachment-picker">
             <input
               ref={attachmentInputRef}
@@ -117,6 +193,20 @@ export function Composer({
               />
             </button>
           </div>
+        ) : null}
+        {hasDiscoveryItems ? (
+          <ComposerDiscoveryMenu
+            groups={discoveryGroups}
+            open={discoveryMenuOpen}
+            disabled={disabled}
+            {...(attachmentPicker ? { attachmentPicker } : {})}
+            attachmentInputRef={attachmentInputRef}
+            onToggle={() => setDiscoveryMenuOpen((open) => !open)}
+            onClose={() => setDiscoveryMenuOpen(false)}
+            onSelect={selectPlusItem}
+            onAttachmentChange={handleAttachmentChange}
+            t={t}
+          />
         ) : null}
         {slots?.footerAccessories ? (
           <div className="jini-composer-footer-accessories">{slots.footerAccessories}</div>

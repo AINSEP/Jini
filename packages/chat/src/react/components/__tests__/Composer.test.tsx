@@ -1,13 +1,61 @@
-import { fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Composer } from '../Composer.js';
 import { useComposer } from '../../hooks/useComposer.js';
+import type { ComposerDiscoveryGroup, ComposerSlots } from '../../slots.js';
+import { CHAT_PANE_STYLES } from '../../features/chat-pane/styles.js';
 
 function ComposerHarness({ onSend }: { onSend: (draft: string) => void }) {
   const composer = useComposer();
   return <Composer composer={composer} onSend={() => onSend(composer.draft)} />;
 }
+
+function DiscoveryHarness({ slots, attachmentPicker }: {
+  slots?: ComposerSlots;
+  attachmentPicker?: { onFiles: (files: File[]) => void; accept?: string };
+}) {
+  const composer = useComposer();
+  return (
+    <Composer
+      composer={composer}
+      onSend={() => {}}
+      {...(slots ? { slots } : {})}
+      {...(attachmentPicker ? { attachmentPicker } : {})}
+    />
+  );
+}
+
+const DISCOVERY_GROUPS: readonly ComposerDiscoveryGroup[] = [
+  {
+    id: 'regular-plugins',
+    label: 'Plugins',
+    items: [
+      { id: 'word-count', label: 'Word Count', kind: 'plugin', insertText: 'Word Count plugin' },
+    ],
+  },
+  {
+    id: 'agent-plugins',
+    label: 'Agent Plugins',
+    items: [
+      { id: 'ui-ux-design-agent-plugin', label: 'UI/UX Design Agent Plugin', kind: 'agent-plugin', insertText: 'UI/UX Design agent plugin' },
+    ],
+  },
+  {
+    id: 'skills',
+    label: 'Skills',
+    items: [
+      { id: 'ui-ux-design-skill', label: 'UI/UX Design Skill', kind: 'skill', insertText: 'UI/UX Design skill' },
+    ],
+  },
+  {
+    id: 'mcp',
+    label: 'MCP',
+    items: [
+      { id: 'mcp-settings', label: '/mcp', description: 'Open MCP settings', kind: 'mcp', insertText: '' },
+    ],
+  },
+];
 
 describe('Composer', () => {
   it('disables send until there is a draft or attachment', async () => {
@@ -55,6 +103,153 @@ describe('Composer', () => {
     expect(screen.getByTestId('footer')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Import file'));
     expect(onSelect).toHaveBeenCalled();
+  });
+
+  it('keeps the zero-catalog baseline while injected discovery changes rendered output', () => {
+    const baseline = render(<DiscoveryHarness />);
+    expect(screen.queryByRole('button', { name: 'Add context' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('listbox', { name: 'Composer commands' })).not.toBeInTheDocument();
+    baseline.unmount();
+
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    expect(screen.getByRole('button', { name: 'Add context' })).toBeInTheDocument();
+  });
+
+  it('proves host-supplied insertion by a paired baseline/treatment output difference', async () => {
+    const baselineGroups: readonly ComposerDiscoveryGroup[] = [
+      { id: 'skills', label: 'Skills', items: [{ id: 'ui-ux-design', label: 'UI/UX Design' }] },
+    ];
+    const baseline = render(<DiscoveryHarness slots={{ discoveryGroups: baselineGroups }} />);
+    await userEvent.type(screen.getByRole('textbox'), '/ux{Enter}');
+    expect(screen.getByRole('textbox')).toHaveValue('UI/UX Design');
+    baseline.unmount();
+
+    const treatmentGroups: readonly ComposerDiscoveryGroup[] = [
+      { id: 'skills', label: 'Skills', items: [{ id: 'ui-ux-design', label: 'UI/UX Design', insertText: 'custom UI/UX skill token' }] },
+    ];
+    render(<DiscoveryHarness slots={{ discoveryGroups: treatmentGroups }} />);
+    await userEvent.type(screen.getByRole('textbox'), '/ux{Enter}');
+    expect(screen.getByRole('textbox')).toHaveValue('custom UI/UX skill token');
+  });
+
+  it('opens the grouped add menu from the keyboard, inserts a selected item, and restores focus', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    const trigger = screen.getByRole('button', { name: 'Add context' });
+    trigger.focus();
+    await userEvent.keyboard('{Enter}');
+
+    const menu = screen.getByRole('menu', { name: 'Add context' });
+    expect(screen.getByRole('group', { name: 'Plugins' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Agent Plugins' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Skills' })).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'MCP' })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('menuitem', { name: /UI\/UX Design Skill/i }));
+
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).toHaveValue('UI/UX Design skill');
+    expect(textarea).toHaveFocus();
+    expect(menu).not.toBeInTheDocument();
+  });
+
+  it('groups Attach files into the discovery menu without changing upload behavior', async () => {
+    const onFiles = vi.fn();
+    render(
+      <DiscoveryHarness
+        slots={{ discoveryGroups: DISCOVERY_GROUPS }}
+        attachmentPicker={{ onFiles, accept: 'image/*' }}
+      />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    expect(screen.getByRole('group', { name: 'Files' })).toBeInTheDocument();
+    const input = screen.getByLabelText('Attach files', { selector: 'input' });
+    const inputClick = vi.spyOn(input, 'click');
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Attach files' }));
+    expect(inputClick).toHaveBeenCalledTimes(1);
+
+    const file = new File(['image'], 'reference.png', { type: 'image/png' });
+    await userEvent.upload(input, file);
+    expect(onFiles).toHaveBeenCalledWith([file]);
+  });
+
+  it('filters slash items and uses circular arrows plus Enter to replace the active trigger', async () => {
+    const onDiscoverySelect = vi.fn();
+    render(
+      <DiscoveryHarness
+        slots={{ discoveryGroups: DISCOVERY_GROUPS, onDiscoverySelect }}
+      />,
+    );
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/ux');
+
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(2);
+    expect(screen.queryByRole('option', { name: /Word Count/i })).not.toBeInTheDocument();
+    expect(options[0]).toHaveAttribute('aria-selected', 'true');
+    expect(options[0]).toHaveClass('is-active');
+    const activeStyleRule = CHAT_PANE_STYLES.match(
+      /\.jini-chat-pane \.jini-composer-discovery-item\.is-active \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(activeStyleRule).toContain('background: var(--jini-chat-accent-soft)');
+    expect(activeStyleRule).toContain('outline: 1px solid var(--jini-chat-accent)');
+    expect(activeStyleRule).toContain('box-shadow: inset 3px 0 0 var(--jini-chat-accent)');
+
+    await userEvent.keyboard('{ArrowUp}{Enter}');
+    expect(textarea).toHaveValue('UI/UX Design skill');
+    expect(textarea).toHaveFocus();
+    expect(onDiscoverySelect).toHaveBeenCalledWith({
+      item: expect.objectContaining({ id: 'ui-ux-design-skill' }),
+      source: 'slash',
+    });
+  });
+
+  it('prepopulates the accessible slash palette on bare slash, including truthful MCP navigation', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/');
+
+    const palette = screen.getByRole('listbox', { name: 'Composer commands' });
+    expect(within(palette).getAllByRole('option')).toHaveLength(4);
+    expect(within(palette).getByRole('option', { name: /\/mcp.*Open MCP settings/i })).toBeInTheDocument();
+    expect(within(palette).queryByText(/server-id/i)).not.toBeInTheDocument();
+  });
+
+  it('selects the /mcp command through the generic callback without inventing server inventory', async () => {
+    const onDiscoverySelect = vi.fn();
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS, onDiscoverySelect }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/mcp{Enter}');
+
+    expect(textarea).toHaveValue('');
+    expect(onDiscoverySelect).toHaveBeenCalledWith({
+      item: expect.objectContaining({ id: 'mcp-settings' }),
+      source: 'slash',
+    });
+  });
+
+  it('does not select the active slash item with Shift+Tab', async () => {
+    const onDiscoverySelect = vi.fn();
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS, onDiscoverySelect }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/word');
+
+    expect(fireEvent.keyDown(textarea, { key: 'Tab', shiftKey: true })).toBe(true);
+    expect(textarea).toHaveValue('/word');
+    expect(screen.getByRole('listbox', { name: 'Composer commands' })).toBeInTheDocument();
+    expect(onDiscoverySelect).not.toHaveBeenCalled();
+  });
+
+  it('selects slash items with Tab and closes them with Escape until the draft changes', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/word');
+    expect(screen.getByRole('option', { name: /Word Count/i })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('listbox', { name: 'Composer commands' })).not.toBeInTheDocument();
+
+    await userEvent.type(textarea, '{Backspace}d');
+    expect(screen.getByRole('listbox', { name: 'Composer commands' })).toBeInTheDocument();
+    await userEvent.keyboard('{Tab}');
+    expect(textarea).toHaveValue('Word Count plugin');
   });
 
   it('renders the attachment tray for staged attachments', () => {

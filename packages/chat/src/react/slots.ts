@@ -71,6 +71,35 @@ export interface ComposerPlusItem {
   onSelect: () => void | Promise<ChatAttachment | null>;
 }
 
+/**
+ * One provider-neutral resource the host wants the composer to expose.
+ *
+ * `kind` is intentionally an open string: Jini filters and renders the value but never switches
+ * on a host-owned taxonomy such as "plugin" or "skill". `insertText` is the text Jini places in
+ * the draft when the item is selected; hosts that need a side effect can use
+ * `onDiscoverySelect` without coupling the package to an inventory provider.
+ */
+export interface ComposerDiscoveryItem {
+  id: string;
+  label: string;
+  description?: string;
+  kind?: string;
+  keywords?: readonly string[];
+  insertText?: string;
+}
+
+/** A labelled group in the composer's add menu and slash autocomplete. */
+export interface ComposerDiscoveryGroup {
+  id: string;
+  label: string;
+  items: readonly ComposerDiscoveryItem[];
+}
+
+export interface ComposerDiscoverySelection {
+  item: ComposerDiscoveryItem;
+  source: 'plus' | 'slash';
+}
+
 /** One `@`-mention entry an OD skill/file/plugin picker (or any host source) supplies. */
 export interface MentionResult {
   id: string;
@@ -89,6 +118,10 @@ export interface MentionSource {
 
 export interface ComposerSlots {
   plusMenuItems?: ComposerPlusItem[];
+  /** Data-only host inventory rendered by the generic grouped add and slash primitives. */
+  discoveryGroups?: readonly ComposerDiscoveryGroup[];
+  /** Optional host effect invoked after Jini applies the selected item's draft insertion. */
+  onDiscoverySelect?: (selection: ComposerDiscoverySelection) => void | Promise<void>;
   mentionSources?: MentionSource[];
   /** e.g. a SessionModeToggle / DesignSystemSwitchPicker-equivalent. */
   leadingAccessories?: ReactNode;

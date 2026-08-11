@@ -345,6 +345,66 @@ export const CHAT_PANE_STYLES = `
   border-top: 1px solid var(--jini-chat-border-soft);
 }
 .jini-chat-pane .jini-composer-attachment-picker { display: inline-flex; }
+.jini-chat-pane .jini-composer-discovery { position: relative; display: inline-flex; }
+.jini-chat-pane .jini-composer-discovery-menu,
+.jini-chat-pane .jini-composer-slash-menu {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px;
+  color: var(--jini-chat-text);
+  background: var(--jini-chat-panel);
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 14%);
+}
+.jini-chat-pane .jini-composer-discovery-menu {
+  inset-inline-start: 0;
+  bottom: calc(100% + 6px);
+  width: min(280px, calc(100vw - 32px));
+}
+.jini-chat-pane .jini-composer-slash-menu {
+  inset-inline: 8px;
+  bottom: 48px;
+}
+.jini-chat-pane .jini-composer-discovery-group { display: flex; flex-direction: column; gap: 2px; }
+.jini-chat-pane .jini-composer-discovery-group-label {
+  padding: 6px 8px 2px;
+  color: var(--jini-chat-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.jini-chat-pane .jini-composer-discovery-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 8px;
+  color: inherit;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.jini-chat-pane .jini-composer-discovery-item:hover {
+  background: var(--jini-chat-panel);
+}
+.jini-chat-pane .jini-composer-discovery-item.is-active {
+  color: var(--jini-chat-text-strong);
+  background: var(--jini-chat-accent-soft);
+  outline: 1px solid var(--jini-chat-accent);
+  outline-offset: -1px;
+  box-shadow: inset 3px 0 0 var(--jini-chat-accent);
+}
+.jini-chat-pane .jini-composer-discovery-item small { color: var(--jini-chat-muted); }
 .jini-chat-pane .jini-composer-file-input {
   position: absolute;
   width: 1px;
