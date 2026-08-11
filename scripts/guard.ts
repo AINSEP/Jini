@@ -45,6 +45,7 @@
  */
 import { checkAgenticDomPurity } from './check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
+import { checkDriverIsolation } from './check-driver-isolation.js';
 import { checkEngineBoundaries } from './check-engine-boundaries.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
@@ -72,6 +73,7 @@ async function main() {
     await checkAgenticDomPurity(),
     await checkChatPanePublicSurface(),
     await checkExtensionlessImports(),
+    await checkDriverIsolation(),
     // TODO: vocabulary-firewall check (foundry/automation/** must not import engine domain types) —
     // genuinely unimplemented, not covered by either check above (both are scoped to packages/).
     // TODO: residual-JS allowlist — genuinely unimplemented; scope not yet specified precisely
