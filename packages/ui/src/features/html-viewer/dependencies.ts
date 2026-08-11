@@ -1,4 +1,4 @@
-import { openSandboxedPreviewInNewTab } from '@jini-ai/renderers-react';
+import { openSandboxedPreviewInNewTab } from '../../renderers/index.js';
 import type { FullscreenPort, HtmlViewerDependencies, NewTabPreviewPort } from './ports.js';
 
 /** Real browser Fullscreen API binding. Every method is SSR-guarded (`typeof document === 'undefined'`). */
@@ -27,7 +27,7 @@ export function createBrowserFullscreenPort(): FullscreenPort {
   };
 }
 
-/** Reuses `@jini-ai/renderers-react`'s `openSandboxedPreviewInNewTab` — the sandboxed-iframe core this whole slice is the first `@jini-ai/ui` consumer of. */
+/** Reuses `@jini-ai/ui`'s own `./renderers` subpath's `openSandboxedPreviewInNewTab` — the sandboxed-iframe core this whole slice is the first consumer of within this package. */
 export function createBrowserNewTabPreviewPort(): NewTabPreviewPort {
   return {
     openInNewTab(html, title) {

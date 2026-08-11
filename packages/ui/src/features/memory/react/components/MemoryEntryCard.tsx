@@ -4,7 +4,7 @@
 // scoped-down local reimplementation of OD's `runtime/markdown.tsx` (2,881
 // lines, chat/artifact-rendering territory, explicitly deferred to
 // `@jini-ai/chat`'s `./react` subpath (formerly this package's own `./chat` export, extracted
-// 2026-08-03)/`@jini-ai/renderers-react` — see `packages/ui/source-map.md`)
+// 2026-08-03)/this package's own `./renderers` subpath — see `packages/ui/source-map.md`)
 // — just enough to render a saved memory's plain-text/Markdown body safely.
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
