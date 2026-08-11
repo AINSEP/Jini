@@ -148,6 +148,40 @@ function isInside(dir: string, absPath: string): boolean {
   return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
 }
 
+/**
+ * Judges a single import found in a neutral-directory file against `target`'s two rules (closed
+ * under relative imports, no optional peers) and returns the `Violation` to report, or `null` if
+ * the import is fine. Pulled out of `checkDriverIsolation`'s triple-nested file/import loop as a
+ * top-level function (not a nested closure) specifically because a closure keeps the surrounding
+ * loop nesting for cognitive-complexity purposes — only hoisting to module scope removes it.
+ */
+function evaluateImport(
+  absFile: string,
+  specifier: string,
+  target: NeutralTarget,
+  file: string,
+): Violation | null {
+  if (isNodeBuiltin(specifier)) return null;
+
+  if (isRelative(specifier)) {
+    const resolved = resolveRelative(absFile, specifier);
+    if (isInside(target.neutralDir, resolved)) return null;
+    return {
+      rule: 'R12-driver-isolation',
+      file,
+      reason: `"${target.neutralRel}" must be closed under relative imports, but "${specifier}" resolves outside it (to ${relative(target.packageDir, resolved).split('\\').join('/')}). A neutral core that reaches a sibling directory can transitively reach that sibling's driver dependencies, which is what makes an optional peer dependency accidentally required. Move the shared code into "${target.neutralRel}".`,
+    };
+  }
+
+  const pkg = packageNameOf(specifier);
+  if (!target.optionalPeers.includes(pkg)) return null;
+  return {
+    rule: 'R12-driver-isolation',
+    file,
+    reason: `"${target.neutralRel}" imports "${specifier}", but "${pkg}" is an optional peerDependency of @jini-ai/${target.packageDirName} — importing it from the neutral entry point makes it effectively required for every consumer, including ones that installed a different backend. Depend on a port declared in "${target.neutralRel}" and implement it in the driver directory instead.`,
+  };
+}
+
 export interface CheckDriverIsolationOptions {
   /** Treat this directory as the repo root. Defaults to the real repo root. */
   readonly repoRoot?: string;
@@ -167,27 +201,8 @@ export async function checkDriverIsolation(
       const file = relative(root, absFile).split('\\').join('/');
 
       for (const ref of extractImports(absFile)) {
-        const { specifier } = ref;
-        if (isNodeBuiltin(specifier)) continue;
-
-        if (isRelative(specifier)) {
-          const resolved = resolveRelative(absFile, specifier);
-          if (isInside(target.neutralDir, resolved)) continue;
-          violations.push({
-            rule: 'R12-driver-isolation',
-            file,
-            reason: `"${target.neutralRel}" must be closed under relative imports, but "${specifier}" resolves outside it (to ${relative(target.packageDir, resolved).split('\\').join('/')}). A neutral core that reaches a sibling directory can transitively reach that sibling's driver dependencies, which is what makes an optional peer dependency accidentally required. Move the shared code into "${target.neutralRel}".`,
-          });
-          continue;
-        }
-
-        const pkg = packageNameOf(specifier);
-        if (!target.optionalPeers.includes(pkg)) continue;
-        violations.push({
-          rule: 'R12-driver-isolation',
-          file,
-          reason: `"${target.neutralRel}" imports "${specifier}", but "${pkg}" is an optional peerDependency of @jini-ai/${target.packageDirName} — importing it from the neutral entry point makes it effectively required for every consumer, including ones that installed a different backend. Depend on a port declared in "${target.neutralRel}" and implement it in the driver directory instead.`,
-        });
+        const violation = evaluateImport(absFile, ref.specifier, target, file);
+        if (violation) violations.push(violation);
       }
     }
   }
