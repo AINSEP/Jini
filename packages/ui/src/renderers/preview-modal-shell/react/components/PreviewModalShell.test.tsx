@@ -49,6 +49,20 @@ describe('PreviewModalShell — shell chrome', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it('closes on clicking the true backdrop', () => {
+    const onClose = vi.fn();
+    const { container } = render(<PreviewModalShell title="T" views={singleView} onClose={onClose} />);
+    fireEvent.click(container.querySelector('[data-preview-modal-backdrop]')!);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not close when a click bubbles from inside the modal surface', () => {
+    const onClose = vi.fn();
+    const { container } = render(<PreviewModalShell title="T" views={singleView} onClose={onClose} />);
+    fireEvent.click(container.querySelector('[data-preview-modal]')!);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('closes on Escape', () => {
     const onClose = vi.fn();
     render(<PreviewModalShell title="T" views={singleView} onClose={onClose} />);

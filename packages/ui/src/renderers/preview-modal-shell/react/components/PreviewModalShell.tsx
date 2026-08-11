@@ -108,6 +108,11 @@ export function PreviewModalShell({
       aria-label={t('{title} preview', { title })}
       style={{ position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       data-preview-modal-backdrop=""
+      onClick={(event) => {
+        // Only the actual backdrop dismisses. Clicks from the modal surface or any descendant
+        // bubble through this element with a different target and must leave the preview open.
+        if (event.target === event.currentTarget) onClose();
+      }}
     >
       <div
         style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%' }}
