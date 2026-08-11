@@ -21,7 +21,7 @@ import {
   registerMemoryRoutes,
   registerRunStreamRoute,
 } from '@jini-ai/http-kit';
-import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/media';
+import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
 import { createFrontendControl, createLocalNodeDaemon } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
