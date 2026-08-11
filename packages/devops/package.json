@@ -1,17 +1,21 @@
 {
-  "name": "@jini-ai/deploy",
+  "name": "@jini-ai/devops",
   "version": "0.1.2",
-  "description": "Static-site deploy adapters (Vercel, Cloudflare Pages, Netlify, GitHub Pages) behind one port, plus deployment naming and reachability probing.",
+  "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/AINSEP/Jini.git",
-    "directory": "packages/deploy"
+    "directory": "packages/devops"
   },
   "jini": {
     "domain": "capability",
-    "kind": "deploy-adapters",
-    "runtime": "node"
+    "kind": "devops",
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./deploy": "node"
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -22,6 +26,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./deploy": {
+      "types": "./dist/deploy/index.d.ts",
+      "import": "./dist/deploy/index.js",
+      "default": "./dist/deploy/index.js"
     }
   },
   "files": [

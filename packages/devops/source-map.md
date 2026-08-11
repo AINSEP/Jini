@@ -1,4 +1,9 @@
-# `@jini/deploy` — provenance
+# `@jini-ai/devops/deploy` — provenance
+
+> This deployment capability moved from the retired `packages/deploy` package
+> to `packages/devops/src/deploy`. Historical references to the old package
+> path below describe the original extraction; current consumers import
+> `@jini-ai/devops/deploy`.
 
 Origin: `nexu-io/open-design` (fork `leonaburime-ucla/open-design`), local reference clone
 `/Users/la/Desktop/Programming/OSS-Repos/open-design-agentic`, `apps/daemon/src/deploy.ts`
