@@ -410,6 +410,115 @@ describe('Composer', () => {
     }
   });
 
+  const ARGUMENT_COMMAND_GROUPS: readonly ComposerDiscoveryGroup[] = [
+    {
+      id: 'commands',
+      label: 'Commands',
+      items: [
+        { id: 'mcp', label: '/mcp', command: 'mcp', description: 'Open MCP settings' },
+        {
+          id: 'mcp-docs',
+          label: '/mcp-docs',
+          command: 'mcp-docs',
+          description: 'Open MCP docs',
+          keywords: ['mcp'],
+        },
+        {
+          id: 'search',
+          label: '/search',
+          command: 'search',
+          description: 'Ask the assistant to search the web',
+          argument: { placeholder: '<query>', required: true },
+          needsConfirmation: true,
+        },
+      ],
+    },
+  ];
+
+  it('completes an ambiguous/incomplete command word instead of invoking, and fires no host effect', async () => {
+    const onDiscoverySelect = vi.fn();
+    render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/sea{Enter}');
+
+    expect(textarea).toHaveValue('/search ');
+    expect(screen.getByRole('listbox', { name: 'Composer commands' })).toBeInTheDocument();
+    expect(onDiscoverySelect).not.toHaveBeenCalled();
+  });
+
+  it('never invokes a required-argument command until a non-blank argument is typed', async () => {
+    const onDiscoverySelect = vi.fn();
+    render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/search{Enter}');
+    expect(textarea).toHaveValue('/search ');
+    expect(onDiscoverySelect).not.toHaveBeenCalled();
+
+    await userEvent.type(textarea, '{Enter}');
+    expect(textarea).toHaveValue('/search ');
+    expect(onDiscoverySelect).not.toHaveBeenCalled();
+  });
+
+  it(
+    'exact-matches the command once an argument separator is typed, even though "mcp" is a ' +
+      'substring of "mcp-docs", and leaves the typed argument in the draft for the host to see',
+    async () => {
+      const onDiscoverySelect = vi.fn();
+      render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+      const textarea = screen.getByRole('textbox');
+      await userEvent.type(textarea, '/mcp');
+      expect(screen.getAllByRole('option')).toHaveLength(2);
+
+      await userEvent.type(textarea, ' supabase{Enter}');
+      expect(textarea).toHaveValue('/mcp supabase');
+      expect(onDiscoverySelect).toHaveBeenCalledTimes(1);
+      expect(onDiscoverySelect).toHaveBeenCalledWith({
+        item: expect.objectContaining({ id: 'mcp' }),
+        source: 'slash',
+        argument: 'supabase',
+      });
+    },
+  );
+
+  it('invokes a required-argument command with the typed argument and lets the host rewrite the draft', async () => {
+    const onDiscoverySelect = vi.fn().mockResolvedValue({ draft: 'Search the web for: aria listbox' });
+    render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/search aria listbox{Enter}');
+
+    expect(onDiscoverySelect).toHaveBeenCalledWith({
+      item: expect.objectContaining({ id: 'search' }),
+      source: 'slash',
+      argument: 'aria listbox',
+    });
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(textarea).toHaveValue('Search the web for: aria listbox');
+  });
+
+  it('leaves the draft untouched when the host resolves with no outcome', async () => {
+    const onDiscoverySelect = vi.fn().mockResolvedValue(undefined);
+    render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/search aria listbox{Enter}');
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(textarea).toHaveValue('/search aria listbox');
+  });
+
+  it('renders the argument placeholder and a confirmation cue from presence-only fields, never behavior', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS }} />);
+    await userEvent.type(screen.getByRole('textbox'), '/search');
+
+    const option = screen.getByRole('option', { name: /\/search/i });
+    expect(within(option).getByText('<query>')).toBeInTheDocument();
+    expect(within(option).getByText('Confirm')).toBeInTheDocument();
+  });
+
   it('swaps the send button for a stop button while running, calling onCancel instead of onSend', async () => {
     const onSend = vi.fn();
     const onCancel = vi.fn();

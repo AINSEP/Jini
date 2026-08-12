@@ -1,10 +1,6 @@
 import type { ChangeEvent, RefObject } from 'react';
 import { RemixIcon } from '@jini-ai/ui';
-import type {
-  ComposerDiscoveryGroup,
-  ComposerDiscoveryItem,
-  ComposerDiscoverySelection,
-} from '../slots.js';
+import type { ComposerDiscoveryGroup, ComposerDiscoveryItem } from '../slots.js';
 import type { ComposerDiscoveryMatch } from './composer-discovery.js';
 
 interface AttachmentPicker {
@@ -137,7 +133,15 @@ export function ComposerSlashMenu(props: ComposerSlashMenuProps) {
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => props.onSelect(match.item)}
         >
-          <span>{props.t(match.item.label)}</span>
+          <span>
+            {props.t(match.item.label)}
+            {match.item.argument ? (
+              <code className="jini-composer-slash-argument"> {match.item.argument.placeholder}</code>
+            ) : null}
+            {match.item.needsConfirmation ? (
+              <small className="jini-composer-slash-confirm-badge"> {props.t('Confirm')}</small>
+            ) : null}
+          </span>
           <small>
             {props.t(match.item.description ?? match.groupLabel)}
           </small>
@@ -146,5 +150,3 @@ export function ComposerSlashMenu(props: ComposerSlashMenuProps) {
     </div>
   );
 }
-
-export type ComposerDiscoverySelect = (selection: ComposerDiscoverySelection) => void | Promise<void>;

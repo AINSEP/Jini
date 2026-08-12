@@ -72,6 +72,17 @@ export interface ComposerPlusItem {
 }
 
 /**
+ * Declares that a `ComposerDiscoveryItem` accepts a trailing argument, e.g. `/mcp <server-id>`.
+ * Read only for its PRESENCE and `required` flag — never a typed value, never a host taxonomy,
+ * same law as `kind` below. `placeholder` is menu chrome (e.g. `<query>`); `required` only gates
+ * whether Enter/Tab may invoke with an empty argument, never what the argument means.
+ */
+export interface ComposerDiscoveryArgument {
+  placeholder: string;
+  required?: boolean;
+}
+
+/**
  * One provider-neutral resource the host wants the composer to expose.
  *
  * `kind` is intentionally an open string: Jini filters and renders the value but never switches
@@ -86,6 +97,22 @@ export interface ComposerDiscoveryItem {
   kind?: string;
   keywords?: readonly string[];
   insertText?: string;
+  /**
+   * Stable, untranslated word matched against typed input after `/`, e.g. `"mcp"` for `/mcp`.
+   * An item with no `command` never participates in slash-argument grammar — it keeps today's
+   * macro behavior exactly (plus-menu and fuzzy label/description/kind/keyword matching only).
+   * Kept separate from `label`, which is translated at render time and therefore unsafe as a
+   * match key the instant a second locale exists.
+   */
+  command?: string;
+  /** See {@link ComposerDiscoveryArgument}. Absent for a command with no trailing argument. */
+  argument?: ComposerDiscoveryArgument;
+  /**
+   * Presence-only signal that the host treats this item's effect as consequential enough to
+   * warrant confirmation before it commits. Jini never disables or gates selection on this — it
+   * is the host's own concern once `onDiscoverySelect` runs; the package may render it as a cue.
+   */
+  needsConfirmation?: boolean;
 }
 
 /** A labelled group in the composer's add menu and slash autocomplete. */
@@ -98,6 +125,19 @@ export interface ComposerDiscoveryGroup {
 export interface ComposerDiscoverySelection {
   item: ComposerDiscoveryItem;
   source: 'plus' | 'slash';
+  /**
+   * Present only when `item.command` is set and a selection was resolved past the "still
+   * completing the command word" stage (see `resolveComposerSlashInvocation` in
+   * `composer-discovery.ts`): `null` when no separator was typed (`/mcp`), `''` when a separator
+   * was typed with nothing after it (`/mcp `), otherwise the verbatim trailing text.
+   */
+  argument?: string | null;
+}
+
+/** A host effect's synchronous or resolved return value. Absent/`void` leaves the draft untouched. */
+export interface ComposerDiscoveryOutcome {
+  /** Replace the draft only when the host explicitly supplies this property. */
+  draft?: string;
 }
 
 /** One `@`-mention entry an OD skill/file/plugin picker (or any host source) supplies. */
@@ -120,8 +160,14 @@ export interface ComposerSlots {
   plusMenuItems?: ComposerPlusItem[];
   /** Data-only host inventory rendered by the generic grouped add and slash primitives. */
   discoveryGroups?: readonly ComposerDiscoveryGroup[];
-  /** Optional host effect invoked after Jini applies the selected item's draft insertion. */
-  onDiscoverySelect?: (selection: ComposerDiscoverySelection) => void | Promise<void>;
+  /**
+   * Optional host effect invoked after Jini applies the selected item's draft insertion (for a
+   * plain macro item) or, for a `command`-bearing item, once an invocation is resolved (see
+   * `ComposerDiscoverySelection.argument`). The host may return a {@link ComposerDiscoveryOutcome}
+   * to set the final draft — e.g. replacing `/search cats` with the composed instruction text a
+   * tool call produced — without owning any part of the trigger/filter/keyboard mechanism.
+   */
+  onDiscoverySelect?: (selection: ComposerDiscoverySelection) => void | ComposerDiscoveryOutcome | Promise<void | ComposerDiscoveryOutcome>;
   mentionSources?: MentionSource[];
   /** e.g. a SessionModeToggle / DesignSystemSwitchPicker-equivalent. */
   leadingAccessories?: ReactNode;

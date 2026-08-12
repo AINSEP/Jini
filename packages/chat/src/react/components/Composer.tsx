@@ -16,13 +16,14 @@ import { RemixIcon } from '@jini-ai/ui';
 import { useT } from '../hooks/context.js';
 import { AttachmentTray } from './AttachmentTray.js';
 import type { UseComposerResult } from '../hooks/useComposer.js';
-import type { ComposerSlots } from '../slots.js';
+import type { ComposerDiscoveryItem, ComposerDiscoveryOutcome, ComposerSlots } from '../slots.js';
 import { ComposerDiscoveryMenu, ComposerSlashMenu } from './ComposerDiscovery.js';
 import {
   appendComposerDiscovery,
   filterComposerDiscovery,
   parseComposerSlashQuery,
   replaceComposerSlashTrigger,
+  resolveComposerSlashInvocation,
   resolveComposerSlashKeyAction,
 } from './composer-discovery.js';
 
@@ -55,13 +56,22 @@ function reportComposerHostEffectFailure(effectName: string, error: unknown) {
   console.error(`[@jini-ai/chat] Composer ${effectName} host effect failed:`, error);
 }
 
-/** Invokes host code synchronously, then observes either its synchronous result or async failure. */
+/**
+ * Invokes host code synchronously, then observes either its synchronous result or async failure.
+ *
+ * @param onResolved - Optional, called with the host's resolved (non-thrown/non-rejected) return
+ * value — never called after a synchronous throw or an async rejection. Added for
+ * `onDiscoverySelect`, whose {@link ComposerDiscoveryOutcome} return value the caller applies to
+ * the draft; the two other host effects this function backs (`plusMenuItems.onSelect`,
+ * `attachmentPicker.onFiles`) simply omit it, which reproduces their exact prior behavior.
+ */
 function runComposerHostEffect(
   effectName: string,
-  effect: () => void | Promise<unknown>,
+  effect: () => unknown,
   onSettled?: () => void,
+  onResolved?: (result: unknown) => void,
 ) {
-  let result: void | Promise<unknown>;
+  let result: unknown;
   try {
     result = effect();
   } catch (error) {
@@ -71,8 +81,14 @@ function runComposerHostEffect(
   }
 
   const asynchronous = result !== undefined;
-  if (!asynchronous) onSettled?.();
+  if (!asynchronous) {
+    onResolved?.(result);
+    onSettled?.();
+  }
   void Promise.resolve(result)
+    .then((resolved) => {
+      if (asynchronous) onResolved?.(resolved);
+    })
     .catch((error: unknown) => {
       reportComposerHostEffectFailure(effectName, error);
     })
@@ -116,15 +132,29 @@ export function Composer({
     textareaRef.current?.focus();
   }
 
-  function notifyDiscovery(item: (typeof slashMatches)[number]['item'], source: 'plus' | 'slash') {
+  /**
+   * `argument` is passed only for a resolved `'invoke'` on a `command`-bearing item (see
+   * `resolveComposerSlashInvocation`); omitted entirely for a plain macro item, matching
+   * `ComposerDiscoverySelection.argument`'s own "absent means no command grammar" contract.
+   * A `ComposerDiscoveryOutcome` the host returns replaces the draft — this is how a command
+   * whose effect is computed asynchronously (e.g. composing agent-directed instruction text)
+   * gets to write its result back, since nothing here can guess it in advance the way a plain
+   * item's own `insertText` can.
+   */
+  function notifyDiscovery(item: ComposerDiscoveryItem, source: 'plus' | 'slash', argument?: string | null) {
     const onDiscoverySelect = slots?.onDiscoverySelect;
     if (!onDiscoverySelect || discoveryEffectInFlightRef.current) return;
     discoveryEffectInFlightRef.current = true;
     runComposerHostEffect(
       'onDiscoverySelect',
-      () => onDiscoverySelect({ item, source }),
+      () => onDiscoverySelect({ item, source, ...(argument !== undefined ? { argument } : {}) }),
       () => {
         discoveryEffectInFlightRef.current = false;
+      },
+      (outcome) => {
+        if (!outcome || typeof outcome !== 'object') return;
+        const draft = (outcome as ComposerDiscoveryOutcome).draft;
+        if (draft !== undefined) composer.setDraft(draft);
       },
     );
   }
@@ -132,13 +162,27 @@ export function Composer({
   function selectSlashItem(index: number) {
     const match = slashMatches[index];
     if (!match) return;
-    composer.setDraft(replaceComposerSlashTrigger(composer.draft, match.item.insertText ?? match.item.label));
+    const resolution = resolveComposerSlashInvocation(composer.draft, match.item);
+    if (!resolution) return;
+
+    if (resolution.type === 'complete') {
+      // The command word is ambiguous or its argument is still missing — finish the trigger and
+      // keep the palette open for further typing. No host effect fires: nothing was invoked yet.
+      composer.setDraft(resolution.draft);
+      setDismissedSlashDraft(null);
+      restoreComposerFocus();
+      return;
+    }
+
+    if (!match.item.command) {
+      composer.setDraft(replaceComposerSlashTrigger(composer.draft, match.item.insertText ?? match.item.label));
+    }
     setDismissedSlashDraft(null);
-    notifyDiscovery(match.item, 'slash');
+    notifyDiscovery(match.item, 'slash', resolution.argument);
     restoreComposerFocus();
   }
 
-  function selectPlusItem(item: (typeof slashMatches)[number]['item']) {
+  function selectPlusItem(item: ComposerDiscoveryItem) {
     if (item.insertText) composer.setDraft(appendComposerDiscovery(composer.draft, item.insertText));
     setDiscoveryMenuOpen(false);
     notifyDiscovery(item, 'plus');
