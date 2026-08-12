@@ -7,9 +7,9 @@ description: WCAG 2.1 AA compliance guidance for frontend code review and E2E te
 
 # Skill: Frontend Accessibility
 
-Accessibility is not a feature — it is a baseline quality requirement. A UI component that cannot be operated via keyboard or read by a screen reader is broken for a significant portion of users. This skill provides the WCAG 2.1 AA checklist that Code Review and QA/E2E agents use to catch violations before they ship.
+Accessibility is not a feature — it is a baseline quality requirement. A UI component that cannot be operated via keyboard or read by a screen reader is broken for a significant portion of users. This skill provides the WCAG 2.1 AA checklist that Code Inspection and QA/E2E agents use to catch violations before they ship.
 
-## WCAG 2.1 AA — What to Check in Code Review
+## WCAG 2.1 AA — What to Check in Code Inspection
 
 ### Perceivable
 - All non-text content has a text alternative (`alt` on images, `aria-label` or `aria-labelledby` on icon buttons).
@@ -33,7 +33,7 @@ Accessibility is not a feature — it is a baseline quality requirement. A UI co
 - ARIA roles only when native HTML semantics are insufficient.
 - ARIA attributes used correctly — do not add `aria-label` to elements that already have visible text.
 
-## Common Violations to Flag in Code Review
+## Common Violations to Flag in Code Inspection
 
 - `<div onClick>` instead of `<button>` — not keyboard accessible, no ARIA role.
 - `<img>` without `alt` attribute.
