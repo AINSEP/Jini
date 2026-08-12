@@ -38,9 +38,9 @@ describe('isMcpManifest', () => {
   });
 });
 
-describe('samples/design plugin', () => {
+describe('samples/agent-plugins/design plugin', () => {
   const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-  const pluginRoot = join(packageRoot, 'samples', 'design');
+  const pluginRoot = join(packageRoot, 'samples', 'agent-plugins', 'design');
 
   it('has a plugin.json that validates as a PluginManifest', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
