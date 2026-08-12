@@ -23,7 +23,8 @@
       "types": "./dist/agent-plugins/index.d.ts",
       "import": "./dist/agent-plugins/index.js",
       "default": "./dist/agent-plugins/index.js"
-    }
+    },
+    "./samples/*": "./samples/*"
   },
   "typesVersions": {
     "*": {
