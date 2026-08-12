@@ -6,7 +6,7 @@ exposed as two subpath exports: `./db/core` (driver-neutral ports and pure helpe
 
 ```ts
 import type { DbOpsPort } from '@jini-ai/infra/db/core';
-import { openSqliteDb, SqliteDbOpsAdapter } from '@jini-ai/infra/db/sqlite';
+import { openSqliteConnection, SqliteDbOpsAdapter } from '@jini-ai/infra/db/sqlite';
 ```
 
 ## The point of the split
@@ -14,9 +14,14 @@ import { openSqliteDb, SqliteDbOpsAdapter } from '@jini-ai/infra/db/sqlite';
 A host that runs Postgres or Supabase should never compile `better-sqlite3`. That is not a
 nice-to-have here, it is the reason the package is shaped this way:
 
-- **Drivers are optional peer dependencies.** `better-sqlite3` and `drizzle-orm` are declared in
+- **No ORM on the public surface.** This package exports connection lifecycle and database
+  operations, never query building. It has no opinion about — and no dependency on — how you query.
+  An earlier version exported Drizzle-typed helpers; they were removed because an ORM's class types
+  carry private/protected members and therefore cannot cross a package boundary when the consumer
+  resolves its own copy. Schemas, migrations and queries belong to the host.
+- **The driver is an optional peer dependency.** `better-sqlite3` is declared in
   `peerDependenciesMeta` as optional, so `npm install @jini-ai/infra` on its own pulls no native
-  module and triggers no node-gyp build. You install the driver you actually use.
+  module and triggers no node-gyp build.
 - **There is no `.` export.** A root barrel re-exporting both subpaths would load the driver for
   everyone regardless of which subpath they imported, because Node does not tree-shake — whatever
   the static import graph reaches gets resolved and executed. Omitting `.` is what makes the
@@ -51,7 +56,7 @@ rule gets quietly bypassed.
 
 ## `DEFAULT_PRAGMAS`, and a measured caveat
 
-`openSqliteDb` applies `journal_mode = WAL`, `foreign_keys = ON`, and `busy_timeout = 5000` unless
+`openSqliteConnection` applies `journal_mode = WAL`, `foreign_keys = ON`, and `busy_timeout = 5000` unless
 you pass your own list (which **replaces** the defaults rather than extending them).
 
 Measured against better-sqlite3 11.x opened with no pragmas at all: `foreign_keys` is already `1` and
