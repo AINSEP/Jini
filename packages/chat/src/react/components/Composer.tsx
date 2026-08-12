@@ -118,6 +118,16 @@ export function Composer({
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const discoveryEffectInFlightRef = useRef(false);
+  /**
+   * Mirrors `composer.draft` for the ONE place it must be read outside a render: inside
+   * `notifyDiscovery`'s `onResolved` callback, which can fire after arbitrarily many re-renders
+   * (nothing here disables the textarea while a host effect is in flight, so the user is free to
+   * keep typing). Reassigned every render rather than via an effect — an effect would lag one
+   * render behind the value it needs to be compared against at the exact moment the outcome
+   * settles.
+   */
+  const draftRef = useRef(composer.draft);
+  draftRef.current = composer.draft;
   const [discoveryMenuOpen, setDiscoveryMenuOpen] = useState(false);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const [dismissedSlashDraft, setDismissedSlashDraft] = useState<string | null>(null);
@@ -133,15 +143,27 @@ export function Composer({
   }
 
   /**
-   * `argument` is passed only for a resolved `'invoke'` on a `command`-bearing item (see
-   * `resolveComposerSlashInvocation`); omitted entirely for a plain macro item, matching
-   * `ComposerDiscoverySelection.argument`'s own "absent means no command grammar" contract.
-   * A `ComposerDiscoveryOutcome` the host returns replaces the draft — this is how a command
-   * whose effect is computed asynchronously (e.g. composing agent-directed instruction text)
-   * gets to write its result back, since nothing here can guess it in advance the way a plain
-   * item's own `insertText` can.
+   * `expectedDraft` is the draft as the user last saw it at the moment of selection — what the
+   * host's effect was computed against. `argument` is passed only for a resolved `'invoke'` on a
+   * `command`-bearing item (see `resolveComposerSlashInvocation`); omitted entirely for a plain
+   * macro item, matching `ComposerDiscoverySelection.argument`'s own "absent means no command
+   * grammar" contract.
+   *
+   * A `ComposerDiscoveryOutcome` the host returns replaces the draft — this is how a command whose
+   * effect is computed asynchronously (e.g. composing agent-directed instruction text) gets to
+   * write its result back, since nothing here can guess it in advance the way a plain item's own
+   * `insertText` can. But nothing disables the textarea while that effect is in flight, so the
+   * live draft (`draftRef.current`) may have moved on by the time it resolves. The outcome is
+   * applied only if the live draft still matches `expectedDraft` exactly; otherwise it is
+   * DISCARDED — silently overwriting keystrokes the user typed in the meantime would be worse than
+   * dropping a result they can reselect.
    */
-  function notifyDiscovery(item: ComposerDiscoveryItem, source: 'plus' | 'slash', argument?: string | null) {
+  function notifyDiscovery(
+    item: ComposerDiscoveryItem,
+    source: 'plus' | 'slash',
+    expectedDraft: string,
+    argument?: string | null,
+  ) {
     const onDiscoverySelect = slots?.onDiscoverySelect;
     if (!onDiscoverySelect || discoveryEffectInFlightRef.current) return;
     discoveryEffectInFlightRef.current = true;
@@ -154,7 +176,9 @@ export function Composer({
       (outcome) => {
         if (!outcome || typeof outcome !== 'object') return;
         const draft = (outcome as ComposerDiscoveryOutcome).draft;
-        if (draft !== undefined) composer.setDraft(draft);
+        if (draft === undefined) return;
+        if (draftRef.current !== expectedDraft) return;
+        composer.setDraft(draft);
       },
     );
   }
@@ -174,18 +198,21 @@ export function Composer({
       return;
     }
 
+    let expectedDraft = composer.draft;
     if (!match.item.command) {
-      composer.setDraft(replaceComposerSlashTrigger(composer.draft, match.item.insertText ?? match.item.label));
+      expectedDraft = replaceComposerSlashTrigger(composer.draft, match.item.insertText ?? match.item.label);
+      composer.setDraft(expectedDraft);
     }
     setDismissedSlashDraft(null);
-    notifyDiscovery(match.item, 'slash', resolution.argument);
+    notifyDiscovery(match.item, 'slash', expectedDraft, resolution.argument);
     restoreComposerFocus();
   }
 
   function selectPlusItem(item: ComposerDiscoveryItem) {
-    if (item.insertText) composer.setDraft(appendComposerDiscovery(composer.draft, item.insertText));
+    const expectedDraft = item.insertText ? appendComposerDiscovery(composer.draft, item.insertText) : composer.draft;
+    if (item.insertText) composer.setDraft(expectedDraft);
     setDiscoveryMenuOpen(false);
-    notifyDiscovery(item, 'plus');
+    notifyDiscovery(item, 'plus', expectedDraft);
     restoreComposerFocus();
   }
 

@@ -510,6 +510,103 @@ describe('Composer', () => {
     expect(textarea).toHaveValue('/search aria listbox');
   });
 
+  it(
+    'discards a stale draft outcome rather than overwriting keystrokes typed while the host effect ' +
+      'was in flight — nothing here disables the textarea during the wait, so this is reachable',
+    async () => {
+      let resolveHost!: (outcome: { draft: string }) => void;
+      const pending = new Promise<{ draft: string }>((resolve) => {
+        resolveHost = resolve;
+      });
+      const onDiscoverySelect = vi.fn().mockReturnValue(pending);
+      render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+      const textarea = screen.getByRole('textbox');
+
+      await userEvent.type(textarea, '/search aria listbox{Enter}');
+      expect(onDiscoverySelect).toHaveBeenCalledTimes(1);
+
+      // The user keeps typing while the host is still computing a result for the ORIGINAL draft.
+      await userEvent.type(textarea, ' more');
+      expect(textarea).toHaveValue('/search aria listbox more');
+
+      await act(async () => {
+        resolveHost({ draft: 'Search the web for: aria listbox' });
+        await pending;
+        await Promise.resolve();
+      });
+
+      // The stale outcome was computed against "/search aria listbox" — the user has since typed
+      // past that, so applying it would silently eat " more". It must be discarded, not applied.
+      expect(textarea).toHaveValue('/search aria listbox more');
+    },
+  );
+
+  it('applies the outcome normally when the draft is untouched while the host effect is in flight', async () => {
+    let resolveHost!: (outcome: { draft: string }) => void;
+    const pending = new Promise<{ draft: string }>((resolve) => {
+      resolveHost = resolve;
+    });
+    const onDiscoverySelect = vi.fn().mockReturnValue(pending);
+    render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+    const textarea = screen.getByRole('textbox');
+
+    await userEvent.type(textarea, '/search aria listbox{Enter}');
+    await act(async () => {
+      resolveHost({ draft: 'Search the web for: aria listbox' });
+      await pending;
+      await Promise.resolve();
+    });
+
+    expect(textarea).toHaveValue('Search the web for: aria listbox');
+  });
+
+  it(
+    'composes the staleness guard with the single-flight in-flight guard: a rejection that carries ' +
+      'no outcome never touches the draft, the in-flight guard still releases, and the NEXT ' +
+      'selection (now unblocked) is free to apply its own outcome',
+    async () => {
+      const failure = new Error('search failed');
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+      let rejectFirst!: (error: Error) => void;
+      const firstEffect = new Promise<never>((_resolve, reject) => {
+        rejectFirst = reject;
+      });
+      const onDiscoverySelect = vi.fn().mockReturnValueOnce(firstEffect).mockResolvedValue({ draft: 'second result' });
+
+      try {
+        render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS, onDiscoverySelect }} />);
+        const textarea = screen.getByRole('textbox');
+
+        await userEvent.type(textarea, '/search aria listbox{Enter}');
+        expect(onDiscoverySelect).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          rejectFirst(failure);
+          await firstEffect.catch(() => {});
+          await Promise.resolve();
+        });
+        // A rejection carries no outcome — the draft the user still sees is exactly what they typed.
+        expect(textarea).toHaveValue('/search aria listbox');
+        expect(consoleError).toHaveBeenCalledWith(
+          '[@jini-ai/chat] Composer onDiscoverySelect host effect failed:',
+          failure,
+        );
+
+        // The in-flight guard released after the rejection settled — a second selection now fires.
+        await userEvent.clear(textarea);
+        await userEvent.type(textarea, '/search second{Enter}');
+        expect(onDiscoverySelect).toHaveBeenCalledTimes(2);
+        await act(async () => {
+          await Promise.resolve();
+          await Promise.resolve();
+        });
+        expect(textarea).toHaveValue('second result');
+      } finally {
+        consoleError.mockRestore();
+      }
+    },
+  );
+
   it('renders the argument placeholder and a confirmation cue from presence-only fields, never behavior', async () => {
     render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS }} />);
     await userEvent.type(screen.getByRole('textbox'), '/search');
