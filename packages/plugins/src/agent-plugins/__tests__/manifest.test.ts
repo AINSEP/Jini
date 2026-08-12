@@ -38,14 +38,14 @@ describe('isMcpManifest', () => {
   });
 });
 
-describe('samples/agent-plugins/design plugin', () => {
+describe('samples/agent-plugins/ui-ux-design plugin', () => {
   const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
-  const pluginRoot = join(packageRoot, 'samples', 'agent-plugins', 'design');
+  const pluginRoot = join(packageRoot, 'samples', 'agent-plugins', 'ui-ux-design');
 
   it('has a plugin.json that validates as a PluginManifest', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
     expect(isPluginManifest(manifest)).toBe(true);
-    expect((manifest as { name: string }).name).toBe('design');
+    expect((manifest as { name: string }).name).toBe('ui-ux-design');
   });
 
   it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill', () => {

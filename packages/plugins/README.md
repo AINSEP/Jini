@@ -27,11 +27,11 @@ decides its own install mechanism, permission model, and sandboxing.
 
 ## What a plugin looks like on disk
 
-A plugin is a directory. Minimal example (this package's `samples/agent-plugins/design/`):
+A plugin is a directory. Minimal example (this package's `samples/agent-plugins/ui-ux-design/`):
 
 ```
-design/
-├── plugin.json                       # manifest — minimally { "$schema": ..., "name": "design" }
+ui-ux-design/
+├── plugin.json                       # manifest — minimally { "$schema": ..., "name": "ui-ux-design" }
 ├── mcp.json                          # MCP server declarations (empty here — example only)
 ├── skills/
 │   └── <skill-name>/
@@ -76,7 +76,7 @@ guessing which one a client should assume:
 }
 ```
 
-`samples/agent-plugins/design/mcp.json` ships with an empty `mcpServers: {}` — a valid, working
+`samples/agent-plugins/ui-ux-design/mcp.json` ships with an empty `mcpServers: {}` — a valid, working
 example of the file's shape, not a real server declaration. Replace it (or delete it — `mcp.json`
 is optional) the moment this plugin actually needs one.
 
@@ -85,7 +85,7 @@ specification: "the extension directory for a namespace is the top-level directo
 it," contents entirely client-defined, and clients that don't recognize a namespace simply ignore
 it. The spec's own example is `com.example.client/hooks/hooks.json` — using `example.com` the same
 way an RFC does, since the spec assigns no real namespace to any actual client and publishes no
-namespace registry. `samples/agent-plugins/design/com.anthropic.claude-code/hooks/hooks.json`
+namespace registry. `samples/agent-plugins/ui-ux-design/com.anthropic.claude-code/hooks/hooks.json`
 follows the same shape with a real client substituted in: `com.anthropic.claude-code` is a
 plausible reverse-DNS guess (Anthropic controls `anthropic.com`; Claude Code is the client this
 whole package was built inside), **not** a confirmed or registered identifier — nothing publishes
@@ -116,11 +116,11 @@ code between them is what keeps that true instead of aspirational.
 Not published under `./agent-plugins` — these are static plugin directories shipped alongside the
 code so a consumer (human or agent) can see a real, valid plugin rather than only a type
 definition. Included in the npm package via the `files` field so
-`node_modules/@jini-ai/plugins/samples/agent-plugins/design/` is a complete, install-ready plugin
+`node_modules/@jini-ai/plugins/samples/agent-plugins/ui-ux-design/` is a complete, install-ready plugin
 directory as-is. Nested under `samples/agent-plugins/` (mirroring `src/agent-plugins/`) because a
 sample plugin belongs to one specific format's subtree, not to the package root.
 
-### `samples/agent-plugins/design/`
+### `samples/agent-plugins/ui-ux-design/`
 
 Bundles the AI-Dev-Shop Web Design agent's full skill set (per its `agents/web-design/skills.md`
 persona and the `framework/routing/skills-registry.md` ownership mapping) into one portable plugin:
@@ -158,5 +158,5 @@ pnpm --filter @jini-ai/plugins test
 2. Add `samples/agent-plugins/<plugin-name>/skills/<skill-name>/SKILL.md` per skill (plus any
    `references/`, `examples/`, `scripts/` the skill needs).
 3. Add coverage in `src/agent-plugins/__tests__/` following `manifest.test.ts`'s
-   `samples/agent-plugins/design plugin` block — assert the manifest validates and the expected
+   `samples/agent-plugins/ui-ux-design plugin` block — assert the manifest validates and the expected
    skill directories exist.
