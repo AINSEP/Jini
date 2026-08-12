@@ -374,6 +374,83 @@ describe('useRunStream', () => {
     expect(signals[1]!.aborted).toBe(true);
   });
 
+  it('cancel() reports a rejected transport.stopRun without leaving an unhandled rejection', async () => {
+    const failure = new Error('stopRun host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const transport = {
+      startRun: vi.fn().mockResolvedValue({ runId: 'run-1' }),
+      reattachRun: vi.fn(),
+      stopRun: vi.fn().mockRejectedValue(failure),
+      fetchRunStatus: vi.fn(),
+    } as unknown as ChatTransport;
+    const { result } = renderHook(() => useRunStream(transport));
+
+    try {
+      await act(async () => {
+        await result.current.start({ history: [] });
+      });
+      await act(async () => {
+        result.current.cancel();
+        // Flush past the .catch() microtask this fix adds around transport.stopRun.
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.status).toBe('canceled');
+      expect(transport.stopRun).toHaveBeenCalledWith('run-1');
+      expect(consoleError).toHaveBeenCalledWith(
+        '[@jini-ai/chat] useRunStream transport.stopRun (cancel) host effect failed:',
+        failure,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('cancel() during an unresolved start() reports a rejected orphan-run transport.stopRun without an unhandled rejection', async () => {
+    const failure = new Error('orphan stopRun host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let resolveStart!: (v: { runId: string }) => void;
+    const transport = {
+      startRun: vi.fn(
+        async () =>
+          new Promise<{ runId: string }>((resolve) => {
+            resolveStart = resolve;
+          }),
+      ),
+      reattachRun: vi.fn(),
+      stopRun: vi.fn().mockRejectedValue(failure),
+      fetchRunStatus: vi.fn(),
+    } as unknown as ChatTransport;
+    const { result } = renderHook(() => useRunStream(transport));
+
+    try {
+      let startCall!: Promise<{ runId: string } | null>;
+      act(() => {
+        startCall = result.current.start({ history: [] });
+      });
+
+      act(() => result.current.cancel());
+      expect(result.current.status).toBe('canceled');
+
+      await act(async () => {
+        resolveStart({ runId: 'run-late' });
+        await startCall;
+        // Flush past the .catch() microtask this fix adds around the orphaned-generation stopRun.
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(transport.stopRun).toHaveBeenCalledWith('run-late');
+      expect(consoleError).toHaveBeenCalledWith(
+        '[@jini-ai/chat] useRunStream transport.stopRun (orphaned generation) host effect failed:',
+        failure,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
   it('reset() also aborts the reattached subscription rather than leaving it running', async () => {
     const signals: AbortSignal[] = [];
     const transport = {
