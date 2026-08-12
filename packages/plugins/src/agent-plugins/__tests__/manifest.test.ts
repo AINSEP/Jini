@@ -54,9 +54,8 @@ describe('samples/agent-plugins/design plugin', () => {
       'frontend-accessibility',
       'gstack-design',
       'interface-design',
-      'premium-ui',
       'shadcn-ui',
-      'ux-design',
+      'ui-ux-design',
       'vercel-web-design-guidelines',
       'web-compliance',
     ]);

@@ -1,11 +1,11 @@
 ---
-name: ux-design
-version: 1.0.0
-last_updated: 2026-03-21
-description: Use when creating frontend design systems, visual direction, component/state specs, responsive behavior, brand-aware UI guidance, or implementation-ready design handoff from a feature spec or existing product constraints.
+name: ui-ux-design
+version: 1.1.0
+last_updated: 2026-08-09
+description: Use when creating frontend design systems, visual direction, component/state specs, responsive behavior, brand-aware UI guidance, premium/high-converting website polish, or implementation-ready design handoff from a feature spec or existing product constraints.
 ---
 
-# Skill: UX Design
+# Skill: UI/UX Design
 
 ## Execution
 
@@ -13,7 +13,8 @@ description: Use when creating frontend design systems, visual direction, compon
 - Preserve an existing design system unless the user explicitly requests a new direction.
 - Define foundations before screens: tokens, typography, spacing, breakpoints, layout rules, interaction baselines.
 - Define component behavior before polish: default, hover, focus, active, loading, empty, error, success, disabled.
-- Load only the reference files needed for the current task:
+- Load only the reference files needed for the current task, with one standing exception: **any request for visual quality loads the premium bundle up front** — `references/premium-ui.md` together with `sam-crawford-premium-websites.md`, `self-made-web-designer-core-skills.md`, and `kole-jain-uiux-concepts.md`. That is ~6k tokens for all four, and the specifics live in the three notes, not the summary. Do not wait for the user to name a source; they never will.
+  - `references/premium-ui.md` for premium/luxury/high-trust/high-converting website and product UI polish — first impression, hierarchy, premium signals, and the three design-school notes it carries
   - `references/foundations.md` for tokens, layout, theming, responsive rules
   - `references/components-and-states.md` for component inventory, state matrix, interaction rules
   - `references/brand-and-voice.md` for brand system, tone, messaging, visual identity direction
@@ -23,7 +24,7 @@ description: Use when creating frontend design systems, visual direction, compon
   - `references/delight-and-motion.md` for microcopy, micro-interactions, personality, motion, delight
   - `references/inclusive-ai-imagery.md` for inclusive representation rules and AI image/video prompting
 - Treat accessibility, responsive behavior, and implementation clarity as default requirements.
-- Produce design output that Programmer, QA/E2E, and Code Review can execute without guessing.
+- Produce design output that Programmer, QA/E2E, and Code Inspection can execute without guessing.
 
 ## Guardrails
 
@@ -46,7 +47,7 @@ Write a concise design artifact that includes:
 - accessibility and inclusive-design requirements
 - brand/voice constraints when relevant
 - implementation notes for Programmer
-- verification notes for QA/E2E and Code Review
+- verification notes for QA/E2E and Code Inspection
 
 Default path: `<ADS_MEMORY_ROOT>/reports/pipeline/<NNN>-<feature-name>/design-spec.md`
 
@@ -59,6 +60,7 @@ Default path: `<ADS_MEMORY_ROOT>/reports/pipeline/<NNN>-<feature-name>/design-sp
 
 ### Decision Rule
 
+- Any signal that visual quality matters — premium, high-end, expensive, luxury, agency-grade, high-converting, "make it look good", a redesign, or a first-impression/marketing surface -> load `premium-ui.md` **and its three notes** first
 - Need layout, theming, or token structure -> load `foundations.md`
 - Need reusable components or interaction states -> load `components-and-states.md`
 - Need brand system or tone definition -> load `brand-and-voice.md`

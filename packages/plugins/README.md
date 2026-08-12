@@ -125,8 +125,11 @@ sample plugin belongs to one specific format's subtree, not to the package root.
 Bundles the AI-Dev-Shop Web Design agent's full skill set (per its `agents/web-design/skills.md`
 persona and the `framework/routing/skills-registry.md` ownership mapping) into one portable plugin:
 
-- `ux-design` — design-foundations: tokens, typography, spacing, breakpoints, component state matrix
-- `premium-ui` — first-impression polish, scanning hierarchy, conversion-focused visual signals
+- `ui-ux-design` — design-foundations (tokens, typography, spacing, breakpoints, component state
+  matrix) *and* first-impression polish, scanning hierarchy, conversion-focused visual signals —
+  one skill, not two. AI-Dev-Shop merged its former separate `ux-design` and `premium-ui` skills
+  into this single `ui-ux-design` skill; this sample tracks that merge instead of carrying the two
+  predecessor skills as stale copies (see git history for the 2026-08-12 consolidation).
 - `interface-design` — repeatable, memory-consistent visual systems for dashboards/admin panels/apps
 - `gstack-design` — manual four-mode workflow (consultation, shotgun, html, review)
 - `frontend-accessibility` — WCAG 2.1 AA checklist
