@@ -1,4 +1,4 @@
-import { fireEvent, render, renderHook, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Composer } from '../Composer.js';
@@ -13,7 +13,7 @@ function ComposerHarness({ onSend }: { onSend: (draft: string) => void }) {
 
 function DiscoveryHarness({ slots, attachmentPicker }: {
   slots?: ComposerSlots;
-  attachmentPicker?: { onFiles: (files: File[]) => void; accept?: string };
+  attachmentPicker?: { onFiles: (files: File[]) => void | Promise<void>; accept?: string };
 }) {
   const composer = useComposer();
   return (
@@ -103,6 +103,39 @@ describe('Composer', () => {
     expect(screen.getByTestId('footer')).toBeInTheDocument();
     await userEvent.click(screen.getByText('Import file'));
     expect(onSelect).toHaveBeenCalled();
+  });
+
+  it('reports a rejected legacy plus-menu host effect without leaving an unhandled rejection', async () => {
+    const failure = new Error('plus-menu host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { result } = renderHook(() => useComposer());
+
+    try {
+      render(
+        <Composer
+          composer={result.current}
+          onSend={() => {}}
+          slots={{
+            plusMenuItems: [{
+              id: 'p1',
+              label: 'Import file',
+              onSelect: () => Promise.reject(failure),
+            }],
+          }}
+        />,
+      );
+      await userEvent.click(screen.getByText('Import file'));
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(consoleError).toHaveBeenCalledWith(
+        '[@jini-ai/chat] Composer plusMenuItems.onSelect host effect failed:',
+        failure,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it('keeps the zero-catalog baseline while injected discovery changes rendered output', () => {
@@ -226,6 +259,69 @@ describe('Composer', () => {
     });
   });
 
+  it('reports a rejected discovery host effect without leaving an unhandled rejection', async () => {
+    const failure = new Error('discovery host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      render(
+        <DiscoveryHarness
+          slots={{
+            discoveryGroups: DISCOVERY_GROUPS,
+            onDiscoverySelect: () => Promise.reject(failure),
+          }}
+        />,
+      );
+      await userEvent.type(screen.getByRole('textbox'), '/mcp{Enter}');
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(consoleError).toHaveBeenCalledWith(
+        '[@jini-ai/chat] Composer onDiscoverySelect host effect failed:',
+        failure,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('keeps discovery effects single-flight while preserving draft editing and focus', async () => {
+    let resolveFirst!: () => void;
+    const firstEffect = new Promise<void>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const onDiscoverySelect = vi.fn()
+      .mockReturnValueOnce(firstEffect)
+      .mockResolvedValue(undefined);
+    render(
+      <DiscoveryHarness
+        slots={{ discoveryGroups: DISCOVERY_GROUPS, onDiscoverySelect }}
+      />,
+    );
+    const textarea = screen.getByRole('textbox');
+
+    await userEvent.type(textarea, '/word{Enter}');
+    expect(onDiscoverySelect).toHaveBeenCalledTimes(1);
+
+    await userEvent.clear(textarea);
+    await userEvent.type(textarea, '/ux{Enter}');
+    expect(textarea).toHaveValue('UI/UX Design agent plugin');
+    expect(textarea).toHaveFocus();
+    expect(textarea).not.toBeDisabled();
+    expect(textarea).not.toHaveAttribute('readonly');
+    expect(onDiscoverySelect).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveFirst();
+      await firstEffect;
+      await Promise.resolve();
+    });
+    await userEvent.clear(textarea);
+    await userEvent.type(textarea, '/mcp{Enter}');
+    expect(onDiscoverySelect).toHaveBeenCalledTimes(2);
+  });
+
   it('does not select the active slash item with Shift+Tab', async () => {
     const onDiscoverySelect = vi.fn();
     render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS, onDiscoverySelect }} />);
@@ -287,6 +383,31 @@ describe('Composer', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Attaching files…' })).toBeDisabled();
+  });
+
+  it('reports a rejected attachment host effect without leaving an unhandled rejection', async () => {
+    const failure = new Error('attachment host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      render(
+        <DiscoveryHarness
+          attachmentPicker={{ onFiles: () => Promise.reject(failure) }}
+        />,
+      );
+      const file = new File(['image'], 'reference.png', { type: 'image/png' });
+      await userEvent.upload(screen.getByLabelText('Attach files', { selector: 'input' }), file);
+      await act(async () => {
+        await Promise.resolve();
+      });
+
+      expect(consoleError).toHaveBeenCalledWith(
+        '[@jini-ai/chat] Composer attachmentPicker.onFiles host effect failed:',
+        failure,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it('swaps the send button for a stop button while running, calling onCancel instead of onSend', async () => {

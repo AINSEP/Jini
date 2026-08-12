@@ -51,6 +51,36 @@ export interface ComposerProps {
   onCancel?: () => void;
 }
 
+function reportComposerHostEffectFailure(effectName: string, error: unknown) {
+  console.error(`[@jini-ai/chat] Composer ${effectName} host effect failed:`, error);
+}
+
+/** Invokes host code synchronously, then observes either its synchronous result or async failure. */
+function runComposerHostEffect(
+  effectName: string,
+  effect: () => void | Promise<unknown>,
+  onSettled?: () => void,
+) {
+  let result: void | Promise<unknown>;
+  try {
+    result = effect();
+  } catch (error) {
+    reportComposerHostEffectFailure(effectName, error);
+    onSettled?.();
+    return;
+  }
+
+  const asynchronous = result !== undefined;
+  if (!asynchronous) onSettled?.();
+  void Promise.resolve(result)
+    .catch((error: unknown) => {
+      reportComposerHostEffectFailure(effectName, error);
+    })
+    .finally(() => {
+      if (asynchronous) onSettled?.();
+    });
+}
+
 /**
  * Renders the controlled message composer and optional attachment picker.
  *
@@ -71,6 +101,7 @@ export function Composer({
   const t = useT();
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const discoveryEffectInFlightRef = useRef(false);
   const [discoveryMenuOpen, setDiscoveryMenuOpen] = useState(false);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const [dismissedSlashDraft, setDismissedSlashDraft] = useState<string | null>(null);
@@ -86,7 +117,16 @@ export function Composer({
   }
 
   function notifyDiscovery(item: (typeof slashMatches)[number]['item'], source: 'plus' | 'slash') {
-    void slots?.onDiscoverySelect?.({ item, source });
+    const onDiscoverySelect = slots?.onDiscoverySelect;
+    if (!onDiscoverySelect || discoveryEffectInFlightRef.current) return;
+    discoveryEffectInFlightRef.current = true;
+    runComposerHostEffect(
+      'onDiscoverySelect',
+      () => onDiscoverySelect({ item, source }),
+      () => {
+        discoveryEffectInFlightRef.current = false;
+      },
+    );
   }
 
   function selectSlashItem(index: number) {
@@ -129,7 +169,9 @@ export function Composer({
   function handleAttachmentChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (files.length > 0) void attachmentPicker?.onFiles(files);
+    if (files.length > 0 && attachmentPicker) {
+      runComposerHostEffect('attachmentPicker.onFiles', () => attachmentPicker.onFiles(files));
+    }
   }
 
   return (
@@ -214,7 +256,13 @@ export function Composer({
         {slots?.plusMenuItems && slots.plusMenuItems.length > 0 ? (
           <div className="jini-composer-plus-menu">
             {slots.plusMenuItems.map((item) => (
-              <button key={item.id} type="button" className="jini-composer-plus-item" onClick={() => void item.onSelect()} title={t(item.label)}>
+              <button
+                key={item.id}
+                type="button"
+                className="jini-composer-plus-item"
+                onClick={() => runComposerHostEffect('plusMenuItems.onSelect', () => item.onSelect())}
+                title={t(item.label)}
+              >
                 {item.icon ?? null}
                 <span>{t(item.label)}</span>
               </button>
