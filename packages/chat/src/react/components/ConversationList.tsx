@@ -64,6 +64,24 @@ export interface ConversationListProps {
   emptyState?: React.ReactNode;
 }
 
+function reportConversationListHostEffectFailure(effectName: string, error: unknown) {
+  console.error(`[@jini-ai/chat] ConversationList ${effectName} host effect failed:`, error);
+}
+
+/** Invokes a host callback and reports a synchronous throw or async rejection without leaving it unhandled. */
+function runConversationListHostEffect(effectName: string, effect: () => void | Promise<unknown>) {
+  let result: void | Promise<unknown>;
+  try {
+    result = effect();
+  } catch (error) {
+    reportConversationListHostEffectFailure(effectName, error);
+    return;
+  }
+  void Promise.resolve(result).catch((error: unknown) => {
+    reportConversationListHostEffectFailure(effectName, error);
+  });
+}
+
 function relativeTime(updatedAt: number | undefined, now: number): string {
   if (updatedAt === undefined) return '';
   const seconds = Math.max(0, Math.round((now - updatedAt) / 1000));
@@ -161,9 +179,13 @@ export function ConversationList({
     // `cancelled` guards the classic out-of-order response: a slow query for "a" resolving after
     // a fast one for "abc" would otherwise overwrite the newer, correct results.
     let cancelled = false;
-    void onSearch(deferredQuery).then((results) => {
-      if (!cancelled) setServerResults(results);
-    });
+    // A search failure just leaves the prior (possibly stale) results in place rather than
+    // wiping the list — degraded, not wrong, so reporting the rejection is all that's warranted.
+    runConversationListHostEffect('onSearch', () =>
+      onSearch(deferredQuery).then((results) => {
+        if (!cancelled) setServerResults(results);
+      }),
+    );
     return () => {
       cancelled = true;
     };
@@ -188,20 +210,31 @@ export function ConversationList({
       setEditingId(null);
       // An empty rename is a cancel, not a request to erase the title — a user who selects all
       // and hits Enter has almost certainly changed their mind.
-      if (next) void onRename(id, next);
+      //
+      // No optimistic title update happens here — the row keeps rendering `item.title` from
+      // props until the host's own state updates, so a rejection cannot leave the UI showing a
+      // title the server didn't accept. Reporting the failure is what closes the remaining gap.
+      if (next) runConversationListHostEffect('onRename', () => onRename(id, next));
     },
     [draft, onRename],
   );
 
   const requestDelete = useCallback(
-    async (item: ConversationListItem) => {
+    (item: ConversationListItem) => {
       const confirmer =
         confirmDelete ??
         ((c: ConversationListItem) =>
           typeof window === 'undefined'
             ? true
             : window.confirm(t('Delete "{title}"? This cannot be undone.').replace('{title}', c.title ?? t('Untitled'))));
-      if (await confirmer(item)) await onDelete(item.id);
+      // No optimistic removal — the row stays in `conversations` until the host's own state
+      // drops it — so a rejected confirmer or `onDelete` cannot leave a deleted-looking row
+      // behind; it only means the item silently never disappears. `onDelete` is the effect name
+      // reported here since a rejecting confirmer is, from the host's perspective, also "the
+      // delete didn't happen."
+      runConversationListHostEffect('onDelete', async () => {
+        if (await confirmer(item)) await onDelete(item.id);
+      });
     },
     [confirmDelete, onDelete, t],
   );
@@ -244,7 +277,11 @@ export function ConversationList({
               data-testid="conversation-new"
               onClick={() => {
                 if (createDisabled) return;
-                void onCreate();
+                // No optimistic row is inserted — the list still comes straight from props — so a
+                // rejection here cannot leave a phantom conversation on screen; it only means the
+                // switcher closed without one actually being created. Reporting the failure closes
+                // the remaining gap between "switcher closed" and "the host actually knows".
+                runConversationListHostEffect('onCreate', () => onCreate());
                 setOpen(false);
               }}
             >
@@ -323,7 +360,7 @@ export function ConversationList({
                     data-testid={`conversation-delete-${item.id}`}
                     onClick={(event) => {
                       event.stopPropagation();
-                      void requestDelete(item);
+                      requestDelete(item);
                     }}
                   >
                     <Icon name="close" size={12} />
