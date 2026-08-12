@@ -1,15 +1,19 @@
 /**
  * @module @jini-ai/infra/db/sqlite
  *
- * The `better-sqlite3` driver. Importing this entry point requires both `better-sqlite3` and
- * `drizzle-orm` to be installed — they are optional peer dependencies, so a host that never
- * imports this subpath never compiles the native module.
+ * The `better-sqlite3` driver: connection lifecycle, pragma policy, and the SQLite implementation
+ * of `DbOpsPort` (online backup, atomic-rename restore, WAL sidecar cleanup).
  *
- * This module may import from `db/core`; `db/core` may never import from here. `pnpm guard`'s
- * R12 check enforces that direction, which is what keeps a second driver a purely additive
- * change rather than a restructure.
+ * **No ORM appears anywhere on this surface**, by rule rather than by accident. An earlier version
+ * exported Drizzle-typed helpers, which made `drizzle-orm` a peer dependency of this package and —
+ * measurably — could not be consumed by a host resolving its own copy of Drizzle. Schemas,
+ * migrations, and query building belong to the host; a host wraps the connection this module
+ * returns in whatever it uses. See `open.ts` for the full reasoning and the measurement.
+ *
+ * `better-sqlite3` remains an optional peer dependency, so a host on a different backend never
+ * compiles the native module. This module may import from `db/core`; `db/core` may never import
+ * from here, and `pnpm guard`'s R12 check enforces that direction.
  */
-export { DEFAULT_PRAGMAS, openSqliteDb } from './open.js';
-export { findOneBy } from './find-one-by.js';
+export { DEFAULT_PRAGMAS, openSqliteConnection } from './open.js';
 export { SqliteDbOpsAdapter, type SqliteDbOpsAdapterDeps } from './db-ops.js';
-export type { OpenSqliteDbOptions, SqliteDb, SqliteRecoveryHook } from './types.js';
+export type { OpenSqliteConnectionOptions, SqliteBackupSource, SqliteRecoveryHook } from './types.js';

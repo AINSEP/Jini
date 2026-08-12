@@ -69,21 +69,16 @@
     "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
-    "better-sqlite3": "^11.10.0",
-    "drizzle-orm": "^0.44.7"
+    "better-sqlite3": "^11.10.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
-      "optional": true
-    },
-    "drizzle-orm": {
       "optional": true
     }
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@vitest/coverage-v8": "^2.1.9",
-    "better-sqlite3": "^11.10.0",
-    "drizzle-orm": "^0.44.7"
+    "better-sqlite3": "^11.10.0"
   }
 }

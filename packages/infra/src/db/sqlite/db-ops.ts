@@ -14,21 +14,21 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import type Database from 'better-sqlite3';
-
 import { restorePointFilename } from '../core/artifact-naming.js';
 import type { DbOpsPort, RestoreCapability, RestorePoint, WatermarkReader } from '../core/ports.js';
+import type { SqliteBackupSource } from './types.js';
 
 /** Sentinel `filePath` for an ephemeral connection with no file behind it. */
 const IN_MEMORY = ':memory:';
 
 export interface SqliteDbOpsAdapterDeps {
   /**
-   * Structurally minimal on purpose: this adapter needs the raw driver's `backup` and nothing
-   * else, so a caller can hand it a real `SqliteDb` or a narrow test double without either one
-   * needing to satisfy the whole Drizzle surface.
+   * The raw driver handle, not an ORM wrapper. This adapter needs `backup` and nothing else, so a
+   * caller passes the connection directly — a host using Drizzle passes `handle.$client`. Taking
+   * the raw source rather than an object with a `$client` property keeps an ORM's naming
+   * convention off this package's surface entirely.
    */
-  readonly db: { $client: Pick<Database.Database, 'backup'> };
+  readonly connection: SqliteBackupSource;
   readonly filePath: string;
   readonly readWatermark: WatermarkReader;
   /** Injectable clock, so artifact names are deterministic under test. Defaults to `Date.now`. */
@@ -36,13 +36,13 @@ export interface SqliteDbOpsAdapterDeps {
 }
 
 export class SqliteDbOpsAdapter implements DbOpsPort {
-  private readonly db: { $client: Pick<Database.Database, 'backup'> };
+  private readonly connection: SqliteBackupSource;
   private readonly filePath: string;
   private readonly readWatermark: WatermarkReader;
   private readonly now: () => number;
 
   constructor(deps: SqliteDbOpsAdapterDeps) {
-    this.db = deps.db;
+    this.connection = deps.connection;
     this.filePath = deps.filePath;
     this.readWatermark = deps.readWatermark;
     this.now = deps.now ?? Date.now;
@@ -68,7 +68,7 @@ export class SqliteDbOpsAdapter implements DbOpsPort {
       restorePointFilename({ scopeId: required.scopeId, watermarkAtCapture, timestamp: this.now() }),
     );
 
-    await this.db.$client.backup(artifactRef);
+    await this.connection.backup(artifactRef);
 
     return { artifactRef, watermarkAtCapture };
   }
