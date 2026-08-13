@@ -3,8 +3,9 @@
 // menu's own DOM subtree, or the Escape key anywhere, should close it.
 // ViewportSwitcher (viewer-shell) and BrowserViewportControls (browser-chrome)
 // wrote byte-for-byte identical `document.addEventListener('pointerdown', ...)`
-// + `document.addEventListener('keydown', ...)` pairs; useSettingsDialogShell
-// (settings-dialog) and DeleteConfirmDialog (asset-grid) each wrote the
+// + `document.addEventListener('keydown', ...)` pairs; useTabbedDialog
+// (tabbed-dialog, called by SettingsDialogShell and any other host of that shell)
+// and DeleteConfirmDialog (asset-grid) each wrote the
 // Escape-only half of the same pattern (their backdrop already owns the
 // outside-click half via its own `onMouseDown`/`onClick`). This hook covers
 // both shapes — pass `containerRef` for the full dropdown/menu behavior, omit

@@ -74,7 +74,8 @@
       "default": "./dist/renderers/index.js"
     },
     "./interactive-ui.css": "./dist/features/interactive-ui/interactive-ui.css",
-    "./settings-dialog.css": "./dist/features/settings/dialog/styles/settings-dialog.css"
+    "./settings-dialog.css": "./dist/features/settings/dialog/styles/settings-dialog.css",
+    "./tabbed-dialog.css": "./dist/features/tabbed-dialog/styles/tabbed-dialog.css"
   },
   "files": [
     "dist",
@@ -89,7 +90,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles dist/features/tabbed-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && cp src/features/tabbed-dialog/styles/tabbed-dialog.css dist/features/tabbed-dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"

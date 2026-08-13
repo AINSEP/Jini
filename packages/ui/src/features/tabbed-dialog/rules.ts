@@ -1,4 +1,4 @@
-import type { SettingsDialogTabMeta } from './types.js';
+import type { TabbedDialogTabMeta } from './types.js';
 
 /**
  * Resolves which tab id should be active: the requested id if it exists in
@@ -8,7 +8,7 @@ import type { SettingsDialogTabMeta } from './types.js';
  * present in `tabs` (e.g. a deep link to a since-removed tab) still lands on
  * a valid tab instead of a blank content pane.
  */
-export function resolveInitialActiveTabId<T extends SettingsDialogTabMeta>(
+export function resolveInitialActiveTabId<T extends TabbedDialogTabMeta>(
   tabs: readonly T[],
   initialTabId?: string | null,
 ): string | null {
@@ -19,7 +19,7 @@ export function resolveInitialActiveTabId<T extends SettingsDialogTabMeta>(
 }
 
 /** Finds a tab by id, or `undefined` if `activeTabId` is `null`/not present. */
-export function findActiveTab<T extends SettingsDialogTabMeta>(
+export function findActiveTab<T extends TabbedDialogTabMeta>(
   tabs: readonly T[],
   activeTabId: string | null,
 ): T | undefined {
