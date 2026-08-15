@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
+import { assertNotRedirected, redirectGuardInit } from './redirect-guard.js';
 import {
   DeployError,
   type DeployFile,
@@ -197,9 +198,11 @@ async function getGitHubRefSha(
   repo: string,
   branch: string,
 ): Promise<string | undefined> {
-  const resp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/ref/heads/${enc(branch)}`, {
-    headers: githubHeaders(config.token),
-  });
+  const resp = await fetch(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/ref/heads/${enc(branch)}`,
+    redirectGuardInit({ headers: githubHeaders(config.token) }),
+  );
+  assertNotRedirected(resp, 'GitHub Pages branch lookup');
   if (resp.status === 404) return undefined;
   const json = await readGitHubJson<JsonObject>(resp);
   if (!resp.ok) throw githubError(json, resp.status, 'GitHub Pages branch lookup failed.');
@@ -208,11 +211,15 @@ async function getGitHubRefSha(
 }
 
 async function createGitHubBlob(config: GitHubPagesDeployConfig, owner: string, repo: string, data: DeployFile['data']): Promise<string> {
-  const resp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/blobs`, {
-    method: 'POST',
-    headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ content: Buffer.from(data).toString('base64'), encoding: 'base64' }),
-  });
+  const resp = await fetch(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/blobs`,
+    redirectGuardInit({
+      method: 'POST',
+      headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ content: Buffer.from(data).toString('base64'), encoding: 'base64' }),
+    }),
+  );
+  assertNotRedirected(resp, 'GitHub blob creation');
   const json = await readGitHubJson<JsonObject>(resp);
   if (!resp.ok) throw githubError(json, resp.status, 'GitHub blob creation failed.');
   const sha = typeof json.sha === 'string' ? json.sha : '';
@@ -244,11 +251,15 @@ async function createGitHubTreeFromFiles(config: GitHubPagesDeployConfig, owner:
     tree.push({ path: file.file, mode: '100644', type: 'blob', sha: blobSha });
   }
 
-  const resp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/trees`, {
-    method: 'POST',
-    headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ tree }),
-  });
+  const resp = await fetch(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/trees`,
+    redirectGuardInit({
+      method: 'POST',
+      headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ tree }),
+    }),
+  );
+  assertNotRedirected(resp, 'GitHub tree creation');
   const json = await readGitHubJson<JsonObject>(resp);
   if (!resp.ok) throw githubError(json, resp.status, 'GitHub tree creation failed.');
   const sha = typeof json.sha === 'string' ? json.sha : '';
@@ -264,11 +275,15 @@ async function createGitHubCommit(
   treeSha: string,
   parents: string[],
 ): Promise<string> {
-  const resp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/commits`, {
-    method: 'POST',
-    headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ message, tree: treeSha, parents }),
-  });
+  const resp = await fetch(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/commits`,
+    redirectGuardInit({
+      method: 'POST',
+      headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ message, tree: treeSha, parents }),
+    }),
+  );
+  assertNotRedirected(resp, 'GitHub commit creation');
   const json = await readGitHubJson<JsonObject>(resp);
   if (!resp.ok) throw githubError(json, resp.status, 'GitHub commit creation failed.');
   const sha = typeof json.sha === 'string' ? json.sha : '';
@@ -277,11 +292,15 @@ async function createGitHubCommit(
 }
 
 async function createGitHubRef(config: GitHubPagesDeployConfig, owner: string, repo: string, branch: string, sha: string): Promise<void> {
-  const resp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/refs`, {
-    method: 'POST',
-    headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
-  });
+  const resp = await fetch(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/refs`,
+    redirectGuardInit({
+      method: 'POST',
+      headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
+    }),
+  );
+  assertNotRedirected(resp, 'GitHub Pages branch creation');
   const json = await readGitHubJson<JsonObject>(resp);
   if (!resp.ok) throw githubError(json, resp.status, 'GitHub Pages branch creation failed.');
 }
@@ -298,11 +317,15 @@ async function createGitHubRef(config: GitHubPagesDeployConfig, owner: string, r
  * the first one produced).
  */
 async function updateGitHubRef(config: GitHubPagesDeployConfig, owner: string, repo: string, branch: string, sha: string): Promise<void> {
-  const resp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/refs/heads/${enc(branch)}`, {
-    method: 'PATCH',
-    headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ sha, force: true }),
-  });
+  const resp = await fetch(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/refs/heads/${enc(branch)}`,
+    redirectGuardInit({
+      method: 'PATCH',
+      headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ sha, force: true }),
+    }),
+  );
+  assertNotRedirected(resp, 'GitHub Pages branch update');
   const json = await readGitHubJson<JsonObject>(resp);
   if (!resp.ok) throw githubError(json, resp.status, 'GitHub Pages branch update failed.');
 }
@@ -317,15 +340,21 @@ async function updateGitHubRef(config: GitHubPagesDeployConfig, owner: string, r
  * is configured against a different branch than this call targets.
  */
 async function ensureGitHubPagesSite(config: GitHubPagesDeployConfig, owner: string, repo: string, branch: string): Promise<JsonObject> {
-  const getResp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages`, {
-    headers: githubHeaders(config.token),
-  });
+  const getResp = await fetch(
+    `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages`,
+    redirectGuardInit({ headers: githubHeaders(config.token) }),
+  );
+  assertNotRedirected(getResp, 'GitHub Pages site lookup');
   if (getResp.status === 404) {
-    const createResp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages`, {
-      method: 'POST',
-      headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ source: { branch, path: '/' }, build_type: 'legacy' }),
-    });
+    const createResp = await fetch(
+      `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages`,
+      redirectGuardInit({
+        method: 'POST',
+        headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ source: { branch, path: '/' }, build_type: 'legacy' }),
+      }),
+    );
+    assertNotRedirected(createResp, 'GitHub Pages site creation');
     const created = await readGitHubJson<JsonObject>(createResp);
     if (!createResp.ok) throw githubError(created, createResp.status, 'GitHub Pages site creation failed.');
     return created;
@@ -373,9 +402,11 @@ async function pollGitHubPagesBuild(
   let last: GitHubPagesBuildOutcome | null = null;
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, i < 5 ? 1000 : 2000));
-    const resp = await fetch(`${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages/builds/latest`, {
-      headers: githubHeaders(config.token),
-    });
+    const resp = await fetch(
+      `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages/builds/latest`,
+      redirectGuardInit({ headers: githubHeaders(config.token) }),
+    );
+    assertNotRedirected(resp, 'GitHub Pages build status check');
     if (resp.status === 404) continue;
     const json = await readGitHubJson<JsonObject>(resp);
     if (!resp.ok) throw githubError(json, resp.status, 'GitHub Pages build status check failed.');

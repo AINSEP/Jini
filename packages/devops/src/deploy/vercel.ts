@@ -1,5 +1,6 @@
 import { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
 import { safeProjectLabel } from './naming.js';
+import { assertNotRedirected, redirectGuardInit } from './redirect-guard.js';
 import { DeployError, type DeployPublishInput, type DeployPublishResult, type DeployTarget, type DeploymentUrlCheck, type JsonObject } from './types.js';
 
 export const VERCEL_TARGET_ID = 'vercel';
@@ -76,22 +77,26 @@ export class VercelDeployTarget implements DeployTarget {
       throw new DeployError('Vercel token is required.', 400);
     }
 
-    const createResp = await fetch(`${VERCEL_API}/v13/deployments${vercelTeamQuery(this.config)}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.config.token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        name: safeVercelProjectName(input.projectName),
-        files: input.files.map((f) => ({
-          file: f.file,
-          data: Buffer.from(f.data).toString('base64'),
-          encoding: 'base64',
-        })),
-        projectSettings: { framework: null },
+    const createResp = await fetch(
+      `${VERCEL_API}/v13/deployments${vercelTeamQuery(this.config)}`,
+      redirectGuardInit({
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${this.config.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: safeVercelProjectName(input.projectName),
+          files: input.files.map((f) => ({
+            file: f.file,
+            data: Buffer.from(f.data).toString('base64'),
+            encoding: 'base64',
+          })),
+          projectSettings: { framework: null },
+        }),
       }),
-    });
+    );
+    assertNotRedirected(createResp, 'Vercel deployment creation');
 
     const created = await readVercelJson(createResp);
     if (!createResp.ok) throw vercelError(created, createResp.status);
@@ -161,9 +166,11 @@ async function pollVercelDeployment(config: VercelDeployConfig, id: string): Pro
   let last: JsonObject | null = null;
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, i < 5 ? 1000 : 2000));
-    const resp = await fetch(`${VERCEL_API}/v13/deployments/${encodeURIComponent(id)}${vercelTeamQuery(config)}`, {
-      headers: { Authorization: `Bearer ${config.token}` },
-    });
+    const resp = await fetch(
+      `${VERCEL_API}/v13/deployments/${encodeURIComponent(id)}${vercelTeamQuery(config)}`,
+      redirectGuardInit({ headers: { Authorization: `Bearer ${config.token}` } }),
+    );
+    assertNotRedirected(resp, 'Vercel deployment status poll');
     const json = await readVercelJson(resp);
     if (!resp.ok) throw vercelError(json, resp.status);
     last = json;

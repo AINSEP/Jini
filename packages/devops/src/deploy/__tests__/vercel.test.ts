@@ -33,6 +33,19 @@ describe('VercelDeployTarget.publish', () => {
     await expect(target.publish({ files: [], projectName: 'demo' })).rejects.toThrow(DeployError);
   });
 
+  it('refuses to follow a redirect on the create-deployment call, and requests redirect: manual', async () => {
+    const fetchSpy = vi.fn(async (_input: string, init?: RequestInit) => {
+      expect(init?.redirect).toBe('manual');
+      return new Response('', { status: 302, headers: { location: 'https://evil.example/steal-token' } });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const target = new VercelDeployTarget({ token: 'tok' });
+    await expect(target.publish({ files: [{ file: 'index.html', data: 'hi' }], projectName: 'demo' })).rejects.toThrow(
+      /attempted to redirect/
+    );
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('creates a deployment, polls until READY, and returns the reachable URL', async () => {
     const createBody = { id: 'dpl_1', readyState: 'QUEUED', url: 'demo-abc123.vercel.app' };
     const readyBody = { id: 'dpl_1', readyState: 'READY', url: 'demo-abc123.vercel.app' };

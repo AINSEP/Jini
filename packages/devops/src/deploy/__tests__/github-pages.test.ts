@@ -40,6 +40,20 @@ describe('GitHubPagesDeployTarget.publish', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('refuses to follow a redirect on the branch-ref lookup, and requests redirect: manual on every call', async () => {
+    const fetchSpy = vi.fn(async (_input: string, init?: RequestInit) => {
+      expect(init?.redirect).toBe('manual');
+      return new Response('', { status: 302, headers: { location: 'https://evil.example/steal-token' } });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const target = new GitHubPagesDeployTarget({ token: 'tok', owner: 'octo', repo: 'demo' });
+    await expect(target.publish({ files: [{ file: 'index.html', data: 'hi' }], projectName: 'demo' })).rejects.toThrow(
+      /attempted to redirect/
+    );
+    // Never advanced past the ref lookup to create a blob — the redirect was refused, not just logged.
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('publishes a brand-new site: no existing branch, no existing Pages config, dedupes identical file content into one blob', async () => {
     const calls: Array<{ method: string; url: string; body?: unknown }> = [];
     let blobCalls = 0;
