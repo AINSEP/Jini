@@ -11,6 +11,7 @@
  * builders because the CSS that styles them lives here — splitting the markup from the only
  * stylesheet that can reach it is how a "generic" fragment quietly becomes unstyled in one caller.
  */
+import { AGENT_ELEMENT_ATTRIBUTE, AGENT_LABEL_ATTRIBUTE, AGENT_ROLE_ATTRIBUTE } from '@jini-ai/agentic';
 import { escapeHtml } from '../escape.js';
 import { SURFACE_BRIDGE_GLOBAL, renderBridgeScript, type BridgeScriptSpec } from './bridge.js';
 import { renderTokenBlock, type SurfaceTokenName } from './tokens.js';
@@ -369,13 +370,33 @@ export interface SurfaceAction {
  * Buttons carry `data-mcpui-action`, never an `onclick` attribute: an inline handler would need a
  * `script-src 'unsafe-inline'`-equivalent allowance for attributes specifically, and a host is free
  * to apply a stricter CSP to the frame than this package can see.
+ *
+ * Each button also carries the `@jini-ai/agentic` `data-agent-*` markup convention
+ * ({@link AGENT_ELEMENT_ATTRIBUTE} et al.) — but this tagging is advisory, not the thing that makes
+ * a surface's actions reachable by `page.find_elements`/`page.click`. Those capabilities resolve a
+ * handle by scanning `document`/`contentDocument`, and this document renders inside a `srcdoc`
+ * iframe sandboxed to `allow-scripts` alone (`MCP_UI_VIEW_SANDBOX` — no `allow-same-origin`,
+ * deliberately), which gives it an opaque origin no ancestor document can read into. So this tagging
+ * is real for a driver that reaches INTO the frame directly — `frameLocator` in Playwright, proven
+ * end to end against exactly this markup — and inert for anything scanning the parent page. Making a
+ * surface's actions visible to `page.find_elements` needs a second, parent-DOM-side echo of this
+ * same action list; see `McpUiSurfaceCard` in `@jini-ai/chat` for that half.
  */
 export function renderActions(actions: readonly SurfaceAction[]): string {
   const buttons = actions
     .map((action) => {
       const variant = action.variant ?? 'neutral';
       const variantClass = variant === 'neutral' ? '' : ` mcpui-button-${variant}`;
-      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}">${escapeHtml(action.label)}</button>`;
+      const label = escapeHtml(action.label);
+      // `mcpui-action-<id>` rather than the bare id: every id observed across this package's own
+      // builders ('confirm', 'cancel', 'submit') already satisfies the agentic package's stricter
+      // `[a-z0-9]+(-[a-z0-9]+)*` handle pattern, but `SurfaceAction.id` is typed as a plain `string`
+      // and nothing here enforces that — a future builder passing something else would still produce
+      // syntactically valid, HTML-escaped markup, just not necessarily a handle `resolveHandleSelector`
+      // would accept. That is unenforced on purpose (see the function doc above: `page.find_elements`
+      // can never reach this document to resolve it either way), so failing loudly here would refuse
+      // markup for a reason that can never matter to the one consumer that can actually query it.
+      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}">${label}</button>`;
     })
     .join('\n');
   return `<div class="mcpui-actions">\n${buttons}\n</div>`;

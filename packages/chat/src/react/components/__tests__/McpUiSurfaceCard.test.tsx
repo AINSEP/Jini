@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
 import { MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
@@ -67,6 +67,28 @@ describe('McpUiSurfaceCard', () => {
     render(<McpUiSurfaceCard {...BASE_PROPS} events={[{ type: 'text', text: 'not a resource' }, null]} />);
     expect(screen.getByRole('status').textContent).toBe('This MCP-UI event carried no renderable resource.');
     expect(screen.queryByTitle(/ui:\/\//)).toBeNull();
+  });
+
+  it('threads a maxHeight through to McpUiHost, so a narrow host can cap a surface below the library default (720px)', () => {
+    render(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>a</p>')]} maxHeight={300} />);
+    const frameEl = screen.getByTitle('ui://a/1') as HTMLIFrameElement;
+    const view = frameEl.contentWindow!;
+    // A real message round-trip through the shared window listener (`host-message-source.ts`),
+    // not an injected fake — this is the exact mechanism a production McpUiHost uses, so this proves
+    // the prop actually reaches it rather than merely compiling.
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { data: { jsonrpc: '2.0', id: 1, method: 'ui/initialize', params: {} }, source: view }));
+      window.dispatchEvent(new MessageEvent('message', { data: { jsonrpc: '2.0', method: 'ui/notifications/initialized' }, source: view }));
+      // Deliberately absurd height: without threading, this would clamp at the library's own
+      // DEFAULT_MAX_HEIGHT (720px), not at the 300px this host asked for.
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 999_999 } },
+          source: view,
+        }),
+      );
+    });
+    expect(frameEl.style.height).toBe('300px');
   });
 
   it('passes the tool executor and link handler through to each view', () => {

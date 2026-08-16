@@ -36,6 +36,14 @@ export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
   /** Executes a tool a View asked for. Omit and every `tools/call` is refused — visibly, in the dialog. */
   onToolCall?: McpUiToolCallHandler;
   onOpenLink?: (url: string) => void;
+  /**
+   * Ceiling for a View's self-reported height, forwarded to every `McpUiHost` this card renders.
+   * Omit to keep `McpUiHost`'s own `DEFAULT_MAX_HEIGHT` (720px) — a reasonable default for a
+   * full-width transcript, but well past what a narrow docked pane can show without excessive
+   * scrolling for content taller than its `preferredFrameSize` guess. A host embedding this card in
+   * a fixed-width sidebar should pass a cap sized to its own viewport.
+   */
+  maxHeight?: number;
 }
 
 /** Collapses the event stream to the newest resource per `ui://` URI, in first-appearance order. */
@@ -50,7 +58,7 @@ function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[]
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, onToolCall, onOpenLink }: McpUiSurfaceCardProps) {
+export function McpUiSurfaceCard({ events, onToolCall, onOpenLink, maxHeight }: McpUiSurfaceCardProps) {
   const t = useT();
   const resources = useMemo(() => latestResourcesByUri(events), [events]);
 
@@ -86,6 +94,7 @@ export function McpUiSurfaceCard({ events, onToolCall, onOpenLink }: McpUiSurfac
             {...(onToolCall === undefined ? {} : { onToolCall })}
             {...(onOpenLink === undefined ? {} : { onOpenLink })}
             {...(height === undefined || Number.isNaN(height) ? {} : { initialHeight: height })}
+            {...(maxHeight === undefined ? {} : { maxHeight })}
           />
         );
       })}
@@ -101,6 +110,9 @@ export function McpUiSurfaceCard({ events, onToolCall, onOpenLink }: McpUiSurfac
  * hardcoding a transport here would make the component unusable in any host with a different one.
  * @param options.name - Override the claimed event name. Only useful for a host multiplexing two
  * independent MCP-UI streams.
+ * @param options.maxHeight - See {@link McpUiSurfaceCardProps.maxHeight}. A host with a fixed-width
+ * pane (a docked sidebar rather than a full-width transcript) should set this once here instead of
+ * accepting the library's full-width-oriented 720px default.
  * @returns An unregister handle, so a test or a hot reload can dispose cleanly.
  */
 export function registerMcpUiSurfaceRenderer(
@@ -108,6 +120,7 @@ export function registerMcpUiSurfaceRenderer(
     onToolCall?: McpUiToolCallHandler;
     onOpenLink?: (url: string) => void;
     name?: string;
+    maxHeight?: number;
   } = {},
 ): () => void {
   return registerExtEventRenderer(options.name ?? MCP_UI_EXT_EVENT_NAME, (props) => (
@@ -115,6 +128,7 @@ export function registerMcpUiSurfaceRenderer(
       {...props}
       {...(options.onToolCall === undefined ? {} : { onToolCall: options.onToolCall })}
       {...(options.onOpenLink === undefined ? {} : { onOpenLink: options.onOpenLink })}
+      {...(options.maxHeight === undefined ? {} : { maxHeight: options.maxHeight })}
     />
   ));
 }
