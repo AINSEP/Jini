@@ -23,9 +23,50 @@
  * dependency on `@jini-ai/ui`. `McpUiHost`/`McpUiToolCallHandler`/`parseUIResource`/`readPreferredFrameSize` still
  * come from `@jini-ai/ui/mcp-ui`, which owns the actual sandboxed-iframe hosting and MCP-UI
  * resource vocabulary — genuinely ui-generic, with real consumers beyond this one component.
+ *
+ * ## The parent-DOM mirror
+ *
+ * A surface renders inside a `srcdoc` iframe sandboxed to `allow-scripts` alone (no
+ * `allow-same-origin`, deliberately — see `MCP_UI_VIEW_SANDBOX`), which gives it an opaque origin
+ * no ancestor document can read into. `page.find_elements` (`@jini-ai/agentic`'s page-control
+ * capability) scans the PARENT document only, so no amount of `data-agent-*` tagging inside the
+ * frame (see `surfaces/document.ts`'s `renderActions`) makes a surface's pending confirmation, or
+ * its buttons' labels, discoverable to it. `readActionPlan` (this component's other new import)
+ * gives this component the same `{title, actions}` a surface renders as real buttons, via a typed
+ * `_meta` channel rather than scraping HTML — see `MCP_UI_ACTION_PLAN_META_KEY`'s own doc.
+ *
+ * What this component does with that plan is deliberately narrow: publish a single, `status`-role,
+ * DISCOVERY-ONLY region per surface — `page.find_elements` can learn a confirmation is pending and
+ * what its buttons are called, but NOTHING here carries a `data-agent-element` handle for an
+ * individual action. `page.click` (`dom-page-driver.ts`) does not consult `data-agent-role` at all;
+ * it activates whatever a handle resolves to, unconditionally. So there is no such thing as a
+ * "safely" clickable mirror button — publishing one at all would let the same live agent that
+ * raised the confirmation answer its own dialog, defeating the human gate the surface exists to
+ * enforce. That capability may be built deliberately later (the owner has floated letting an agent
+ * confirm non-destructive actions, e.g. on a timer) but it is a real policy decision — which tool
+ * calls, what gates it, an audit trail — not a default this visibility fix should smuggle in.
+ *
+ * `aria-hidden="true"` plus `display: none`: the mirror exists purely for a DOM-attribute scanner,
+ * never for a human — the real dialog is already visible (and, once resolved, readable) in the
+ * iframe right next to it. Without `aria-hidden` a screen-reader user would hear the confirmation's
+ * title and button labels announced twice, in slightly different words, once from the live dialog
+ * and once from this region — `role="status"` is an implicit `aria-live="polite"` region, so it
+ * would self-announce on mount even before being focused. Verified empirically, not assumed, that
+ * hiding it this way does not also make it invisible to `find_elements`: that capability never
+ * filters its result set by visibility (`dom-page-driver.ts`'s `findElements`), only annotates a
+ * `visible` field in per-element STATE when a caller opts into it — see the regression tests added
+ * against the real driver in `@jini-ai/agentic`.
  */
-import { useMemo } from 'react';
-import { McpUiHost, parseUIResource, readPreferredFrameSize, type McpUiToolCallHandler, type UIResource } from '@jini-ai/ui/mcp-ui';
+import { Fragment, useMemo } from 'react';
+import {
+  McpUiHost,
+  parseUIResource,
+  readActionPlan,
+  readPreferredFrameSize,
+  type McpUiActionPlan,
+  type McpUiToolCallHandler,
+  type UIResource,
+} from '@jini-ai/ui/mcp-ui';
 import { registerExtEventRenderer, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 
@@ -57,6 +98,51 @@ function latestResourcesByUri(events: readonly unknown[]): readonly UIResource[]
   return [...byUri.values()];
 }
 
+/**
+ * Builds a valid `data-agent-element` handle from a surface's `ui://` URI.
+ *
+ * Handles are `[a-z0-9]+(-[a-z0-9]+)*` (`@jini-ai/agentic`'s `HANDLE_PATTERN`) — narrower than a
+ * URI, which carries `:`, `/`, and whatever characters a producer's own id scheme uses. Rather than
+ * assume every producer's URI already happens to satisfy that pattern (`agentHandle()` THROWS on a
+ * handle that does not, which would take down the whole surface card's render for an otherwise
+ * perfectly valid resource), this sanitizes unconditionally: lowercase, collapse every run of
+ * disallowed characters to one hyphen, trim the ends. A URI already shaped like
+ * `ui://tovu/deployment-execute-static-publish/<uuid>` survives this close to verbatim; this only
+ * has teeth for a producer whose id scheme this package has never seen.
+ */
+function pendingMirrorHandle(uri: string): string {
+  const sanitized = uri.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return `mcp-ui-pending-${sanitized === '' ? 'surface' : sanitized}`;
+}
+
+/** The one label a mirror region carries — what is pending, and what an agent could report or wait on. */
+function pendingMirrorLabel(t: ReturnType<typeof useT>, plan: McpUiActionPlan): string {
+  const actionLabels = plan.actions.map((action) => action.label).join(', ');
+  return t('A confirmation is pending human response: "{title}". Buttons: {actions}.', {
+    title: plan.title,
+    actions: actionLabels === '' ? t('none') : actionLabels,
+  });
+}
+
+/**
+ * The parent-DOM, discovery-only echo of one surface's pending action plan — see this module's own
+ * doc for what it is, why it carries no clickable handle, and why it is hidden from both sighted
+ * and screen-reader users. A standalone component (rather than inline JSX in the `.map` below)
+ * purely so its narrow job — one `<div>`, a handful of static attributes — reads as a complete,
+ * self-contained unit rather than a growing side-branch of `McpUiSurfaceCard`'s own return.
+ */
+function PendingSurfaceMirror({ uri, plan, t }: { uri: string; plan: McpUiActionPlan; t: ReturnType<typeof useT> }) {
+  return (
+    <div
+      aria-hidden="true"
+      style={{ display: 'none' }}
+      data-agent-element={pendingMirrorHandle(uri)}
+      data-agent-role="status"
+      data-agent-label={pendingMirrorLabel(t, plan)}
+    />
+  );
+}
+
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
 export function McpUiSurfaceCard({ events, onToolCall, onOpenLink, maxHeight }: McpUiSurfaceCardProps) {
   const t = useT();
@@ -78,24 +164,27 @@ export function McpUiSurfaceCard({ events, onToolCall, onOpenLink, maxHeight }: 
       {resources.map((resource) => {
         const preferred = readPreferredFrameSize(resource);
         const height = preferred === undefined ? undefined : Number.parseInt(preferred[1], 10);
+        const plan = readActionPlan(resource);
         return (
-          <McpUiHost
-            key={resource.resource.uri}
-            title={resource.resource.uri}
-            html={resource.resource.text}
-            // The whole document, not its LENGTH. `useMcpUiHost` already defaults `sessionKey` to
-            // `html` — exact by construction — and this override replaced that with a digest so
-            // coarse that any two documents of equal size under one URI collided: a genuine update
-            // (a re-rendered dialog with the same-length body, a swapped confirmation token) reused
-            // the previous iframe session, so the handshake never re-ran and the frame kept serving
-            // the OLD document's state. The URI stays in the key because it is real identity; the
-            // length was never a substitute for content.
-            sessionKey={`${resource.resource.uri}:${resource.resource.text}`}
-            {...(onToolCall === undefined ? {} : { onToolCall })}
-            {...(onOpenLink === undefined ? {} : { onOpenLink })}
-            {...(height === undefined || Number.isNaN(height) ? {} : { initialHeight: height })}
-            {...(maxHeight === undefined ? {} : { maxHeight })}
-          />
+          <Fragment key={resource.resource.uri}>
+            <McpUiHost
+              title={resource.resource.uri}
+              html={resource.resource.text}
+              // The whole document, not its LENGTH. `useMcpUiHost` already defaults `sessionKey` to
+              // `html` — exact by construction — and this override replaced that with a digest so
+              // coarse that any two documents of equal size under one URI collided: a genuine update
+              // (a re-rendered dialog with the same-length body, a swapped confirmation token) reused
+              // the previous iframe session, so the handshake never re-ran and the frame kept serving
+              // the OLD document's state. The URI stays in the key because it is real identity; the
+              // length was never a substitute for content.
+              sessionKey={`${resource.resource.uri}:${resource.resource.text}`}
+              {...(onToolCall === undefined ? {} : { onToolCall })}
+              {...(onOpenLink === undefined ? {} : { onOpenLink })}
+              {...(height === undefined || Number.isNaN(height) ? {} : { initialHeight: height })}
+              {...(maxHeight === undefined ? {} : { maxHeight })}
+            />
+            {plan !== undefined && <PendingSurfaceMirror uri={resource.resource.uri} plan={plan} t={t} />}
+          </Fragment>
         );
       })}
     </div>
