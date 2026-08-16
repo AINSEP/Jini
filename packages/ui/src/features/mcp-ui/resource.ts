@@ -63,6 +63,45 @@ export const MCP_UI_METADATA_PREFIX = 'mcpui.dev/ui-';
 /** The `_meta` key a host reads to size the frame instead of guessing. Value is a `[width, height]` CSS-length pair. */
 export const MCP_UI_PREFERRED_FRAME_SIZE_META_KEY = `${MCP_UI_METADATA_PREFIX}preferred-frame-size`;
 
+/**
+ * This package's OWN `_meta` namespace, for hints that are not part of the `@mcp-ui/server` spec.
+ *
+ * Deliberately a different prefix from {@link MCP_UI_METADATA_PREFIX}: that one is `@mcp-ui/server`'s
+ * own namespace, and `preferred-frame-size` is one of *its* conventions. Minting a second key under
+ * it (however similar in shape) would assert a level of standardization this package has no
+ * authority to claim. Everything Jini-specific belongs here instead, where it plainly reads as this
+ * package's own addition.
+ */
+export const JINI_MCP_UI_METADATA_PREFIX = 'x-jini-mcp-ui/';
+
+/**
+ * The `_meta` key a host reads to build a PARENT-DOM echo of a surface's action plan.
+ *
+ * Exists because a generated surface's `{title, actions}` (see `surfaces/confirmation.ts`'s
+ * `ConfirmationSurfaceSpec`) is otherwise flattened into an opaque HTML string before it ever
+ * reaches a host — unlike {@link MCP_UI_PREFERRED_FRAME_SIZE_META_KEY}, nothing carried it
+ * separately. A host cannot make a surface's pending confirmation and its action LABELS
+ * discoverable via `page.find_elements` (which cannot read into the sandboxed, opaque-origin
+ * iframe the real buttons render in — see `MCP_UI_VIEW_SANDBOX`) without either scraping that HTML
+ * or being handed the plan directly. This is the direct channel; see `McpUiSurfaceCard` in
+ * `@jini-ai/chat` for the host-side consumer.
+ */
+export const MCP_UI_ACTION_PLAN_META_KEY = `${JINI_MCP_UI_METADATA_PREFIX}action-plan`;
+
+/** One action in a surface's plan — the `_meta`-safe subset of `surfaces/document.ts`'s `SurfaceAction` (no `type`: that field only affects in-frame `<form>` submission, which has no parent-DOM equivalent). */
+export interface McpUiActionPlanAction {
+  readonly id: string;
+  readonly label: string;
+  readonly variant?: 'primary' | 'danger' | 'neutral';
+}
+
+/** What {@link MCP_UI_ACTION_PLAN_META_KEY} carries. */
+export interface McpUiActionPlan {
+  readonly title: string;
+  readonly description?: string;
+  readonly actions: readonly McpUiActionPlanAction[];
+}
+
 /** The text-bearing UI resource body (mcp-ui's `HTMLTextContent`). This package never emits the `blob` variant. */
 export interface UIResourceContent {
   readonly uri: UIResourceUri;
@@ -110,8 +149,9 @@ export interface UIToolResult {
  * one rather than hand-rolling.
  * @param spec.preferredFrameSize - `[width, height]` CSS lengths, written to the `_meta` key mcp-ui
  * hosts read.
- * @param spec.meta - Extra `_meta` entries, merged after `preferredFrameSize` so a caller can
- * override it.
+ * @param spec.actionPlan - See {@link McpUiActionPlan}, written to {@link MCP_UI_ACTION_PLAN_META_KEY}.
+ * @param spec.meta - Extra `_meta` entries, merged after `preferredFrameSize`/`actionPlan` so a
+ * caller can override either.
  * @returns The `EmbeddedResource` to place in a tool result's `content` array.
  * @complexity O(1).
  */
@@ -119,12 +159,14 @@ export function createUIResource(spec: {
   uri: UIResourceUri;
   htmlString: string;
   preferredFrameSize?: readonly [string, string];
+  actionPlan?: McpUiActionPlan;
   meta?: Readonly<Record<string, unknown>>;
 }): UIResource {
   const meta: Record<string, unknown> = {
     ...(spec.preferredFrameSize === undefined
       ? {}
       : { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: [...spec.preferredFrameSize] }),
+    ...(spec.actionPlan === undefined ? {} : { [MCP_UI_ACTION_PLAN_META_KEY]: spec.actionPlan }),
     ...spec.meta,
   };
   return {
@@ -214,4 +256,50 @@ export function readPreferredFrameSize(resource: UIResource): readonly [string, 
   const [width, height] = raw as readonly unknown[];
   if (typeof width !== 'string' || typeof height !== 'string') return undefined;
   return [width, height];
+}
+
+type ActionPlanVariant = NonNullable<McpUiActionPlanAction['variant']>;
+
+function isActionPlanVariant(value: string): value is ActionPlanVariant {
+  return value === 'primary' || value === 'danger' || value === 'neutral';
+}
+
+function parseActionPlanAction(value: unknown): McpUiActionPlanAction | undefined {
+  if (!isRecord(value)) return undefined;
+  const id = value['id'];
+  const label = value['label'];
+  if (typeof id !== 'string' || id === '' || typeof label !== 'string') return undefined;
+  const variant = value['variant'];
+  if (variant === undefined) return { id, label };
+  if (typeof variant !== 'string' || !isActionPlanVariant(variant)) return undefined;
+  return { id, label, variant };
+}
+
+/**
+ * Reads the action-plan hint a resource's `_meta` may carry — see {@link MCP_UI_ACTION_PLAN_META_KEY}.
+ *
+ * Validated the same way {@link readPreferredFrameSize} is: a resource crosses a wire from a server
+ * this package does not control, so every field is checked rather than cast. A single malformed
+ * action invalidates the whole plan (never a partially-rendered mirror silently missing a button) —
+ * an `undefined` here means "the host builds no mirror for this surface", not "build one with what
+ * parsed".
+ *
+ * @returns The plan, or `undefined` when absent or malformed.
+ */
+export function readActionPlan(resource: UIResource): McpUiActionPlan | undefined {
+  const raw = resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY];
+  if (!isRecord(raw)) return undefined;
+  const title = raw['title'];
+  if (typeof title !== 'string') return undefined;
+  const description = raw['description'];
+  if (description !== undefined && typeof description !== 'string') return undefined;
+  const rawActions = raw['actions'];
+  if (!Array.isArray(rawActions)) return undefined;
+  const actions: McpUiActionPlanAction[] = [];
+  for (const rawAction of rawActions) {
+    const action = parseActionPlanAction(rawAction);
+    if (action === undefined) return undefined;
+    actions.push(action);
+  }
+  return { title, ...(description === undefined ? {} : { description }), actions };
 }

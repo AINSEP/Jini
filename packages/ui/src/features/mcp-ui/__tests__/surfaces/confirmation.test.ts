@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildConfirmationSurface, renderConfirmationDocument } from '../../surfaces/confirmation.js';
-import { MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
 import { mountSurface } from './mount-surface.js';
 
 const TOKEN = 'single-use-secret-token';
@@ -171,15 +171,36 @@ describe('buildConfirmationSurface', () => {
     expect(resource.resource.uri).toBe('ui://example-host/content-post-delete/p1/3');
     expect(resource.resource.mimeType).toBe('text/html;profile=mcp-app');
     expect(resource.resource.text).toContain('<h1 class="mcpui-title">Delete this post?</h1>');
-    expect(resource.resource).not.toHaveProperty('_meta');
   });
 
-  it('carries a preferred frame size when one is asked for', () => {
+  it('always writes an action plan, even with no preferredFrameSize asked for -- a host mirror needs the plan unconditionally, not only when frame sizing is also in play', () => {
+    const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://example-host/content-post-delete/p1/3' });
+    expect(resource.resource._meta).toEqual({
+      [MCP_UI_ACTION_PLAN_META_KEY]: {
+        title: 'Delete this post?',
+        description: 'This is a soft delete; the post is moved to the trash.',
+        actions: [
+          { id: 'confirm', label: 'Delete post', variant: 'danger' },
+          { id: 'cancel', label: 'Cancel', variant: 'neutral' },
+        ],
+      },
+    });
+  });
+
+  it('carries a preferred frame size when one is asked for, alongside the action plan', () => {
     const resource = buildConfirmationSurface({
       ...DELETE_POST,
       uri: 'ui://example-host/x/1',
       preferredFrameSize: ['420px', '460px'],
     });
-    expect(resource.resource._meta).toEqual({ [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['420px', '460px'] });
+    expect(resource.resource._meta?.[MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]).toEqual(['420px', '460px']);
+    expect(resource.resource._meta).toHaveProperty(MCP_UI_ACTION_PLAN_META_KEY);
+  });
+
+  it('omits a cancel action from the plan when the spec has none, matching the rendered document', () => {
+    const { cancel: _cancel, ...noCancel } = DELETE_POST;
+    const resource = buildConfirmationSurface({ ...noCancel, uri: 'ui://example-host/x/2' });
+    const plan = resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY] as { actions: unknown[] };
+    expect(plan.actions).toEqual([{ id: 'confirm', label: 'Delete post', variant: 'danger' }]);
   });
 });

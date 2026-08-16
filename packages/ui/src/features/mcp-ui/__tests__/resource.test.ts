@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MCP_UI_ACTION_PLAN_META_KEY,
   MCP_UI_MIME_TYPE,
+  MCP_UI_METADATA_PREFIX,
   MCP_UI_PREFERRED_FRAME_SIZE_META_KEY,
   MCP_UI_RESOURCE_URI_META_KEY,
   UI_RESOURCE_MIME_TYPES,
   buildUIToolResult,
   createUIResource,
   parseUIResource,
+  readActionPlan,
   readPreferredFrameSize,
 } from '../resource.js';
 
@@ -48,6 +51,31 @@ describe('createUIResource', () => {
   it('exports the spec key for the template-registration flow it does not itself use', () => {
     expect(MCP_UI_RESOURCE_URI_META_KEY).toBe('ui/resourceUri');
     expect(UI_RESOURCE_MIME_TYPES).toContain(MCP_UI_MIME_TYPE);
+  });
+
+  it('writes actionPlan under a Jini-owned key, not the @mcp-ui/server spec prefix preferredFrameSize uses', () => {
+    expect(MCP_UI_ACTION_PLAN_META_KEY.startsWith(MCP_UI_METADATA_PREFIX)).toBe(false);
+    const resource = createUIResource({
+      uri: 'ui://x/1',
+      htmlString: '',
+      actionPlan: { title: 'Publish?', actions: [{ id: 'confirm', label: 'Publish', variant: 'danger' }] },
+    });
+    expect(resource.resource._meta).toEqual({
+      [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'Publish?', actions: [{ id: 'confirm', label: 'Publish', variant: 'danger' }] },
+    });
+  });
+
+  it('writes preferredFrameSize and actionPlan together without either clobbering the other', () => {
+    const resource = createUIResource({
+      uri: 'ui://x/1',
+      htmlString: '',
+      preferredFrameSize: ['100%', '360px'],
+      actionPlan: { title: 'T', actions: [] },
+    });
+    expect(resource.resource._meta).toEqual({
+      [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['100%', '360px'],
+      [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [] },
+    });
   });
 });
 
@@ -124,5 +152,55 @@ describe('readPreferredFrameSize', () => {
     ['a non-string height', { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['420px', 440] }],
   ])('returns undefined for %s, so the host sizes the frame itself', (_label, meta) => {
     expect(readPreferredFrameSize(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
+  });
+});
+
+describe('readActionPlan', () => {
+  function withMeta(meta: Record<string, unknown> | undefined) {
+    return parseUIResource({
+      type: 'resource',
+      resource: { uri: 'ui://x/1', mimeType: MCP_UI_MIME_TYPE, text: '', ...(meta === undefined ? {} : { _meta: meta }) },
+    })!;
+  }
+
+  it('reads a well-formed plan, including an omitted description and an omitted variant', () => {
+    expect(
+      readActionPlan(
+        withMeta({
+          [MCP_UI_ACTION_PLAN_META_KEY]: {
+            title: 'Publish the site?',
+            actions: [{ id: 'confirm', label: 'Publish', variant: 'danger' }, { id: 'cancel', label: 'Cancel' }],
+          },
+        }),
+      ),
+    ).toEqual({
+      title: 'Publish the site?',
+      actions: [{ id: 'confirm', label: 'Publish', variant: 'danger' }, { id: 'cancel', label: 'Cancel' }],
+    });
+  });
+
+  it('carries a description through when present', () => {
+    expect(
+      readActionPlan(withMeta({ [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', description: 'D', actions: [] } })),
+    ).toEqual({ title: 'T', description: 'D', actions: [] });
+  });
+
+  it.each([
+    ['no _meta at all', undefined],
+    ['no action-plan key', { other: 1 }],
+    ['a non-object plan', { [MCP_UI_ACTION_PLAN_META_KEY]: 'nope' }],
+    ['a missing title', { [MCP_UI_ACTION_PLAN_META_KEY]: { actions: [] } }],
+    ['a non-string title', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 7, actions: [] } }],
+    ['a non-string description', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', description: 7, actions: [] } }],
+    ['a missing actions array', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T' } }],
+    ['a non-array actions', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: 'nope' } }],
+    ['an action with no id', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ label: 'X' }] } }],
+    ['an action with an empty id', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: '', label: 'X' }] } }],
+    ['an action with no label', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: 'a' }] } }],
+    ['an action with an invalid variant', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: 'a', label: 'X', variant: 'sparkly' }] } }],
+    // One malformed action invalidates the WHOLE plan — never a mirror silently missing a button.
+    ['one good action alongside one malformed one', { [MCP_UI_ACTION_PLAN_META_KEY]: { title: 'T', actions: [{ id: 'a', label: 'A' }, { id: 'b' }] } }],
+  ])('returns undefined for %s, so the host builds no mirror rather than a partial one', (_label, meta) => {
+    expect(readActionPlan(withMeta(meta as Record<string, unknown> | undefined))).toBeUndefined();
   });
 });
