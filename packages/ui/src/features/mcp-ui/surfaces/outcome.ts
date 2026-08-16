@@ -63,8 +63,18 @@ export interface SurfaceOutcomeSpec {
   /** The facts of what actually happened — same shape as a confirmation's own `details`, but
    *  reporting the RESULT (e.g. the real URL, the real status) rather than what was proposed. */
   readonly details?: readonly SurfaceDetail[];
-  /** Styles the status line and, when {@link openLinkUrl} is also present, the open-link button. */
-  readonly state: 'success' | 'failure';
+  /**
+   * Styles the status line and, when {@link openLinkUrl} is also present, the open-link button.
+   * THREE states, not a boolean — matching this package's own callers, which distinguish a genuine
+   * partial outcome (e.g. Tovu's static-publish "uploaded, but not yet confirmed reachable") from
+   * both a plain success and a plain failure specifically so neither is misreported: folding
+   * `'partial'` into `'success'` would claim something is live when it may not be reachable yet;
+   * folding it into `'failure'` would hide that the operation itself did NOT fail (nothing needs
+   * retrying, only a separate follow-up step). See `document.ts`'s own `[data-state="partial"]` rule
+   * for why this needs a third visual state as well as a third value here, not merely a third string
+   * that renders identically to one of the other two.
+   */
+  readonly state: 'success' | 'partial' | 'failure';
   /** The one human-facing sentence explaining the outcome — the actionable message on failure, or a
    *  short confirmation on success. Never a raw credential or provider response body; that boundary
    *  is the CALLER's responsibility (this builder only renders what it is given). */
@@ -91,7 +101,7 @@ const OPEN_LINK_ACTION_ID = 'open-link';
  * @complexity O(n) in the rendered length.
  */
 export function renderOutcomeDocument(spec: SurfaceOutcomeSpec): string {
-  const statusState = spec.state === 'success' ? 'done' : 'failed';
+  const statusState = spec.state === 'success' ? 'done' : spec.state === 'partial' ? 'partial' : 'failed';
   // Rendered directly into the status region rather than left for the script to set — this document
   // has nothing further to wait on (unlike a confirmation, which starts idle and only reaches "done"
   // after a click), so the true outcome should be visible from the FIRST paint, not a moment after

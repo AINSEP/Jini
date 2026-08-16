@@ -38,6 +38,16 @@ describe('renderOutcomeDocument', () => {
     expect(doc.getElementById('mcpui-status')?.textContent).toContain('GitHub rejected this credential');
   });
 
+  it('renders a partial outcome with its OWN data-state "partial" — never collapsed into success or failure', () => {
+    const { doc } = mountSurface(
+      renderOutcomeDocument({ title: 'Uploaded, not yet reachable', state: 'partial', message: 'The files uploaded, but the site is not confirmed reachable yet.' }),
+    );
+    const status = doc.getElementById('mcpui-status');
+    expect(status?.getAttribute('data-state')).toBe('partial');
+    expect(status?.getAttribute('data-state')).not.toBe('done');
+    expect(status?.getAttribute('data-state')).not.toBe('failed');
+  });
+
   it('renders no action buttons and no details/description when none are given — a minimal failure result', () => {
     const { doc } = mountSurface(renderOutcomeDocument(PUBLISH_FAILURE));
     expect(doc.querySelectorAll('button[data-mcpui-action]')).toHaveLength(0);

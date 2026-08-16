@@ -131,6 +131,11 @@ body {
 .mcpui-status { margin: 12px 0 0; min-height: 1.4em; color: var(--jini-mcpui-text-muted); }
 .mcpui-status[data-state="failed"], .mcpui-status[data-state="invalid"] { color: var(--jini-mcpui-danger); }
 .mcpui-status[data-state="done"] { color: var(--jini-mcpui-text-strong); }
+/* Neither a plain success nor a failure — e.g. an outcome surface reporting "uploaded, not yet
+   reachable" (outcome.ts's own state: partial). Distinct from both --jini-mcpui-danger (would
+   wrongly read as "this failed") and --jini-mcpui-text-strong (would wrongly read as "this is
+   fully done"); the accent token reads as "worth a second look" without asserting either. */
+.mcpui-status[data-state="partial"] { color: var(--jini-mcpui-accent); }
 .mcpui-code { font-family: var(--jini-mcpui-font-mono); font-size: 13px; color: var(--jini-mcpui-text-faint); }`;
 
 /**
