@@ -5,6 +5,7 @@ export * from './confirmation.js';
 export * from './document.js';
 export * from './fields.js';
 export * from './form.js';
+export * from './outcome.js';
 export * from './select.js';
 export * from './text-input.js';
 export * from './tokens.js';
