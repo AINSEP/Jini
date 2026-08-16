@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/plugins",
   "version": "0.1.0",
-  "description": "Namespace package for plugin packaging in Jini, one independently-importable subpath per format: the third-party Agent Plugins open standard (./agent-plugins), and Jini's own host-extension plugins (./host, reserved — see README).",
+  "description": "Namespace package for plugin packaging in Jini: format support on one subpath per format (the third-party Agent Plugins open standard on ./agent-plugins; Jini's own host-extension plugins on ./host, reserved — see README), plus the plugins themselves, each on a subpath named for itself (./ui-ux-design).",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -13,7 +13,8 @@
     "kind": "plugin-packaging",
     "runtime": "universal",
     "entries": {
-      "./agent-plugins": "universal"
+      "./agent-plugins": "universal",
+      "./ui-ux-design/*": "universal"
     }
   },
   "type": "module",
@@ -24,7 +25,7 @@
       "import": "./dist/agent-plugins/index.js",
       "default": "./dist/agent-plugins/index.js"
     },
-    "./samples/*": "./samples/*"
+    "./ui-ux-design/*": "./ui-ux-design/*"
   },
   "typesVersions": {
     "*": {
@@ -35,7 +36,7 @@
   },
   "files": [
     "dist",
-    "samples",
+    "ui-ux-design",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",

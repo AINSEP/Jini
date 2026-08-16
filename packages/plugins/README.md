@@ -27,7 +27,7 @@ decides its own install mechanism, permission model, and sandboxing.
 
 ## What a plugin looks like on disk
 
-A plugin is a directory. Minimal example (this package's `samples/agent-plugins/ui-ux-design/`):
+A plugin is a directory. Example (this package's own bundled plugin, `ui-ux-design/`):
 
 ```
 ui-ux-design/
@@ -76,7 +76,7 @@ guessing which one a client should assume:
 }
 ```
 
-`samples/agent-plugins/ui-ux-design/mcp.json` ships with an empty `mcpServers: {}` — a valid, working
+`ui-ux-design/mcp.json` ships with an empty `mcpServers: {}` — a valid, working
 example of the file's shape, not a real server declaration. Replace it (or delete it — `mcp.json`
 is optional) the moment this plugin actually needs one.
 
@@ -85,7 +85,7 @@ specification: "the extension directory for a namespace is the top-level directo
 it," contents entirely client-defined, and clients that don't recognize a namespace simply ignore
 it. The spec's own example is `com.example.client/hooks/hooks.json` — using `example.com` the same
 way an RFC does, since the spec assigns no real namespace to any actual client and publishes no
-namespace registry. `samples/agent-plugins/ui-ux-design/com.anthropic.claude-code/hooks/hooks.json`
+namespace registry. `ui-ux-design/com.anthropic.claude-code/hooks/hooks.json`
 follows the same shape with a real client substituted in: `com.anthropic.claude-code` is a
 plausible reverse-DNS guess (Anthropic controls `anthropic.com`; Claude Code is the client this
 whole package was built inside), **not** a confirmed or registered identifier — nothing publishes
@@ -100,6 +100,7 @@ Catalog format) that this package does not implement.
 | subpath | runtime | contents |
 |---|---|---|
 | `./agent-plugins` | universal | `PluginManifest`/`McpManifest` types, `isPluginManifest`/`isMcpManifest` structural validators, and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
+| `./ui-ux-design/*` | — | Raw files of the bundled `ui-ux-design` plugin — static JSON/Markdown, not run through the TS build. One subpath per plugin, named for the plugin. See below. |
 | `./host` | — | **Reserved, not yet implemented.** Will hold Jini's own host-extension plugins (manifest + `setup()` + hooks + activation) once that concern has a real second caller in this package — today the only working implementation is Tovu's `src/features/plugin-runtime/` (SPEC-005), which has not moved here. No empty stub ships under this name; per this repo's own speculative-generality rule (ADR-006, "rule of two"), the subpath does not exist in `exports` until there is real code to put there. |
 
 `agent-plugins` deliberately stops at "validate a manifest object" — there is no loader,
@@ -111,16 +112,29 @@ There is no root (`.`) export and never a barrel importing across subpaths: `age
 `host` are two unrelated plugin formats (one a third-party spec, one Jini's own), and sharing zero
 code between them is what keeps that true instead of aspirational.
 
-## `samples/`
+## Bundled plugins
 
-Not published under `./agent-plugins` — these are static plugin directories shipped alongside the
-code so a consumer (human or agent) can see a real, valid plugin rather than only a type
-definition. Included in the npm package via the `files` field so
-`node_modules/@jini-ai/plugins/samples/agent-plugins/ui-ux-design/` is a complete, install-ready plugin
-directory as-is. Nested under `samples/agent-plugins/` (mirroring `src/agent-plugins/`) because a
-sample plugin belongs to one specific format's subtree, not to the package root.
+Real, install-ready plugin directories shipped alongside the code — not illustrative examples.
+Each lives at the package root under **its own name** (`ui-ux-design/`), not under a folder
+named for the format: `agent-plugins` names the *spec-support code* (`src/agent-plugins/`,
+exported as `./agent-plugins`) and nothing else, so the same word never means two things in this
+package. A second plugin is a sibling directory plus one `exports` key and one `files` entry.
 
-### `samples/agent-plugins/ui-ux-design/`
+Plugins live at the package root rather than inside `src/` because `src/` is the TypeScript
+compile root (`rootDir: "src"`, `include: ["src"]`) — a plugin's skill trees carry `.tsx` example
+files that are illustrative content, not package code, and putting them under `src/` makes `tsc`
+try to compile them (measured: 207 errors from the three `shadcn-ui/examples/*.tsx` files alone).
+Static content and compiler input are kept in separate trees on purpose.
+
+Published via the `./ui-ux-design/*` subpath and included in the npm package via the `files`
+field, so `node_modules/@jini-ai/plugins/ui-ux-design/` is the complete plugin directory as-is,
+and the directory is equally usable by a consumer that checks out or symlinks this repo directly
+rather than installing from npm. That second route is the one in use today: Tovu's admin UI reads
+all 44 files by **relative path** into a sibling Jini checkout
+(`apps/admin/src/features/plugins/agent-plugin-source-catalog.ts`), not through this package's
+`exports` map — the subpath export exists and resolves, but has no consumer yet.
+
+### `ui-ux-design/`
 
 Bundles the AI-Dev-Shop Web Design agent's full skill set (per its `agents/web-design/skills.md`
 persona and the `framework/routing/skills-registry.md` ownership mapping) into one portable plugin:
@@ -151,12 +165,16 @@ pnpm --filter @jini-ai/plugins typecheck
 pnpm --filter @jini-ai/plugins test
 ```
 
-## Adding another sample plugin
+## Adding another bundled plugin
 
-1. Create `samples/agent-plugins/<plugin-name>/plugin.json` with at least
-   `{ "$schema": AGENT_PLUGINS_SCHEMA_URL, "name": "<plugin-name>" }`.
-2. Add `samples/agent-plugins/<plugin-name>/skills/<skill-name>/SKILL.md` per skill (plus any
-   `references/`, `examples/`, `scripts/` the skill needs).
-3. Add coverage in `src/agent-plugins/__tests__/` following `manifest.test.ts`'s
-   `samples/agent-plugins/ui-ux-design plugin` block — assert the manifest validates and the expected
-   skill directories exist.
+1. Create `<plugin-name>/plugin.json` at the package root with at least
+   `{ "$schema": AGENT_PLUGINS_SCHEMA_URL, "name": "<plugin-name>" }`. Do **not** put it under
+   `src/` — see "Bundled plugins" above for why.
+2. Add `<plugin-name>/skills/<skill-name>/SKILL.md` per skill (plus any `references/`,
+   `examples/`, `scripts/` the skill needs).
+3. Register it in `package.json`: an `exports` key `"./<plugin-name>/*": "./<plugin-name>/*"`, a
+   matching `jini.entries` key (the R8 guard requires every export to have one), and a
+   `files` entry.
+4. Add coverage in `src/agent-plugins/__tests__/` following `manifest.test.ts`'s
+   `ui-ux-design plugin` block — assert the manifest validates and the expected skill
+   directories exist.
