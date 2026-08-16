@@ -311,6 +311,37 @@ describe('VercelDeployTarget.publish', () => {
     expect(probed[0]).toMatch(/^https:\/\/(primary\.vercel\.app|alias-one\.vercel\.app|from-domain\.example|from-url\.example)/);
   });
 
+  it('keeps polling past a status-check response that fails to parse as JSON instead of treating it as a hard failure', async () => {
+    // Regression for the same bug class fixed in github-pages.ts's pollGitHubPagesBuild
+    // (2026-08-16): pollVercelDeployment had ZERO tolerance for any poll response that
+    // failed to parse as JSON, worse than GitHub's pre-fix version (which at least
+    // special-cased 404). The deployment already exists server-side by the time this loop
+    // runs (the create call already succeeded), so a transient/edge/empty response mid-poll
+    // must never be reported as a failed publish for a deployment that is actually live.
+    const createBody = { id: 'dpl_flaky_poll', readyState: 'QUEUED', url: 'demo.vercel.app' };
+    const readyBody = { id: 'dpl_flaky_poll', readyState: 'READY', url: 'demo.vercel.app' };
+    let pollCount = 0;
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      if (init?.method === 'POST') return jsonResponse(200, createBody);
+      if (String(input).includes('/v13/deployments/dpl_flaky_poll')) {
+        pollCount += 1;
+        // 1st poll: a 200 with an empty body — no parseable status yet, but Vercel did not
+        // signal that with a 404 or any other convention this file already special-cases.
+        if (pollCount === 1) return new Response('', { status: 200 });
+        return jsonResponse(200, readyBody);
+      }
+      // Reachability probe against the deployment URL.
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const target = new VercelDeployTarget({ token: 'tok' });
+    const result = await target.publish({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
+
+    expect(pollCount).toBe(2);
+    expect(result.status).toBe('ready');
+  });
+
   it('returns the last known deployment state once polling exhausts its 30-attempt budget without a terminal readyState', async () => {
     // pollVercelDeployment's attempt budget/backoff are fixed constants (~1s
     // for the first 5 attempts, 2s thereafter — ~55s total) with no

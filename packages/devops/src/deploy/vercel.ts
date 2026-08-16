@@ -155,6 +155,15 @@ export class VercelDeployTarget implements DeployTarget {
  * `readyState` (`READY`/`ERROR`) or the fixed 30-attempt budget is spent
  * (~1s for the first 5 attempts, 2s thereafter — roughly a minute).
  *
+ * A response this file cannot parse as JSON is treated as "keep polling,"
+ * not an error — same reasoning as `github-pages.ts`'s `pollGitHubPagesBuild`
+ * (fixed 2026-08-16 for the identical bug class): the deployment already
+ * exists server-side by the time this loop runs (the create call above
+ * already succeeded), so a transient/edge/empty poll response is exactly as
+ * uninformative as a stuck in-progress state, never a reason to report an
+ * already-created deployment as failed. Any other non-2xx response whose
+ * body DID parse still fails fast, unchanged.
+ *
  * @complexity O(30) network round-trips, bounded and fixed regardless of input size.
  * @overallScore 90/100
  * @tradeoffs Fixed attempt/backoff constants (lifted verbatim from the OD
@@ -171,7 +180,14 @@ async function pollVercelDeployment(config: VercelDeployConfig, id: string): Pro
       redirectGuardInit({ headers: { Authorization: `Bearer ${config.token}` } }),
     );
     assertNotRedirected(resp, 'Vercel deployment status poll');
-    const json = await readVercelJson(resp);
+    let json: JsonObject;
+    try {
+      json = await readVercelJson(resp);
+    } catch {
+      // Nothing usable to report yet — keep polling within the same fixed budget
+      // rather than turning an ambiguous mid-poll hiccup into a reported failure.
+      continue;
+    }
     if (!resp.ok) throw vercelError(json, resp.status);
     last = json;
     if (json.readyState === 'READY' || json.readyState === 'ERROR') return json;

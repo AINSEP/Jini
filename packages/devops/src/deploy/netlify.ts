@@ -268,6 +268,14 @@ async function uploadNetlifyFile(config: NetlifyDeployConfig, deployId: string, 
  * 30-attempt budget is spent (~1s for the first 5 attempts, 2s thereafter —
  * roughly a minute) — same attempt/backoff shape as `vercel.ts`'s
  * `pollVercelDeployment`, for consistency across this package's targets.
+ *
+ * A response this file cannot parse as JSON is treated as "keep polling,"
+ * not an error — same reasoning as `github-pages.ts`'s `pollGitHubPagesBuild`
+ * and `vercel.ts`'s `pollVercelDeployment` (fixed 2026-08-16 for the
+ * identical bug class): the deploy and its files are already created/uploaded
+ * server-side by the time this loop runs, so a transient/edge/empty poll
+ * response is never a reason to report an already-uploaded deploy as failed.
+ * Any other non-2xx response whose body DID parse still fails fast, unchanged.
  */
 async function pollNetlifyDeploy(config: NetlifyDeployConfig, deployId: string): Promise<JsonObject | null> {
   let last: JsonObject | null = null;
@@ -276,7 +284,14 @@ async function pollNetlifyDeploy(config: NetlifyDeployConfig, deployId: string):
     const resp = await fetch(`${NETLIFY_API}/deploys/${encodeURIComponent(deployId)}`, {
       headers: netlifyHeaders(config.token),
     });
-    const json = await readNetlifyJson<JsonObject>(resp);
+    let json: JsonObject;
+    try {
+      json = await readNetlifyJson<JsonObject>(resp);
+    } catch {
+      // Nothing usable to report yet — keep polling within the same fixed budget
+      // rather than turning an ambiguous mid-poll hiccup into a reported failure.
+      continue;
+    }
     if (!resp.ok) throw netlifyError(json, resp.status, 'Netlify deploy status check failed.');
     last = json;
     if (json.state === 'ready' || NETLIFY_FAILURE_STATES.has(String(json.state))) return json;

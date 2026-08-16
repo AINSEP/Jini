@@ -301,6 +301,37 @@ describe('NetlifyDeployTarget.publish', () => {
     expect(paths[0]).toContain('/deploys/deploy_1/files/assets/a%20b.txt');
   });
 
+  it('keeps polling past a deploy status-check response that fails to parse as JSON instead of treating it as a hard failure', async () => {
+    // Regression for the same bug class fixed in github-pages.ts's pollGitHubPagesBuild and
+    // vercel.ts's pollVercelDeployment (2026-08-16): pollNetlifyDeploy had ZERO tolerance
+    // for any poll response that failed to parse as JSON. The deploy already exists
+    // server-side and its files have already been uploaded by the time this loop runs, so a
+    // transient/edge/empty response mid-poll must never be reported as a failed publish for
+    // a deploy that already succeeded.
+    let pollCount = 0;
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (method === 'GET' && url.includes('/sites?')) return jsonResponse(200, [{ id: 'site_1', name: 'jini-demo' }]);
+      if (method === 'POST' && url.endsWith('/deploys')) return jsonResponse(200, { id: 'deploy_flaky_poll', state: 'preparing', required: [] });
+      if (method === 'GET' && url.endsWith('/deploys/deploy_flaky_poll')) {
+        pollCount += 1;
+        // 1st poll: a 200 with an empty body — no parseable state yet, but Netlify did not
+        // signal that with any convention this file already special-cases.
+        if (pollCount === 1) return new Response('', { status: 200 });
+        return jsonResponse(200, { id: 'deploy_flaky_poll', state: 'ready', url: 'demo.netlify.app' });
+      }
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const target = new NetlifyDeployTarget({ token: 'tok' });
+    const result = await target.publish({ files: [], projectName: 'demo' });
+
+    expect(pollCount).toBe(2);
+    expect(result.status).toBe('ready');
+  });
+
   it('returns the last known deploy state once polling exhausts its 30-attempt budget without a terminal state', async () => {
     vi.useFakeTimers();
     try {
