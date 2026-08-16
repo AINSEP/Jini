@@ -15,6 +15,7 @@ import type {
 } from '../types.js';
 import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.js';
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
+import { useChatPaneControlsHeight } from '../hooks/useChatPaneControlsHeight.hooks.js';
 import {
   useChatPaneFileDrop,
   type ChatPaneFileDropTargetProps,
@@ -428,11 +429,14 @@ export function ChatPane({
     ),
   });
 
+  const { rootRef, controlsRef } = useChatPaneControlsHeight();
+
   return (
     <section
       className={chatPaneClassName(variant, className)}
       style={style}
       data-activity={pane.activity}
+      ref={rootRef}
     >
       <style data-jini-chat-pane-styles="true">{CHAT_PANE_STYLES}</style>
       {resolveChatPaneHeader(header, title, pane.reset, t)}
@@ -444,7 +448,7 @@ export function ChatPane({
           onScrolled={pane.conversation.acknowledgeScroll}
           {...(projectFileNames === undefined ? {} : { projectFileNames: new Set(projectFileNames) })}
         />
-        <div className="jini-chat-pane__controls">
+        <div className="jini-chat-pane__controls" ref={controlsRef}>
           <ChatPaneSuggestionsRow suggestions={suggestions} onSelect={pane.composer.setDraft} t={t} />
           <ChatPaneStatusMessages
             unavailable={unavailable}
