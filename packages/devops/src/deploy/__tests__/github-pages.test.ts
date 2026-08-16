@@ -514,6 +514,44 @@ describe('GitHubPagesDeployTarget.publish', () => {
     expect(result.status).toBe('ready');
   });
 
+  it('keeps polling past a builds/latest response that fails to parse as JSON instead of treating it as a hard failure', async () => {
+    // Regression for a live publish (2026-08-16) that reported `published: false` /
+    // 'GitHub returned a non-JSON response.' even though the commit, ref, and Pages site
+    // had ALL already been created — an immediately-following byte-identical retry
+    // succeeded, and the only state that changed between the two runs was that a build
+    // record now existed. This reproduces the mechanism: the very first poll right after
+    // `ensureGitHubPagesSite` hits before GitHub's build-tracking record exists yet, but
+    // returns a 200 with an empty body instead of the already-handled 404 — `readGitHubJson`
+    // rejects on `resp.json()` and (before this fix) `pollGitHubPagesBuild` let that
+    // exception propagate all the way out of `publish()`, turning an ambiguous polling
+    // hiccup into a reported publish failure for content that was already live.
+    let pollCount = 0;
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (method === 'GET' && url.endsWith('/git/ref/heads/gh-pages')) return new Response('', { status: 404 });
+      if (method === 'POST' && url.endsWith('/git/trees')) return jsonResponse(201, { sha: 'tree-sha' });
+      if (method === 'POST' && url.endsWith('/git/commits')) return jsonResponse(201, { sha: 'commit-sha' });
+      if (method === 'POST' && url.endsWith('/git/refs')) return jsonResponse(201, { ref: 'refs/heads/gh-pages', object: { sha: 'commit-sha', type: 'commit' } });
+      if (method === 'GET' && isPagesSiteUrl(url)) return new Response('', { status: 404 });
+      if (method === 'POST' && isPagesSiteUrl(url)) return jsonResponse(201, { html_url: 'https://octo.github.io/demo/' });
+      if (method === 'GET' && url.endsWith('/pages/builds/latest')) {
+        pollCount += 1;
+        // 1st poll: a 200 with an empty body — no build-tracking record exists yet, but
+        // GitHub did not (this time) signal that with a 404 the way the rest of this
+        // file's tests assume.
+        if (pollCount === 1) return new Response('', { status: 200 });
+        return jsonResponse(200, { commit: 'commit-sha', status: 'built' });
+      }
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const target = new GitHubPagesDeployTarget({ token: 'tok', owner: 'octo', repo: 'demo' });
+    const result = await target.publish({ files: [], projectName: 'demo' });
+    expect(pollCount).toBe(2);
+    expect(result.status).toBe('ready');
+  });
+
   it('throws DeployError when a build status check fails mid-poll (not a 404)', async () => {
     const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);

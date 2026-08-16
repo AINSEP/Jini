@@ -387,9 +387,11 @@ interface GitHubPagesBuildOutcome {
  *
  * A 404 (no build has run yet — expected immediately after a brand-new
  * site's first-ever push/enable, undocumented but consistent with GitHub
- * REST's general "resource doesn't exist yet" convention) and a stale,
- * non-matching `commit` are both treated as "keep polling," not an error.
- * Any other non-2xx response still fails fast, matching
+ * REST's general "resource doesn't exist yet" convention), a stale,
+ * non-matching `commit`, and a response this file cannot parse as JSON are
+ * ALL treated as "keep polling," not an error — see the `catch` below for
+ * why the non-JSON case joins that list. Any other non-2xx response whose
+ * body DID parse still fails fast, matching
  * `pollVercelDeployment`/`pollNetlifyDeploy`'s existing convention. Same
  * fixed 30-attempt/1s-then-2s budget as this package's other targets.
  */
@@ -408,7 +410,25 @@ async function pollGitHubPagesBuild(
     );
     assertNotRedirected(resp, 'GitHub Pages build status check');
     if (resp.status === 404) continue;
-    const json = await readGitHubJson<JsonObject>(resp);
+    let json: JsonObject;
+    try {
+      json = await readGitHubJson<JsonObject>(resp);
+    } catch {
+      // Same "nothing usable to report yet" bucket as the 404 branch above, not a
+      // publish failure: every step up to and including enabling the Pages site has
+      // already irreversibly succeeded by the time this loop runs (see `publish()`'s
+      // call order), so a response this file cannot parse as JSON — an empty/no-content
+      // body while GitHub's build-tracking record has not been written yet, or a
+      // transient gateway/edge response — is exactly as uninformative as a 404, never a
+      // reason to report the whole publish as failed. A genuinely persistent problem
+      // still surfaces: this loop is bounded by the same fixed 30-attempt budget as every
+      // other outcome (see `proceeds to the reachability wait ... exhausts its 30-attempt
+      // budget`), after which `publish()` falls through to the reachability probe with
+      // whatever URL it already has — never a false "published: false" for a site that is
+      // actually live (`github-pages.test.ts`'s `keeps polling past a builds/latest
+      // response that fails to parse as JSON` regression test).
+      continue;
+    }
     if (!resp.ok) throw githubError(json, resp.status, 'GitHub Pages build status check failed.');
     const commit = typeof json.commit === 'string' ? json.commit : '';
     if (commit !== commitSha) continue;
