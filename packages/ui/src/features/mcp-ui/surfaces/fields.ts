@@ -35,6 +35,8 @@ export interface StringField extends SurfaceFieldBase {
   readonly placeholder?: string;
   readonly multiline?: boolean;
   readonly rows?: number;
+  /** Renders as a masked `<input type="password">` — see {@link TextInputProps.secret}. */
+  readonly secret?: boolean;
 }
 
 export interface NumberField extends SurfaceFieldBase {
@@ -108,6 +110,7 @@ export function renderFieldControl(field: SurfaceField): string {
         ...(field.placeholder === undefined ? {} : { placeholder: field.placeholder }),
         ...(field.multiline === undefined ? {} : { multiline: field.multiline }),
         ...(field.rows === undefined ? {} : { rows: field.rows }),
+        ...(field.secret === undefined ? {} : { secret: field.secret }),
       });
     case 'number':
       return renderTextInput({
