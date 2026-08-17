@@ -60,6 +60,15 @@ export const FETCH_TIMEOUT_MS = {
   DEPLOY: 30_000,
   /** A large-payload transfer: an asset/blob upload, a generated-media byte fetch. */
   UPLOAD: 120_000,
+  /** A media-generation API call whose response only arrives once the vendor has actually finished
+   * generating the image/video/audio server-side — routinely minutes, not seconds. Matches the
+   * value OpenAI's and OpenRouter's own image providers already hardcode locally
+   * (`OPENAI_IMAGE_*_TIMEOUT_MS`/`OPENROUTER_IMAGE_TIMEOUT_MS`); used as the shared dispatch-level
+   * backstop in `@jini-ai/integrations`' `dispatchVendorRequest` for every OTHER vendor that (as of
+   * 2026-08-16) sets no timeout of its own at all. Deliberately NOT the same as `UPLOAD`: a backstop
+   * shorter than a vendor's own already-correct 10-minute generation timeout would abort a
+   * legitimately still-generating request early. */
+  GENERATE: 10 * 60_000,
 } as const satisfies Record<string, number>;
 
 export interface FetchWithTimeoutOptions {

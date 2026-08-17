@@ -128,5 +128,6 @@ describe('FETCH_TIMEOUT_MS', () => {
     expect(FETCH_TIMEOUT_MS.QUICK).toBeGreaterThan(0);
     expect(FETCH_TIMEOUT_MS.DEPLOY).toBeGreaterThan(FETCH_TIMEOUT_MS.QUICK);
     expect(FETCH_TIMEOUT_MS.UPLOAD).toBeGreaterThan(FETCH_TIMEOUT_MS.DEPLOY);
+    expect(FETCH_TIMEOUT_MS.GENERATE).toBeGreaterThan(FETCH_TIMEOUT_MS.UPLOAD);
   });
 });
