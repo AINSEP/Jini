@@ -430,6 +430,9 @@ importers:
       '@jini-ai/core':
         specifier: workspace:*
         version: link:../core
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       undici:
         specifier: ^7.25.0
         version: 7.28.0

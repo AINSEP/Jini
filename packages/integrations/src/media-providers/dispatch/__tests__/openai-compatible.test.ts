@@ -239,7 +239,15 @@ describe('bytesFromOpenAICompatibleData', () => {
     vi.stubGlobal('fetch', fetchMock);
     const bytes = await bytesFromOpenAICompatibleData({ data: [{ url: 'https://example.com/x.png' }] }, 'test');
     expect(bytes.toString('utf8')).toBe('bytes-from-url');
-    expect(fetchMock).toHaveBeenCalledWith('https://example.com/x.png', {});
+    // Not an exact-equality match on the whole init object: fetchWithTimeout (2026-08-16, Finding 2
+    // of the failure-mode audit) always adds its own `signal` even when the caller passed none, so
+    // asserting on the URL plus the signal's presence is what actually matters here.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const call = fetchMock.mock.calls[0] as [string, RequestInit] | undefined;
+    if (!call) throw new Error('expected fetch to have been called');
+    const [calledUrl, calledInit] = call;
+    expect(calledUrl).toBe('https://example.com/x.png');
+    expect(calledInit.signal).toBeInstanceOf(AbortSignal);
   });
 
   it('throws when the url fetch fails', async () => {

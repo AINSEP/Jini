@@ -26,6 +26,7 @@
  * `response-parsers.ts`'s `createHexEnvelopeAudioParser` for the shared,
  * reusable piece.
  */
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import type { ProviderCredentials, RenderContext, RenderResult } from './types.js';
 
 /**
@@ -87,7 +88,15 @@ export async function dispatchVendorRequest<Meta = undefined>(
 ): Promise<RenderResult> {
   adapter.requireCredential?.(credentials);
   const request = adapter.buildRequest(ctx, credentials);
-  const resp = await fetch(request.url, request.init);
+  // Backstop, not an override: as of 2026-08-16 only 2 of 13 registered vendors
+  // (providers/openai.ts, providers/openrouter.ts) set their own `request.init.signal`; the other
+  // 11 set none at all (Finding 2 of the 2026-08-16 failure-mode audit — a stalled vendor endpoint
+  // hung this call forever, nothing to alert on). `fetchWithTimeout` combines any signal a vendor
+  // DOES already set with this one via `AbortSignal.any`, so a more specific per-vendor timeout
+  // still applies unchanged; `GENERATE` (10min) matches what those two vendors already picked
+  // deliberately for the same reason — media generation genuinely finishes on that order, not in
+  // seconds, so anything shorter would abort a legitimately still-generating request.
+  const resp = await fetchWithTimeout(request.url, request.init, { timeoutMs: FETCH_TIMEOUT_MS.GENERATE });
   return adapter.parseResponse(resp, ctx, request);
 }
 

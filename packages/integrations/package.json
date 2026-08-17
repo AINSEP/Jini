@@ -67,6 +67,7 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "undici": "^7.25.0"
   },
   "peerDependencies": {

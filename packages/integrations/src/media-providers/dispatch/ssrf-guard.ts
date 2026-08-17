@@ -33,6 +33,7 @@
  * vendor ported into this package) would need to build that separately.
  */
 import { promises as dnsPromises } from 'node:dns';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 
 export interface DnsLookupAddress {
   readonly address: string;
@@ -216,5 +217,6 @@ export async function assertExternalAssetUrl(rawUrl: string, lookup: DnsLookupFn
 export async function assertAndFetchExternalAsset(url: string, init: RequestInit = {}, lookup: DnsLookupFn = defaultDnsLookup): Promise<Response> {
   const check = await assertExternalAssetUrl(url, lookup);
   if (!check.ok) throw new Error(check.error);
-  return fetch(url, { ...init, redirect: 'error' });
+  // Downloading an already-generated asset, not waiting on generation — UPLOAD-class (2min).
+  return fetchWithTimeout(url, { ...init, redirect: 'error' }, { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD });
 }
