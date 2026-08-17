@@ -9,6 +9,8 @@
  * - `proxy-env`  — system proxy discovery and proxy-aware env merging.
  * - `fs`         — filesystem containment, atomic copy, removal, log tails.
  * - `http`       — HTTP readiness polling.
+ * - `fetch-with-timeout` — the shared `AbortSignal`-timeout wrapper every outbound `fetch()` call
+ *   in this monorepo is meant to go through (2026-08-16 failure-mode audit, Finding 2).
  * - `toolchain`  — user-level toolchain bin discovery.
  * - `asset-cache` — SSRF-safe same-origin cache/proxy for sandboxed content's
  *   external media references.
@@ -74,6 +76,9 @@ export { atomicCopyFile, pathContains, readLogTail, removePathBestEffort } from 
 
 export type { HttpWaitOptions } from "./http.js";
 export { waitForHttpOk } from "./http.js";
+
+export type { FetchWithTimeoutOptions } from "./fetch-with-timeout.js";
+export { FETCH_TIMEOUT_MS, FetchTimeoutError, fetchWithTimeout } from "./fetch-with-timeout.js";
 
 export type { WellKnownUserToolchainOptions } from "./toolchain.js";
 export { wellKnownUserToolchainBins } from "./toolchain.js";
