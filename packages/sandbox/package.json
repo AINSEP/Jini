@@ -1,0 +1,85 @@
+{
+  "name": "@jini-ai/sandbox",
+  "version": "0.1.0",
+  "description": "Execution/sandbox sibling to @jini-ai/vibecoding's edit loop: boot an environment, mount files, install deps, run commands, preview, and tear down — behind one interface with a driver-neutral core. Import `./core` with no adapter installed; add `./e2b` for the E2B (Firecracker microVM) backend.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/sandbox"
+  },
+  "jini": {
+    "domain": "capability",
+    "kind": "execution-adapter",
+    "runtime": "node",
+    "neutralEntries": [
+      "src/core"
+    ]
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./core": {
+      "import": {
+        "types": "./dist/core/index.d.ts",
+        "default": "./dist/core/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/core/index.d.ts",
+        "default": "./dist/cjs/core/index.js"
+      }
+    },
+    "./e2b": {
+      "import": {
+        "types": "./dist/e2b/index.d.ts",
+        "default": "./dist/e2b/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/e2b/index.d.ts",
+        "default": "./dist/cjs/e2b/index.js"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "core": [
+        "./dist/core/index.d.ts"
+      ],
+      "e2b": [
+        "./dist/e2b/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "@e2b/code-interpreter": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@e2b/code-interpreter": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@e2b/code-interpreter": "^2.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}
