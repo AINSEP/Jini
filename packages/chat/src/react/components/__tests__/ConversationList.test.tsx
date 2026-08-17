@@ -186,3 +186,88 @@ describe('empty state', () => {
     expect(screen.getByText('No conversations yet')).toBeInTheDocument();
   });
 });
+
+describe('rejected host effects are reported, not left as unhandled rejections', () => {
+  it('reports a rejected onSearch without leaving an unhandled rejection', async () => {
+    const failure = new Error('search host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onSearch = vi.fn().mockRejectedValue(failure);
+    try {
+      const { user } = setup({ onSearch });
+      await openMenu(user);
+      await user.type(screen.getByTestId('conversation-search'), 'q');
+      await waitFor(() => expect(onSearch).toHaveBeenCalledWith('q'));
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          '[@jini-ai/chat] ConversationList onSearch host effect failed:',
+          failure,
+        );
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('reports a rejected onRename without leaving an unhandled rejection', async () => {
+    const failure = new Error('rename host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onRename = vi.fn().mockRejectedValue(failure);
+    try {
+      const { user } = setup({ onRename });
+      await openMenu(user);
+      await user.dblClick(screen.getByTestId('conversation-select-c2'));
+      const input = screen.getByTestId('conversation-rename-c2');
+      await user.clear(input);
+      await user.type(input, 'Design system Q3{Enter}');
+      expect(onRename).toHaveBeenCalledWith('c2', 'Design system Q3');
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          '[@jini-ai/chat] ConversationList onRename host effect failed:',
+          failure,
+        );
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('reports a rejected onCreate without leaving an unhandled rejection', async () => {
+    const failure = new Error('create host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onCreate = vi.fn().mockRejectedValue(failure);
+    try {
+      const { user } = setup({ onCreate });
+      await openMenu(user);
+      await user.click(screen.getByTestId('conversation-new'));
+      expect(onCreate).toHaveBeenCalled();
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          '[@jini-ai/chat] ConversationList onCreate host effect failed:',
+          failure,
+        );
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('reports a rejected onDelete without leaving an unhandled rejection', async () => {
+    const failure = new Error('delete host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onDelete = vi.fn().mockRejectedValue(failure);
+    try {
+      const { user } = setup({ onDelete });
+      await openMenu(user);
+      await user.click(screen.getByTestId('conversation-delete-c2'));
+      expect(onDelete).toHaveBeenCalledWith('c2');
+      await waitFor(() => {
+        expect(consoleError).toHaveBeenCalledWith(
+          '[@jini-ai/chat] ConversationList onDelete host effect failed:',
+          failure,
+        );
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+});

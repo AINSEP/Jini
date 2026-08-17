@@ -1,0 +1,87 @@
+{
+  "name": "@jini-ai/integrations",
+  "version": "0.1.0",
+  "description": "Third-party vendor integrations, each independently importable: Composio connector catalog/execution (./composio) and a multi-vendor image/video/audio generation gateway (./media-providers).",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/integrations"
+  },
+  "jini": {
+    "domain": "integration",
+    "kind": "vendor-integration-gateway",
+    "runtime": "node",
+    "entries": {
+      "./composio": "node",
+      "./media-providers": "node",
+      "./media-providers/catalog": "universal"
+    }
+  },
+  "type": "module",
+  "sideEffects": [
+    "./dist/media-providers/dispatch/engine.js",
+    "./dist/media-providers/dispatch/providers/*.js"
+  ],
+  "exports": {
+    "./composio": {
+      "types": "./dist/composio/index.d.ts",
+      "import": "./dist/composio/index.js",
+      "default": "./dist/composio/index.js"
+    },
+    "./media-providers": {
+      "types": "./dist/media-providers/index.d.ts",
+      "import": "./dist/media-providers/index.js",
+      "default": "./dist/media-providers/index.js"
+    },
+    "./media-providers/catalog": {
+      "types": "./dist/media-providers/catalog.d.ts",
+      "import": "./dist/media-providers/catalog.js",
+      "default": "./dist/media-providers/catalog.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "composio": ["./dist/composio/index.d.ts"],
+      "media-providers": ["./dist/media-providers/index.d.ts"],
+      "media-providers/catalog": ["./dist/media-providers/catalog.d.ts"]
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
+    "undici": "^7.25.0"
+  },
+  "peerDependencies": {
+    "better-sqlite3": "^11.10.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@jini-ai/protocol": "workspace:*",
+    "@types/better-sqlite3": "^7.6.11",
+    "better-sqlite3": "^11.10.0",
+    "@vitest/coverage-v8": "^2.1.9"
+  }
+}

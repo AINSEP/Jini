@@ -8,6 +8,7 @@
   },
   "scripts": {
     "guard": "tsx ./scripts/guard.ts",
+    "guard:drift": "tsx ./scripts/check-guard-drift.ts",
     "playground": "tsx ./scripts/start-playground.ts",
     "playground:web": "tsx ./scripts/start-playground.ts --web-only",
     "playground:desktop": "pnpm --filter @jini-app/reference-desktop run build && pnpm --filter @jini-app/reference-desktop run dev",

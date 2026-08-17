@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findActiveTab, resolveInitialActiveTabId } from '../features/settings/dialog/rules.js';
+import { findActiveTab, resolveInitialActiveTabId } from '../features/tabbed-dialog/rules.js';
 
 const tabs = [
   { id: 'appearance', label: 'Appearance' },

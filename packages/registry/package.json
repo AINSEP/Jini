@@ -43,6 +43,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*"
   },
   "peerDependencies": {

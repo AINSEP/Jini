@@ -85,12 +85,25 @@ function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is Conf
  * @returns The full HTML string.
  * @complexity O(n) in the rendered length.
  */
-export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string {
-  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+/**
+ * The confirm/cancel action list a confirmation spec implies — shared between
+ * {@link renderConfirmationDocument} (which renders these as real, in-frame buttons) and
+ * {@link buildConfirmationSurface} (which writes the same ids/labels/variants into the
+ * `_meta` action plan a host mirrors outside the frame). One function, not two independently
+ * maintained mappings: a caller adding a third action or renaming a label must not be able to
+ * update the visible button without also updating what an agent-visible mirror reports for it.
+ */
+function confirmationActions(spec: ConfirmationSurfaceSpec): SurfaceAction[] {
   const actions: SurfaceAction[] = [
     { id: 'confirm', label: spec.confirm.label, variant: spec.danger === true ? 'danger' : 'primary' },
   ];
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
+  return actions;
+}
+
+export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string {
+  const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+  const actions = confirmationActions(spec);
 
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
   const bodyHtml = [
@@ -178,5 +191,13 @@ export function buildConfirmationSurface(
     uri: spec.uri,
     htmlString: renderConfirmationDocument(spec),
     ...(spec.preferredFrameSize === undefined ? {} : { preferredFrameSize: spec.preferredFrameSize }),
+    // Same title/actions the frame itself renders (via confirmationActions) — see that function's
+    // doc for why this must never be a second, independently-maintained mapping. A host reads this
+    // to build a parent-DOM mirror discoverable by page.find_elements; see MCP_UI_ACTION_PLAN_META_KEY.
+    actionPlan: {
+      title: spec.title,
+      ...(spec.description === undefined ? {} : { description: spec.description }),
+      actions: confirmationActions(spec),
+    },
   });
 }

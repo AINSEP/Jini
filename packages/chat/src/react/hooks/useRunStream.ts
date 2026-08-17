@@ -46,6 +46,30 @@ export interface UseRunStreamResult extends RunStreamState {
   reset: () => void;
 }
 
+function reportRunStreamHostEffectFailure(effectName: string, error: unknown) {
+  console.error(`[@jini-ai/chat] useRunStream ${effectName} host effect failed:`, error);
+}
+
+/**
+ * Fire-and-forget teardown call to `transport.stopRun`. Invokes it synchronously, then observes
+ * a synchronous throw or async rejection without leaving it unhandled — under Node's default
+ * `--unhandled-rejections=throw` a rejecting transport would otherwise crash the process, and in
+ * the browser it is a silent, undiagnosable console error. Neither call site awaits the result
+ * or calls `setState`, so there is nothing here that could touch state after unmount.
+ */
+function runStopRunHostEffect(effectName: string, effect: () => Promise<void>) {
+  let result: Promise<void>;
+  try {
+    result = effect();
+  } catch (error) {
+    reportRunStreamHostEffectFailure(effectName, error);
+    return;
+  }
+  void result.catch((error: unknown) => {
+    reportRunStreamHostEffectFailure(effectName, error);
+  });
+}
+
 const INITIAL_STATE: RunStreamState = {
   runId: null,
   status: 'idle',
@@ -124,7 +148,9 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
         );
         if (generationRef.current !== generation) {
           // Consumed rather than assumed: only a CANCEL leaves an orphan here.
-          if (canceledGenerations.current.delete(generation)) void transport.stopRun(runId);
+          if (canceledGenerations.current.delete(generation)) {
+            runStopRunHostEffect('transport.stopRun (orphaned generation)', () => transport.stopRun(runId));
+          }
           return { runId };
         }
         setState((prev) => ({ ...prev, runId }));
@@ -174,7 +200,7 @@ export function useRunStream(transport: ChatTransport): UseRunStreamResult {
     generationRef.current += 1;
     teardownSubscription();
     setState((prev) => ({ ...prev, status: 'canceled' }));
-    if (runId) void transport.stopRun(runId);
+    if (runId) runStopRunHostEffect('transport.stopRun (cancel)', () => transport.stopRun(runId));
   }, [state.runId, teardownSubscription, transport]);
 
   const reset = useCallback(() => {

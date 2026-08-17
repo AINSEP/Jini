@@ -1,0 +1,63 @@
+{
+  "name": "@jini-ai/devops",
+  "version": "0.1.2",
+  "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/devops"
+  },
+  "jini": {
+    "domain": "capability",
+    "kind": "devops",
+    "runtime": "node",
+    "entries": {
+      ".": "node",
+      "./deploy": "node"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./deploy": {
+      "types": "./dist/deploy/index.d.ts",
+      "import": "./dist/deploy/index.js",
+      "default": "./dist/deploy/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
+    "undici": "^7.25.0"
+  },
+  "devDependencies": {
+    "@jini-ai/daemon": "workspace:*",
+    "@vitest/coverage-v8": "^2.1.9"
+  }
+}

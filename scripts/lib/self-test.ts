@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkAgenticDomPurity } from '../check-agentic-dom-purity.js';
 import { checkChatPanePublicSurface } from '../check-chatpane-public-surface.js';
+import { checkDriverIsolation } from '../check-driver-isolation.js';
 import { checkEngineBoundaries } from '../check-engine-boundaries.js';
 import { checkExtensionlessImports } from '../check-extensionless-imports.js';
 import { checkProtocolPurity } from '../check-protocol-purity.js';
@@ -381,6 +382,114 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       "import { x } from './other';\nexport { x };\n",
     );
 
+    // R12: driver isolation. Same out-of-packages/ fixture-root pattern as R9-R11 —
+    // checkDriverIsolation takes packagesDir as an option for exactly this reason.
+    //
+    // `infra-like` mirrors the real @jini-ai/infra shape: a neutral `src/db/core` that must load
+    // with no native module present, a `src/db/sqlite` driver that may load anything, and two
+    // optional peer dependencies. The forbidden-package list is DERIVED from
+    // peerDependenciesMeta rather than hardcoded, so this manifest is not decoration — it is the
+    // input the check reads to decide what counts as a driver.
+    write(
+      root,
+      'r12-fixtures/infra-like/package.json',
+      JSON.stringify(
+        {
+          name: '@jini-ai/infra-like',
+          jini: { domain: 'server', kind: 'self-test-fixture', runtime: 'node', neutralEntries: ['src/db/core'] },
+          peerDependencies: { 'better-sqlite3': '^11.10.0', 'drizzle-orm': '^0.44.7' },
+          peerDependenciesMeta: { 'better-sqlite3': { optional: true }, 'drizzle-orm': { optional: true } },
+        },
+        null,
+        2,
+      ),
+    );
+    write(root, 'r12-fixtures/infra-like/src/db/core/helper.ts', 'export const helper = 1;\n');
+    // Known-good: a relative import that stays inside the neutral dir, plus a node: builtin.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/core/ok-pure.ts',
+      "import { join } from 'node:path';\nimport { helper } from './helper.js';\nexport const x = join(String(helper), 'a');\n",
+    );
+    // Known-bad: the neutral core importing an optional peer directly.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/core/bad-driver-package.ts',
+      "import Database from 'better-sqlite3';\nexport { Database };\n",
+    );
+    // Known-bad: a SUBPATH of an optional peer. Proves packageNameOf() maps
+    // `drizzle-orm/better-sqlite3` back to `drizzle-orm` — a subpath import loads the package
+    // just as hard as its root, so matching only exact names would be a hole.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/core/bad-driver-subpath.ts',
+      "import { drizzle } from 'drizzle-orm/better-sqlite3';\nexport { drizzle };\n",
+    );
+    // Known-bad: a relative import ESCAPING the neutral dir into the driver directory. This is
+    // the transitive-reachability hole the closure rule exists to close.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/core/bad-escaping-relative.ts',
+      "import { thing } from '../sqlite/thing.js';\nexport { thing };\n",
+    );
+    // Known-bad: TYPE-ONLY import of an optional peer. Deliberately in scope — see the check's
+    // module doc on `verbatimModuleSyntax` and the inline `{ type X }` form that does not erase.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/core/bad-type-only.ts',
+      "import type Database from 'better-sqlite3';\nexport type Alias = Database;\n",
+    );
+    // Known-good: a bare specifier that is NOT an optional peer of this package. The rule is
+    // "no optional peers," not "no bare imports" — flagging these would make the check useless.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/core/ok-non-optional-dep.ts',
+      "import { createDaemon } from '@jini-ai/core';\nexport { createDaemon };\n",
+    );
+    // Known-good regression fixture, and NOT a hypothetical: the real
+    // packages/infra/src/db/core/ports.ts module doc names `better-sqlite3` and `db/sqlite` in
+    // prose to explain the isolation rule it is subject to. Without stripComments() upstream,
+    // documenting the rule would violate it. Must NOT be flagged.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/core/ok-comment-mention.ts',
+      [
+        '/**',
+        " * A host running Postgres never compiles better-sqlite3, because nothing here does",
+        " * `import Database from 'better-sqlite3'` and nothing reaches ../sqlite/thing.js.",
+        ' */',
+        'export const documented = 1;',
+      ].join('\n') + '\n',
+    );
+    // Known-good: the DRIVER directory itself may import both the optional peer and the neutral
+    // core. Proves the rule is directional, not a blanket ban — if this were flagged, no driver
+    // could ever be written.
+    write(
+      root,
+      'r12-fixtures/infra-like/src/db/sqlite/thing.ts',
+      "import Database from 'better-sqlite3';\nimport { helper } from '../core/helper.js';\nexport const thing = { Database, helper };\n",
+    );
+    // Known-good: a package that declares NO jini.neutralEntries is out of scope entirely, even
+    // with the identical bad shape. Proves the check is opt-in and costs the other packages
+    // nothing.
+    write(
+      root,
+      'r12-fixtures/unconfigured/package.json',
+      JSON.stringify(
+        {
+          name: '@jini-ai/unconfigured',
+          peerDependenciesMeta: { 'better-sqlite3': { optional: true } },
+        },
+        null,
+        2,
+      ),
+    );
+    write(
+      root,
+      'r12-fixtures/unconfigured/src/db/core/imports-driver.ts',
+      "import Database from 'better-sqlite3';\nexport { Database };\n",
+    );
+
     const engineViolations = await checkEngineBoundaries({ repoRoot: root });
     const protocolViolations = await checkProtocolPurity({ repoRoot: root });
     const domPurityGood = await checkAgenticDomPurity({
@@ -411,6 +520,10 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     const extensionlessViolations = await checkExtensionlessImports({
       repoRoot: root,
       packagesDir: join(root, 'r11-fixtures'),
+    });
+    const driverIsolationViolations = await checkDriverIsolation({
+      repoRoot: root,
+      packagesDir: join(root, 'r12-fixtures'),
     });
 
     const has = (violations: { rule: string; file: string }[], rule: string, fileSuffix: string) =>
@@ -550,6 +663,42 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [
         has(extensionlessViolations, 'R11-extensionless-import', 'normal-bad-no-ext.ts'),
         'R11 should still catch an extensionless import just outside the excluded subtree — the exclude must be scoped, not swallow the whole package',
+      ],
+      [
+        has(driverIsolationViolations, 'R12-driver-isolation', 'bad-driver-package.ts'),
+        'R12 should catch the neutral core importing an optional peerDependency directly',
+      ],
+      [
+        has(driverIsolationViolations, 'R12-driver-isolation', 'bad-driver-subpath.ts'),
+        'R12 should catch a SUBPATH of an optional peer (drizzle-orm/better-sqlite3 → drizzle-orm) — matching exact names only would be a hole',
+      ],
+      [
+        has(driverIsolationViolations, 'R12-driver-isolation', 'bad-escaping-relative.ts'),
+        'R12 should catch a relative import escaping the neutral dir — this is the transitive-reachability hole the closure rule closes',
+      ],
+      [
+        has(driverIsolationViolations, 'R12-driver-isolation', 'bad-type-only.ts'),
+        'R12 should catch a type-only import of an optional peer (the inline `{ type X }` form does not erase under verbatimModuleSyntax)',
+      ],
+      [
+        !driverIsolationViolations.some((v) => v.file.endsWith('ok-pure.ts')),
+        'R12 must NOT flag a node: builtin or a relative import that stays inside the neutral dir',
+      ],
+      [
+        !driverIsolationViolations.some((v) => v.file.endsWith('ok-non-optional-dep.ts')),
+        'R12 must NOT flag a bare import that is not an optional peer — the rule is "no optional peers", not "no bare imports"',
+      ],
+      [
+        !driverIsolationViolations.some((v) => v.file.endsWith('ok-comment-mention.ts')),
+        'R12 must NOT flag a driver named in prose inside a comment — the real packages/infra core module docs do exactly this to explain the rule',
+      ],
+      [
+        !driverIsolationViolations.some((v) => v.file.includes('/sqlite/')),
+        'R12 must NOT flag the driver directory importing its own optional peer or the neutral core — the rule is directional',
+      ],
+      [
+        !driverIsolationViolations.some((v) => v.file.includes('unconfigured/')),
+        'R12 must NOT scan a package that declares no jini.neutralEntries — the check is opt-in',
       ],
     ];
 

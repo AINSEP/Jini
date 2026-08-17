@@ -1070,3 +1070,98 @@ describe('RunLifecycle — inactivity watchdog', () => {
     expect(status?.state).toBe('failed');
   });
 });
+
+describe('RunLifecycle — terminal run retention', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("evicts a terminal run's in-memory record once terminalRetentionMs elapses, so a long-lived daemon does not retain every run it ever ran", async () => {
+    const eventLog = createInMemoryEventLog();
+    const lifecycle = createRunLifecycle({ eventLog, terminalRetentionMs: 1_000 });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    expect(await lifecycle.get(run.id)).toMatchObject({ state: 'succeeded' });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(await lifecycle.get(run.id)).toBeUndefined();
+    expect(await lifecycle.list('ctx-1')).toHaveLength(0);
+  });
+
+  it('a terminal run stays readable right up to (but not past) its retention window', async () => {
+    const eventLog = createInMemoryEventLog();
+    const lifecycle = createRunLifecycle({ eventLog, terminalRetentionMs: 1_000 });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    await vi.advanceTimersByTimeAsync(999);
+    expect(await lifecycle.get(run.id)).toMatchObject({ state: 'succeeded' });
+  });
+
+  it("evicting a terminal run also frees its idempotencyKey, so a re-post after the retention window starts a fresh run instead of erroring on a ghost mapping", async () => {
+    const eventLog = createInMemoryEventLog();
+    const lifecycle = createRunLifecycle({ eventLog, terminalRetentionMs: 1_000 });
+    const first = await lifecycle.start({ contextRef: 'ctx-1', idempotencyKey: 'dup-1' });
+    await lifecycle.finish({ runId: first.run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    const second = await lifecycle.start({ contextRef: 'ctx-1', idempotencyKey: 'dup-1' });
+    expect(second.started).toBe(true);
+    expect(second.run.id).not.toBe(first.run.id);
+  });
+
+  it('caps concurrently-retained terminal runs, evicting the oldest first, independent of terminalRetentionMs', async () => {
+    const eventLog = createInMemoryEventLog();
+    const lifecycle = createRunLifecycle({ eventLog, maxTerminalRuns: 1, terminalRetentionMs: 1_000_000 });
+
+    const first = await lifecycle.start({ contextRef: 'ctx-1', runId: 'run-a' });
+    await lifecycle.finish({ runId: first.run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    const second = await lifecycle.start({ contextRef: 'ctx-1', runId: 'run-b' });
+    await lifecycle.finish({ runId: second.run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    // The cap evicts on the *second* completion, well before terminalRetentionMs would ever fire.
+    expect(await lifecycle.get('run-a')).toBeUndefined();
+    expect(await lifecycle.get('run-b')).toMatchObject({ state: 'succeeded' });
+  });
+
+  it('resume() cancels the pending eviction so a reclaimed run survives past its original retention window', async () => {
+    const eventLog = createInMemoryEventLog();
+    const lifecycle = createRunLifecycle({ eventLog, terminalRetentionMs: 1_000 });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: true });
+
+    await vi.advanceTimersByTimeAsync(500);
+    const resumeResult = await lifecycle.resume(run.id);
+    expect(resumeResult.resumed).toBe(true);
+
+    // Past the original 1_000ms retention window — the resumed run must still be there.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await lifecycle.get(run.id)).toMatchObject({ state: 'running' });
+  });
+
+  it('rehydrate() accounts for how long a run has already been terminal, instead of granting a full fresh retention window on every restart', async () => {
+    const eventLog = createInMemoryEventLog();
+    const first = createRunLifecycle({ eventLog, terminalRetentionMs: 10_000 });
+    const { run } = await first.start({ contextRef: 'ctx-1', runId: 'old-run' });
+    await first.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
+
+    // The run has already been terminal for 9_000 of its 10_000ms retention window by the time the
+    // process "restarts" and rehydrates from the durable log.
+    await vi.advanceTimersByTimeAsync(9_000);
+
+    const second = createRunLifecycle({ eventLog, terminalRetentionMs: 10_000 });
+    await second.rehydrate();
+    expect(await second.get('old-run')).toMatchObject({ state: 'succeeded' });
+
+    // Only 1_000ms of retention remained at rehydration time — not a fresh 10_000ms.
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await second.get('old-run')).toBeUndefined();
+  });
+});

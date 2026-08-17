@@ -1,0 +1,84 @@
+{
+  "name": "@jini-ai/infra",
+  "version": "0.1.0",
+  "description": "Backing-service infrastructure for a Jini-hosted site: a driver-neutral persistence core plus selectively-installable database drivers. Import `./db/core` with no native module installed; add `./db/sqlite` only if you run SQLite.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/infra"
+  },
+  "jini": {
+    "domain": "server",
+    "kind": "persistence-adapter",
+    "runtime": "node",
+    "neutralEntries": [
+      "src/db/core"
+    ]
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./db/core": {
+      "import": {
+        "types": "./dist/db/core/index.d.ts",
+        "default": "./dist/db/core/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/db/core/index.d.ts",
+        "default": "./dist/cjs/db/core/index.js"
+      }
+    },
+    "./db/sqlite": {
+      "import": {
+        "types": "./dist/db/sqlite/index.d.ts",
+        "default": "./dist/db/sqlite/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/db/sqlite/index.d.ts",
+        "default": "./dist/cjs/db/sqlite/index.js"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "db/core": [
+        "./dist/db/core/index.d.ts"
+      ],
+      "db/sqlite": [
+        "./dist/db/sqlite/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.cjs.json && node -e \"require('fs').writeFileSync('dist/cjs/package.json','{\\\"type\\\":\\\"commonjs\\\"}')\"",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "better-sqlite3": "^11.10.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "^11.10.0"
+  }
+}

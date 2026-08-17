@@ -1,6 +1,6 @@
 // Shared "run this keydown handler for as long as the feature is active"
 // plumbing. useAssetGridKeyboardShortcuts (asset-grid) and
-// useAnnotationKeyboardShortcuts (annotation-canvas, `@jini-ai/renderers-react`)
+// useAnnotationKeyboardShortcuts (annotation-canvas, this package's own `./renderers` subpath)
 // both wrote the identical shape: bail out of the effect while an `active`
 // flag is false, otherwise attach one `window` keydown listener and remove it
 // on cleanup/deactivation. useSketchDomEnhancements (sketch-editor) wrote the

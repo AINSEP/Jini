@@ -46,6 +46,7 @@ import {
   registerApiBearerAuthMiddleware,
   registerApiOriginGuardMiddleware,
   requireStrictBearerToken,
+  assertValidAllowedOrigins,
   configuredAllowedOrigins,
   type AdapterContext,
 } from '@jini-ai/http-kit';
@@ -199,6 +200,20 @@ interface ComposedFeature {
  */
 export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promise<JiniKernel> {
   const env = config.env ?? process.env;
+
+  // Boot-time, unconditional — deliberately not scoped to `security.mode === 'sidecar-strict' |
+  // 'jini-local'` the way the two `configuredAllowedOrigins(env)` calls below are. Those compute
+  // `extraAllowedOrigins` once at composition time too, but only for the two modes that mount
+  // `registerApiOriginGuardMiddleware`; the default `'host'` mode never reaches either call, so a
+  // malformed `JINI_ALLOWED_ORIGINS` would otherwise go undetected at boot regardless of mode and
+  // only surface later, inside `isLocalSameOrigin` (via `guardSameOrigin`, which every
+  // `mountJsonRoute` route and the attachment/model-proxy routes call), on whichever request
+  // happened to be first to need a same-origin decision. Asserting here — before any resource
+  // opens, matching the "fails before a single resource is opened" convention just below — turns
+  // that into a fail-fast boot error instead. `configuredAllowedOrigins` itself no longer throws
+  // (see its own doc): this is the ONE place that still does, deliberately.
+  assertValidAllowedOrigins(env);
+
   const profile = JINI_PROFILES[config.profile ?? 'agent-core-v1'];
   const catalog: readonly JiniFeature[] = [
     ...createBuiltInFeatures(config.featureOptions ?? {}),

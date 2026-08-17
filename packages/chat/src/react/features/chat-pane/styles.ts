@@ -87,14 +87,19 @@ export const CHAT_PANE_STYLES = `
   overflow-y: auto;
   /*
    * .jini-chat-pane__controls is an absolutely-positioned overlay (not a flex/grid sibling that
-   * pushes this list up), so its real height has to be reserved here instead. Measured against a
-   * live render: the composer + footer + working-directory row alone is already 179.75px, above
-   * the 170px this used to reserve -- the last message's tail rendered clipped under the overlay as
-   * a direct result. 240px adds real margin above that measurement rather than matching it exactly,
-   * because the composer also grows conditionally (a suggestions row, an attachment tray) that
-   * this measurement did not have present.
+   * pushes this list up), so its real height has to be reserved here instead. This used to be a
+   * flat 240px guess -- and had already gone stale once before that: it started at 170px, a live
+   * render outgrew it (composer + footer + working-directory row alone measured 179.75px, clipping
+   * the last message's tail under the overlay), and 240px was chosen as a margin above THAT
+   * measurement, not a value anything keeps in sync. useChatPaneControlsHeight now measures the
+   * overlay's real height live via ResizeObserver and publishes it as
+   * --jini-chat-controls-height on the pane root, so this reservation tracks the composer's
+   * actual content (an attachment tray, a wrapped multi-line draft, a taller runtime-picker
+   * popover) instead of a number that is only ever correct until the next thing that grows it.
+   * 240px survives as the fallback for the rare environment without ResizeObserver (SSR; a test
+   * harness that never polyfills it) -- everywhere else, the calc() wins.
    */
-  padding: 20px 22px 240px;
+  padding: 20px 22px calc(var(--jini-chat-controls-height, 240px) + 24px);
   scrollbar-width: thin;
 }
 .jini-chat-pane .jini-message {
@@ -345,6 +350,66 @@ export const CHAT_PANE_STYLES = `
   border-top: 1px solid var(--jini-chat-border-soft);
 }
 .jini-chat-pane .jini-composer-attachment-picker { display: inline-flex; }
+.jini-chat-pane .jini-composer-discovery { position: relative; display: inline-flex; }
+.jini-chat-pane .jini-composer-discovery-menu,
+.jini-chat-pane .jini-composer-slash-menu {
+  position: absolute;
+  z-index: 8;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px;
+  color: var(--jini-chat-text);
+  background: var(--jini-chat-panel);
+  border: 1px solid var(--jini-chat-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgb(0 0 0 / 14%);
+}
+.jini-chat-pane .jini-composer-discovery-menu {
+  inset-inline-start: 0;
+  bottom: calc(100% + 6px);
+  width: min(280px, calc(100vw - 32px));
+}
+.jini-chat-pane .jini-composer-slash-menu {
+  inset-inline: 8px;
+  bottom: 48px;
+}
+.jini-chat-pane .jini-composer-discovery-group { display: flex; flex-direction: column; gap: 2px; }
+.jini-chat-pane .jini-composer-discovery-group-label {
+  padding: 6px 8px 2px;
+  color: var(--jini-chat-faint);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.jini-chat-pane .jini-composer-discovery-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 8px;
+  color: inherit;
+  text-align: start;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.jini-chat-pane .jini-composer-discovery-item:hover {
+  background: var(--jini-chat-panel);
+}
+.jini-chat-pane .jini-composer-discovery-item.is-active {
+  color: var(--jini-chat-text-strong);
+  background: var(--jini-chat-accent-soft);
+  outline: 1px solid var(--jini-chat-accent);
+  outline-offset: -1px;
+  box-shadow: inset 3px 0 0 var(--jini-chat-accent);
+}
+.jini-chat-pane .jini-composer-discovery-item small { color: var(--jini-chat-muted); }
 .jini-chat-pane .jini-composer-file-input {
   position: absolute;
   width: 1px;

@@ -68,7 +68,6 @@
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
-    "@jini-ai/renderers-react": "workspace:*",
     "@jini-ai/ui": "workspace:*"
   },
   "peerDependencies": {

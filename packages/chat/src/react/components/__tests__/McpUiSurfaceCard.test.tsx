@@ -1,7 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
-import { MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
+import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
 import { clearExtEventRenderers, getExtEventRenderer } from '../../ext-event-renderer-registry.js';
 
 function resourceEvent(uri: string, text: string, meta?: Record<string, unknown>) {
@@ -67,6 +67,81 @@ describe('McpUiSurfaceCard', () => {
     render(<McpUiSurfaceCard {...BASE_PROPS} events={[{ type: 'text', text: 'not a resource' }, null]} />);
     expect(screen.getByRole('status').textContent).toBe('This MCP-UI event carried no renderable resource.');
     expect(screen.queryByTitle(/ui:\/\//)).toBeNull();
+  });
+
+  it('threads a maxHeight through to McpUiHost, so a narrow host can cap a surface below the library default (720px)', () => {
+    render(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>a</p>')]} maxHeight={300} />);
+    const frameEl = screen.getByTitle('ui://a/1') as HTMLIFrameElement;
+    const view = frameEl.contentWindow!;
+    // A real message round-trip through the shared window listener (`host-message-source.ts`),
+    // not an injected fake — this is the exact mechanism a production McpUiHost uses, so this proves
+    // the prop actually reaches it rather than merely compiling.
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', { data: { jsonrpc: '2.0', id: 1, method: 'ui/initialize', params: {} }, source: view }));
+      window.dispatchEvent(new MessageEvent('message', { data: { jsonrpc: '2.0', method: 'ui/notifications/initialized' }, source: view }));
+      // Deliberately absurd height: without threading, this would clamp at the library's own
+      // DEFAULT_MAX_HEIGHT (720px), not at the 300px this host asked for.
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height: 999_999 } },
+          source: view,
+        }),
+      );
+    });
+    expect(frameEl.style.height).toBe('300px');
+  });
+
+  describe('the agent-visible mirror (Task 2b)', () => {
+    const PLAN = {
+      title: 'Publish the site?',
+      actions: [{ id: 'confirm', label: 'Publish', variant: 'danger' }, { id: 'cancel', label: 'Cancel' }],
+    };
+
+    it('publishes a status-role, agent-discoverable region when the resource carries an action plan', () => {
+      const { container } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          events={[resourceEvent('ui://tovu/deployment-execute-static-publish/abc123', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
+        />,
+      );
+      const mirror = container.querySelector('[data-agent-role="status"]');
+      expect(mirror).not.toBeNull();
+      expect(mirror).toHaveAttribute('data-agent-element', 'mcp-ui-pending-ui-tovu-deployment-execute-static-publish-abc123');
+      expect(mirror).toHaveAttribute('aria-hidden', 'true');
+      expect(mirror?.getAttribute('data-agent-label')).toContain('Publish the site?');
+      expect(mirror?.getAttribute('data-agent-label')).toContain('Publish');
+      expect(mirror?.getAttribute('data-agent-label')).toContain('Cancel');
+    });
+
+    it('hides the mirror from sighted users too, not just screen readers — the real dialog is already visible in the frame', () => {
+      const { container } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          events={[resourceEvent('ui://a/1', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
+        />,
+      );
+      const mirror = container.querySelector('[data-agent-role="status"]') as HTMLElement;
+      expect(mirror.style.display).toBe('none');
+    });
+
+    it('renders no mirror at all for a surface with no action plan (e.g. a non-confirmation view)', () => {
+      const { container } = render(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>a</p>')]} />);
+      expect(container.querySelector('[data-agent-role="status"]')).toBeNull();
+    });
+
+    it('never gives an individual action its own data-agent-element handle -- page.click does not consult data-agent-role, so publishing one would let the same live agent answer its own confirmation', () => {
+      const { container } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          events={[resourceEvent('ui://a/1', '<p>a</p>', { [MCP_UI_ACTION_PLAN_META_KEY]: PLAN })]}
+        />,
+      );
+      // The mirror region itself is the only [data-agent-element] node this component renders in
+      // the parent DOM — no per-action "confirm"/"cancel" handle anywhere outside the sandboxed frame.
+      const tagged = [...container.querySelectorAll('[data-agent-element]')];
+      expect(tagged).toHaveLength(1);
+      expect(tagged[0]).toHaveAttribute('data-agent-role', 'status');
+    });
   });
 
   it('passes the tool executor and link handler through to each view', () => {

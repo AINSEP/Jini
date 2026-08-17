@@ -1,0 +1,95 @@
+# Quality-gate CI. Added 2026-08-16: before this, `.github/workflows/` had exactly one workflow
+# (`publish.yml`, a dormant Changesets publisher) — nothing ran any quality gate on push or PR,
+# despite three already existing and self-tested: `pnpm guard` (import boundaries, deep-path bans,
+# product-neutrality strings, DOM/universal split purity, driver isolation), `pnpm typecheck`, and
+# `pnpm complexity`. See the 2026-08-16 Jini failure-mode audit for the full context.
+#
+# `pnpm guard` itself found 25 pre-existing violations, accumulated since 2026-08-03 with nothing
+# enforcing it. Rather than block adoption on fixing all 25 first (real application-code changes
+# across 5+ feature packages — someone else's call, not this workflow's) or shipping a gate that is
+# red from its first run (which tends to get ignored or disabled within days), CI runs
+# `pnpm guard:drift` instead of raw `pnpm guard`: the same checks, ratcheted against
+# `scripts/guard-baseline.json`'s snapshot of the 25 known violations, so it fails ONLY on a NEW
+# one. See that script's own module doc for the diff mechanics and `scripts/guard-baseline.json`'s
+# `_comment` for how the baseline is meant to shrink over time.
+#
+# `pnpm typecheck` needed no such ratchet — its one failure (`examples/reference-web`, a real
+# interface-shape mismatch after `DomPageDriverPage` gained a `label` field) was small and
+# mechanical enough to just fix directly; it runs here unmodified and fully blocking.
+#
+# `pnpm complexity` runs too, but purely for visibility, not as a blocking gate: `complexity` and
+# `sonarjs/cognitive-complexity` are configured `warn`, not `error`, repo-wide (`eslint.config.mjs`),
+# so this step cannot fail CI as configured — it currently reports ~15.6k warnings. Turning that into
+# a real gate (à la Tovu's `apps/admin`-scoped `check:admin-complexity-drift` ratchet) is a
+# repo-wide initiative at a much larger scale than guard's 25, and deliberately out of scope here.
+#
+# 2026-08-17: `push: branches: [main]` meant this workflow had NEVER fired since it was added the
+# day before — all Jini work happens on `general-work` (Tovu and Jini are developed in lockstep on
+# same-named branches), which was already dozens of commits ahead with zero CI runs on any of them.
+# Identical bug to the one found and fixed in Tovu's own `ci.yml` the same evening. Fixed below:
+# `push` now watches every branch, so no future branch is silently unwatched the same way.
+# `pull_request` already had no `branches` filter, so PR-triggered runs were never affected.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Every workspace package's package.json resolves its `@jini-ai/*` siblings through its own
+      # gitignored `dist/` (`types`/`main` both point there — see e.g. packages/daemon/package.json),
+      # not source. A fresh checkout has no `dist/` at all, so `pnpm typecheck`'s cross-package
+      # resolution fails without a build first (verified: this is exactly what a clean checkout would
+      # hit — a local dev tree only avoids it because a prior `pnpm -r run build` left `dist/` on
+      # disk). `pnpm guard` and `pnpm complexity` don't need this — the former scans import
+      # specifiers as text/AST, the latter isn't type-aware (no `parserOptions.project` in
+      # `eslint.config.mjs`) — but building once up front is cheaper than reasoning per-gate about
+      # which ones can skip it.
+      - run: pnpm -r run build
+
+      - name: guard (ratcheted against scripts/guard-baseline.json — see that file and check-guard-drift.ts)
+        id: guard
+        run: pnpm guard:drift
+        continue-on-error: true
+
+      - name: typecheck
+        id: typecheck
+        run: pnpm typecheck
+        continue-on-error: true
+
+      # Not gated with continue-on-error/an id checked below: `complexity` and
+      # `sonarjs/cognitive-complexity` are `warn`-level repo-wide, so this step cannot exit non-zero
+      # as currently configured — it is here purely so the warning count is visible in every run's
+      # log, not to block anything.
+      - name: complexity (informational — warn-level, cannot fail; visibility only)
+        run: pnpm complexity
+
+      - name: fail if a blocking gate failed
+        if: steps.guard.outcome == 'failure' || steps.typecheck.outcome == 'failure'
+        run: |
+          echo "guard:    ${{ steps.guard.outcome }}"
+          echo "typecheck: ${{ steps.typecheck.outcome }}"
+          exit 1

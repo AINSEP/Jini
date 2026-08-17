@@ -16,6 +16,7 @@
  * ElevenLabs wire API once it has a key.
  */
 import { createHash } from 'node:crypto';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const ELEVENLABS_DEFAULT_VOICE_LIMIT = 100;
@@ -161,14 +162,18 @@ export async function listElevenLabsVoiceOptions(
     return cloneVoiceOptions(cached.voices);
   }
 
-  const resp = await fetch(`${baseUrl}/v2/voices?page_size=${pageSize}`, {
-    ...options.requestInit,
-    method: 'GET',
-    headers: {
-      'xi-api-key': credentials.apiKey,
-      accept: 'application/json',
+  const resp = await fetchWithTimeout(
+    `${baseUrl}/v2/voices?page_size=${pageSize}`,
+    {
+      ...options.requestInit,
+      method: 'GET',
+      headers: {
+        'xi-api-key': credentials.apiKey,
+        accept: 'application/json',
+      },
     },
-  });
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   if (!resp.ok) {
     const errText = await resp.text();
     throw new Error(`elevenlabs voices ${resp.status}: ${errText.slice(0, 240)}`);

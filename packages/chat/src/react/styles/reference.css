@@ -43,6 +43,31 @@
   min-width: 0;
 }
 
+/* The grouped add menu and slash autocomplete anchor to the composer rather than escaping the
+   host's layout. Visual tokens remain the host's responsibility. */
+.jini-composer,
+.jini-composer-discovery {
+  position: relative;
+}
+
+.jini-composer-discovery-menu,
+.jini-composer-slash-menu {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.jini-composer-discovery-menu { inset-inline-start: 0; bottom: 100%; }
+.jini-composer-slash-menu { inset-inline: 0; bottom: 100%; }
+.jini-composer-discovery-group { display: flex; flex-direction: column; }
+.jini-composer-discovery-item { display: flex; flex-direction: column; align-items: flex-start; }
+.jini-composer-discovery-item.is-active {
+  font-weight: 600;
+  outline: 1px solid currentColor;
+  outline-offset: -1px;
+}
+
 /* Stays in the DOM (not display:none) so the button that triggers it via ref.click() keeps
    working, but hidden the same way any visually-hidden-but-functional control is — never with
    opacity/visibility alone — so the browser's native file-input chrome never paints over the

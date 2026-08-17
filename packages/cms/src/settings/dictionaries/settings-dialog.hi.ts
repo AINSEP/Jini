@@ -1,0 +1,28 @@
+/** @file hi translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_HI: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "स्थानीय CLI या BYOK चुनें.",
+  "Instructions": "निर्देश",
+  "Applied to every assistant conversation in this workspace.": "इस वर्कस्पेस की हर सहायक बातचीत पर लागू होता है.",
+  "Notifications": "सूचनाएं",
+  "How you're told a task finished. Saved per operator, not per workspace.": "कार्य पूरा होने पर आपको कैसे बताया जाता है. वर्कस्पेस के अनुसार नहीं, बल्कि प्रति ऑपरेटर सहेजा जाता है.",
+  "Privacy": "गोपनीयता",
+  "Dialog appearance": "डायलॉग की दिखावट",
+  "Theme and accent color for this settings surface. Saved per operator.": "इस सेटिंग्स सतह के लिए थीम और एक्सेंट रंग. प्रति ऑपरेटर सहेजा जाता है.",
+  "Admin interface language. Applies to this settings panel's tab content only.": "एडमिन इंटरफ़ेस की भाषा. केवल इस सेटिंग्स पैनल की टैब सामग्री पर लागू होती है.",
+  "MCP server": "MCP सर्वर",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "एक MCP क्लाइंट कनेक्ट करें. नमूना आउटपुट दिखाया जा रहा है — अभी तक किसी लाइव सर्वर से नहीं जुड़ा है.",
+  "API keys for image, video, and audio generation.": "छवि, वीडियो और ऑडियो जनरेशन के लिए API कुंजियाँ.",
+  "Third-party accounts and APIs via Composio.": "Composio के ज़रिए थर्ड-पार्टी खाते और API.",
+  "Memory": "मेमोरी",
+  "Saved facts and context for future chats.": "भविष्य की बातचीत के लिए सहेजे गए तथ्य और संदर्भ.",
+  "External MCP": "बाहरी MCP",
+  "Add MCP tools from external services.": "बाहरी सेवाओं से MCP टूल जोड़ें.",
+  "Skills": "स्किल्स",
+  "Custom skills your assistant can invoke mid-task.": "कस्टम स्किल्स जिन्हें आपका सहायक कार्य के बीच में उपयोग कर सकता है.",
+  "Version and runtime details.": "संस्करण और रनटाइम विवरण.",
+  "Version": "संस्करण",
+  "Open as dialog": "डायलॉग के रूप में खोलें",
+  "No MCP config store to connect to yet.": "कनेक्ट करने के लिए अभी तक कोई MCP कॉन्फ़िग स्टोर नहीं है.",
+  "All changes saved": "सभी बदलाव सहेजे गए",
+};

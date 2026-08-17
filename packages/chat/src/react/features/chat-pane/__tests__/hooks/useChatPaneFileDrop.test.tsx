@@ -103,4 +103,32 @@ describe('useChatPaneFileDrop', () => {
     act(() => result.current.targetProps.onDragLeave(nonFileDragLeave));
     expect(result.current.draggingFiles).toBe(true);
   });
+
+  it('reports a rejected onFiles host effect without leaving an unhandled rejection', async () => {
+    const failure = new Error('onFiles host failed');
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onFiles = vi.fn().mockRejectedValue(failure);
+    const { result } = renderHook(() => useChatPaneFileDrop({ enabled: true, onFiles }));
+
+    try {
+      const file = new File(['dropped'], 'dropped.txt');
+      const drop = fileDragEvent({ type: 'drop', types: undefined, items: undefined, files: [file] });
+      await act(async () => {
+        result.current.targetProps.onDrop(drop);
+        // Flush past filesFromDataTransfer's internal await, the onFiles() call, and the
+        // rejection-observing .catch() microtask this fix adds.
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(onFiles).toHaveBeenCalledWith([file]);
+      expect(consoleError).toHaveBeenCalledWith(
+        '[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:',
+        failure,
+      );
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
 });

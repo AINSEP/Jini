@@ -175,6 +175,20 @@ describe('renderActions', () => {
   it('renders an explicit neutral variant the same as an omitted one', () => {
     expect(renderActions([{ id: 'a', label: 'A', variant: 'neutral' }])).toBe(renderActions([{ id: 'a', label: 'A' }]));
   });
+
+  it('tags each button with the @jini-ai/agentic data-agent-* markup so a driver reaching directly into the frame (frameLocator) can find and label it', () => {
+    const html = renderActions([
+      { id: 'confirm', label: 'Publish', variant: 'danger' },
+      { id: 'cancel', label: 'Cancel' },
+    ]);
+    const buttons = [...parse(html).querySelectorAll('button')];
+    expect(buttons.map((button) => button.getAttribute('data-agent-element'))).toEqual([
+      'mcpui-action-confirm',
+      'mcpui-action-cancel',
+    ]);
+    expect(buttons.map((button) => button.getAttribute('data-agent-role'))).toEqual(['button', 'button']);
+    expect(buttons.map((button) => button.getAttribute('data-agent-label'))).toEqual(['Publish', 'Cancel']);
+  });
 });
 
 describe('SURFACE_SCRIPT_PRELUDE', () => {

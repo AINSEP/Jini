@@ -21,6 +21,11 @@ export interface TextInputProps {
   readonly disabled?: boolean;
   /** `'number'` also constrains the on-screen keyboard on touch devices, which `'text'` would not. */
   readonly inputType?: 'text' | 'number';
+  /** Renders as `<input type="password">` — the value is never visible on screen, and browser
+   *  password managers may offer to remember it. Ignored when `inputType` is `'number'` (no such
+   *  thing as a masked number) and forces `multiline` off (no `<textarea type="password">` exists) —
+   *  same precedence `multiline`'s own doc comment already gives `inputType: 'number'`. */
+  readonly secret?: boolean;
   /** Renders a `<textarea>`. Ignored when `inputType` is `'number'` — there is no multiline number. */
   readonly multiline?: boolean;
   readonly rows?: number;
@@ -40,6 +45,19 @@ function booleanAttribute(name: string, value: boolean | undefined): string {
 }
 
 /**
+ * Resolves which HTML `type` a text control renders as. `'number'` wins over `secret` — there is no
+ * masked number input, and `TextInputProps.secret`'s own doc comment already fixes that precedence.
+ *
+ * @param props - The `inputType`/`secret` slice of {@link TextInputProps}.
+ * @returns The concrete `<input type>` value.
+ * @complexity O(1).
+ */
+function resolveInputType(props: Pick<TextInputProps, 'inputType' | 'secret'>): 'text' | 'number' | 'password' {
+  if (props.inputType === 'number') return 'number';
+  return props.secret === true ? 'password' : 'text';
+}
+
+/**
  * Renders one free-text field: its label, hint, and control, wrapped in `.mcpui-field`.
  *
  * @param props - See {@link TextInputProps}.
@@ -55,11 +73,16 @@ export function renderTextInput(props: TextInputProps): string {
     booleanAttribute('disabled', props.disabled) +
     fieldDescribedBy(props);
 
-  const isNumber = props.inputType === 'number';
-  const control = props.multiline === true && !isNumber
+  const type = resolveInputType(props);
+  const isNumber = type === 'number';
+  const control = props.multiline === true && type === 'text'
     ? `<textarea class="mcpui-textarea"${common}${optionalAttribute('rows', props.rows)}>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>`
-    : `<input class="mcpui-input" type="${isNumber ? 'number' : 'text'}"${common}` +
+    : `<input class="mcpui-input" type="${type}"${common}` +
       optionalAttribute('value', props.value) +
+      // A stored secret (e.g. a cloud provider's access key) must never be offered to a browser's
+      // password manager as a saveable website login — it belongs to this `ui://` surface, not a
+      // credential the browser should remember.
+      (props.secret === true ? optionalAttribute('autocomplete', 'off') : '') +
       (isNumber
         ? optionalAttribute('min', props.min) + optionalAttribute('max', props.max) + optionalAttribute('step', props.step)
         : '') +

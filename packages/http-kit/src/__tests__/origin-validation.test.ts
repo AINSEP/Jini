@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   allowedBrowserPorts,
+  assertValidAllowedOrigins,
   configuredAllowedOrigins,
   isAllowedBrowserOrigin,
   isIpLiteralHostname,
@@ -134,10 +135,56 @@ describe('configuredAllowedOrigins', () => {
     ).toEqual(['https://a.example.com', 'http://b.example.com:8080']);
   });
 
-  it('rejects a non-http(s) origin', () => {
+  describe('given a malformed entry', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    // Regression guard for the crash class this pair of functions exists to fix: before
+    // `assertValidAllowedOrigins` existed, this same parse threw synchronously inside
+    // `isLocalSameOrigin`, which every same-origin check calls fresh on every incoming request —
+    // a config typo turned into a 500 (or, on a route that bypassed `mountJsonRoute`'s catch, an
+    // unhandled rejection) for the process's entire life. See `assertValidAllowedOrigins` below
+    // for where the equivalent throw now lives instead (boot time, not request time).
+    it('drops a non-http(s) origin instead of throwing, and logs why', () => {
+      expect(configuredAllowedOrigins({ JINI_ALLOWED_ORIGINS: 'ftp://example.com' })).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ftp://example.com'));
+    });
+
+    it('drops only the malformed entries, keeping every valid one', () => {
+      expect(
+        configuredAllowedOrigins({
+          JINI_ALLOWED_ORIGINS: 'https://a.example.com, not a url, ftp://b.example.com, https://c.example.com',
+        }),
+      ).toEqual(['https://a.example.com', 'https://c.example.com']);
+      expect(warnSpy).toHaveBeenCalledTimes(2);
+    });
+  });
+});
+
+describe('assertValidAllowedOrigins', () => {
+  it('does not throw when JINI_ALLOWED_ORIGINS is unset, blank, or entirely valid', () => {
+    expect(() => assertValidAllowedOrigins({})).not.toThrow();
+    expect(() => assertValidAllowedOrigins({ JINI_ALLOWED_ORIGINS: '  ' })).not.toThrow();
     expect(() =>
-      configuredAllowedOrigins({ JINI_ALLOWED_ORIGINS: 'ftp://example.com' }),
-    ).toThrowError('JINI_ALLOWED_ORIGINS only supports http:// and https:// origins');
+      assertValidAllowedOrigins({ JINI_ALLOWED_ORIGINS: 'https://a.example.com, http://b.example.com:8080' }),
+    ).not.toThrow();
+  });
+
+  it('throws, naming the invalid entry, on a non-http(s) origin', () => {
+    expect(() => assertValidAllowedOrigins({ JINI_ALLOWED_ORIGINS: 'ftp://example.com' })).toThrowError(
+      /JINI_ALLOWED_ORIGINS has 1 invalid entry.*ftp:\/\/example\.com/,
+    );
+  });
+
+  it('names every invalid entry, not just the first', () => {
+    expect(() =>
+      assertValidAllowedOrigins({ JINI_ALLOWED_ORIGINS: 'ftp://example.com, https://ok.example.com, not-a-url' }),
+    ).toThrowError(/JINI_ALLOWED_ORIGINS has 2 invalid entries.*ftp:\/\/example\.com.*not-a-url/);
   });
 });
 

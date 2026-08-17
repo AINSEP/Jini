@@ -33,6 +33,7 @@ export type {
 } from './origin-validation.js';
 export {
   allowedBrowserPorts,
+  assertValidAllowedOrigins,
   configuredAllowedHosts,
   configuredAllowedOrigins,
   isAllowedBrowserHost,

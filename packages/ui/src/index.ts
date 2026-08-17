@@ -22,6 +22,7 @@ export * from './features/asset-tree-browser/index.js';
 export * from './features/viewer-shell/index.js';
 export * from './features/version-manager/index.js';
 export * from './features/html-viewer/index.js';
+export * from './features/tabbed-dialog/index.js';
 export * from './features/settings/dialog/index.js';
 export * from './features/appearance/index.js';
 export * from './features/notifications/index.js';

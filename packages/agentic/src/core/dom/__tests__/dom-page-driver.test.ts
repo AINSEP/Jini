@@ -131,6 +131,39 @@ describe('findElements', () => {
     expect((await makeDriver().findElements({ role: 'button' }))[0]?.page).toBeUndefined();
   });
 
+  it('does not filter out a display:none element -- discovery is independent of visibility', async () => {
+    // Verifies a real concern raised while designing an agent-visible-only mirror for an MCP-UI
+    // surface (a region meant to be discoverable by find_elements but invisible to sighted AND
+    // screen-reader users, since the surface itself already renders visibly elsewhere): does the
+    // guards' documented fail-closed posture (denying a hidden <input type="hidden">, e.g.) also
+    // make a display:none-but-tagged element invisible to findElements itself? It does not --
+    // findElements never calls visibilityOf() to filter its result set, only to annotate `visible`
+    // in per-element STATE when a caller asks for it. This proves that empirically rather than by
+    // reading the implementation.
+    root.querySelector('[data-agent-page]')?.insertAdjacentHTML(
+      'beforeend',
+      '<div data-agent-element="hidden-region" data-agent-role="status" '
+        + 'data-agent-label="Agent-only, not rendered for sighted or screen-reader users" '
+        + 'style="display:none"></div>',
+    );
+    const found = await makeDriver().findElements({ query: 'hidden-region' });
+    expect(found.map((element) => element.handle)).toEqual(['hidden-region']);
+  });
+
+  it('does not filter out an aria-hidden="true" element either', async () => {
+    // aria-hidden removes an element from the ACCESSIBILITY tree (what a screen reader announces)
+    // without affecting CSS visibility at all -- a different mechanism from display:none, tested
+    // separately since findElements could in principle treat the two differently even though
+    // neither should exclude an element from being found.
+    root.querySelector('[data-agent-page]')?.insertAdjacentHTML(
+      'beforeend',
+      '<div data-agent-element="aria-hidden-region" data-agent-role="status" '
+        + 'data-agent-label="Agent-only" aria-hidden="true"></div>',
+    );
+    const found = await makeDriver().findElements({ query: 'aria-hidden-region' });
+    expect(found.map((element) => element.handle)).toEqual(['aria-hidden-region']);
+  });
+
   it('attributes each element to its own nearest [data-agent-page] ancestor, not the first one in the document', async () => {
     // A host that keeps more than one page section mounted at once (tabs, wizard steps toggled
     // with CSS) previously had every element from every section reported under whichever section

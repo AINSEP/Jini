@@ -137,6 +137,17 @@ export default defineConfig({
         // file-dropzone/types.ts is likewise pure `type`/`interface`
         // declarations, zero runtime statements (same grep check).
         'src/features/file-dropzone/types.ts',
+        // Zero emitted executable statements — `export interface`/type-only
+        // declarations that fully erase at compile time (verified via
+        // `grep -nE '^(export )?(const|function|class|let|var) '` finding
+        // nothing). A file with nothing to execute is never loaded by any
+        // test, so v8 reports it as 0% rather than N/A. Carried over from
+        // the former standalone `@jini-ai/renderers-react` package's own
+        // vitest.config.ts when it moved into this package as `./renderers`
+        // (2026-08-09) — the same documented carve-out this file already
+        // uses for the `settings-dialog` feature's `types.ts` files, above.
+        'src/renderers/types.ts',
+        'src/renderers/preview-modal-shell/types.ts',
       ],
       // Measured 2026-07-22 (audit fix — coverage-hardening pass): 99.98%
       // statements / ~99.86-99.88% branches / 100% functions / 99.98% lines

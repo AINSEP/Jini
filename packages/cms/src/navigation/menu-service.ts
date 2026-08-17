@@ -221,8 +221,15 @@ export interface CreateMenuOptional {
 }
 
 /**
- * Creates a new `menu` entry in `draft` status with no location
+ * Creates a new `menu` entry in `published` status with no location
  * assignments. Rejects a duplicate slug within the workspace.
+ *
+ * Was `draft` originally (mirroring `posts`), changed 2026-08-09 on explicit product direction: a
+ * menu has no separate review/approval workflow the way a post does, and `resolveForLocation`
+ * (`resolver.ts`) never actually branched on `status` — the field only ever gated the trash/purge
+ * lifecycle. Landing a new menu in `draft` produced a status label at odds with its real behavior
+ * (already fully live wherever it gets bound to a location) rather than gating anything real, so
+ * the default now matches the actual behavior instead of implying a workflow that doesn't exist.
  *
  * @complexity O(n) in the initial tree size for validation; O(m) in existing
  * menu count for the slug-uniqueness scan (repo-dependent).
@@ -247,7 +254,7 @@ export async function createMenu(
     workspaceId: input.workspaceId,
     slug,
     title,
-    status: "draft" as MenuStatus,
+    status: "published" as MenuStatus,
     doc: { type: NAV_DOC_TYPE, version: 1, items },
     locations: [],
     updatedAt: deps.clock.nowIso(),

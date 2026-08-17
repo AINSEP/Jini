@@ -40,24 +40,67 @@ export interface OriginValidationEnvConfig {
   bindHostEnvVar: string;
 }
 
-/** Parses and validates {@link OriginValidationEnvConfig.allowedOriginsEnvVar} into normalized origins. */
-export function configuredAllowedOrigins(
-  config: OriginValidationEnvConfig,
-  env: NodeJS.ProcessEnv = process.env,
-): string[] {
+function splitAllowedOriginsEnv(config: OriginValidationEnvConfig, env: NodeJS.ProcessEnv): string[] {
   const raw = env[config.allowedOriginsEnvVar] || '';
   if (!raw.trim()) return [];
   return raw
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean)
-    .map((origin) => {
-      const parsed = new URL(origin);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error(`${config.allowedOriginsEnvVar} only supports http:// and https:// origins`);
-      }
-      return parsed.origin;
-    });
+    .filter(Boolean);
+}
+
+function parseAllowedOrigin(entry: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(entry);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+  return parsed.origin;
+}
+
+/**
+ * Parses {@link OriginValidationEnvConfig.allowedOriginsEnvVar} into normalized origins.
+ *
+ * Deliberately never throws — this is on the hot path of {@link isLocalSameOrigin}, called fresh
+ * on every same-origin decision a host makes. A malformed entry is dropped and logged instead of
+ * aborting the whole parse (see the twin `@jini-ai/http-kit` copy of this module for the fuller
+ * incident history this mirrors: a request-time throw here used to turn one config typo into
+ * either a 500 on every request, or — on a route with no enclosing catch — an unhandled
+ * rejection). Call {@link assertValidAllowedOrigins} once at host startup instead, to fail loudly
+ * before any request-serving traffic exists.
+ */
+export function configuredAllowedOrigins(
+  config: OriginValidationEnvConfig,
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const origins: string[] = [];
+  for (const entry of splitAllowedOriginsEnv(config, env)) {
+    const origin = parseAllowedOrigin(entry);
+    if (origin === undefined) {
+      console.warn(
+        `[@jini-ai/core] ignoring malformed ${config.allowedOriginsEnvVar} entry (must be an http:// or https:// origin): ${entry}`,
+      );
+      continue;
+    }
+    origins.push(origin);
+  }
+  return origins;
+}
+
+/**
+ * Boot-time companion to {@link configuredAllowedOrigins}: throws, naming every malformed entry,
+ * instead of silently dropping them. Call once, early in host startup, before the HTTP server
+ * accepts connections.
+ */
+export function assertValidAllowedOrigins(config: OriginValidationEnvConfig, env: NodeJS.ProcessEnv = process.env): void {
+  const invalid = splitAllowedOriginsEnv(config, env).filter((entry) => parseAllowedOrigin(entry) === undefined);
+  if (invalid.length === 0) return;
+  throw new Error(
+    `${config.allowedOriginsEnvVar} has ${invalid.length} invalid entr${invalid.length === 1 ? 'y' : 'ies'} ` +
+      `(must be http:// or https:// origins): ${invalid.join(', ')}`,
+  );
 }
 
 /** The `host` (hostname:port) component of each configured allowed origin. */

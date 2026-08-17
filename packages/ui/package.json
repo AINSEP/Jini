@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/ui",
   "version": "0.1.2",
-  "description": "Generic, product-neutral React UI primitives and feature domains. Framework-free types, decision rules, catalogs, and host port contracts live behind ./core (no React, no DOM). The Excalidraw and Lexical editors live behind ./sketch-editor and ./lexical-rich-text-editor.",
+  "description": "Generic, product-neutral React UI primitives and feature domains. Framework-free types, decision rules, catalogs, and host port contracts live behind ./core (no React, no DOM). The Excalidraw and Lexical editors live behind ./sketch-editor and ./lexical-rich-text-editor; the GrapesJS-backed inline HTML editor lives behind ./html-editor.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -38,6 +38,11 @@
       "import": "./dist/features/lexical-rich-text-editor/index.js",
       "default": "./dist/features/lexical-rich-text-editor/index.js"
     },
+    "./html-editor": {
+      "types": "./dist/features/html-editor/index.d.ts",
+      "import": "./dist/features/html-editor/index.js",
+      "default": "./dist/features/html-editor/index.js"
+    },
     "./mcp-ui": {
       "types": "./dist/react/mcp-ui/index.d.ts",
       "import": "./dist/react/mcp-ui/index.js",
@@ -48,7 +53,29 @@
       "import": "./dist/features/mcp-ui/index.js",
       "default": "./dist/features/mcp-ui/index.js"
     },
-    "./settings-dialog.css": "./dist/features/settings/dialog/styles/settings-dialog.css"
+    "./interactive-ui": {
+      "types": "./dist/features/interactive-ui/index.d.ts",
+      "import": "./dist/features/interactive-ui/index.js",
+      "default": "./dist/features/interactive-ui/index.js"
+    },
+    "./interactive-ui/manifests": {
+      "types": "./dist/features/interactive-ui/manifests.d.ts",
+      "import": "./dist/features/interactive-ui/manifests.js",
+      "default": "./dist/features/interactive-ui/manifests.js"
+    },
+    "./a2ui": {
+      "types": "./dist/features/a2ui/index.d.ts",
+      "import": "./dist/features/a2ui/index.js",
+      "default": "./dist/features/a2ui/index.js"
+    },
+    "./renderers": {
+      "types": "./dist/renderers/index.d.ts",
+      "import": "./dist/renderers/index.js",
+      "default": "./dist/renderers/index.js"
+    },
+    "./interactive-ui.css": "./dist/features/interactive-ui/interactive-ui.css",
+    "./settings-dialog.css": "./dist/features/settings/dialog/styles/settings-dialog.css",
+    "./tabbed-dialog.css": "./dist/features/tabbed-dialog/styles/tabbed-dialog.css"
   },
   "files": [
     "dist",
@@ -63,7 +90,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles dist/features/tabbed-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && cp src/features/tabbed-dialog/styles/tabbed-dialog.css dist/features/tabbed-dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -71,29 +98,36 @@
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
-    "@jini-ai/renderers-react": "workspace:*",
+    "clsx": "^2.1.1",
     "micromark": "^4.0.0",
-    "micromark-extension-gfm": "^3.0.0"
+    "micromark-extension-gfm": "^3.0.0",
+    "shiki": "^1.24.4",
+    "tailwind-merge": "^2.6.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@excalidraw/excalidraw": "0.18.1",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",
+    "@tailwindcss/cli": "^4.1.16",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.5.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitest/coverage-v8": "^2.1.9",
+    "grapesjs": "0.23.4",
     "jsdom": "^25.0.1",
     "lexical": "0.36.2",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tailwindcss": "^4.1.16"
   },
   "peerDependencies": {
     "@excalidraw/excalidraw": "0.18.1",
     "@lexical/react": "0.36.2",
     "@lexical/utils": "0.36.2",
+    "grapesjs": "0.23.4",
     "lexical": "0.36.2",
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0"
@@ -106,6 +140,9 @@
       "optional": true
     },
     "@lexical/utils": {
+      "optional": true
+    },
+    "grapesjs": {
       "optional": true
     },
     "lexical": {

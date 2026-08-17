@@ -29,6 +29,20 @@ function carriesFiles(event: DragEvent<Element>): boolean {
     || (event.type === 'drop' && event.dataTransfer.files.length > 0);
 }
 
+/** Invokes the host's `onFiles` and reports a synchronous throw or async rejection without leaving it unhandled. */
+function runOnFilesHostEffect(onFiles: UseChatPaneFileDropOptions['onFiles'], files: File[]) {
+  let result: void | Promise<void>;
+  try {
+    result = onFiles(files);
+  } catch (error) {
+    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', error);
+    return;
+  }
+  void Promise.resolve(result).catch((error: unknown) => {
+    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', error);
+  });
+}
+
 /**
  * Adapts the shared nesting-safe file drop target to the chat composer.
  * Non-file drags are ignored, while temporarily disabled composers still
@@ -42,7 +56,7 @@ export function useChatPaneFileDrop({
   onFiles,
 }: UseChatPaneFileDropOptions): UseChatPaneFileDropResult {
   const dropTarget = useFileDropTarget((files) => {
-    void onFiles(files);
+    runOnFilesHostEffect(onFiles, files);
   });
 
   const onDragEnter = useCallback<DragEventHandler<HTMLDivElement>>((event) => {

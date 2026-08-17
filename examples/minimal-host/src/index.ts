@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import { createLocalNodeDaemon } from '@jini-ai/server';
 
 interface DaemonStatusBody {
@@ -152,18 +153,25 @@ async function main(): Promise<void> {
   try {
     // A genuine exercise of packed dependencies, not a no-op: this begins with a daemon-status
     // request and then uses the real HTTP run endpoints that are also exposed to consumers.
-    const response = await assertOk(await fetch(`${daemon.url}/api/daemon/status`), 'GET /api/daemon/status');
+    const response = await assertOk(
+      await fetchWithTimeout(`${daemon.url}/api/daemon/status`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
+      'GET /api/daemon/status',
+    );
     const body = (await response.json()) as DaemonStatusBody;
     if (body.ok !== true) {
       throw new Error(`minimal-host: unexpected /api/daemon/status body: ${JSON.stringify(body)}`);
     }
 
     const create = await assertOk(
-      await fetch(`${daemon.url}/api/runs`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contextRef: 'minimal-host-complete', idempotencyKey: 'complete-once' }),
-      }),
+      await fetchWithTimeout(
+        `${daemon.url}/api/runs`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ contextRef: 'minimal-host-complete', idempotencyKey: 'complete-once' }),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      ),
       'POST /api/runs',
     );
     const created = (await create.json()) as RunResponse;
@@ -173,7 +181,7 @@ async function main(): Promise<void> {
     }
 
     const firstStream = await assertOk(
-      await fetch(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`),
+      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
       'GET /api/runs/:id/events',
     );
     const firstStreamBody = await firstStream.text();
@@ -183,9 +191,11 @@ async function main(): Promise<void> {
     }
 
     const reconnected = await assertOk(
-      await fetch(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {
-        headers: { 'last-event-id': firstCursors[0] ?? '' },
-      }),
+      await fetchWithTimeout(
+        `${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`,
+        { headers: { 'last-event-id': firstCursors[0] ?? '' } },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      ),
       'GET /api/runs/:id/events reconnect',
     );
     const reconnectedBody = await reconnected.text();
@@ -194,11 +204,15 @@ async function main(): Promise<void> {
     }
 
     const acp = await assertOk(
-      await fetch(`${daemon.url}/api/runs`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contextRef: 'minimal-host-acp', agentId: 'acp-fixture' }),
-      }),
+      await fetchWithTimeout(
+        `${daemon.url}/api/runs`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ contextRef: 'minimal-host-acp', agentId: 'acp-fixture' }),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      ),
       'POST /api/runs ACP fixture',
     );
     const acpBody = (await acp.json()) as RunResponse;
@@ -207,7 +221,7 @@ async function main(): Promise<void> {
       throw new Error(`minimal-host: ACP fixture did not create a run: ${JSON.stringify(acpBody)}`);
     }
     const acpStream = await assertOk(
-      await fetch(`${daemon.url}/api/runs/${encodeURIComponent(acpRunId)}/events`),
+      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(acpRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
       'GET /api/runs/:id/events ACP fixture',
     );
     const acpStreamBody = await acpStream.text();
@@ -216,11 +230,15 @@ async function main(): Promise<void> {
     }
 
     const waiting = await assertOk(
-      await fetch(`${daemon.url}/api/runs`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contextRef: 'minimal-host-cancel', agentId: 'wait-for-cancel' }),
-      }),
+      await fetchWithTimeout(
+        `${daemon.url}/api/runs`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ contextRef: 'minimal-host-cancel', agentId: 'wait-for-cancel' }),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      ),
       'POST /api/runs waiting',
     );
     const waitingBody = (await waiting.json()) as RunResponse;
@@ -229,11 +247,15 @@ async function main(): Promise<void> {
       throw new Error(`minimal-host: waiting run did not start: ${JSON.stringify(waitingBody)}`);
     }
     await assertOk(
-      await fetch(`${daemon.url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ reason: 'minimal-host cancellation check' }),
-      }),
+      await fetchWithTimeout(
+        `${daemon.url}/api/runs/${encodeURIComponent(waitingRunId)}/cancel`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reason: 'minimal-host cancellation check' }),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      ),
       'POST /api/runs/:id/cancel',
     );
     const cancellation = cancellationCompletions.get(waitingRunId);
@@ -245,7 +267,7 @@ async function main(): Promise<void> {
     await daemon.stop();
     daemon = await startDaemon();
     const restored = await assertOk(
-      await fetch(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}`),
+      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
       'GET /api/runs/:id after restart',
     );
     const restoredBody = (await restored.json()) as RunResponse;
@@ -253,7 +275,7 @@ async function main(): Promise<void> {
       throw new Error(`minimal-host: durable state was not restored: ${JSON.stringify(restoredBody)}`);
     }
     const replayed = await assertOk(
-      await fetch(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`),
+      await fetchWithTimeout(`${daemon.url}/api/runs/${encodeURIComponent(completedRunId)}/events`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK }),
       'GET /api/runs/:id/events after restart',
     );
     if (!(await replayed.text()).includes('event: end')) {

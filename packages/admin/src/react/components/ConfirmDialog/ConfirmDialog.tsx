@@ -1,6 +1,6 @@
 import { type ReactNode } from 'react';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
-import { useConfirmDialog } from './ConfirmDialog.hooks.js';
+import { useConfirmDialog, type UseConfirmDialog } from './ConfirmDialog.hooks.js';
 
 /**
  * @file Shared modal confirmation primitive — the replacement for `window.confirm`, which blocks
@@ -39,8 +39,12 @@ export interface ConfirmDialogProps {
   onCancel: () => void;
   /** Injectable seam for the dialog's open/close and focus-management hook. Defaults to the real
    *  {@link useConfirmDialog}; a test can pass a fake here to exercise `ConfirmDialog`'s rendering
-   *  without invoking the native `<dialog>` methods or DOM focus calls at all. */
-  useDialog?: typeof useConfirmDialog;
+   *  without invoking the native `<dialog>` methods or DOM focus calls at all.
+   *
+   *  Typed against the explicit `UseConfirmDialog` contract rather than `typeof useConfirmDialog`:
+   *  see `ConfirmDialogController`'s doc comment for why binding a public prop to a concrete
+   *  implementation's inferred return object is a coupling rather than a convenience. */
+  useDialog?: UseConfirmDialog;
 }
 
 const DEFAULT_CANCEL_LABEL = 'Cancel';

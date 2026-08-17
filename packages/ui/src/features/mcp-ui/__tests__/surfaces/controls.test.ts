@@ -75,6 +75,35 @@ describe('renderTextInput', () => {
     const input = parse(renderTextInput({ name: 't', label: 'T', min: 1, max: 2, step: 1 })).querySelector('input')!;
     expect(input.hasAttribute('min')).toBe(false);
   });
+
+  it('renders a masked password input when secret is true, with autocomplete off', () => {
+    const input = parse(renderTextInput({ name: 'secretKey', label: 'Secret Key', secret: true })).querySelector('input')!;
+    expect(input.type).toBe('password');
+    expect(input.getAttribute('autocomplete')).toBe('off');
+  });
+
+  it('renders a plain text input when secret is omitted or explicitly false, with no autocomplete override', () => {
+    const omitted = parse(renderTextInput({ name: 't', label: 'T' })).querySelector('input')!;
+    expect(omitted.type).toBe('text');
+    expect(omitted.hasAttribute('autocomplete')).toBe(false);
+
+    const explicitFalse = parse(renderTextInput({ name: 't', label: 'T', secret: false })).querySelector('input')!;
+    expect(explicitFalse.type).toBe('text');
+    expect(explicitFalse.hasAttribute('autocomplete')).toBe(false);
+  });
+
+  it('prefers number over secret — there is no masked number input', () => {
+    const input = parse(
+      renderTextInput({ name: 'n', label: 'N', inputType: 'number', secret: true }),
+    ).querySelector('input')!;
+    expect(input.type).toBe('number');
+  });
+
+  it('ignores multiline for a secret field — there is no masked textarea', () => {
+    const doc = parse(renderTextInput({ name: 'p', label: 'P', secret: true, multiline: true }));
+    expect(doc.querySelector('textarea')).toBeNull();
+    expect(doc.querySelector('input')?.type).toBe('password');
+  });
 });
 
 describe('renderCheckbox', () => {
@@ -183,6 +212,16 @@ describe('renderFieldControl', () => {
       expect(doc.querySelector('.mcpui-required')).toBeNull();
       expect(doc.querySelector('[aria-describedby]')).toBeNull();
     }
+  });
+
+  it('forwards secret through a string field to render a masked input', () => {
+    const doc = parse(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true }));
+    expect(doc.querySelector('input')?.type).toBe('password');
+  });
+
+  it('renders a plain text input for a string field when secret is absent — no regression against the unmasked path', () => {
+    const doc = parse(renderFieldControl({ kind: 'string', name: 's', label: 'S' }));
+    expect(doc.querySelector('input')?.type).toBe('text');
   });
 });
 

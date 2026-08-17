@@ -76,5 +76,10 @@ export type {
   FrontendHttpExtension,
 } from '@jini-ai/http-kit';
 
-export type { CloseHttpServerOptions } from './host-bootstrap.js';
-export { DEFAULT_DAEMON_BIND_HOST, closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js';
+export type { CloseHttpServerOptions, GracefulShutdownHandle, GracefulShutdownOptions } from './host-bootstrap.js';
+export {
+  DEFAULT_DAEMON_BIND_HOST,
+  closeHttpServer,
+  installGracefulShutdown,
+  normalizeDaemonBindHost,
+} from './host-bootstrap.js';

@@ -1,0 +1,28 @@
+/** @file bn translation of the settings-dialog chrome keys (see `index.ts`). */
+
+export const SETTINGS_DIALOG_BN: Record<string, string> = {
+  "Choose Local CLI or BYOK.": "লোকাল CLI অথবা BYOK নির্বাচন করুন।",
+  "Instructions": "নির্দেশনা",
+  "Applied to every assistant conversation in this workspace.": "এই ওয়ার্কস্পেসের প্রতিটি সহকারী কথোপকথনে প্রযোজ্য।",
+  "Notifications": "বিজ্ঞপ্তি",
+  "How you're told a task finished. Saved per operator, not per workspace.": "কাজ শেষ হলে আপনাকে কীভাবে জানানো হয়। ওয়ার্কস্পেস অনুযায়ী নয়, বরং প্রতি অপারেটর অনুযায়ী সংরক্ষিত হয়।",
+  "Privacy": "গোপনীয়তা",
+  "Dialog appearance": "ডায়ালগের চেহারা",
+  "Theme and accent color for this settings surface. Saved per operator.": "এই সেটিংস পৃষ্ঠার জন্য থিম ও অ্যাকসেন্ট রং। প্রতি অপারেটর অনুযায়ী সংরক্ষিত হয়।",
+  "Admin interface language. Applies to this settings panel's tab content only.": "অ্যাডমিন ইন্টারফেসের ভাষা। শুধুমাত্র এই সেটিংস প্যানেলের ট্যাব বিষয়বস্তুতে প্রযোজ্য।",
+  "MCP server": "MCP সার্ভার",
+  "Connect an MCP client. Showing sample output — not yet wired to a live server.": "একটি MCP ক্লায়েন্ট সংযুক্ত করুন। নমুনা আউটপুট দেখানো হচ্ছে — এখনও কোনো লাইভ সার্ভারের সাথে সংযুক্ত নয়।",
+  "API keys for image, video, and audio generation.": "ছবি, ভিডিও এবং অডিও তৈরির জন্য API কী।",
+  "Third-party accounts and APIs via Composio.": "Composio-এর মাধ্যমে তৃতীয়-পক্ষের অ্যাকাউন্ট ও API।",
+  "Memory": "মেমরি",
+  "Saved facts and context for future chats.": "ভবিষ্যতের কথোপকথনের জন্য সংরক্ষিত তথ্য ও প্রসঙ্গ।",
+  "External MCP": "এক্সটার্নাল MCP",
+  "Add MCP tools from external services.": "বাহ্যিক পরিষেবা থেকে MCP টুল যোগ করুন।",
+  "Skills": "দক্ষতা",
+  "Custom skills your assistant can invoke mid-task.": "কাস্টম দক্ষতা যা আপনার সহকারী কাজের মাঝে ব্যবহার করতে পারে।",
+  "Version and runtime details.": "সংস্করণ ও রানটাইম বিবরণ।",
+  "Version": "সংস্করণ",
+  "Open as dialog": "ডায়ালগ হিসেবে খুলুন",
+  "No MCP config store to connect to yet.": "সংযুক্ত হওয়ার জন্য এখনও কোনো MCP কনফিগ স্টোর নেই।",
+  "All changes saved": "সমস্ত পরিবর্তন সংরক্ষিত হয়েছে",
+};

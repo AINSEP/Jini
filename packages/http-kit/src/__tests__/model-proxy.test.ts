@@ -416,6 +416,48 @@ describe('POST /api/proxy/anthropic/stream', () => {
     await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
   });
+
+  // Regression test for the process-crash class of bug this route family is structurally exposed
+  // to: `registerProxyStreamRoute` (and the `:provider` catch-all) call `runProxyStream` the way
+  // Express calls every handler — the returned promise is never awaited or `.catch()`-ed by the
+  // caller. Only the `run(...)` turn-runner call was ever wrapped in `runProxyStream`'s own
+  // try/catch; `guardSameOrigin`/`parse` ran *before* that try. Both are well-behaved today (they
+  // return a `Result` rather than throw), so this never fires in practice yet — but nothing
+  // structurally stops a future same-origin or parse change from throwing, and when it does, that
+  // throw becomes an unhandled promise rejection with no process-level guard anywhere in
+  // `http-kit`'s path (unlike `desktop-host`, which does register one). Node's documented default
+  // for an unhandled rejection is to terminate the process, exactly like the Tovu decrypt-handler
+  // bug this sweep was dispatched to check for.
+  it('does not leak an unhandled rejection when the pre-stream origin check throws, and keeps serving requests after', async () => {
+    const rejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      vi.mocked(isLocalSameOrigin).mockImplementationOnce(() => {
+        throw new Error('same-origin check exploded unexpectedly');
+      });
+      const res = makeSseRes();
+      // Mirrors real Express dispatch exactly: call the handler and discard its return value,
+      // never `await` or `.catch()` it — that is the one thing Express itself never does either.
+      handler()(makeReq(validAnthropicBody), res);
+      // Node only flags a promise as unhandled once the microtask queue has fully drained; a
+      // macrotask tick (setImmediate) is required to observe it reliably (verified against a
+      // minimal repro before writing this assertion).
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(rejections).toEqual([]);
+
+      // Prove survival, not just silence: a normal request right after must still be answered.
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('still alive'))));
+      vi.stubGlobal('fetch', fetchMock);
+      const res2 = makeSseRes();
+      await handler()(makeReq(validAnthropicBody), res2);
+      expect(writtenEvents(res2).some((e) => e.kind === 'end')).toBe(true);
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
+  });
 });
 
 describe('POST /api/proxy/openai/stream', () => {
@@ -890,6 +932,40 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     await handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  // Regression test for a gap the fixed-route version of this same scenario (line 421 above)
+  // does NOT cover: this catch-all calls `guardSameOrigin` ahead of `runProxyStream` (it needs
+  // the provider param resolved first), so a throw here used to be genuinely unhandled — outside
+  // `runProxyStream`'s own try/catch entirely, not merely a hypothetical `runProxyStream` never
+  // exercises. Neither `handler()`'s caller here nor Express itself awaits/`.catch()`s this
+  // promise, so before the fix this became an unhandled promise rejection with nothing to catch
+  // it — Node's documented crash-the-process default.
+  it('does not leak an unhandled rejection when the pre-stream origin check throws on the catch-all route, and keeps serving requests after', async () => {
+    const rejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      vi.mocked(isLocalSameOrigin).mockImplementationOnce(() => {
+        throw new Error('same-origin check exploded unexpectedly');
+      });
+      const res = makeSseRes();
+      handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(rejections).toEqual([]);
+      expect(res.status).toHaveBeenCalledWith(500);
+
+      // Prove survival, not just silence: a normal request right after must still be answered.
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('still alive'))));
+      vi.stubGlobal('fetch', fetchMock);
+      const res2 = makeSseRes();
+      await handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res2);
+      expect(writtenEvents(res2).some((e) => e.kind === 'end')).toBe(true);
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
   });
 
   it('rejects an unrecognized provider name with 400 and names it in the message', async () => {

@@ -13,8 +13,12 @@
 // components, which would break the "importable without React" guarantee this subpath exists to
 // provide. List the framework-free files by name instead.
 
-export type { SettingsDialogChromeLabels, SettingsDialogTabMeta } from './features/settings/dialog/types.js';
-export { findActiveTab, resolveInitialActiveTabId } from './features/settings/dialog/rules.js';
+export type { TabbedDialogChromeLabels, TabbedDialogTabMeta } from './features/tabbed-dialog/types.js';
+export type {
+  TabbedDialogChromeLabels as SettingsDialogChromeLabels,
+  TabbedDialogTabMeta as SettingsDialogTabMeta,
+} from './features/tabbed-dialog/types.js';
+export { findActiveTab, resolveInitialActiveTabId } from './features/tabbed-dialog/rules.js';
 export { randomUUID } from './utils/uuid.js';
 export {
   isAllowedEndpointUrl,

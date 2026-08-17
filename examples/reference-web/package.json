@@ -18,7 +18,7 @@
     "@jini-ai/daemon": "workspace:*",
     "@jini-ai/http-kit": "workspace:*",
     "@jini-ai/mcp": "workspace:*",
-    "@jini-ai/media": "workspace:*",
+    "@jini-ai/integrations": "workspace:*",
     "@jini-ai/memory": "workspace:*",
     "@jini-ai/server": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
