@@ -10,7 +10,7 @@ import {
 import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';
 import { EMPTY_SUBMISSION, LabSignupForm, LabSummary, type SignupSubmission } from './LabPages.js';
-import { LabNav } from './LabNav.js';
+import { LAB_NAV_ITEMS, LabNav } from './LabNav.js';
 import {
   EMPTY_EXPENSE_FORM,
   LabExpenseFormView,
@@ -135,9 +135,17 @@ export function AgentLab() {
     [bridge],
   );
 
-  const labPages = useMemo<Record<string, () => void>>(() => ({
-    ...Object.fromEntries(LAB_VIEWS.map((id) => [id, () => navigateRef.current(id)])),
-    playground: () => { globalThis.location.hash = '#/'; },
+  const labPages = useMemo<Record<string, { readonly label: string; readonly navigate: () => void }>>(() => ({
+    // Reuses `LAB_NAV_ITEMS`'s own labels rather than inventing separate ones — this is the same
+    // "which page is this" text a human sees in the nav, so a `page.navigate` refusal message and
+    // the visible link name never drift apart.
+    ...Object.fromEntries(
+      LAB_VIEWS.map((id) => [
+        id,
+        { label: LAB_NAV_ITEMS.find((item) => item.id === id)?.label ?? id, navigate: () => navigateRef.current(id) },
+      ]),
+    ),
+    playground: { label: 'Playground', navigate: () => { globalThis.location.hash = '#/'; } },
   }), []);
 
   /**
