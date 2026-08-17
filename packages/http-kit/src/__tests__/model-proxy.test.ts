@@ -934,6 +934,40 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  // Regression test for a gap the fixed-route version of this same scenario (line 421 above)
+  // does NOT cover: this catch-all calls `guardSameOrigin` ahead of `runProxyStream` (it needs
+  // the provider param resolved first), so a throw here used to be genuinely unhandled — outside
+  // `runProxyStream`'s own try/catch entirely, not merely a hypothetical `runProxyStream` never
+  // exercises. Neither `handler()`'s caller here nor Express itself awaits/`.catch()`s this
+  // promise, so before the fix this became an unhandled promise rejection with nothing to catch
+  // it — Node's documented crash-the-process default.
+  it('does not leak an unhandled rejection when the pre-stream origin check throws on the catch-all route, and keeps serving requests after', async () => {
+    const rejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+    try {
+      vi.mocked(isLocalSameOrigin).mockImplementationOnce(() => {
+        throw new Error('same-origin check exploded unexpectedly');
+      });
+      const res = makeSseRes();
+      handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(rejections).toEqual([]);
+      expect(res.status).toHaveBeenCalledWith(500);
+
+      // Prove survival, not just silence: a normal request right after must still be answered.
+      const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('still alive'))));
+      vi.stubGlobal('fetch', fetchMock);
+      const res2 = makeSseRes();
+      await handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res2);
+      expect(writtenEvents(res2).some((e) => e.kind === 'end')).toBe(true);
+    } finally {
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
+  });
+
   it('rejects an unrecognized provider name with 400 and names it in the message', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

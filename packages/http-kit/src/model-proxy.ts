@@ -613,18 +613,55 @@ function registerGenericProxyStreamRoute(
   registry: Record<string, ProxyProviderRegistryEntry>,
 ): void {
   app.post('/api/proxy/:provider/stream', async (req: Request, res: Response) => {
-    const origin = guardSameOrigin(req, adapter);
-    if (!origin.ok) {
-      sendApiError(res, 403, origin.error);
-      return;
-    }
+    // Unlike the five fixed routes, this catch-all's own `guardSameOrigin` call sits ahead of
+    // `runProxyStream` (the registry lookup below has to happen first, to even know which
+    // `provider` string to hand `onInternalError`) — so it needs its own guard against the same
+    // failure class `runProxyStream`'s catch already documents: `guardSameOrigin` is
+    // Result-returning by contract but not guaranteed never to throw (`isLocalSameOrigin` really
+    // does throw on a malformed `JINI_ALLOWED_ORIGINS` entry — see `origin-validation.ts`), and
+    // this handler's returned promise is never awaited or `.catch()`-ed by Express, so an
+    // uncaught throw here becomes an unhandled rejection with no process-level guard. See the
+    // paired regression test in `__tests__/model-proxy.test.ts`.
+    //
+    // Read ahead of the try: plain property/index access on `req.params`/`registry`, never
+    // throws, and the catch below needs it regardless of how far execution got.
     const providerParam = req.params.provider ?? '';
-    const entry = registry[providerParam];
-    if (!entry || !isRecognizedProvider(providerParam)) {
-      sendApiError(res, 400, createApiError('BAD_REQUEST', `unknown provider: ${providerParam}`));
-      return;
+    try {
+      const origin = guardSameOrigin(req, adapter);
+      if (!origin.ok) {
+        sendApiError(res, 403, origin.error);
+        return;
+      }
+      const entry = registry[providerParam];
+      if (!entry || !isRecognizedProvider(providerParam)) {
+        sendApiError(res, 400, createApiError('BAD_REQUEST', `unknown provider: ${providerParam}`));
+        return;
+      }
+      await runProxyStream(req, res, adapter, providerParam, onInternalError, entry.parse, entry.run);
+    } catch (error) {
+      // No SSE channel can exist yet at this point — `runProxyStream` owns opening one, and this
+      // catch only reaches errors thrown before that call. A plain JSON error response is always
+      // still possible, matching `runProxyStream`'s own "channel never opened" branch.
+      const correlationId = randomUUID();
+      // `onInternalError`'s contract only accepts the 5 recognized provider literals; a throw
+      // this early (e.g. `guardSameOrigin`) may have happened before the provider name was even
+      // validated, so an unrecognized/empty `providerParam` logs directly instead of lying to
+      // that typed contract with a provider that was never actually confirmed.
+      if (isRecognizedProvider(providerParam)) {
+        onInternalError({ provider: providerParam, correlationId, error });
+      } else {
+        // eslint-disable-next-line no-console
+        console.error(
+          `[@jini-ai/http-kit] internal error (model-proxy/${providerParam || 'unknown'}, correlationId=${correlationId})`,
+          error,
+        );
+      }
+      if (!res.headersSent) {
+        sendApiError(res, 500, createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
+      } else if (!res.writableEnded) {
+        res.end();
+      }
     }
-    await runProxyStream(req, res, adapter, providerParam, onInternalError, entry.parse, entry.run);
   });
 }
 

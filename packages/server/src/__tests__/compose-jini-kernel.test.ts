@@ -163,6 +163,33 @@ describe('shared kernel resources', () => {
   });
 });
 
+describe('JINI_ALLOWED_ORIGINS validation', () => {
+  // Regression guard: a malformed `JINI_ALLOWED_ORIGINS` used to go undetected at boot under the
+  // default `security: { mode: 'host' }` (the two `configuredAllowedOrigins(env)` calls that used
+  // to be the only validation live inside `security.mode === 'sidecar-strict' | 'jini-local'`
+  // branches only), and would instead throw on whichever request happened to be first to reach
+  // `isLocalSameOrigin` — see `origin-validation.ts`'s own doc for the full failure history. This
+  // pins that composition itself now fails fast, before a listener ever opens, regardless of mode.
+  it('fails composition (not just a later request) on a malformed JINI_ALLOWED_ORIGINS entry', async () => {
+    await expect(
+      compose({
+        storage: { kind: 'memory' },
+        profile: 'agent-core-v1',
+        env: { ...process.env, JINI_ALLOWED_ORIGINS: 'ftp://example.com' },
+      }),
+    ).rejects.toThrow(/JINI_ALLOWED_ORIGINS has 1 invalid entry.*ftp:\/\/example\.com/);
+  });
+
+  it('composes normally when JINI_ALLOWED_ORIGINS is unset or entirely valid', async () => {
+    const { kernel } = await compose({
+      storage: { kind: 'memory' },
+      profile: 'agent-core-v1',
+      env: { ...process.env, JINI_ALLOWED_ORIGINS: 'https://example.com' },
+    });
+    expect(kernel).toBeDefined();
+  });
+});
+
 describe('profiles', () => {
   it('local-daemon-v1 composes exactly the historical daemon surface', async () => {
     const { kernel } = await compose({ storage: { kind: 'sqlite', dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });

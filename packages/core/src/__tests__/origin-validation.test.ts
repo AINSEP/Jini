@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   allowedBrowserPorts,
+  assertValidAllowedOrigins,
   configuredAllowedHosts,
   configuredAllowedOrigins,
   isAllowedBrowserHost,
@@ -34,10 +35,37 @@ describe('@jini-ai/core — origin-validation — configuredAllowedOrigins/Hosts
     expect(configuredAllowedHosts(origins)).toEqual(['example.com', 'other.example:8080']);
   });
 
-  it('rejects a non-http(s) origin', () => {
+  describe('given a malformed entry', () => {
+    let warnSpy: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+      warnSpy.mockRestore();
+    });
+
+    // Mirrors the `@jini-ai/http-kit` copy's own regression guard: this function used to throw
+    // synchronously from inside `isLocalSameOrigin`, which every same-origin decision calls fresh
+    // — see `assertValidAllowedOrigins` below for where that throw now belongs instead.
+    it('drops a non-http(s) origin instead of throwing, and logs why', () => {
+      expect(configuredAllowedOrigins(CONFIG, { [CONFIG.allowedOriginsEnvVar]: 'ftp://example.com' })).toEqual([]);
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('ftp://example.com'));
+    });
+  });
+});
+
+describe('@jini-ai/core — origin-validation — assertValidAllowedOrigins', () => {
+  it('does not throw when unset, blank, or entirely valid', () => {
+    expect(() => assertValidAllowedOrigins(CONFIG, {})).not.toThrow();
     expect(() =>
-      configuredAllowedOrigins(CONFIG, { [CONFIG.allowedOriginsEnvVar]: 'ftp://example.com' }),
-    ).toThrow(/only supports http:\/\/ and https:\/\//);
+      assertValidAllowedOrigins(CONFIG, { [CONFIG.allowedOriginsEnvVar]: 'https://example.com' }),
+    ).not.toThrow();
+  });
+
+  it('throws, naming the invalid entry and the configured env var, on a non-http(s) origin', () => {
+    expect(() =>
+      assertValidAllowedOrigins(CONFIG, { [CONFIG.allowedOriginsEnvVar]: 'ftp://example.com' }),
+    ).toThrowError(/FAKE_ALLOWED_ORIGINS has 1 invalid entry.*ftp:\/\/example\.com/);
   });
 });
 

@@ -20,21 +20,77 @@ export interface RequestWithOriginHeaders {
   };
 }
 
-/** Extra allow-listed origins, comma-separated, read from `JINI_ALLOWED_ORIGINS`. */
-export function configuredAllowedOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
+/**
+ * Splits and trims the raw `JINI_ALLOWED_ORIGINS` value into individual candidate entries.
+ * Shared by {@link configuredAllowedOrigins} (lenient, per-request) and
+ * {@link assertValidAllowedOrigins} (strict, boot-time) so the two can never drift on what counts
+ * as "one entry."
+ */
+function splitAllowedOriginsEnv(env: NodeJS.ProcessEnv): string[] {
   const raw = env.JINI_ALLOWED_ORIGINS || '';
   if (!raw.trim()) return [];
   return raw
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean)
-    .map((origin) => {
-      const parsed = new URL(origin);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error('JINI_ALLOWED_ORIGINS only supports http:// and https:// origins');
-      }
-      return parsed.origin;
-    });
+    .filter(Boolean);
+}
+
+/** Normalizes one `JINI_ALLOWED_ORIGINS` entry into a `protocol://host` origin, or `undefined` if it isn't a valid http(s) origin. */
+function parseAllowedOrigin(entry: string): string | undefined {
+  let parsed: URL;
+  try {
+    parsed = new URL(entry);
+  } catch {
+    return undefined;
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+  return parsed.origin;
+}
+
+/**
+ * Extra allow-listed origins, comma-separated, read from `JINI_ALLOWED_ORIGINS`.
+ *
+ * Deliberately never throws. This runs inside {@link isLocalSameOrigin}, which every same-origin
+ * check across the whole HTTP surface calls fresh on every incoming request — a config typo here
+ * used to throw a `TypeError` synchronously, and depending on which route it happened to hit, that
+ * either 500'd every request for the process's life or, worse, became an unhandled promise
+ * rejection with nothing to catch it (`attachments.ts`'s hand-mounted routes, `model-proxy.ts`'s
+ * `:provider` catch-all — see each file's own regression test). A malformed entry is dropped from
+ * the allow-list and logged instead, so the daemon degrades to "one fewer trusted origin," never
+ * "every request breaks." Call {@link assertValidAllowedOrigins} once at host startup to catch a
+ * misconfiguration loudly before any request-serving traffic exists at all — that is where a typo
+ * should actually be caught, not on the hot path.
+ */
+export function configuredAllowedOrigins(env: NodeJS.ProcessEnv = process.env): string[] {
+  const origins: string[] = [];
+  for (const entry of splitAllowedOriginsEnv(env)) {
+    const origin = parseAllowedOrigin(entry);
+    if (origin === undefined) {
+      console.warn(
+        `[@jini-ai/http-kit] ignoring malformed JINI_ALLOWED_ORIGINS entry (must be an http:// or https:// origin): ${entry}`,
+      );
+      continue;
+    }
+    origins.push(origin);
+  }
+  return origins;
+}
+
+/**
+ * Boot-time companion to {@link configuredAllowedOrigins}: throws, naming every malformed entry,
+ * instead of silently dropping them. Meant to be called exactly once, early in host startup
+ * (before the HTTP server accepts connections), so a misconfigured `JINI_ALLOWED_ORIGINS` fails
+ * the boot loudly rather than quietly serving with a smaller-than-intended allow-list — or, before
+ * this function existed, throwing on the first request that happened to reach the same-origin
+ * guard instead of at boot.
+ */
+export function assertValidAllowedOrigins(env: NodeJS.ProcessEnv = process.env): void {
+  const invalid = splitAllowedOriginsEnv(env).filter((entry) => parseAllowedOrigin(entry) === undefined);
+  if (invalid.length === 0) return;
+  throw new Error(
+    `JINI_ALLOWED_ORIGINS has ${invalid.length} invalid entr${invalid.length === 1 ? 'y' : 'ies'} ` +
+      `(must be http:// or https:// origins): ${invalid.join(', ')}`,
+  );
 }
 
 export function configuredAllowedHosts(origins = configuredAllowedOrigins()): string[] {
