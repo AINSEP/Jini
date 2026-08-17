@@ -88,6 +88,47 @@ describe('NetlifyDeployTarget.publish', () => {
     expect(uploads).toHaveLength(1);
   });
 
+  it('bounds the site-lookup, deploy-creation, file-upload, and status-poll calls with a timeout signal each', async () => {
+    const fileHash = sha1('<html></html>');
+    const signals: Record<string, AbortSignal | null | undefined> = {};
+
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+
+      if (method === 'GET' && url.includes('/sites?')) {
+        signals.lookup = init?.signal;
+        return jsonResponse(200, [{ id: 'site_1', name: 'jini-my-demo-site', ssl_url: 'https://jini-my-demo-site.netlify.app' }]);
+      }
+      if (method === 'POST' && url.endsWith('/sites/site_1/deploys')) {
+        signals.createDeploy = init?.signal;
+        return jsonResponse(200, { id: 'deploy_1', state: 'preparing', required: [fileHash] });
+      }
+      if (method === 'PUT' && url.includes('/deploys/deploy_1/files/index.html')) {
+        signals.upload = init?.signal;
+        return jsonResponse(200, { id: 'f1', path: '/index.html', sha: fileHash, size: 13 });
+      }
+      if (method === 'GET' && url.endsWith('/deploys/deploy_1')) {
+        signals.poll = init?.signal;
+        return jsonResponse(200, { id: 'deploy_1', state: 'ready', ssl_url: 'https://jini-my-demo-site.netlify.app' });
+      }
+      // Reachability probe — a different, already-protected call site.
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const target = new NetlifyDeployTarget({ token: 'tok' });
+    await target.publish({
+      files: [{ file: 'index.html', data: '<html></html>', contentType: 'text/html' }],
+      projectName: 'My Demo Site!!',
+    });
+
+    expect(signals.lookup).toBeInstanceOf(AbortSignal);
+    expect(signals.createDeploy).toBeInstanceOf(AbortSignal);
+    expect(signals.upload).toBeInstanceOf(AbortSignal);
+    expect(signals.poll).toBeInstanceOf(AbortSignal);
+  });
+
   it('creates a new site when none exists yet', async () => {
     const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
@@ -111,6 +152,31 @@ describe('NetlifyDeployTarget.publish', () => {
     const target = new NetlifyDeployTarget({ token: 'tok' });
     const result = await target.publish({ files: [], projectName: 'demo' });
     expect(result.providerMetadata).toEqual({ siteId: 'site_new', siteName: 'jini-demo' });
+  });
+
+  it('bounds the site-creation call with a timeout signal too', async () => {
+    let createSiteSignal: AbortSignal | null | undefined;
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (method === 'GET' && url.includes('/sites?')) return jsonResponse(200, []);
+      if (method === 'POST' && url.endsWith('/sites')) {
+        createSiteSignal = init?.signal;
+        return jsonResponse(200, { id: 'site_new', name: 'jini-demo', ssl_url: 'https://jini-demo.netlify.app' });
+      }
+      if (method === 'POST' && url.endsWith('/sites/site_new/deploys')) {
+        return jsonResponse(200, { id: 'deploy_new', state: 'ready', required: [] });
+      }
+      if (method === 'GET' && url.endsWith('/deploys/deploy_new')) {
+        return jsonResponse(200, { id: 'deploy_new', state: 'ready', ssl_url: 'https://jini-demo.netlify.app' });
+      }
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const target = new NetlifyDeployTarget({ token: 'tok' });
+    await target.publish({ files: [], projectName: 'demo' });
+    expect(createSiteSignal).toBeInstanceOf(AbortSignal);
   });
 
   it('recovers from a site-creation conflict by re-listing and using the now-existing site', async () => {

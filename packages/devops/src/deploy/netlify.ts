@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
 import { safeDnsLabel } from './naming.js';
 import {
@@ -168,7 +169,7 @@ function netlifyError(json: JsonObject, status: number, fallback: string): Deplo
 /** Looks up an existing site by its exact (case-insensitive) name within the caller's own account. */
 async function findNetlifySiteByName(config: NetlifyDeployConfig, name: string): Promise<JsonObject | undefined> {
   const url = `${NETLIFY_API}/sites?${new URLSearchParams({ name, filter: 'all' }).toString()}`;
-  const resp = await fetch(url, { headers: netlifyHeaders(config.token) });
+  const resp = await fetchWithTimeout(url, { headers: netlifyHeaders(config.token) }, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
   const body = await readNetlifyJson<unknown>(resp);
   if (!resp.ok) {
     throw netlifyError(Array.isArray(body) ? {} : (body as JsonObject), resp.status, 'Netlify site lookup failed.');
@@ -178,11 +179,15 @@ async function findNetlifySiteByName(config: NetlifyDeployConfig, name: string):
 }
 
 async function createNetlifySite(config: NetlifyDeployConfig, name: string): Promise<JsonObject> {
-  const resp = await fetch(`${NETLIFY_API}/sites`, {
-    method: 'POST',
-    headers: netlifyHeaders(config.token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ name }),
-  });
+  const resp = await fetchWithTimeout(
+    `${NETLIFY_API}/sites`,
+    {
+      method: 'POST',
+      headers: netlifyHeaders(config.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name }),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
+  );
   const body = await readNetlifyJson<JsonObject>(resp);
   if (!resp.ok) throw netlifyError(body, resp.status, 'Netlify site creation failed.');
   return body;
@@ -240,22 +245,30 @@ async function createNetlifyDeploy(
     if (!byHash.has(hash)) byHash.set(hash, file);
   }
 
-  const resp = await fetch(`${NETLIFY_API}/sites/${encodeURIComponent(siteId)}/deploys`, {
-    method: 'POST',
-    headers: netlifyHeaders(config.token, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ async: true, files: manifest }),
-  });
+  const resp = await fetchWithTimeout(
+    `${NETLIFY_API}/sites/${encodeURIComponent(siteId)}/deploys`,
+    {
+      method: 'POST',
+      headers: netlifyHeaders(config.token, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ async: true, files: manifest }),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
+  );
   const created = await readNetlifyJson<JsonObject>(resp);
   if (!resp.ok) throw netlifyError(created, resp.status, 'Netlify deploy creation failed.');
   return { created, byHash };
 }
 
 async function uploadNetlifyFile(config: NetlifyDeployConfig, deployId: string, file: DeployFile): Promise<void> {
-  const resp = await fetch(`${NETLIFY_API}/deploys/${encodeURIComponent(deployId)}/files/${encodeNetlifyFilePath(file.file)}`, {
-    method: 'PUT',
-    headers: netlifyHeaders(config.token, { 'Content-Type': file.contentType || 'application/octet-stream' }),
-    body: Buffer.from(file.data),
-  });
+  const resp = await fetchWithTimeout(
+    `${NETLIFY_API}/deploys/${encodeURIComponent(deployId)}/files/${encodeNetlifyFilePath(file.file)}`,
+    {
+      method: 'PUT',
+      headers: netlifyHeaders(config.token, { 'Content-Type': file.contentType || 'application/octet-stream' }),
+      body: Buffer.from(file.data),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD },
+  );
   if (!resp.ok) {
     const body = await readNetlifyJson<JsonObject>(resp).catch(() => ({}) as JsonObject);
     throw netlifyError(body, resp.status, `Netlify file upload failed for "${file.file}".`);
@@ -281,9 +294,11 @@ async function pollNetlifyDeploy(config: NetlifyDeployConfig, deployId: string):
   let last: JsonObject | null = null;
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, i < 5 ? 1000 : 2000));
-    const resp = await fetch(`${NETLIFY_API}/deploys/${encodeURIComponent(deployId)}`, {
-      headers: netlifyHeaders(config.token),
-    });
+    const resp = await fetchWithTimeout(
+      `${NETLIFY_API}/deploys/${encodeURIComponent(deployId)}`,
+      { headers: netlifyHeaders(config.token) },
+      { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
+    );
     let json: JsonObject;
     try {
       json = await readNetlifyJson<JsonObject>(resp);
