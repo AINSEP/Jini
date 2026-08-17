@@ -502,6 +502,9 @@ importers:
 
   packages/registry:
     dependencies:
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../protocol

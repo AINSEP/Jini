@@ -147,6 +147,20 @@ describe('GithubApiRegistryClient.readManifest', () => {
     await client.readManifest('acme', 'registry', 'main', 'index.json');
     expect(seenUrl.startsWith('https://ghe.example.com/api/v3/repos/acme/registry/contents/index.json')).toBe(true);
   });
+
+  it('bounds the Contents API read with a timeout signal, so a stalled response cannot hang this call forever', async () => {
+    let seenSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: string, init?: RequestInit) => {
+        seenSignal = init?.signal;
+        return jsonResponse(200, { type: 'file', encoding: 'base64', content: base64('{"specVersion":"1.0.0","name":"r","version":"1.0.0","entries":[]}') });
+      }),
+    );
+    const client = new GithubApiRegistryClient();
+    await client.readManifest('acme', 'registry', 'main', 'index.json');
+    expect(seenSignal).toBeInstanceOf(AbortSignal);
+  });
 });
 
 describe('GithubApiRegistryClient.createPublishPullRequest', () => {
@@ -238,6 +252,22 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
     expect(seenBodies.commit).toMatchObject({ tree: 'tree-sha', parents: ['base-sha'], message: 'Add vendor/example@1.0.0\n\nPublish body' });
     expect(seenBodies.ref).toEqual({ ref: 'refs/heads/publish/vendor-example-1.0.0', sha: 'commit-sha' });
     expect(seenBodies.pr).toEqual({ title: 'Add vendor/example@1.0.0', body: 'Publish body', head: 'publish/vendor-example-1.0.0', base: 'main' });
+  });
+
+  it('bounds every request in the ref -> commit -> blob -> tree -> commit -> branch -> pull-request chain with a timeout signal', async () => {
+    const seenSignals: Array<AbortSignal | null | undefined> = [];
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      seenSignals.push(init?.signal);
+      return happyPathRouter()(input, init);
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const client = new GithubApiRegistryClient({ token: 'tok' });
+    await client.createPublishPullRequest(mutation);
+    // getRefSha, getCommitTreeSha, createBlob, createTree, createCommit, ensureBranch (create), ensurePullRequest.
+    expect(seenSignals).toHaveLength(7);
+    for (const signal of seenSignals) {
+      expect(signal).toBeInstanceOf(AbortSignal);
+    }
   });
 
   it('throws a clear error when baseRef does not exist', async () => {
@@ -346,6 +376,21 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
     expect(patchBody).toEqual({ sha: 'commit-sha', force: true });
   });
 
+  it('bounds the PATCH branch-update fallback (after a 409 create conflict) with a timeout signal too', async () => {
+    let patchSignal: AbortSignal | null | undefined;
+    const fetchSpy = happyPathRouter({
+      'POST https://api.github.com/repos/acme/registry/git/refs': () => jsonResponse(409, { message: 'Reference already exists' }),
+      'PATCH https://api.github.com/repos/acme/registry/git/refs/heads/publish%2Fvendor-example-1.0.0': (_u, init) => {
+        patchSignal = init?.signal;
+        return jsonResponse(200, { ref: 'refs/heads/publish/vendor-example-1.0.0' });
+      },
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const client = new GithubApiRegistryClient({ token: 'tok' });
+    await client.createPublishPullRequest(mutation);
+    expect(patchSignal).toBeInstanceOf(AbortSignal);
+  });
+
   it('throws when the branch update (after a create conflict) itself fails', async () => {
     const fetchSpy = happyPathRouter({
       'POST https://api.github.com/repos/acme/registry/git/refs': () => jsonResponse(422, { message: 'Reference already exists' }),
@@ -408,6 +453,21 @@ describe('GithubApiRegistryClient.createPublishPullRequest', () => {
     expect(result).toEqual({ url: 'https://github.com/acme/registry/pull/7' });
     expect(listUrl).toContain('head=acme%3Apublish%2Fvendor-example-1.0.0');
     expect(listUrl).toContain('state=open');
+  });
+
+  it('bounds the existing-open-pull-request recovery lookup with a timeout signal too', async () => {
+    let listSignal: AbortSignal | null | undefined;
+    const fetchSpy = happyPathRouter({
+      'POST https://api.github.com/repos/acme/registry/pulls': () => jsonResponse(422, { message: 'A pull request already exists for acme:publish/vendor-example-1.0.0.' }),
+      'GET https://api.github.com/repos/acme/registry/pulls': (_u, init) => {
+        listSignal = init?.signal;
+        return jsonResponse(200, [{ html_url: 'https://github.com/acme/registry/pull/7' }]);
+      },
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+    const client = new GithubApiRegistryClient({ token: 'tok' });
+    await client.createPublishPullRequest(mutation);
+    expect(listSignal).toBeInstanceOf(AbortSignal);
   });
 
   it('rethrows the original "already exists" error when no matching open pull request can be found after all', async () => {
