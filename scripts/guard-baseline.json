@@ -1,0 +1,130 @@
+{
+  "_comment": "Ratchet baseline for `pnpm guard:drift` (scripts/check-guard-drift.ts), added 2026-08-16 when CI first started enforcing `pnpm guard`. `pnpm guard` itself found 25 violations at that point, accumulated since 2026-08-03 with nothing running it in CI. Rather than block CI adoption on fixing all 25 first (a real app-code change across 5+ feature packages, someone else's call to make) or landing a red gate (which the audit that triggered this specifically warned gets ignored/disabled within days), this file freezes the known set: `guard:drift` fails ONLY on a violation not already listed here, so the gate is real and enforced from day one while the existing debt gets paid down on its own schedule. Delete an entry once its violation is fixed — `guard:drift` reports (without failing on) any entry here that no longer reproduces, as a prompt to do exactly that. Never add an entry to silence a NEW violation without fixing it first; this list only shrinks by fixing code, and R5-neutrality entries in particular (13 of the 25) are a real product-neutrality break for a host-agnostic library, not a style nit — see the 2026-08-16 Jini failure-mode audit.",
+  "violations": [
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/admin/src/react/components/InteractiveHtmlEditor/InteractiveHtmlEditor.tsx",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/admin/src/react/components/InteractiveHtmlEditor/InteractiveHtmlEditor.tsx",
+      "reason": "deep-path import \"@jini-ai/ui/html-editor\" — only bare \"@jini-ai/ui\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/admin/src/react/index.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/chat/src/react/features/chat-pane/__tests__/components/ChatPane.test.tsx",
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/chat/src/react/features/chat-pane/agent-tools.ts",
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/chat/src/react/features/chat-pane/create-daemon-attachment-uploader.ts",
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/chat/src/react/features/chat-pane/types.ts",
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R2-deep-path",
+      "file": "packages/chat/src/react/features/chat-pane/types.ts",
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/cms/src/settings/dictionaries/index.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/devops/src/deploy/redirect-guard.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/http-kit/src/__tests__/attachments.test.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/http-kit/src/__tests__/model-proxy.test.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/html-editor/react/components/InteractiveHtmlEditor.tsx",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/i18n/dictionaries/index.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/mcp-ui/surfaces/outcome.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/settings/dialog/react/components/SettingsDialogShell.tsx",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/source-config-list/react/components/SourceConfigField.test.tsx",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/tabbed-dialog/__tests__/react/components/TabbedDialog.test.tsx",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/tabbed-dialog/react/components/TabbedDialog.tsx",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R5-neutrality",
+      "file": "packages/ui/src/features/tabbed-dialog/types.ts",
+      "reason": "product-identity string \"Tovu\" (comments included)"
+    },
+    {
+      "rule": "R9-dom-purity",
+      "file": "packages/agentic/tsconfig.json",
+      "reason": "\"exclude\" ([\"src/core/dom\"]) no longer excludes \"src/dom\" — the DOM-bearing code could be pulled into the DOM-free compile"
+    },
+    {
+      "rule": "R9-dom-purity",
+      "file": "packages/agentic/tsconfig.dom.json",
+      "reason": "\"include\" ([\"src/core/dom\"]) covers more than \"src/dom\" — the DOM-bearing config must not compile universal code with a DOM lib in scope"
+    }
+  ]
+}
