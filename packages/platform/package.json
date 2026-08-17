@@ -22,6 +22,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./fetch-with-timeout": {
+      "types": "./dist/fetch-with-timeout.d.ts",
+      "import": "./dist/fetch-with-timeout.js",
+      "default": "./dist/fetch-with-timeout.js"
     }
   },
   "files": [

@@ -2,9 +2,11 @@
  * @module fetch-with-timeout
  *
  * The shared timeout wrapper for every outbound `fetch()` call this monorepo makes to a remote
- * service — see the 2026-08-16 Jini failure-mode audit, Finding 2: 67 raw `fetch()` call sites
- * across devops deploy providers, agent-runtime providers, media-provider dispatch, github-client,
- * and llm-provider, none with an `AbortSignal`/timeout. A remote that accepts the TCP connection but
+ * service — see the 2026-08-16 Jini failure-mode audit, Finding 2: 101 raw `fetch()` call sites
+ * repo-wide (corrected from the audit's own initial "67" — re-count before trusting any figure in
+ * a handoff), across devops deploy providers, agent-runtime providers, media-provider dispatch,
+ * github-client, and llm-provider, most already protected in some ad hoc way. A remote that accepts
+ * the TCP connection but
  * never responds — a stalled load balancer, a provider having a bad day, a firewall black-holing the
  * request — leaves `await fetch(...)` unresolved forever; whatever awaits it hangs indefinitely, with
  * nothing to alert on. A hang like that is worse than a crash: a crash is loud.
@@ -30,6 +32,23 @@
  * reaching for this helper for one of those would be reaching for the wrong tool — `AbortSignal.timeout`
  * bounds the WHOLE call, body included, so it would sever a deliberately long-lived stream partway
  * through exactly like the bug this fixes, just self-inflicted instead of accidental.
+ *
+ * **Also exported as its own subpath, `@jini-ai/platform/fetch-with-timeout`, deliberately.** This
+ * module has zero imports of its own — no `node:*` builtin, no `undici` — unlike the package's root
+ * barrel (`index.ts`), which re-exports sibling modules (`process.ts`, `fs.ts`, `terminal.ts`,
+ * `asset-cache.ts`, …) that import `node:child_process`, `node:fs`, `undici`'s `Agent`, etc.
+ * Importing from the root barrel in browser-bundled code is silently fine in a *production* build
+ * through Vite/Rollup — tree-shaking (this package sets `sideEffects: false`) proves the Node-only
+ * re-exports are unused and drops them before the `node:*` imports are ever resolved — but it is
+ * NOT fine in `vite dev` or any other unbundled-native-ESM serving mode: there is no tree-shaking on
+ * that path, so the browser eagerly loads and evaluates every sibling the barrel re-exports, and
+ * `process.ts`'s very first statement destructures `execFile`/`spawn` off `node:child_process` —
+ * which Vite's dev server serves as a `Proxy` that throws on first property access. The whole module
+ * graph fails to evaluate the instant anything imports the barrel, regardless of which export is
+ * actually used. Verified empirically (`esbuild --bundle --platform=browser` on the barrel: 154
+ * resolution errors; `vite build`: clean, 5.92kB, zero Node-only code in the output; `vite dev`
+ * serving `index.js`: throws at import time) — see the 2026-08-17 Jini hardening report. Browser
+ * call sites should import from this subpath, never the root barrel.
  */
 
 /** Thrown in place of the platform's generic abort error specifically when the timeout — not a
