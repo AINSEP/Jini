@@ -44,6 +44,9 @@ importers:
       '@jini-ai/daemon':
         specifier: workspace:*
         version: link:../../packages/daemon
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
       '@jini-ai/server':
         specifier: workspace:*
         version: link:../../packages/server
