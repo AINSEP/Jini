@@ -97,6 +97,7 @@
   },
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "clsx": "^2.1.1",
     "micromark": "^4.0.0",

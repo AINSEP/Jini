@@ -1,3 +1,4 @@
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import {
   buildTranscript,
   type AgentEvent,
@@ -172,6 +173,11 @@ async function streamRun(
   handlers: RunHandlers,
   signal?: AbortSignal,
 ): Promise<void> {
+  // Deliberately plain `fetch`, not `fetchWithTimeout`: this reads an SSE-over-fetch stream that
+  // can legitimately stay open for the whole duration of a long-running agent turn. A whole-call
+  // `AbortSignal.timeout` would sever it mid-stream — the caller's own `signal` (component
+  // unmount / explicit cancel) is the correct and only cancellation mechanism here, matching the
+  // same exclusion this fix's server-side counterpart applied to the streaming LLM providers.
   const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/events`, signal === undefined ? {} : { signal });
   if (!response.ok) throw await readApiError(response);
   if (!response.body) throw new Error('The daemon returned an empty event stream');
@@ -241,23 +247,27 @@ export function createDaemonChatTransport(): ChatTransport {
         typeof context.frontendBindToken === 'string' && context.frontendBindToken.length > 0
           ? context.frontendBindToken
           : undefined;
-      const response = await fetch('/api/runs', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          contextRef: encodeRunContext(
-            prompt,
-            project,
-            model,
-            reasoning,
-            workingDirectory,
-            input.attachments ?? [],
-            frontendBindToken,
-          ),
-          agentId,
-        }),
-        signal: input.signal,
-      });
+      const response = await fetchWithTimeout(
+        '/api/runs',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            contextRef: encodeRunContext(
+              prompt,
+              project,
+              model,
+              reasoning,
+              workingDirectory,
+              input.attachments ?? [],
+              frontendBindToken,
+            ),
+            agentId,
+          }),
+          signal: input.signal,
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      );
       if (!response.ok) throw await readApiError(response);
       const body = (await response.json()) as RunResponseWire;
       void streamRun(body.run.id, handlers, input.signal).catch((error: unknown) => {
@@ -271,17 +281,25 @@ export function createDaemonChatTransport(): ChatTransport {
       await streamRun(runId, handlers, options?.signal);
     },
     async fetchRunStatus(runId) {
-      const response = await fetch(`/api/runs/${encodeURIComponent(runId)}`);
+      const response = await fetchWithTimeout(
+        `/api/runs/${encodeURIComponent(runId)}`,
+        {},
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      );
       if (response.status === 404) return null;
       if (!response.ok) throw await readApiError(response);
       return ((await response.json()) as RunResponseWire).run.state;
     },
     async stopRun(runId) {
-      const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/cancel`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ reason: 'Canceled from Jini Playground' }),
-      });
+      const response = await fetchWithTimeout(
+        `/api/runs/${encodeURIComponent(runId)}/cancel`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reason: 'Canceled from Jini Playground' }),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      );
       if (!response.ok) throw await readApiError(response);
     },
   };

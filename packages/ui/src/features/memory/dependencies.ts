@@ -25,6 +25,7 @@
  *   cluster uses — saving a connector suggestion is an ordinary memory write,
  *   not a connector-transport concern.
  */
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../connectors/types.js';
 import {
   DEFAULT_CONNECTOR_PROVIDER,
@@ -83,11 +84,11 @@ function requiredNonNullField<T extends object, K extends keyof T>(
 // ─── Config cluster (real HTTP) ─────────────────────────────────────────────
 
 async function patchMemoryConfig(patch: UpdateMemoryConfigRequest): Promise<boolean> {
-  const resp = await fetch('/api/memory/config', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
+  const resp = await fetchWithTimeout(
+    '/api/memory/config',
+    { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   return resp.ok;
 }
 
@@ -117,7 +118,7 @@ export const memoryConfigPort: MemoryConfigPort = {
  * transport failure.
  */
 export async function fetchMemoryList(): Promise<MemoryListResponse> {
-  const resp = await fetch('/api/memory');
+  const resp = await fetchWithTimeout('/api/memory', {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
   if (!resp.ok) throw new Error(`Memory list request failed (${resp.status})`);
   const json = (await resp.json()) as MemoryListResponse;
   requiredField(json, 'entries', 'Memory list request');
@@ -128,14 +129,14 @@ export async function fetchMemoryList(): Promise<MemoryListResponse> {
 }
 
 async function fetchMemoryTree(): Promise<MemoryTreeNode[]> {
-  const resp = await fetch('/api/memory/tree');
+  const resp = await fetchWithTimeout('/api/memory/tree', {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
   if (!resp.ok) throw new Error(`Memory tree request failed (${resp.status})`);
   const json = (await resp.json()) as MemoryTreeListResponse;
   return requiredField(json, 'tree', 'Memory tree request');
 }
 
 async function fetchMemoryEntry(id: string): Promise<MemoryEntry | null> {
-  const resp = await fetch(`/api/memory/${encodeURIComponent(id)}`);
+  const resp = await fetchWithTimeout(`/api/memory/${encodeURIComponent(id)}`, {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
   // Only a genuine not-found maps to null. A 5xx or other transport failure
   // is not "this entry doesn't exist" — collapsing both into null would let
   // the caller silently render an empty preview or a no-op edit for what is
@@ -148,27 +149,31 @@ async function fetchMemoryEntry(id: string): Promise<MemoryEntry | null> {
 
 async function saveMemoryEntry(draft: DraftEntry): Promise<MemoryEntry | null> {
   const url = draft.id ? `/api/memory/${encodeURIComponent(draft.id)}` : '/api/memory';
-  const resp = await fetch(url, {
-    method: draft.id ? 'PUT' : 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(draft),
-  });
+  const resp = await fetchWithTimeout(
+    url,
+    { method: draft.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(draft) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   if (!resp.ok) return null;
   const json = (await resp.json()) as { entry?: MemoryEntry };
   return requiredNonNullField(json, 'entry', 'Memory entry save');
 }
 
 async function deleteMemoryEntry(id: string): Promise<boolean> {
-  const resp = await fetch(`/api/memory/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const resp = await fetchWithTimeout(
+    `/api/memory/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   return resp.ok;
 }
 
 async function saveMemoryIndex(index: string): Promise<boolean> {
-  const resp = await fetch('/api/memory/index', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ index }),
-  });
+  const resp = await fetchWithTimeout(
+    '/api/memory/index',
+    { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ index }) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   return resp.ok;
 }
 
@@ -184,19 +189,27 @@ export const memoryEntriesPort: MemoryEntriesPort = {
 // ─── Extraction history cluster (real HTTP) ─────────────────────────────────
 
 async function fetchExtractions(): Promise<MemoryExtractionRecord[]> {
-  const resp = await fetch('/api/memory/extractions');
+  const resp = await fetchWithTimeout('/api/memory/extractions', {}, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
   if (!resp.ok) throw new Error(`Memory extractions request failed (${resp.status})`);
   const json = (await resp.json()) as MemoryExtractionsResponse;
   return requiredField(json, 'extractions', 'Memory extractions request');
 }
 
 async function deleteExtraction(id: string): Promise<boolean> {
-  const resp = await fetch(`/api/memory/extractions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const resp = await fetchWithTimeout(
+    `/api/memory/extractions/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   return resp.ok;
 }
 
 async function clearExtractionHistory(): Promise<boolean> {
-  const resp = await fetch('/api/memory/extractions', { method: 'DELETE' });
+  const resp = await fetchWithTimeout(
+    '/api/memory/extractions',
+    { method: 'DELETE' },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   return resp.ok;
 }
 

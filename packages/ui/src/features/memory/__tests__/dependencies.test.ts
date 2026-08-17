@@ -180,6 +180,8 @@ describe('memoryConfigPort', () => {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: false }),
+      // fetchWithTimeout composes its own timeout AbortSignal in — see fetch-with-timeout.ts.
+      signal: expect.any(AbortSignal),
     });
 
     mockFetch(() => ({ ok: false }));

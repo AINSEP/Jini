@@ -108,6 +108,9 @@ importers:
       '@jini-ai/memory':
         specifier: workspace:*
         version: link:../../packages/memory
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -258,6 +261,9 @@ importers:
       '@jini-ai/agentic':
         specifier: workspace:*
         version: link:../agentic
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -590,6 +596,9 @@ importers:
       '@jini-ai/agentic':
         specifier: workspace:*
         version: link:../agentic
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../platform
       '@jini-ai/protocol':
         specifier: workspace:*
         version: link:../protocol

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { Icon } from './Icon.js';
 
 /**
@@ -57,7 +58,9 @@ export async function exportViaHttp(
   exportPath: string,
   filenamePrefix: string,
 ): Promise<{ filename: string }> {
-  const res = await fetch(exportPath, { credentials: 'same-origin' });
+  // UPLOAD, not QUICK: this downloads a diagnostics archive — a large-payload transfer, the same
+  // risk profile as an asset upload, not a metadata read.
+  const res = await fetchWithTimeout(exportPath, { credentials: 'same-origin' }, { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD });
   if (!res.ok) {
     let message = `${res.status} ${res.statusText}`;
     try {

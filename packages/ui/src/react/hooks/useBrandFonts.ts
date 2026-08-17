@@ -5,6 +5,7 @@
 // down on change. Not tied to any one feature domain — feature-local hooks
 // live inside their own `features/<domain>/react/hooks/` instead.
 import { useEffect, useMemo } from 'react';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 
 export interface BrandFontManifestFile {
   family: string;
@@ -60,9 +61,11 @@ export function useBrandFonts(
     let styleEl: HTMLStyleElement | null = null;
     void (async () => {
       try {
-        const resp = await fetch(resolveProjectAssetUrl(projectId, 'fonts/manifest.json'), {
-          cache: 'no-store',
-        });
+        const resp = await fetchWithTimeout(
+          resolveProjectAssetUrl(projectId, 'fonts/manifest.json'),
+          { cache: 'no-store' },
+          { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+        );
         if (!resp.ok) return;
         const data = (await resp.json()) as BrandFontManifest;
         const files = Array.isArray(data?.files) ? data.files : [];

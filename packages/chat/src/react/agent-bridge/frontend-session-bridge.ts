@@ -34,6 +34,7 @@
  *   {@link FrontendSessionBridge.bindToken} answers "what is valid now", and only the latter
  *   belongs in a run request.
  */
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { CHAT_CAPABILITIES } from '../../core/index.js';
 import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini-ai/agentic';
 
@@ -125,11 +126,11 @@ export function createFrontendSessionBridge(options: FrontendSessionBridgeOption
 
   async function respond(invocationId: string, body: Record<string, unknown>): Promise<void> {
     if (sessionId === undefined) throw new Error('the surface is not attached yet');
-    const response = await fetch(`${base}/api/frontend-sessions/${encodeURIComponent(sessionId)}/responses`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ invocationId, ...body }),
-    });
+    const response = await fetchWithTimeout(
+      `${base}/api/frontend-sessions/${encodeURIComponent(sessionId)}/responses`,
+      { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ invocationId, ...body }) },
+      { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+    );
     if (!response.ok) throw new Error(`answering "${invocationId}" failed: ${response.status}`);
   }
 

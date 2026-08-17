@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
 import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
 
@@ -67,6 +68,9 @@ interface StreamCallbacks {
 }
 
 async function streamA2uiRun(runId: string, callbacks: StreamCallbacks, signal: AbortSignal): Promise<void> {
+  // Deliberately plain `fetch`, not `fetchWithTimeout` — same reasoning as `daemon-transport.ts`'s
+  // `streamRun`: this reads an SSE-over-fetch stream that can legitimately stay open for a whole
+  // long-running agent turn, and the caller's own `signal` is the correct cancellation mechanism.
   const response = await fetch(`/api/runs/${encodeURIComponent(runId)}/events`, { signal });
   if (!response.ok) throw new Error(`daemon returned ${response.status} for the A2UI Lab run's event stream`);
   if (!response.body) throw new Error('the daemon returned an empty event stream');
@@ -244,12 +248,16 @@ export function A2uiLab() {
 
     async function start() {
       try {
-        const response = await fetch('/api/runs', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ contextRef: encodeA2uiRunContext(), agentId: A2UI_DEMO_AGENT_ID }),
-          signal: controller.signal,
-        });
+        const response = await fetchWithTimeout(
+          '/api/runs',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ contextRef: encodeA2uiRunContext(), agentId: A2UI_DEMO_AGENT_ID }),
+            signal: controller.signal,
+          },
+          { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+        );
         if (!response.ok) throw await readApiError(response);
         const body = (await response.json()) as RunResponseWire;
         if (cancelled) return;
@@ -320,11 +328,15 @@ export function A2uiLab() {
     }
     appendLog(`[action -> agent] ${JSON.stringify(built.message)}`);
     try {
-      const response = await fetch('/a2ui-action', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ runId, message: built.message }),
-      });
+      const response = await fetchWithTimeout(
+        '/a2ui-action',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ runId, message: built.message }),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      );
       if (!response.ok) {
         const error = await readApiError(response);
         setLastActionError(error.message);
