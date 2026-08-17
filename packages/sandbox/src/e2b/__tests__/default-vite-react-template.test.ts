@@ -20,18 +20,25 @@ describe('DEFAULT_VITE_REACT_TEMPLATE', () => {
   it('ships a package.json that is valid JSON with a working dev script', () => {
     const packageJsonFile = DEFAULT_VITE_REACT_TEMPLATE.find((file) => file.path === 'package.json');
     expect(packageJsonFile).toBeDefined();
+    expect(typeof packageJsonFile!.content).toBe('string');
 
-    const parsed = JSON.parse(packageJsonFile!.content) as { scripts?: Record<string, string> };
+    const parsed = JSON.parse(packageJsonFile!.content as string) as {
+      scripts?: Record<string, string>;
+    };
     expect(parsed.scripts?.dev).toBe('vite --host');
   });
 
   it('is a SandboxFile[] usable directly as mountFiles input, not a template needing rendering', () => {
     // Real content, not a placeholder like `{{PLACEHOLDER}}` a caller would need to substitute —
     // this is what makes `session.mountFiles(DEFAULT_VITE_REACT_TEMPLATE)` work with no
-    // intermediate step.
+    // intermediate step. Every file here is text (SandboxFile.content also allows Uint8Array for
+    // binary assets, but this starter template has none), so asserting `typeof === 'string'`
+    // first both documents that and narrows the type for the checks below.
     for (const file of DEFAULT_VITE_REACT_TEMPLATE) {
-      expect(file.content.length).toBeGreaterThan(0);
-      expect(file.content).not.toMatch(/\{\{.*\}\}/);
+      expect(typeof file.content).toBe('string');
+      const content = file.content as string;
+      expect(content.length).toBeGreaterThan(0);
+      expect(content).not.toMatch(/\{\{.*\}\}/);
     }
   });
 });

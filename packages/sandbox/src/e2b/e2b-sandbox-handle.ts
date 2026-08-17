@@ -7,8 +7,15 @@
  * commands and a dev server). Depending on this narrower shape instead of the SDK's own type
  * keeps the wrapping logic in `wrap-e2b-sandbox.ts` testable with a plain object literal: no
  * network call, no API key, and no risk of a test silently depending on SDK internals this
- * adapter never touches. TypeScript's structural typing means a real `Sandbox` instance already
- * satisfies this interface with no cast required — see `provider.ts`.
+ * adapter never touches.
+ *
+ * Most of this interface is structurally satisfied by a real `Sandbox` instance directly.
+ * `files.write` is the one exception: E2B's real `write` is overloaded (a single-file form plus
+ * this interface's batch form), and TypeScript's assignability check between an overloaded
+ * source and a single-signature target does not reliably pick the matching overload, producing
+ * a confusing arity error rather than a real incompatibility. `provider.ts`'s `toE2bHandle`
+ * adapts the real `Sandbox` into this interface with one explicit wrapper function for that
+ * reason, rather than passing the SDK object straight through.
  *
  * Architectural role:
  * The one place this package's `/e2b` subpath writes down what it assumes E2B's API looks like.
@@ -58,9 +65,41 @@ export interface E2bWatchHandle {
   stop(): Promise<void>;
 }
 
+/** One file to write, as E2B's own batch `write` overload takes it. `data` is `string |
+ *  ArrayBuffer` — not `Uint8Array` — because that's the real signature; converting a
+ *  `Uint8Array` view to a correctly-scoped `ArrayBuffer` is `wrap-e2b-sandbox.ts`'s job, not
+ *  this port's. */
+export interface E2bWriteEntry {
+  readonly path: string;
+  readonly data: string | ArrayBuffer;
+}
+
+/** E2B's real filesystem-entry kind (`FileType` enum values, confirmed against the installed
+ *  `e2b` package). Only `'file'` entries are files; `'dir'` and `'symlink'` are not. */
+export type E2bFileType = 'file' | 'dir' | 'symlink';
+
+/** The subset of E2B's `EntryInfo` this adapter reads from `files.list`. */
+export interface E2bEntryInfo {
+  readonly path: string;
+  readonly type?: E2bFileType;
+}
+
 export interface E2bFilesystem {
-  write(path: string, data: string): Promise<unknown>;
-  read(path: string): Promise<string>;
+  /** Batched over E2B's own multi-file `write` overload — one round trip for however many
+   *  files `mountFiles` is given, not one per file. E2B's real `write` is itself overloaded
+   *  (a single-file form in addition to this batch one); `provider.ts` adapts the real
+   *  `Sandbox` into this interface with an explicit wrapper function rather than relying on
+   *  the real object satisfying this shape structurally — TypeScript's assignability check for
+   *  a multi-overload source against a single-signature target picks the wrong overload to
+   *  compare against and reports a confusing arity mismatch, so the real SDK is never passed
+   *  through as-is. See `provider.ts`'s `toE2bHandle`. */
+  write(files: readonly E2bWriteEntry[]): Promise<unknown>;
+  /** Always requested as raw bytes (`format: 'bytes'`) — this adapter never asks E2B to decode
+   *  text on its behalf, matching `SandboxSession.readFile`'s "always raw bytes" contract. */
+  read(path: string, opts: { readonly format: 'bytes' }): Promise<Uint8Array>;
+  /** `depth` bounds how deep E2B's own server-side walk goes — see `MAX_LIST_DEPTH` in
+   *  `wrap-e2b-sandbox.ts` for why a bound exists at all. */
+  list(path: string, opts?: { readonly depth?: number }): Promise<readonly E2bEntryInfo[]>;
   watchDir(
     path: string,
     onEvent: (event: E2bFilesystemEvent) => void,

@@ -77,14 +77,14 @@ describe('@jini-ai/sandbox/core in an install with no adapter present', () => {
     expect(existsSync(join(fixtureDir, 'node_modules', '@e2b'))).toBe(false);
   });
 
-  it('imports cleanly with no runtime surface — core is types only', () => {
+  it('imports cleanly and exposes its one runtime export (everything else is types)', () => {
     const result = runInFixture(
       `const m = await import(${JSON.stringify(CORE_ENTRY)});\n` +
-        'process.stdout.write(JSON.stringify(Object.keys(m)));',
+        "process.stdout.write(JSON.stringify(Object.keys(m)) + ',' + typeof m.SandboxOperationError);",
     );
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
-    expect(result.stdout).toBe('[]');
+    expect(result.stdout).toBe('["SandboxOperationError"],function');
   });
 
   it('POSITIVE CONTROL: ./e2b fails in the same fixture, proving the adapter is genuinely absent', () => {

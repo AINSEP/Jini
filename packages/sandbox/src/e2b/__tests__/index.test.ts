@@ -11,10 +11,11 @@ describe('@jini-ai/sandbox/e2b barrel', () => {
   it('exports exactly the runtime surface it promises', () => {
     expect(Object.keys(e2b).sort()).toEqual([
       'DEFAULT_VITE_REACT_TEMPLATE',
-      'SandboxPreviewNotReadyError',
+      'categorizeE2bError',
       'createE2bSandboxProvider',
       'mapE2bFileChangeKind',
       'shellQuote',
+      'toArrayBuffer',
       'wrapE2bSandbox',
     ]);
   });
@@ -25,8 +26,7 @@ describe('@jini-ai/sandbox/e2b barrel', () => {
     expect(e2b.DEFAULT_VITE_REACT_TEMPLATE.length).toBeGreaterThan(0);
     expect(e2b.shellQuote('a b')).toBe("'a b'");
     expect(e2b.mapE2bFileChangeKind('create')).toBe('created');
-    expect(new e2b.SandboxPreviewNotReadyError('https://x', new Error('boom'))).toBeInstanceOf(
-      Error,
-    );
+    expect(e2b.categorizeE2bError(new Error('boom'))).toBe('unknown');
+    expect(e2b.toArrayBuffer(new Uint8Array([1, 2, 3])).byteLength).toBe(3);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { SandboxOperationError } from '../ports.js';
+import { SandboxOperationError } from '../errors.js';
 
 describe('SandboxOperationError', () => {
   it('is a real Error carrying a backend-neutral category', () => {

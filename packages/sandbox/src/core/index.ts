@@ -10,10 +10,12 @@
  * asked for, because Node does not tree-shake: whatever the static import graph reaches gets
  * executed. Omitting `.` is the enforcement mechanism, not a stylistic choice.
  *
- * `SandboxOperationError` is a real runtime export (a class), not a type — everything else here
- * erases at compile time. See its doc comment in `ports.ts` for why a ports file needs one.
+ * `SandboxOperationError` is a real runtime export (a class, defined in `errors.ts`), not a
+ * type — everything else here erases at compile time. See its doc comment for why a ports
+ * module needs one, and why it lives in its own file rather than in `ports.ts`.
  */
-export { SandboxOperationError } from './ports.js';
+export { SandboxOperationError } from './errors.js';
+export type { SandboxErrorCategory } from './errors.js';
 export type {
   BootOptions,
   CommandResult,
@@ -23,7 +25,6 @@ export type {
   ProcessHandle,
   ProcessOutputChunk,
   RunCommandOptions,
-  SandboxErrorCategory,
   SandboxFile,
   SandboxProviderPort,
   SandboxSession,

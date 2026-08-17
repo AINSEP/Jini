@@ -1,37 +1,32 @@
 /**
  * Behavioral tests for `wrapE2bSandbox` against a fake `E2bSandboxHandle` — no network call, no
- * API key, so these assert the actual translation logic (command building, event-kind mapping,
- * pub/sub bridging, liveness checking) rather than "was the SDK called."
+ * API key, so these assert the actual translation logic (command building, binary conversion,
+ * event-kind mapping, pub/sub bridging, liveness checking, error mapping, process tracking for
+ * teardown) rather than "was the SDK called."
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { SandboxOperationError } from '../../core/errors.js';
 import type { ProcessOutputChunk } from '../../core/ports.js';
 import type {
   E2bFilesystemEvent,
   E2bRunOptions,
   E2bSandboxHandle,
+  E2bWriteEntry,
 } from '../e2b-sandbox-handle.js';
-import {
-  mapE2bFileChangeKind,
-  SandboxPreviewNotReadyError,
-  wrapE2bSandbox,
-} from '../wrap-e2b-sandbox.js';
+import { mapE2bFileChangeKind, wrapE2bSandbox } from '../wrap-e2b-sandbox.js';
 
 interface RunCall {
   readonly cmd: string;
-  // Not `opts?:` — the fake always records the argument it received, including an explicit
-  // `undefined` when the caller passed none. `exactOptionalPropertyTypes` treats an optional key
-  // and "present but undefined" as different things; this type says the key is always present.
   readonly opts: E2bRunOptions | undefined;
 }
 
 /** A fake E2B sandbox handle that records every call it receives instead of touching a network.
  *  `run`'s background branch captures its `onStdout`/`onStderr` callbacks so a test can invoke
- *  them directly, simulating E2B delivering output — that is the seam `startProcess`'s
- *  broadcast-to-listeners logic actually needs to prove itself against. */
+ *  them directly, simulating E2B delivering output. `write`/`read`/`list` all default to benign
+ *  successes; individual tests override the specific mock they care about. */
 function createFakeHandle() {
   const runCalls: RunCall[] = [];
-  const writeCalls: Array<{ path: string; data: string }> = [];
   const backgroundKill = vi.fn().mockResolvedValue(true);
   let backgroundOpts: E2bRunOptions | undefined;
   let watchListener: ((event: E2bFilesystemEvent) => void) | undefined;
@@ -57,14 +52,13 @@ function createFakeHandle() {
     return { stdout: 'stdout-output', stderr: 'stderr-output', exitCode: 0 };
   });
 
-  const write = vi.fn(async (path: string, data: string) => {
-    writeCalls.push({ path, data });
-    return {};
-  });
+  const write = vi.fn().mockResolvedValue(undefined);
+  const read = vi.fn().mockResolvedValue(new Uint8Array([1, 2, 3]));
+  const list = vi.fn().mockResolvedValue([]);
 
   const handle = {
     commands: { run },
-    files: { write, read: vi.fn(), watchDir },
+    files: { write, read, list, watchDir },
     getHost: vi.fn((port: number) => `${port}.sandbox.e2b.example`),
     kill,
   } as unknown as E2bSandboxHandle;
@@ -72,7 +66,9 @@ function createFakeHandle() {
   return {
     handle,
     runCalls,
-    writeCalls,
+    write,
+    read,
+    list,
     watchStop,
     kill,
     backgroundKill,
@@ -94,64 +90,281 @@ describe('wrapE2bSandbox', () => {
     });
   });
 
-  it('mountFiles writes each file under the project root, in order', async () => {
+  it('wraps a boot-time failure (mkdir) into a SandboxOperationError', async () => {
     const fake = createFakeHandle();
-    const session = await wrapE2bSandbox(fake.handle, CONFIG);
+    fake.handle.commands.run = vi.fn().mockRejectedValue(new Error('connection refused'));
 
-    await session.mountFiles([
-      { path: 'src/App.jsx', content: 'jsx-content' },
-      { path: 'index.html', content: 'html-content' },
-    ]);
-
-    expect(fake.writeCalls).toEqual([
-      { path: '/root/src/App.jsx', data: 'jsx-content' },
-      { path: '/root/index.html', data: 'html-content' },
-    ]);
+    await expect(wrapE2bSandbox(fake.handle, CONFIG)).rejects.toBeInstanceOf(SandboxOperationError);
   });
 
-  it('runCommand shell-quotes args, runs in the project root, and maps the result', async () => {
+  it('wraps a boot-time failure (starting the watch) into a SandboxOperationError', async () => {
     const fake = createFakeHandle();
-    const session = await wrapE2bSandbox(fake.handle, CONFIG);
+    fake.handle.files.watchDir = vi.fn().mockRejectedValue(new Error('watch unavailable'));
 
-    const result = await session.runCommand('npm', ['run', 'my script']);
+    await expect(wrapE2bSandbox(fake.handle, CONFIG)).rejects.toBeInstanceOf(SandboxOperationError);
+  });
 
-    // Every arg is quoted, not just the one that needs it — buildCommand doesn't try to guess
-    // which args are "safe" to leave bare, since that judgment call is exactly how quoting
-    // bugs happen.
-    expect(fake.runCalls.at(-1)).toEqual({
-      cmd: "npm 'run' 'my script'",
-      opts: { cwd: '/root' },
+  describe('mountFiles', () => {
+    it('writes every file in one batched call, not one per file', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.mountFiles([
+        { path: 'src/App.jsx', content: 'jsx-content' },
+        { path: 'index.html', content: 'html-content' },
+      ]);
+
+      expect(fake.write).toHaveBeenCalledOnce();
+      const written = fake.write.mock.calls[0]?.[0] as E2bWriteEntry[];
+      expect(written).toEqual([
+        { path: '/root/src/App.jsx', data: 'jsx-content' },
+        { path: '/root/index.html', data: 'html-content' },
+      ]);
     });
-    expect(result).toEqual({ stdout: 'stdout-output', stderr: 'stderr-output', exitCode: 0 });
+
+    it('converts Uint8Array content to an ArrayBuffer with the exact same bytes', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+
+      await session.mountFiles([{ path: 'assets/images/logo.png', content: pngBytes }]);
+
+      const written = fake.write.mock.calls[0]?.[0] as E2bWriteEntry[];
+      expect(written[0]?.path).toBe('/root/assets/images/logo.png');
+      expect(written[0]?.data).toBeInstanceOf(ArrayBuffer);
+      expect(new Uint8Array(written[0]!.data as ArrayBuffer)).toEqual(pngBytes);
+    });
+
+    it('does not call write at all for an empty file list', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.mountFiles([]);
+
+      expect(fake.write).not.toHaveBeenCalled();
+    });
+
+    it('wraps a write failure into a SandboxOperationError', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      const notEnoughSpace = new Error('disk full');
+      notEnoughSpace.name = 'NotEnoughSpaceError';
+      fake.write.mockRejectedValueOnce(notEnoughSpace);
+
+      const rejection = session.mountFiles([{ path: 'a.txt', content: 'x' }]);
+      await expect(rejection).rejects.toBeInstanceOf(SandboxOperationError);
+      await expect(rejection).rejects.toMatchObject({ category: 'unavailable', cause: notEnoughSpace });
+    });
   });
 
-  it('runCommand with no args runs the bare command', async () => {
-    const fake = createFakeHandle();
-    const session = await wrapE2bSandbox(fake.handle, CONFIG);
+  describe('readFile', () => {
+    it('reads raw bytes from the project-root-relative path, requesting bytes explicitly', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
 
-    await session.runCommand('pwd');
+      const bytes = await session.readFile('src/App.jsx');
 
-    expect(fake.runCalls.at(-1)?.cmd).toBe('pwd');
+      expect(fake.read).toHaveBeenCalledWith('/root/src/App.jsx', { format: 'bytes' });
+      expect(bytes).toEqual(new Uint8Array([1, 2, 3]));
+    });
+
+    it('wraps a not-found read into a SandboxOperationError with category not-found', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      const notFound = new Error('no such file');
+      notFound.name = 'FileNotFoundError';
+      fake.read.mockRejectedValueOnce(notFound);
+
+      const rejection = session.readFile('missing.txt');
+      await expect(rejection).rejects.toMatchObject({ category: 'not-found', cause: notFound });
+    });
   });
 
-  it('installDependencies with no packages runs a bare npm install', async () => {
-    const fake = createFakeHandle();
-    const session = await wrapE2bSandbox(fake.handle, CONFIG);
+  describe('listFiles', () => {
+    it('defaults to the project root and returns only files, as root-relative paths', async () => {
+      const fake = createFakeHandle();
+      fake.list.mockResolvedValueOnce([
+        { path: '/root/src/App.jsx', type: 'file' },
+        { path: '/root/src', type: 'dir' },
+        { path: '/root/package.json', type: 'file' },
+      ]);
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
 
-    await session.installDependencies();
+      const files = await session.listFiles();
 
-    expect(fake.runCalls.at(-1)).toEqual({ cmd: 'npm install', opts: { cwd: '/root' } });
+      expect(fake.list).toHaveBeenCalledWith('/root', { depth: 20 });
+      expect(files).toEqual(['src/App.jsx', 'package.json']);
+    });
+
+    it('joins an explicit directory onto the project root', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.listFiles('src');
+
+      expect(fake.list).toHaveBeenCalledWith('/root/src', { depth: 20 });
+    });
+
+    it('excludes noise directories like node_modules and .git', async () => {
+      const fake = createFakeHandle();
+      fake.list.mockResolvedValueOnce([
+        { path: '/root/src/App.jsx', type: 'file' },
+        { path: '/root/node_modules/react/index.js', type: 'file' },
+        { path: '/root/.git/HEAD', type: 'file' },
+        { path: '/root/dist/bundle.js', type: 'file' },
+      ]);
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      const files = await session.listFiles();
+
+      expect(files).toEqual(['src/App.jsx']);
+    });
+
+    it('strips the root prefix correctly even when projectRoot itself already ends with a slash', async () => {
+      const fake = createFakeHandle();
+      fake.list.mockResolvedValueOnce([{ path: '/root/src/App.jsx', type: 'file' }]);
+      const session = await wrapE2bSandbox(fake.handle, { ...CONFIG, projectRoot: '/root/' });
+
+      const files = await session.listFiles();
+
+      expect(files).toEqual(['src/App.jsx']);
+    });
+
+    it('returns an entry path unchanged if it does not start with the project root prefix', async () => {
+      // Defensive fallback, not an expected real case: if E2B ever echoed a path outside
+      // projectRoot, this returns it as-is rather than mangling it with a wrong slice.
+      const fake = createFakeHandle();
+      fake.list.mockResolvedValueOnce([{ path: '/somewhere/else/file.txt', type: 'file' }]);
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      const files = await session.listFiles();
+
+      expect(files).toEqual(['/somewhere/else/file.txt']);
+    });
+
+    it('wraps a list failure into a SandboxOperationError', async () => {
+      const fake = createFakeHandle();
+      fake.list.mockRejectedValueOnce(new Error('unexpected'));
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await expect(session.listFiles()).rejects.toBeInstanceOf(SandboxOperationError);
+    });
   });
 
-  it('installDependencies with packages installs exactly the named, quoted packages', async () => {
-    const fake = createFakeHandle();
-    const session = await wrapE2bSandbox(fake.handle, CONFIG);
+  describe('runCommand', () => {
+    it('shell-quotes args, runs in the project root, and maps the result', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
 
-    await session.installDependencies(['react', 'left-pad@1.3.0']);
+      const result = await session.runCommand('npm', ['run', 'my script']);
 
-    expect(fake.runCalls.at(-1)).toEqual({
-      cmd: "npm install 'react' 'left-pad@1.3.0'",
-      opts: { cwd: '/root' },
+      // Every arg is quoted, not just the one that needs it — buildCommand doesn't try to guess
+      // which args are "safe" to leave bare.
+      expect(fake.runCalls.at(-1)).toEqual({
+        cmd: "npm 'run' 'my script'",
+        opts: { cwd: '/root' },
+      });
+      expect(result).toEqual({ stdout: 'stdout-output', stderr: 'stderr-output', exitCode: 0 });
+    });
+
+    it('with no args runs the bare command', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.runCommand('pwd');
+
+      expect(fake.runCalls.at(-1)?.cmd).toBe('pwd');
+      expect(fake.runCalls.at(-1)?.opts).toEqual({ cwd: '/root' });
+    });
+
+    it('streams live output via onOutput while still resolving with the final CommandResult', async () => {
+      // This is the case the owner most wants: npm install's output scrolling live, not
+      // appearing as one frozen wall of text after the command finishes.
+      const fake = createFakeHandle();
+      fake.handle.commands.run = vi.fn(async (_cmd: string, opts?: E2bRunOptions) => {
+        opts?.onStdout?.('installing react...');
+        opts?.onStderr?.('warning: peer dep');
+        return { stdout: 'installing react...', stderr: 'warning: peer dep', exitCode: 0 };
+      }) as unknown as E2bSandboxHandle['commands']['run'];
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      const received: ProcessOutputChunk[] = [];
+      const result = await session.runCommand('npm', ['install'], {
+        onOutput: (chunk) => received.push(chunk),
+      });
+
+      expect(received).toEqual([
+        { stream: 'stdout', text: 'installing react...' },
+        { stream: 'stderr', text: 'warning: peer dep' },
+      ]);
+      expect(result.exitCode).toBe(0);
+    });
+
+    it('passes no onStdout/onStderr at all when no onOutput option is given', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.runCommand('pwd');
+
+      const opts = fake.runCalls.at(-1)?.opts;
+      expect(opts).not.toHaveProperty('onStdout');
+      expect(opts).not.toHaveProperty('onStderr');
+    });
+
+    it('wraps a command failure into a SandboxOperationError', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      // Swapped in only after boot (which itself calls commands.run for the project-root
+      // mkdir) has already succeeded — otherwise boot would fail first and this wouldn't be
+      // testing runCommand's own error wrapping at all.
+      fake.handle.commands.run = vi.fn().mockRejectedValue(new Error('spawn failed'));
+
+      await expect(session.runCommand('pwd')).rejects.toBeInstanceOf(SandboxOperationError);
+    });
+  });
+
+  describe('installDependencies', () => {
+    it('with no packages runs a bare npm install', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.installDependencies();
+
+      expect(fake.runCalls.at(-1)).toEqual({ cmd: 'npm install', opts: { cwd: '/root' } });
+    });
+
+    it('with packages installs exactly the named, quoted packages', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.installDependencies(['react', 'left-pad@1.3.0']);
+
+      expect(fake.runCalls.at(-1)).toEqual({
+        cmd: "npm install 'react' 'left-pad@1.3.0'",
+        opts: { cwd: '/root' },
+      });
+    });
+
+    it('streams live output via onOutput, same as runCommand', async () => {
+      const fake = createFakeHandle();
+      fake.handle.commands.run = vi.fn(async (_cmd: string, opts?: E2bRunOptions) => {
+        opts?.onStdout?.('added 42 packages');
+        return { stdout: 'added 42 packages', stderr: '', exitCode: 0 };
+      }) as unknown as E2bSandboxHandle['commands']['run'];
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      const received: ProcessOutputChunk[] = [];
+      await session.installDependencies(undefined, { onOutput: (chunk) => received.push(chunk) });
+
+      expect(received).toEqual([{ stream: 'stdout', text: 'added 42 packages' }]);
+    });
+
+    it('wraps an install failure into a SandboxOperationError', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      fake.handle.commands.run = vi.fn().mockRejectedValue(new Error('npm ENOENT'));
+
+      await expect(session.installDependencies()).rejects.toBeInstanceOf(SandboxOperationError);
     });
   });
 
@@ -206,6 +419,25 @@ describe('wrapE2bSandbox', () => {
 
       expect(fake.backgroundKill).toHaveBeenCalledOnce();
     });
+
+    it('wraps a kill failure into a SandboxOperationError', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      const process = await session.startProcess('npm', ['run', 'dev']);
+      fake.backgroundKill.mockRejectedValueOnce(new Error('kill signal lost'));
+
+      await expect(process.kill()).rejects.toBeInstanceOf(SandboxOperationError);
+    });
+
+    it('wraps a start failure into a SandboxOperationError', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      fake.handle.commands.run = vi.fn().mockRejectedValue(new Error('cannot spawn'));
+
+      await expect(session.startProcess('npm', ['run', 'dev'])).rejects.toBeInstanceOf(
+        SandboxOperationError,
+      );
+    });
   });
 
   describe('getPreview', () => {
@@ -230,19 +462,16 @@ describe('wrapE2bSandbox', () => {
       );
     });
 
-    it('rejects with SandboxPreviewNotReadyError when nothing answers', async () => {
+    it('rejects with SandboxOperationError (category timeout) when nothing answers', async () => {
       const connectionRefused = new TypeError('fetch failed');
-      vi.stubGlobal(
-        'fetch',
-        vi.fn().mockRejectedValue(connectionRefused),
-      );
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(connectionRefused));
 
       const fake = createFakeHandle();
       const session = await wrapE2bSandbox(fake.handle, CONFIG);
 
-      await expect(session.getPreview()).rejects.toThrow(SandboxPreviewNotReadyError);
+      await expect(session.getPreview()).rejects.toBeInstanceOf(SandboxOperationError);
       await expect(session.getPreview()).rejects.toMatchObject({
-        url: 'https://4000.sandbox.e2b.example',
+        category: 'timeout',
         cause: connectionRefused,
       });
     });
@@ -250,8 +479,7 @@ describe('wrapE2bSandbox', () => {
     it('aborts and rejects once previewCheckTimeoutMs elapses with no response at all', async () => {
       vi.useFakeTimers();
       // A fetch that never settles on its own — the only way it resolves/rejects is via the
-      // AbortSignal that checkListening's own setTimeout fires. This is what actually proves the
-      // timeout wiring works, versus a fetch that just happens to reject quickly on its own.
+      // AbortSignal that checkListening's own setTimeout fires.
       const fetchMock = vi.fn(
         (_url: string, opts: { signal: AbortSignal }) =>
           new Promise((_resolve, reject) => {
@@ -266,7 +494,7 @@ describe('wrapE2bSandbox', () => {
       // Attach the rejection handler before advancing the fake clock — otherwise the promise
       // can reject before `.rejects` has subscribed, which Node reports as an unhandled
       // rejection even though the test goes on to handle it a tick later.
-      const assertion = expect(session.getPreview()).rejects.toThrow(SandboxPreviewNotReadyError);
+      const assertion = expect(session.getPreview()).rejects.toBeInstanceOf(SandboxOperationError);
       await vi.advanceTimersByTimeAsync(CONFIG.previewCheckTimeoutMs);
       await assertion;
     });
@@ -318,14 +546,61 @@ describe('wrapE2bSandbox', () => {
       expect(fake.kill).toHaveBeenCalledOnce();
     });
 
+    it('kills every process started via startProcess — the data-loss-shaped requirement', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      await session.startProcess('npm', ['run', 'dev']);
+
+      await session.teardown();
+
+      // The dev server process must actually be killed, not just the sandbox VM around it —
+      // on /local (a future adapter), skipping this would leave a real process holding a port
+      // on the user's machine after the session claims to have torn down.
+      expect(fake.backgroundKill).toHaveBeenCalledOnce();
+    });
+
+    it('does not re-kill a process that was already killed directly by the caller', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+      const process = await session.startProcess('npm', ['run', 'dev']);
+      await process.kill();
+      fake.backgroundKill.mockClear();
+
+      await session.teardown();
+
+      expect(fake.backgroundKill).not.toHaveBeenCalled();
+    });
+
     it('still kills the sandbox even when stopping the watch fails', async () => {
       const fake = createFakeHandle();
       fake.watchStop.mockRejectedValueOnce(new Error('stop failed'));
       const session = await wrapE2bSandbox(fake.handle, CONFIG);
 
-      await expect(session.teardown()).rejects.toThrow('stop failed');
+      await expect(session.teardown()).rejects.toBeInstanceOf(SandboxOperationError);
 
       expect(fake.kill).toHaveBeenCalledOnce();
+    });
+
+    it('surfaces the sandbox-kill failure over a watch-stop failure when both fail', async () => {
+      const fake = createFakeHandle();
+      fake.watchStop.mockRejectedValueOnce(new Error('stop failed'));
+      const killFailure = new Error('kill failed');
+      fake.kill.mockRejectedValueOnce(killFailure);
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await expect(session.teardown()).rejects.toMatchObject({ cause: killFailure });
+    });
+
+    it('never deletes the project root — no filesystem call other than the boot-time mkdir', async () => {
+      const fake = createFakeHandle();
+      const session = await wrapE2bSandbox(fake.handle, CONFIG);
+
+      await session.teardown();
+
+      // The only command this whole lifecycle ever ran is the one mkdir at boot; teardown adds
+      // no `rm`, no second `files` call of any kind.
+      expect(fake.runCalls.map((call) => call.cmd)).toEqual(["mkdir -p '/root'"]);
+      expect(fake.write).not.toHaveBeenCalled();
     });
   });
 });

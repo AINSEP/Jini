@@ -5,8 +5,9 @@
  * The vocabulary a host talks to a running sandbox through, with no statement about which
  * backend that is. Every declaration here is an `interface`/`type` that erases at compile time,
  * so this module contributes zero bytes and zero `require()` calls to a consumer's runtime graph.
- * `SandboxOperationError` is the one exception — see its own doc comment for why an error class
- * has to be real runtime code even in a ports file.
+ * `SandboxOperationError` — the error type these methods reject with — lives in `errors.ts`
+ * instead, specifically so that claim stays true here rather than becoming "true except for one
+ * class." See `errors.ts`'s own doc comment for why it needs to be real runtime code.
  *
  * How it relates to the package:
  * `core` is the half of `@jini-ai/sandbox` that must stay installable with no adapter present —
@@ -30,11 +31,11 @@
  *     the project root is the user's real, possibly-non-empty directory.
  *   - `webcontainer` (browser-only, blocked on WebContainers' commercial licensing, not yet
  *     built) — same shape again, just running in a tab instead of a VM or a desktop process.
- * Both `e2b` and `local` are confirmed shipping targets (Tovu ships as web and desktop, and a
- * theme must be editable on either with identical observable results — same files in, same
- * build/preview behavior out), not "one plus a maybe." A remote server-side backend other than
- * E2B (e.g. Modal) is plausible later too; nothing below assumes E2B specifically — see the
- * per-type notes for what was checked against that possibility.
+ * Both `e2b` and `local` are confirmed shipping targets — a host app that ships as both web and
+ * desktop needs the same project editable on either with identical observable results (same
+ * files in, same build/preview behavior out), not "one plus a maybe." A remote server-side
+ * backend other than E2B (e.g. Modal) is plausible later too; nothing below assumes E2B
+ * specifically — see the per-type notes for what was checked against that possibility.
  *
  * Nothing below may assume the sandbox is remote, that a preview is a public URL rather than
  * `localhost`, or that `boot` is slow. A verb that only makes sense for one of the three belongs
@@ -134,51 +135,6 @@ export interface RunCommandOptions {
    *  `installDependencies`, not `startProcess`; without this, that output would be invisible
    *  until the whole install finished and then arrive as one frozen wall of text. */
   readonly onOutput?: (chunk: ProcessOutputChunk) => void;
-}
-
-/**
- * Backend-neutral reasons a sandbox operation can fail. A caller handles one of these six
- * categories, never a backend name — "network down" (E2B) and "node isn't installed" (local) are
- * different causes for the same category, `'unavailable'`, and neither should force a caller to
- * branch on which adapter it's talking to.
- */
-export type SandboxErrorCategory =
-  /** The backend itself could not be reached or started: network failure, quota exceeded, a
-   *  required local runtime/binary missing. */
-  | 'unavailable'
-  /** The operation was refused for lack of rights: an invalid/rejected API key or access token,
-   *  no filesystem write permission. */
-  | 'permission-denied'
-  /** The requested port was already bound. */
-  | 'port-in-use'
-  /** The requested resource doesn't exist — a file path, a session that's already torn down. */
-  | 'not-found'
-  /** The operation didn't complete within its bound. */
-  | 'timeout'
-  /** Any other backend-specific failure. `cause` carries the detail. */
-  | 'unknown';
-
-/**
- * The one error type every `SandboxSession`/`SandboxProviderPort` method rejects with. This is
- * the actual runtime code in an otherwise type-only file, because a category a caller can branch
- * on has to exist somewhere at runtime, not just in a type annotation. Named
- * `SandboxOperationError` rather than `SandboxError` because `@e2b/code-interpreter`'s own base
- * SDK (`e2b`) already exports a class literally called `SandboxError` — importing both into the
- * same adapter file under the obvious names would collide.
- *
- * `cause` (the standard `Error` field, via `ErrorOptions`) is the escape hatch for the backend's
- * own detail — the original E2B SDK error, the Node `ENOENT`, whatever a specific adapter caught.
- * `category` is what a caller is expected to actually branch on; `cause` is for logging and
- * debugging, not for a caller to inspect to figure out what really happened per backend.
- */
-export class SandboxOperationError extends Error {
-  readonly category: SandboxErrorCategory;
-
-  constructor(category: SandboxErrorCategory, message: string, options?: ErrorOptions) {
-    super(message, options);
-    this.name = 'SandboxOperationError';
-    this.category = category;
-  }
 }
 
 /**

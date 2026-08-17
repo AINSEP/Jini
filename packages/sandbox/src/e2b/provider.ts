@@ -16,6 +16,7 @@
 import { Sandbox } from '@e2b/code-interpreter';
 
 import type { BootOptions, SandboxProviderPort, SandboxSession } from '../core/ports.js';
+import type { E2bSandboxHandle } from './e2b-sandbox-handle.js';
 import { wrapE2bSandbox } from './wrap-e2b-sandbox.js';
 
 const DEFAULT_PROJECT_ROOT = '/home/user/app';
@@ -39,6 +40,36 @@ export interface E2bProviderConfig {
   readonly previewCheckTimeoutMs?: number;
 }
 
+/**
+ * Adapts a real `Sandbox` into `E2bSandboxHandle`. `commands` and `getHost`/`kill` are passed
+ * through directly — a real `Sandbox` already satisfies those parts of the interface
+ * structurally. `files` is wrapped with one explicit function per member instead, because
+ * TypeScript's assignability check between E2B's overloaded `write` (a single-file form plus a
+ * batch form) and this interface's batch-only signature doesn't reliably resolve to the
+ * matching overload — seen directly as a real, reproducible compile error, not a
+ * theoretical concern — so the real object is never passed through as-is for that one member.
+ * Calling `sandbox.files.write(files)` here, with a concrete array argument, invokes real
+ * per-call overload resolution correctly; it's only the *object-to-interface* structural check
+ * that gets confused.
+ *
+ * Exported (not part of the package's public `./e2b` barrel) so `__tests__/to-e2b-handle.test.ts`
+ * can exercise the translation directly against a fake `Sandbox`-shaped object, rather than only
+ * indirectly through `boot`'s mocked-out `Sandbox.create` call.
+ */
+export function toE2bHandle(sandbox: Sandbox): E2bSandboxHandle {
+  return {
+    commands: sandbox.commands,
+    files: {
+      write: (files) => sandbox.files.write([...files]),
+      read: (path, opts) => sandbox.files.read(path, opts),
+      list: (path, opts) => sandbox.files.list(path, opts),
+      watchDir: (path, onEvent, opts) => sandbox.files.watchDir(path, onEvent, opts),
+    },
+    getHost: (port) => sandbox.getHost(port),
+    kill: () => sandbox.kill(),
+  };
+}
+
 export function createE2bSandboxProvider(config: E2bProviderConfig = {}): SandboxProviderPort {
   return {
     async boot(options?: BootOptions): Promise<SandboxSession> {
@@ -48,7 +79,7 @@ export function createE2bSandboxProvider(config: E2bProviderConfig = {}): Sandbo
         ...(options?.template !== undefined ? { template: options.template } : {}),
       });
 
-      return wrapE2bSandbox(sandbox, {
+      return wrapE2bSandbox(toE2bHandle(sandbox), {
         projectRoot: config.projectRoot ?? DEFAULT_PROJECT_ROOT,
         previewPort: config.previewPort ?? DEFAULT_PREVIEW_PORT,
         previewCheckTimeoutMs: config.previewCheckTimeoutMs ?? DEFAULT_PREVIEW_CHECK_TIMEOUT_MS,
