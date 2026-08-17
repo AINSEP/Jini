@@ -1,3 +1,4 @@
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
 import { safeProjectLabel } from './naming.js';
 import { assertNotRedirected, redirectGuardInit } from './redirect-guard.js';
@@ -77,7 +78,7 @@ export class VercelDeployTarget implements DeployTarget {
       throw new DeployError('Vercel token is required.', 400);
     }
 
-    const createResp = await fetch(
+    const createResp = await fetchWithTimeout(
       `${VERCEL_API}/v13/deployments${vercelTeamQuery(this.config)}`,
       redirectGuardInit({
         method: 'POST',
@@ -95,6 +96,7 @@ export class VercelDeployTarget implements DeployTarget {
           projectSettings: { framework: null },
         }),
       }),
+      { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD },
     );
     assertNotRedirected(createResp, 'Vercel deployment creation');
 
@@ -175,9 +177,10 @@ async function pollVercelDeployment(config: VercelDeployConfig, id: string): Pro
   let last: JsonObject | null = null;
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, i < 5 ? 1000 : 2000));
-    const resp = await fetch(
+    const resp = await fetchWithTimeout(
       `${VERCEL_API}/v13/deployments/${encodeURIComponent(id)}${vercelTeamQuery(config)}`,
       redirectGuardInit({ headers: { Authorization: `Bearer ${config.token}` } }),
+      { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
     );
     assertNotRedirected(resp, 'Vercel deployment status poll');
     let json: JsonObject;

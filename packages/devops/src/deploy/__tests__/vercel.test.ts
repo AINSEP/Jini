@@ -77,6 +77,33 @@ describe('VercelDeployTarget.publish', () => {
     expect(result.url).toBe('https://demo-abc123.vercel.app');
   });
 
+  it('bounds both the create-deployment call and the status-poll call with a timeout signal, so a stalled Vercel response cannot hang a publish forever', async () => {
+    const createBody = { id: 'dpl_1', readyState: 'QUEUED', url: 'demo-abc123.vercel.app' };
+    const readyBody = { id: 'dpl_1', readyState: 'READY', url: 'demo-abc123.vercel.app' };
+    let createSignal: AbortSignal | null | undefined;
+    let pollSignal: AbortSignal | null | undefined;
+
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        createSignal = init?.signal;
+        return jsonResponse(200, createBody);
+      }
+      if (String(input).includes('/v13/deployments/dpl_1')) {
+        pollSignal = init?.signal;
+        return jsonResponse(200, readyBody);
+      }
+      // Reachability probe against the deployment URL — a different, already-protected call site.
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const target = new VercelDeployTarget({ token: 'tok' });
+    await target.publish({ files: [{ file: 'index.html', data: '<html></html>' }], projectName: 'demo' });
+
+    expect(createSignal).toBeInstanceOf(AbortSignal);
+    expect(pollSignal).toBeInstanceOf(AbortSignal);
+  });
+
   it('throws DeployError when Vercel reports readyState ERROR', async () => {
     const createBody = { id: 'dpl_2', readyState: 'QUEUED', url: 'demo.vercel.app' };
     const errorBody = { id: 'dpl_2', readyState: 'ERROR', error: { message: 'Build failed' } };
