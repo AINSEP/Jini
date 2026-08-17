@@ -272,6 +272,8 @@ describe('createDaemonAttachmentUploader', () => {
       method: 'DELETE',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ batchId: 'batch-partial', paths: [uploadedFile.path] }),
+      // fetchWithTimeout composes its own timeout AbortSignal in — see fetch-with-timeout.ts.
+      signal: expect.any(AbortSignal),
     });
   });
 

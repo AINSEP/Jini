@@ -28,6 +28,7 @@
  * daemon then claims, draining the request stream before the upload route can read a byte. A fixed
  * octet-stream type is immune to every body parser.
  */
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import type { ChatAttachment } from '@jini-ai/chat/core';
 import type { ChatPaneAttachmentUploadOptions, ChatPaneProps } from './types.js';
 
@@ -151,11 +152,19 @@ export function createDaemonAttachmentUploader(
   ): Promise<void> {
     if (attachments.length === 0) return;
     try {
-      await fetch(endpoint, {
-        method: 'DELETE',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ batchId, paths: attachments.map((attachment) => attachment.path) }),
-      });
+      // QUICK, not `uploadOne`'s own composed timeout: unlike the upload itself, this has no
+      // caller-supplied signal to compose with and no large body — it is a small best-effort JSON
+      // DELETE, and an unprotected `fetch` here would hang `uploadAttachments`'s rejection (the
+      // `await` below) on a stalled daemon instead of surfacing `firstError` promptly.
+      await fetchWithTimeout(
+        endpoint,
+        {
+          method: 'DELETE',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ batchId, paths: attachments.map((attachment) => attachment.path) }),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      );
     } catch {
       // Best effort by design: the daemon expires unclaimed uploads on its own, so a failed cleanup
       // costs disk until the TTL rather than leaking indefinitely. Never worth failing the turn for.
