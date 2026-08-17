@@ -11,10 +11,13 @@ export default defineConfig({
         ...coverageConfigDefaults.exclude,
         'src/**/*.test.ts',
         'src/**/__tests__/**',
-        // Zero-executable-statement file: pure `interface`/`type` declarations that fully erase
-        // at compile time. Same documented carve-out precedent as packages/infra's
-        // src/db/core/ports.ts, not a coverage dodge.
+        // Zero-executable-statement files: pure `interface`/`type` declarations that fully erase
+        // at compile time. Verified with `grep -nE '^(export )?(const|function|class|let|var) '`
+        // finding no runtime declaration in any of the three — same documented carve-out
+        // precedent as packages/infra's src/db/core/ports.ts, not a coverage dodge.
         'src/core/ports.ts',
+        'src/core/index.ts',
+        'src/e2b/e2b-sandbox-handle.ts',
       ],
       thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
     },
