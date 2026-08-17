@@ -1,6 +1,11 @@
 import { createServer, type Server } from 'node:http';
-import { describe, expect, it, vi } from 'vitest';
-import { closeHttpServer, DEFAULT_DAEMON_BIND_HOST, normalizeDaemonBindHost } from '../host-bootstrap.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  closeHttpServer,
+  DEFAULT_DAEMON_BIND_HOST,
+  installGracefulShutdown,
+  normalizeDaemonBindHost,
+} from '../host-bootstrap.js';
 
 describe('normalizeDaemonBindHost', () => {
   it('trims and returns a well-formed host string', () => {
@@ -163,5 +168,134 @@ describe('closeHttpServer', () => {
     closeCallback?.();
     closeCallback?.(new Error('should be ignored — already resolved'));
     await expect(closePromise).resolves.toBeUndefined();
+  });
+});
+
+describe('installGracefulShutdown', () => {
+  // `process.emit(signal)` invokes whatever JS listeners are currently registered for that event
+  // name — the same mechanism `installGracefulShutdown` itself uses to install them — without going
+  // through the OS. Node's real default-terminate-on-SIGTERM/SIGINT behavior is driven by the actual
+  // OS signal delivery, not by this event-emitter call, so this is safe to fire inside the test
+  // process itself. Every handle installed below is torn down in `afterEach` so a listener never
+  // leaks into a later test.
+  const installed: Array<{ uninstall(): void }> = [];
+  afterEach(() => {
+    while (installed.length > 0) installed.pop()?.uninstall();
+  });
+
+  it('defaults to listening on both SIGTERM and SIGINT', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const onExit = vi.fn();
+    installed.push(installGracefulShutdown(stop, { onExit }));
+
+    process.emit('SIGTERM');
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(onExit).toHaveBeenCalledWith(0);
+  });
+
+  it('reacts to SIGINT too', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const onExit = vi.fn();
+    installed.push(installGracefulShutdown(stop, { onExit }));
+
+    process.emit('SIGINT');
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
+
+  it('only listens on the caller-supplied signal list, not the default pair', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const onExit = vi.fn();
+    installed.push(installGracefulShutdown(stop, { signals: ['SIGTERM'], onExit }));
+
+    process.emit('SIGINT');
+    // No caller-observable way to "wait for nothing to happen"; a short real-timer tick is enough
+    // to let a wrongly-installed SIGINT listener's async chain start.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(stop).not.toHaveBeenCalled();
+    expect(onExit).not.toHaveBeenCalled();
+  });
+
+  it('is re-entrant: a second signal while shutdown is already in flight does not call stop() again or hang', async () => {
+    let resolveStop: (() => void) | undefined;
+    const stop = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveStop = resolve;
+        }),
+    );
+    const onExit = vi.fn();
+    installed.push(installGracefulShutdown(stop, { onExit }));
+
+    process.emit('SIGTERM');
+    await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
+    // Second and third signals arrive while the first `stop()` call is still pending.
+    process.emit('SIGTERM');
+    process.emit('SIGINT');
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(onExit).not.toHaveBeenCalled();
+
+    resolveStop?.();
+    await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
+    expect(stop).toHaveBeenCalledTimes(1);
+    expect(onExit).toHaveBeenCalledWith(0);
+  });
+
+  it('calls onExit with a non-zero code and logs when stop() rejects', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const stop = vi.fn().mockRejectedValue(new Error('teardown failed'));
+      const onExit = vi.fn();
+      installed.push(installGracefulShutdown(stop, { onExit }));
+
+      process.emit('SIGTERM');
+      await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
+      expect(onExit).toHaveBeenCalledWith(1);
+      expect(consoleError).toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
+  });
+
+  it('forces exit once timeoutMs elapses without stop() ever settling, and ignores the late settlement', async () => {
+    vi.useFakeTimers();
+    try {
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      let resolveStop: (() => void) | undefined;
+      const stop = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveStop = resolve;
+          }),
+      );
+      const onExit = vi.fn();
+      installed.push(installGracefulShutdown(stop, { timeoutMs: 1000, onExit }));
+
+      process.emit('SIGTERM');
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(onExit).toHaveBeenCalledTimes(1);
+      expect(onExit).toHaveBeenCalledWith(1);
+
+      // `stop()` finally settling after the forced exit must not call `onExit` a second time.
+      resolveStop?.();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(onExit).toHaveBeenCalledTimes(1);
+      consoleError.mockRestore();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uninstall() removes the listeners so a later signal is a no-op', async () => {
+    const stop = vi.fn().mockResolvedValue(undefined);
+    const onExit = vi.fn();
+    const handle = installGracefulShutdown(stop, { onExit });
+    handle.uninstall();
+
+    process.emit('SIGTERM');
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(stop).not.toHaveBeenCalled();
+    expect(onExit).not.toHaveBeenCalled();
   });
 });

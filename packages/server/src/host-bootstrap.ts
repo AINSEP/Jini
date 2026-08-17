@@ -84,3 +84,106 @@ export async function closeHttpServer(server: Server, options: CloseHttpServerOp
     server.closeIdleConnections?.();
   });
 }
+
+export interface GracefulShutdownOptions {
+  /** OS signals to listen for. Defaults to `['SIGTERM', 'SIGINT']` — the two a container runtime,
+   * process manager, or an operator's `kill`/Ctrl-C ordinarily send to stop a long-lived daemon. */
+  signals?: readonly NodeJS.Signals[];
+  /** Hard ceiling, from the first signal, before forcing exit even if `stop()` never settles — a
+   * wedged shutdown must not block the process from ever exiting. Defaults to 10000ms (Docker's own
+   * default grace period before it escalates to `SIGKILL`). */
+  timeoutMs?: number;
+  /** Called exactly once, with `0` if `stop()` resolved or `1` if it rejected or the timeout fired
+   * first. Defaults to `process.exit`. Override to observe or customize the final step (tests always
+   * do this — calling the real `process.exit` from a unit test would kill the test runner). */
+  onExit?: (code: number) => void;
+}
+
+export interface GracefulShutdownHandle {
+  /** Removes the installed signal listeners. A later signal is then a plain no-op — Node's own
+   * default behavior applies again, exactly as if this had never been called. */
+  uninstall(): void;
+}
+
+/**
+ * Wires `stop` to the process's OS shutdown signals so a container stop, process-manager restart, or
+ * operator `kill`/Ctrl-C runs the caller's graceful teardown instead of Node's default immediate
+ * termination. Deliberately opt-in rather than something `createLocalNodeDaemon` installs on every
+ * caller's behalf: a library that unilaterally seizes process-global signal handling can surprise an
+ * embedding host that manages its own process lifecycle (an Electron shell, for one, already owns
+ * its own fatal-exception handling and — per `desktop-host`'s own sidecar shutdown path — asks a
+ * spawned daemon child to stop over HTTP and falls back to `SIGKILL`, never `SIGTERM`, so it neither
+ * needs nor should double up on this). One line at the host's own entrypoint —
+ * `installGracefulShutdown(daemon.stop)` — is the whole integration.
+ *
+ * Idempotent and re-entrant: a second signal that arrives while a shutdown from the first is still
+ * in flight is ignored outright (not queued, not a second `stop()` call) — the in-flight shutdown
+ * (or, past `timeoutMs`, the forced exit) is left to finish on its own.
+ *
+ * @param stop - The caller's own graceful-shutdown function, e.g. a `LocalNodeDaemon.stop`.
+ * @param options - See {@link GracefulShutdownOptions}.
+ * @returns A handle whose `uninstall()` removes the installed listeners.
+ * @complexity O(1) to install; the signal handler itself is O(1) plus whatever `stop` costs.
+ */
+export function installGracefulShutdown(
+  stop: () => Promise<void>,
+  options: GracefulShutdownOptions = {},
+): GracefulShutdownHandle {
+  const signals = options.signals ?? ['SIGTERM', 'SIGINT'];
+  const timeoutMs = options.timeoutMs ?? 10_000;
+  const onExit = options.onExit ?? ((code: number) => process.exit(code));
+
+  let shuttingDown = false;
+
+  const handleSignal = (signal: NodeJS.Signals): void => {
+    // A second signal while a shutdown is already in flight must not re-run `stop()` or restart the
+    // timeout — the first attempt (or its forced-exit fallback below) already owns getting the
+    // process to exit.
+    if (shuttingDown) return;
+    shuttingDown = true;
+
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      // eslint-disable-next-line no-console
+      console.error(
+        `[@jini-ai/server] graceful shutdown did not complete within ${timeoutMs}ms after ${signal}; forcing exit`,
+      );
+      onExit(1);
+    }, timeoutMs);
+    timer.unref?.();
+
+    void stop()
+      .catch((error: unknown) => {
+        // eslint-disable-next-line no-console
+        console.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, error);
+        // Re-thrown so the `.finally` below still distinguishes success from failure via rejection
+        // state rather than a second flag.
+        throw error;
+      })
+      .then(
+        () => {
+          if (timedOut) return;
+          clearTimeout(timer);
+          onExit(0);
+        },
+        () => {
+          if (timedOut) return;
+          clearTimeout(timer);
+          onExit(1);
+        },
+      );
+  };
+
+  for (const signal of signals) {
+    process.on(signal, handleSignal);
+  }
+
+  return {
+    uninstall(): void {
+      for (const signal of signals) {
+        process.off(signal, handleSignal);
+      }
+    },
+  };
+}
