@@ -22,12 +22,19 @@
 # so this step cannot fail CI as configured — it currently reports ~15.6k warnings. Turning that into
 # a real gate (à la Tovu's `apps/admin`-scoped `check:admin-complexity-drift` ratchet) is a
 # repo-wide initiative at a much larger scale than guard's 25, and deliberately out of scope here.
+#
+# 2026-08-17: `push: branches: [main]` meant this workflow had NEVER fired since it was added the
+# day before — all Jini work happens on `general-work` (Tovu and Jini are developed in lockstep on
+# same-named branches), which was already dozens of commits ahead with zero CI runs on any of them.
+# Identical bug to the one found and fixed in Tovu's own `ci.yml` the same evening. Fixed below:
+# `push` now watches every branch, so no future branch is silently unwatched the same way.
+# `pull_request` already had no `branches` filter, so PR-triggered runs were never affected.
 
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
   pull_request:
 
 concurrency:
