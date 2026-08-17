@@ -23,7 +23,7 @@ import {
 } from '@jini-ai/http-kit';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
-import { createFrontendControl, createLocalNodeDaemon } from '@jini-ai/server';
+import { createFrontendControl, createLocalNodeDaemon, installGracefulShutdown } from '@jini-ai/server';
 import { CHAT_CAPABILITIES } from '@jini-ai/chat/core';
 import { PAGE_CAPABILITIES } from '@jini-ai/agentic';
 import type { RunAgentPayload } from '@jini-ai/protocol';
@@ -662,15 +662,15 @@ async function main(): Promise<void> {
 
   console.log(`[Jini Playground] daemon ready at ${daemon.url}`);
   console.log(`[A2UI Lab] action relay ready at http://127.0.0.1:${A2UI_ACTION_PORT}`);
-  let stopping = false;
-  const stop = () => {
-    if (stopping) return;
-    stopping = true;
+  // `@jini-ai/server`'s installGracefulShutdown, not a hand-rolled SIGINT/SIGTERM pair: same
+  // idempotent-on-a-second-signal behavior this file used to implement itself, plus a 10s
+  // forced-exit fallback (matching Docker's own SIGTERM grace period) if `daemon.stop()` ever
+  // wedges — the old flag-guarded `stop` had no such fallback and could hang the process forever
+  // on a stuck teardown.
+  installGracefulShutdown(async () => {
     a2uiActionRelay.close();
-    void daemon.stop().finally(() => process.exit(0));
-  };
-  process.once('SIGINT', stop);
-  process.once('SIGTERM', stop);
+    await daemon.stop();
+  });
 }
 
 void main().catch((error: unknown) => {
