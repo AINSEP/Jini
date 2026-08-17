@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import { checkDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
 import { safeDnsLabel } from './naming.js';
 import {
@@ -342,7 +343,7 @@ async function fetchCloudflarePaginatedResult(
   const results: JsonObject[] = [];
   const perPage = options.perPage || CLOUDFLARE_API_PAGE_SIZE;
   for (let page = 1; page <= CLOUDFLARE_API_MAX_PAGES; page += 1) {
-    const resp = await fetch(buildUrl(page, perPage), { headers: cloudflareHeaders(config) });
+    const resp = await fetchWithTimeout(buildUrl(page, perPage), { headers: cloudflareHeaders(config) }, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
     const json = await readCloudflareJson(resp);
     if (!resp.ok || json?.success === false) throw cloudflareError(json, resp.status, fallback);
     const pageItems = Array.isArray(json?.result) ? (json.result as JsonObject[]) : [];
@@ -397,20 +398,32 @@ export async function listCloudflarePagesZones(config: CloudflarePagesDeployConf
 }
 
 async function ensureCloudflarePagesProject(config: ResolvedConfig): Promise<JsonObject> {
-  const getResp = await fetch(cloudflarePagesProjectUrl(config), { headers: cloudflareHeaders(config) });
+  const getResp = await fetchWithTimeout(
+    cloudflarePagesProjectUrl(config),
+    { headers: cloudflareHeaders(config) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const found = await readCloudflareJson(getResp);
   if (getResp.ok && found?.success !== false) return (found?.result as JsonObject) ?? found;
   if (getResp.status !== 404) throw cloudflareError(found, getResp.status, 'Cloudflare Pages project lookup failed.');
 
-  const createResp = await fetch(cloudflareAccountPagesProjectsUrl(config), {
-    method: 'POST',
-    headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ name: config.projectName, production_branch: 'main' }),
-  });
+  const createResp = await fetchWithTimeout(
+    cloudflareAccountPagesProjectsUrl(config),
+    {
+      method: 'POST',
+      headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name: config.projectName, production_branch: 'main' }),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
+  );
   const created = await readCloudflareJson(createResp);
   if (!createResp.ok || created?.success === false) {
     if (isCloudflareAlreadyExists(created)) {
-      const retryResp = await fetch(cloudflarePagesProjectUrl(config), { headers: cloudflareHeaders(config) });
+      const retryResp = await fetchWithTimeout(
+        cloudflarePagesProjectUrl(config),
+        { headers: cloudflareHeaders(config) },
+        { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+      );
       const retryFound = await readCloudflareJson(retryResp);
       if (retryResp.ok && retryFound?.success !== false) return (retryFound?.result as JsonObject) ?? retryFound;
     }
@@ -420,7 +433,11 @@ async function ensureCloudflarePagesProject(config: ResolvedConfig): Promise<Jso
 }
 
 async function getCloudflarePagesUploadToken(config: ResolvedConfig): Promise<string> {
-  const tokenResp = await fetch(cloudflarePagesProjectUrl(config, 'upload-token'), { headers: cloudflareHeaders(config) });
+  const tokenResp = await fetchWithTimeout(
+    cloudflarePagesProjectUrl(config, 'upload-token'),
+    { headers: cloudflareHeaders(config) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const tokenBody = await readCloudflareJson(tokenResp);
   const jwt = (tokenBody?.result as JsonObject | undefined)?.jwt || tokenBody?.jwt;
   if (!tokenResp.ok || tokenBody?.success === false || !jwt) {
@@ -430,11 +447,15 @@ async function getCloudflarePagesUploadToken(config: ResolvedConfig): Promise<st
 }
 
 async function cloudflarePagesMissingAssetHashes(uploadToken: string, hashes: string[]): Promise<string[]> {
-  const resp = await fetch(`${CLOUDFLARE_API}/pages/assets/check-missing`, {
-    method: 'POST',
-    headers: cloudflareAssetHeaders(uploadToken, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ hashes }),
-  });
+  const resp = await fetchWithTimeout(
+    `${CLOUDFLARE_API}/pages/assets/check-missing`,
+    {
+      method: 'POST',
+      headers: cloudflareAssetHeaders(uploadToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ hashes }),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const json = await readCloudflareJson(resp);
   if (!resp.ok || json?.success === false) throw cloudflareError(json, resp.status, 'Cloudflare Pages asset lookup failed.');
   const result = json?.result ?? json;
@@ -472,11 +493,15 @@ async function uploadCloudflarePagesAssets(uploadToken: string, files: DeployFil
         metadata: { contentType: file.contentType },
         base64: true,
       }));
-      const uploadResp = await fetch(`${CLOUDFLARE_API}/pages/assets/upload`, {
-        method: 'POST',
-        headers: cloudflareAssetHeaders(uploadToken, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify(payload),
-      });
+      const uploadResp = await fetchWithTimeout(
+        `${CLOUDFLARE_API}/pages/assets/upload`,
+        {
+          method: 'POST',
+          headers: cloudflareAssetHeaders(uploadToken, { 'Content-Type': 'application/json' }),
+          body: JSON.stringify(payload),
+        },
+        { timeoutMs: FETCH_TIMEOUT_MS.UPLOAD },
+      );
       const uploaded = await readCloudflareJson(uploadResp);
       if (!uploadResp.ok || uploaded?.success === false) {
         throw cloudflareError(uploaded, uploadResp.status, 'Cloudflare Pages asset upload failed.');
@@ -484,11 +509,15 @@ async function uploadCloudflarePagesAssets(uploadToken: string, files: DeployFil
     }
   }
 
-  const upsertResp = await fetch(`${CLOUDFLARE_API}/pages/assets/upsert-hashes`, {
-    method: 'POST',
-    headers: cloudflareAssetHeaders(uploadToken, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ hashes }),
-  });
+  const upsertResp = await fetchWithTimeout(
+    `${CLOUDFLARE_API}/pages/assets/upsert-hashes`,
+    {
+      method: 'POST',
+      headers: cloudflareAssetHeaders(uploadToken, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ hashes }),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const upserted = await readCloudflareJson(upsertResp);
   if (!upsertResp.ok || upserted?.success === false) {
     throw cloudflareError(upserted, upsertResp.status, 'Cloudflare Pages asset hash update failed.');
@@ -518,7 +547,11 @@ async function validateCloudflarePagesDeploySelection(
   selection: ReturnType<typeof normalizeCloudflarePagesDeploySelection>,
 ) {
   if (!selection) return null;
-  const resp = await fetch(`${CLOUDFLARE_API}/zones/${encodeURIComponent(selection.zoneId)}`, { headers: cloudflareHeaders(config) });
+  const resp = await fetchWithTimeout(
+    `${CLOUDFLARE_API}/zones/${encodeURIComponent(selection.zoneId)}`,
+    { headers: cloudflareHeaders(config) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const json = await readCloudflareJson(resp);
   if (!resp.ok || json?.success === false) throw cloudflareError(json, resp.status, 'Cloudflare zone lookup failed.');
   const zone = (json?.result as JsonObject | undefined) ?? json;
@@ -537,29 +570,41 @@ async function validateCloudflarePagesDeploySelection(
 
 async function listCloudflareDnsRecords(config: ResolvedConfig, zoneId: string, hostname: string): Promise<CloudflareDnsRecord[]> {
   const params = new URLSearchParams({ name: hostname, per_page: '100' });
-  const resp = await fetch(`${cloudflareZoneDnsRecordsUrl(zoneId)}?${params.toString()}`, { headers: cloudflareHeaders(config) });
+  const resp = await fetchWithTimeout(
+    `${cloudflareZoneDnsRecordsUrl(zoneId)}?${params.toString()}`,
+    { headers: cloudflareHeaders(config) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const json = await readCloudflareJson(resp);
   if (!resp.ok || json?.success === false) throw cloudflareError(json, resp.status, 'Cloudflare DNS record lookup failed.');
   return Array.isArray(json?.result) ? (json.result as CloudflareDnsRecord[]) : [];
 }
 
 async function createCloudflareDnsRecord(config: ResolvedConfig, zoneId: string, body: JsonObject): Promise<JsonObject> {
-  const resp = await fetch(cloudflareZoneDnsRecordsUrl(zoneId), {
-    method: 'POST',
-    headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify(body),
-  });
+  const resp = await fetchWithTimeout(
+    cloudflareZoneDnsRecordsUrl(zoneId),
+    {
+      method: 'POST',
+      headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const json = await readCloudflareJson(resp);
   if (!resp.ok || json?.success === false) throw cloudflareError(json, resp.status, 'Cloudflare DNS record creation failed.');
   return (json?.result as JsonObject) ?? json;
 }
 
 async function patchCloudflareDnsRecord(config: ResolvedConfig, zoneId: string, dnsRecordId: string, body: JsonObject): Promise<JsonObject> {
-  const resp = await fetch(`${cloudflareZoneDnsRecordsUrl(zoneId)}/${encodeURIComponent(dnsRecordId)}`, {
-    method: 'PATCH',
-    headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify(body),
-  });
+  const resp = await fetchWithTimeout(
+    `${cloudflareZoneDnsRecordsUrl(zoneId)}/${encodeURIComponent(dnsRecordId)}`,
+    {
+      method: 'PATCH',
+      headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const json = await readCloudflareJson(resp);
   if (!resp.ok || json?.success === false) throw cloudflareError(json, resp.status, 'Cloudflare DNS record update failed.');
   return (json?.result as JsonObject) ?? json;
@@ -714,7 +759,11 @@ async function ensureCloudflarePagesCnameRecord(input: {
 async function findCloudflarePagesDomain(config: ResolvedConfig, hostname: string): Promise<JsonObject | null> {
   const normalizedHostname = normalizeHostname(hostname);
   if (!normalizedHostname) return null;
-  const resp = await fetch(cloudflarePagesProjectDomainUrl(config, normalizedHostname), { headers: cloudflareHeaders(config) });
+  const resp = await fetchWithTimeout(
+    cloudflarePagesProjectDomainUrl(config, normalizedHostname),
+    { headers: cloudflareHeaders(config) },
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
+  );
   const json = await readCloudflareJson(resp);
   if (resp.status === 404) return null;
   if (!resp.ok || json?.success === false) throw cloudflareError(json, resp.status, 'Cloudflare Pages custom domain lookup failed.');
@@ -726,11 +775,15 @@ async function ensureCloudflarePagesDomain(config: ResolvedConfig, hostname: str
   const existing = await findCloudflarePagesDomain(config, hostname);
   if (existing) return existing;
 
-  const resp = await fetch(cloudflarePagesProjectUrl(config, 'domains'), {
-    method: 'POST',
-    headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ name: hostname }),
-  });
+  const resp = await fetchWithTimeout(
+    cloudflarePagesProjectUrl(config, 'domains'),
+    {
+      method: 'POST',
+      headers: cloudflareHeaders(config, { 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ name: hostname }),
+    },
+    { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
+  );
   const json = await readCloudflareJson(resp);
   if (!resp.ok || json?.success === false) {
     if (isCloudflareAlreadyExists(json)) {
@@ -972,11 +1025,15 @@ export class CloudflarePagesDeployTarget implements DeployTarget {
     form.append('manifest', JSON.stringify(manifest));
     form.append('branch', 'main');
 
-    const deployResp = await fetch(cloudflarePagesProjectUrl(config, 'deployments'), {
-      method: 'POST',
-      headers: cloudflareHeaders(config),
-      body: form,
-    });
+    const deployResp = await fetchWithTimeout(
+      cloudflarePagesProjectUrl(config, 'deployments'),
+      {
+        method: 'POST',
+        headers: cloudflareHeaders(config),
+        body: form,
+      },
+      { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
+    );
     const deployed = await readCloudflareJson(deployResp);
     if (!deployResp.ok || deployed?.success === false) {
       throw cloudflareError(deployed, deployResp.status, 'Cloudflare Pages deployment failed.');

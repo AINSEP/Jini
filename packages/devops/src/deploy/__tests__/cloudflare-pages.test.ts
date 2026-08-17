@@ -140,6 +140,19 @@ describe('listCloudflarePagesZones', () => {
     const { zones } = await listCloudflarePagesZones({ token: 'tok', accountId: 'acct' });
     expect(zones).toEqual([]);
   });
+
+  it('bounds the zones-listing page fetch with a timeout signal', async () => {
+    let seenSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: string, init?: RequestInit) => {
+        seenSignal = init?.signal;
+        return jsonResponse(200, { success: true, result: [], result_info: { count: 0, per_page: 100 } });
+      }),
+    );
+    await listCloudflarePagesZones({ token: 'tok', accountId: 'acct' });
+    expect(seenSignal).toBeInstanceOf(AbortSignal);
+  });
 });
 
 describe('CloudflarePagesDeployTarget.publish', () => {
@@ -241,6 +254,60 @@ describe('CloudflarePagesDeployTarget.publish', () => {
     expect(calls.some((c) => c.includes('jini-demo-site'))).toBe(true);
   });
 
+  it('bounds every call in the project-ensure -> upload-token -> asset-upload -> deploy chain with a timeout signal', async () => {
+    const signals: Record<string, AbortSignal | null | undefined> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('/pages/projects/') && url.endsWith('jini-demo-site') && (!init?.method || init.method === 'GET')) {
+          signals.projectLookup = init?.signal;
+          return jsonResponse(404, { success: false });
+        }
+        if (url.endsWith('/pages/projects') && init?.method === 'POST') {
+          signals.projectCreate = init?.signal;
+          return jsonResponse(200, { success: true, result: { name: 'jini-demo-site' } });
+        }
+        if (url.endsWith('/upload-token')) {
+          signals.uploadToken = init?.signal;
+          return jsonResponse(200, { success: true, result: { jwt: 'upload-jwt' } });
+        }
+        if (url.endsWith('/pages/assets/check-missing')) {
+          signals.checkMissing = init?.signal;
+          const body = JSON.parse(String(init?.body));
+          return jsonResponse(200, { success: true, result: body.hashes });
+        }
+        if (url.endsWith('/pages/assets/upload')) {
+          signals.assetUpload = init?.signal;
+          return jsonResponse(200, { success: true });
+        }
+        if (url.endsWith('/pages/assets/upsert-hashes')) {
+          signals.upsertHashes = init?.signal;
+          return jsonResponse(200, { success: true });
+        }
+        if (url.endsWith('/deployments') && init?.method === 'POST') {
+          signals.createDeployment = init?.signal;
+          return jsonResponse(200, { success: true, result: { id: 'depl_1', url: 'jini-demo-site.pages.dev' } });
+        }
+        // Reachability probe — a different, already-protected call site.
+        return new Response('', { status: 200 });
+      }),
+    );
+
+    const target = new CloudflarePagesDeployTarget({ token: 'tok', accountId: 'acct' });
+    await target.publish({
+      files: [{ file: 'index.html', data: '<html></html>', contentType: 'text/html' }],
+      projectName: 'Demo Site!!',
+    });
+
+    expect(Object.keys(signals).sort()).toEqual(
+      ['assetUpload', 'checkMissing', 'createDeployment', 'projectCreate', 'projectLookup', 'uploadToken', 'upsertHashes'].sort(),
+    );
+    for (const [name, signal] of Object.entries(signals)) {
+      expect(signal, `${name} should carry a timeout AbortSignal`).toBeInstanceOf(AbortSignal);
+    }
+  });
+
   it('reuses an existing Cloudflare Pages project when the initial GET already finds it (no 404/create round-trip)', async () => {
     const calls: string[] = [];
     vi.stubGlobal(
@@ -295,6 +362,37 @@ describe('CloudflarePagesDeployTarget.publish', () => {
     const target = new CloudflarePagesDeployTarget({ token: 'tok', accountId: 'acct' });
     const result = await target.publish({ files: [], projectName: 'demo' });
     expect(result.status).toBe('ready');
+  });
+
+  it('bounds the retry-after-conflict project lookup with a timeout signal too', async () => {
+    let projectLookups = 0;
+    let retryLookupSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = String(input);
+        if (/\/pages\/projects\/[^/]+$/.test(url) && (!init?.method || init.method === 'GET')) {
+          projectLookups += 1;
+          if (projectLookups === 2) retryLookupSignal = init?.signal;
+          return projectLookups === 1 ? jsonResponse(404, { success: false }) : jsonResponse(200, { success: true, result: { name: 'jini-demo' } });
+        }
+        if (url.endsWith('/pages/projects') && init?.method === 'POST') {
+          return jsonResponse(409, { success: false, errors: [{ message: 'a project with this name already exists' }] });
+        }
+        if (url.endsWith('/upload-token')) return jsonResponse(200, { success: true, result: { jwt: 'jwt' } });
+        if (url.endsWith('/pages/assets/check-missing')) return jsonResponse(200, { success: true, result: [] });
+        if (url.endsWith('/pages/assets/upsert-hashes')) return jsonResponse(200, { success: true });
+        if (url.endsWith('/deployments') && init?.method === 'POST') {
+          return jsonResponse(200, { success: true, result: { id: 'd1', url: 'jini-demo.pages.dev' } });
+        }
+        if (url.startsWith('https://jini-demo.pages.dev')) return new Response('', { status: 200 });
+        throw new Error(`Unexpected fetch call: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+    const target = new CloudflarePagesDeployTarget({ token: 'tok', accountId: 'acct' });
+    await target.publish({ files: [], projectName: 'demo' });
+    expect(projectLookups).toBe(2);
+    expect(retryLookupSignal).toBeInstanceOf(AbortSignal);
   });
 
   it('throws the underlying error when project creation fails for a reason other than "already exists"', async () => {
@@ -543,6 +641,54 @@ describe('CloudflarePagesDeployTarget.publish — custom domain', () => {
       dnsOwnership: 'marked',
       domainStatus: 'active',
     });
+  });
+
+  it('bounds every custom-domain call (zone validation, DNS list/create, Pages domain lookup/create) with a timeout signal', async () => {
+    const signals: Record<string, AbortSignal | null | undefined> = {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = String(input);
+        const base = baseHandlers(url, init, []);
+        if (base) return base;
+        if (url.includes('/zones/zone1') && !url.includes('dns_records')) {
+          signals.zoneLookup = init?.signal;
+          return jsonResponse(200, { success: true, result: { name: 'example.com', status: 'active', type: 'full' } });
+        }
+        if (url.includes('/zones/zone1/dns_records') && (!init?.method || init.method === 'GET')) {
+          signals.dnsRecordsList = init?.signal;
+          return jsonResponse(200, { success: true, result: [] });
+        }
+        if (url.includes('/zones/zone1/dns_records') && init?.method === 'POST') {
+          signals.dnsRecordCreate = init?.signal;
+          return jsonResponse(200, { success: true, result: { id: 'dns-1' } });
+        }
+        if (url.includes('/domains/demo.example.com')) {
+          signals.domainLookup = init?.signal;
+          return jsonResponse(404, { success: false });
+        }
+        if (url.endsWith('/domains') && init?.method === 'POST') {
+          signals.domainCreate = init?.signal;
+          return jsonResponse(200, { success: true, result: { name: 'demo.example.com', status: 'active' } });
+        }
+        if (url.startsWith('https://demo.example.com')) return new Response('', { status: 200 });
+        throw new Error(`Unexpected fetch call: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+
+    const target = new CloudflarePagesDeployTarget({ token: 'tok', accountId: 'acct' });
+    await target.publish({
+      files: [],
+      projectName: 'demo',
+      metadata: { customDomain: { zoneId: 'zone1', zoneName: 'example.com', domainPrefix: 'demo' } },
+    });
+
+    expect(Object.keys(signals).sort()).toEqual(
+      ['dnsRecordCreate', 'dnsRecordsList', 'domainCreate', 'domainLookup', 'zoneLookup'].sort(),
+    );
+    for (const [name, signal] of Object.entries(signals)) {
+      expect(signal, `${name} should carry a timeout AbortSignal`).toBeInstanceOf(AbortSignal);
+    }
   });
 
   it('reuses an existing exact CNAME record and an already-active Pages domain (idempotent republish)', async () => {
@@ -1743,6 +1889,48 @@ describe('CloudflarePagesDeployTarget.publish — custom domain: DNS record reus
       status: 'ready',
     });
     expect(patchedBody).toMatchObject({ type: 'CNAME', name: 'demo.example.com', content: 'jini-demo.pages.dev', comment: marker });
+  });
+
+  it('bounds the PATCH DNS-record-reuse call with a timeout signal too', async () => {
+    const marker = expectedCloudflareDnsMarker('jini-demo', 'jini-demo.pages.dev');
+    let patchSignal: AbortSignal | null | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = String(input);
+        const base = baseHandlers3(url, init);
+        if (base) return base;
+        if (url.includes('/zones/zone1/dns_records') && (!init?.method || init.method === 'GET')) {
+          return jsonResponse(200, {
+            success: true,
+            result: [
+              { id: 'prior-record-id', type: 'CNAME', name: 'demo.example.com', content: 'stale-target.pages.dev', comment: marker },
+            ],
+          });
+        }
+        if (url.includes('/zones/zone1/dns_records/prior-record-id') && init?.method === 'PATCH') {
+          patchSignal = init?.signal;
+          return jsonResponse(200, { success: true, result: { id: 'prior-record-id' } });
+        }
+        if (url.includes('/domains/demo.example.com')) return jsonResponse(404, { success: false });
+        if (url.endsWith('/domains') && init?.method === 'POST') {
+          return jsonResponse(200, { success: true, result: { name: 'demo.example.com', status: 'active' } });
+        }
+        if (url.startsWith('https://demo.example.com')) return new Response('', { status: 200 });
+        throw new Error(`Unexpected fetch call: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+
+    const target = new CloudflarePagesDeployTarget({ token: 'tok', accountId: 'acct' });
+    await target.publish({
+      files: [],
+      projectName: 'demo',
+      metadata: {
+        customDomain: { zoneId: 'zone1', zoneName: 'example.com', domainPrefix: 'demo' },
+        priorCustomDomain: { dnsRecordId: 'prior-record-id', marker },
+      },
+    });
+    expect(patchSignal).toBeInstanceOf(AbortSignal);
   });
 
   it('reports a conflict (not a patch) when a same-name conflicting record has a missing/falsy `type` field', async () => {
