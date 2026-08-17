@@ -126,7 +126,7 @@ import type { AdapterContext } from './adapter.js';
 import { validationError } from './request.js';
 import { sendApiError } from './response.js';
 import { guardSameOrigin } from './origin.js';
-import { createSseChannel, type SseEvent } from './sse.js';
+import { createSseChannel, type SseChannel, type SseEvent } from './sse.js';
 import { err, ok, type Result } from './types.js';
 
 /** The union of every recognized provider's `run{Provider}ToolTurn` event type — what the `/api/proxy/:provider/stream` catch-all's registry (and, transitively, every fixed-path route) can emit. */
@@ -400,44 +400,65 @@ async function runProxyStream<ParsedRequest, TurnEvent extends { type: string }>
   parse: (body: unknown) => Result<ParsedRequest>,
   run: (parsed: ParsedRequest, onEvent: (event: TurnEvent) => void) => Promise<unknown>,
 ): Promise<void> {
-  const origin = guardSameOrigin(req, adapter);
-  if (!origin.ok) {
-    sendApiError(res, 403, origin.error);
-    return;
-  }
-  const parsed = parse(req.body);
-  if (!parsed.ok) {
-    sendApiError(res, 400, parsed.error);
-    return;
-  }
-
+  // Both `channel` and `seq` are declared ahead of the try so the catch block below can still
+  // reach them however far execution got — including a throw from `guardSameOrigin`/`parse`,
+  // before either exists yet.
   let seq = 0;
-  const channel = createSseChannel<ModelProxyStreamEvent>(res, { isEndEvent: (event) => event.kind === 'end' });
-  channel.open();
-
+  let channel: SseChannel<ModelProxyStreamEvent> | undefined;
   try {
-    await run(parsed.value, (event) => channel.enqueue(toStreamEvent(seq++, event as unknown as AnyProxyTurnEvent)));
+    const origin = guardSameOrigin(req, adapter);
+    if (!origin.ok) {
+      sendApiError(res, 403, origin.error);
+      return;
+    }
+    const parsed = parse(req.body);
+    if (!parsed.ok) {
+      sendApiError(res, 400, parsed.error);
+      return;
+    }
+
+    channel = createSseChannel<ModelProxyStreamEvent>(res, { isEndEvent: (event) => event.kind === 'end' });
+    channel.open();
+
+    await run(parsed.value, (event) => channel!.enqueue(toStreamEvent(seq++, event as unknown as AnyProxyTurnEvent)));
     // No `channel.end()` call here: every reachable exit path inside every turn-runner emits
     // exactly one `'end'`-kind event before its promise resolves (the duplicate-end-event fix —
     // see each provider module's own `turn-end-guard.ts` usage, and each function's own
     // `while (true)` loop, which cannot exit without first calling `emitEnd`), and `isEndEvent`
     // above already auto-closed the channel the instant that event was enqueued.
   } catch (error) {
+    // This catch now covers the whole handler, not just `run(...)`: neither caller of this
+    // function (`registerProxyStreamRoute`'s fixed routes, `registerGenericProxyStreamRoute`'s
+    // catch-all) awaits or `.catch()`s the promise this function returns — exactly how Express
+    // itself invokes every handler. `guardSameOrigin`/`parse` are Result-returning by contract and
+    // don't throw today, but nothing enforces that; if either ever did, the throw used to become
+    // an unhandled rejection with no process-level guard anywhere in this package's path, which is
+    // Node's documented crash-the-process default. See the paired regression test in
+    // `__tests__/model-proxy.test.ts`.
     const correlationId = randomUUID();
     onInternalError({ provider, correlationId, error });
-    // `enqueue` is a documented no-op once the channel is already closed (`sse.ts`), so these
-    // two synthetic events are safe to send unconditionally: normally the channel is still open
-    // here (an exception escaping `run` — e.g. a caller-supplied `executeTool` throwing — means
-    // no `'end'` event was ever emitted for this connection), and the synthetic `'end'`-kind
-    // event's own `isEndEvent` match closes the channel via the same path as a real one.
-    channel.enqueue(
-      toStreamEvent(seq++, {
-        type: 'error',
-        message: 'an internal error occurred',
-        code: correlationId,
-      } as unknown as AnyProxyTurnEvent),
-    );
-    channel.enqueue(toStreamEvent(seq++, { type: 'end', reason: 'error' } as unknown as AnyProxyTurnEvent));
+    if (channel) {
+      // `enqueue` is a documented no-op once the channel is already closed (`sse.ts`), so these
+      // two synthetic events are safe to send unconditionally: normally the channel is still open
+      // here (an exception escaping `run` — e.g. a caller-supplied `executeTool` throwing — means
+      // no `'end'` event was ever emitted for this connection), and the synthetic `'end'`-kind
+      // event's own `isEndEvent` match closes the channel via the same path as a real one.
+      channel.enqueue(
+        toStreamEvent(seq++, {
+          type: 'error',
+          message: 'an internal error occurred',
+          code: correlationId,
+        } as unknown as AnyProxyTurnEvent),
+      );
+      channel.enqueue(toStreamEvent(seq++, { type: 'end', reason: 'error' } as unknown as AnyProxyTurnEvent));
+    } else if (!res.headersSent) {
+      // The SSE channel was never opened (the throw happened before it), so no stream headers
+      // were ever committed — a normal JSON error response is still possible here, matching how
+      // `mountJsonRoute`'s own SEC-005 catch responds to a pre-response failure.
+      sendApiError(res, 500, createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId }));
+    } else if (!res.writableEnded) {
+      res.end();
+    }
   }
 }
 
