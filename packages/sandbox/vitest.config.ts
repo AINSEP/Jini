@@ -11,12 +11,13 @@ export default defineConfig({
         ...coverageConfigDefaults.exclude,
         'src/**/*.test.ts',
         'src/**/__tests__/**',
-        // Zero-executable-statement files: pure `interface`/`type` declarations that fully erase
+        // Zero-executable-statement file: pure `interface`/`type` declarations that fully erase
         // at compile time. Verified with `grep -nE '^(export )?(const|function|class|let|var) '`
-        // finding no runtime declaration in any of the three — same documented carve-out
-        // precedent as packages/infra's src/db/core/ports.ts, not a coverage dodge.
-        'src/core/ports.ts',
-        'src/core/index.ts',
+        // finding no runtime declaration — same documented carve-out precedent as
+        // packages/infra's src/db/core/ports.ts, not a coverage dodge. `src/core/ports.ts` and
+        // `src/core/index.ts` are NOT here despite mostly being types: both now carry the real
+        // `SandboxOperationError` class/re-export and are covered by
+        // src/core/__tests__/sandbox-operation-error.test.ts instead.
         'src/e2b/e2b-sandbox-handle.ts',
       ],
       thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
