@@ -124,6 +124,8 @@ export interface RunLifecycle {
 
 interface RunRecord {
   contextRef: string | undefined;
+  /** The idempotency key this run was started with, if any — retained (not just indexed) so terminal-retention eviction can clean its `idempotencyIndex` entry without a reverse lookup. */
+  idempotencyKey: string | undefined;
   status: {
     id: string;
     state: RunState;
@@ -144,6 +146,8 @@ interface RunRecord {
   startPromise: Promise<void> | undefined;
   /** Serializes concurrent terminal transitions while state remains non-terminal until the end append commits. */
   finishPromise: Promise<RunStatus> | undefined;
+  /** Armed while this run is terminal and retained, pending eviction from `runs`/`idempotencyIndex` — see the terminal-retention helpers below. `undefined` for a non-terminal run, or a terminal one `resume()` has reclaimed. */
+  retentionTimer: ReturnType<typeof setTimeout> | undefined;
 }
 
 /** Vocabulary-firewall bridge: `RunState` uses `'cancelled'` (extraction-plan §12 C5's own cited canary), `RunEndPayload.status` uses `'canceled'`. Both live in `@jini-ai/protocol`, which is out of scope for this task — bridged here rather than fixed upstream. */
@@ -241,6 +245,7 @@ function rehydratedRunRecord(
   return {
     record: {
       contextRef,
+      idempotencyKey,
       status: rehydratedStatus(runId, { startEntry, endEntry, firstEntry, lastEntry, terminal }),
       resumable: terminal?.resumable ?? false,
       cancelRequested: false,
@@ -252,6 +257,7 @@ function rehydratedRunRecord(
       watchdog: undefined,
       startPromise: undefined,
       finishPromise: undefined,
+      retentionTimer: undefined,
     },
     idempotencyKey,
     isTerminal: terminal !== null,
@@ -314,6 +320,38 @@ export function clearIdempotencyIndexEntryIfMatching(
   if (idempotencyKey !== undefined && idempotencyIndex.get(idempotencyKey) === runId) {
     idempotencyIndex.delete(idempotencyKey);
   }
+}
+
+/**
+ * Default terminal-run retention window: how long a completed/failed/cancelled run's in-memory
+ * record stays readable via `get`/`list`/`stream`/`resume` before eviction. `runs.set()` never had
+ * a matching `runs.delete()` for a run that finishes normally — every terminal run's record was kept
+ * for the daemon process's entire lifetime, unbounded by run volume or uptime. Terminal runs are
+ * still read after they end (status polling, run-history listing, stream reconnects), so the fix
+ * cannot be "delete on completion" — this bounds *how long* a terminal record survives instead of
+ * deleting it immediately. 24h comfortably covers same-day polling/listing/reconnect without
+ * retaining every run a long-lived daemon ever processed.
+ */
+export const DEFAULT_TERMINAL_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Default hard cap on concurrently-retained terminal run records, independent of
+ * {@link DEFAULT_TERMINAL_RETENTION_MS} — the oldest terminal record is evicted once this is
+ * exceeded. A TTL alone does not bound memory when runs complete faster than they age out (a burst
+ * arriving within the retention window keeps growing); this cap gives a true worst-case bound
+ * regardless of arrival rate.
+ */
+export const DEFAULT_MAX_TERMINAL_RUNS = 1000;
+
+/**
+ * How long a just-terminal run should remain retained before its eviction timer fires: `retentionMs`
+ * minus however much of that window has already elapsed since `terminalAt`. Floored at `0` so a run
+ * that was already past its retention window when this is computed (relevant for `rehydrate()`,
+ * where a run may have gone terminal long before this process started) schedules an immediate
+ * eviction rather than a negative-delay timer. Pure.
+ */
+export function computeRetentionDelayMs(terminalAt: number, retentionMs: number, now: number): number {
+  return Math.max(0, retentionMs - (now - terminalAt));
 }
 
 /** The durable `'start'` entry's payload — pure field mapping, split out of `start()` so its two optional-field spreads don't count toward that method's own complexity. */
@@ -405,9 +443,14 @@ export function finishStreamSubscription(
  * function purely so `start()` itself reads as "build the record, register it" rather than an
  * 11-field literal inline.
  */
-function buildNewRunRecord(startInput: Pick<StartRunInput, 'contextRef'>, runId: string, now: number): RunRecord {
+function buildNewRunRecord(
+  startInput: Pick<StartRunInput, 'contextRef' | 'idempotencyKey'>,
+  runId: string,
+  now: number,
+): RunRecord {
   return {
     contextRef: startInput.contextRef,
+    idempotencyKey: startInput.idempotencyKey,
     status: { id: runId, state: 'running', startedAt: now, updatedAt: now, endedAt: undefined },
     resumable: false,
     cancelRequested: false,
@@ -419,6 +462,7 @@ function buildNewRunRecord(startInput: Pick<StartRunInput, 'contextRef'>, runId:
     watchdog: undefined,
     startPromise: undefined,
     finishPromise: undefined,
+    retentionTimer: undefined,
   };
 }
 
@@ -426,6 +470,10 @@ export interface CreateRunLifecycleInput {
   readonly eventLog: EventLog;
   /** Host-owned sink for asynchronous lifecycle failures that cannot be returned to a caller. Defaults to `console.error`. */
   readonly onInternalError?: (context: RunLifecycleInternalErrorContext) => void;
+  /** How long a terminal run's in-memory record is retained before eviction. See {@link DEFAULT_TERMINAL_RETENTION_MS}. Defaults to that constant. */
+  readonly terminalRetentionMs?: number;
+  /** Hard cap on concurrently-retained terminal run records. See {@link DEFAULT_MAX_TERMINAL_RUNS}. Defaults to that constant. */
+  readonly maxTerminalRuns?: number;
 }
 
 export interface RunLifecycleInternalErrorContext {
@@ -438,14 +486,22 @@ export interface RunLifecycleInternalErrorContext {
  * Creates the in-process `RunLifecycle` reference implementation.
  *
  * @param input.eventLog - The durable `EventLog` port this lifecycle appends to and replays from.
+ * @param input.terminalRetentionMs - See {@link CreateRunLifecycleInput.terminalRetentionMs}.
+ * @param input.maxTerminalRuns - See {@link CreateRunLifecycleInput.maxTerminalRuns}.
  * @returns A `RunLifecycle` backed by an in-memory run registry plus the injected `EventLog`.
- * @complexity Per-call complexities documented on each method; the registry itself is a `Map` keyed by `runId` (O(1) lookup).
+ * @complexity Per-call complexities documented on each method; the registry itself is a `Map` keyed by `runId` (O(1) lookup). Memory is bounded: non-terminal runs are O(n) in concurrently-live runs, and terminal runs are capped at `maxTerminalRuns` (each additionally bounded in retention time by `terminalRetentionMs`) rather than growing for the life of the process.
  * @overallScore 100/100
  */
 export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle {
   const { eventLog } = input;
+  const terminalRetentionMs = input.terminalRetentionMs ?? DEFAULT_TERMINAL_RETENTION_MS;
+  const maxTerminalRuns = input.maxTerminalRuns ?? DEFAULT_MAX_TERMINAL_RUNS;
   const runs = new Map<string, RunRecord>();
   const idempotencyIndex = new Map<string, string>();
+  // Terminal runIds in the order they were tracked (oldest first) — the LRU order `enforceTerminalCap`
+  // trims from. A run leaves this list exactly once, either via its retention timer firing or via
+  // `resume()` reclaiming it; see `evictTerminalRun`/`untrackTerminalRun`.
+  const terminalRunOrder: string[] = [];
   let hydration: Promise<void> | null = null;
 
   function requireRun(runId: string): RunRecord {
@@ -521,6 +577,62 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     }
   }
 
+  function removeFromTerminalOrder(runId: string): void {
+    const index = terminalRunOrder.indexOf(runId);
+    if (index !== -1) terminalRunOrder.splice(index, 1);
+  }
+
+  /**
+   * Evicts a terminal run's in-memory record: drops it from `runs`, cleans its `idempotencyIndex`
+   * entry (a stale entry would otherwise resolve `start()`'s idempotency replay to a run
+   * `requireRun` can no longer find, turning a harmless re-post into a thrown error), and removes it
+   * from `terminalRunOrder`. Called from a retention timer firing or from `enforceTerminalCap`. A
+   * no-op if the run was already reclaimed by `resume()` (its timer is cancelled there) or evicted
+   * by the other path (cap eviction can race a timer for the same run — only the first wins,
+   * `runs.get` returns `undefined` for the second).
+   */
+  function evictTerminalRun(runId: string): void {
+    removeFromTerminalOrder(runId);
+    const record = runs.get(runId);
+    if (!record) return;
+    record.retentionTimer = undefined;
+    runs.delete(runId);
+    clearIdempotencyIndexEntryIfMatching(idempotencyIndex, record.idempotencyKey, runId);
+  }
+
+  /** Trims the oldest terminal records until `terminalRunOrder` is back at or under `maxTerminalRuns`. */
+  function enforceTerminalCap(): void {
+    while (terminalRunOrder.length > maxTerminalRuns) {
+      evictTerminalRun(terminalRunOrder[0]!);
+    }
+  }
+
+  /**
+   * Arms `record`'s retention timer and enrolls it in `terminalRunOrder` — called once per run,
+   * right when it first becomes terminal (from `finish()`) or when an already-terminal run is
+   * rehydrated (from `rehydrateOne`). `terminalAt` is the real terminal timestamp (the durable
+   * `'end'` entry's `recordedAt`), not "now": a rehydrated run may have gone terminal long before
+   * this process started, and its remaining retention window must account for that instead of
+   * restarting the full window on every restart.
+   */
+  function trackTerminalRun(runId: string, record: RunRecord, terminalAt: number): void {
+    terminalRunOrder.push(runId);
+    const delay = computeRetentionDelayMs(terminalAt, terminalRetentionMs, Date.now());
+    const timer = setTimeout(() => evictTerminalRun(runId), delay);
+    if (typeof timer.unref === 'function') timer.unref();
+    record.retentionTimer = timer;
+    enforceTerminalCap();
+  }
+
+  /** Reverses `trackTerminalRun`: cancels the pending eviction and un-enrolls `runId`. Called from `resume()` so a reclaimed run cannot be evicted out from under its new, non-terminal life. */
+  function untrackTerminalRun(runId: string, record: RunRecord): void {
+    removeFromTerminalOrder(runId);
+    if (record.retentionTimer) {
+      clearTimeout(record.retentionTimer);
+      record.retentionTimer = undefined;
+    }
+  }
+
   /**
    * Fires when a run's inactivity watchdog times out with no intervening
    * `emit()`/`finish()`. Classified as a resumable failure (`code: null,
@@ -584,6 +696,11 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
     const { record, idempotencyKey, isTerminal } = rehydratedRunRecord(runId, replay.entries);
     runs.set(runId, record);
     if (idempotencyKey !== undefined) idempotencyIndex.set(idempotencyKey, runId);
+    // `eventLog.listRunIds()` returns every run id the durable log has ever seen, with no bound of
+    // its own — without this, a restart would re-populate `runs` with the daemon's entire terminal
+    // run history on every boot, reproducing the same unbounded growth this module now guards
+    // against at runtime.
+    if (isTerminal) trackTerminalRun(runId, record, record.status.endedAt ?? Date.now());
     return isTerminal ? 'terminal' : 'non-terminal';
   }
 
@@ -730,6 +847,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         record.status.endedAt = endEntry.recordedAt;
         record.resumable = finishInput.resumable;
         record.terminalEndEntry = endEntry;
+        trackTerminalRun(finishInput.runId, record, endEntry.recordedAt);
         const endEvent = toRunEvent(finishInput.runId, endEntry);
         notifySubscribers(record, endEvent);
 
@@ -752,6 +870,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       if (!eligible) {
         return { run: toPublicStatus(record), resumed: false };
       }
+      untrackTerminalRun(runId, record);
       const now = Date.now();
       record.status.state = 'running';
       record.status.updatedAt = now;
