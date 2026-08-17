@@ -9,7 +9,7 @@
     {
       "rule": "R2-deep-path",
       "file": "packages/admin/src/react/components/InteractiveHtmlEditor/InteractiveHtmlEditor.tsx",
-      "reason": "deep-path import \"@jini-ai/ui/html-editor\" — only bare \"@jini-ai/ui\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/ui/html-editor\" — only bare \"@jini-ai/ui\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R5-neutrality",
@@ -19,37 +19,37 @@
     {
       "rule": "R2-deep-path",
       "file": "packages/chat/src/react/features/chat-pane/__tests__/components/ChatPane.test.tsx",
-      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R2-deep-path",
       "file": "packages/chat/src/react/features/chat-pane/agent-tools.ts",
-      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R2-deep-path",
       "file": "packages/chat/src/react/features/chat-pane/create-daemon-attachment-uploader.ts",
-      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R2-deep-path",
       "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
-      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R2-deep-path",
       "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
-      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R2-deep-path",
       "file": "packages/chat/src/react/features/chat-pane/types.ts",
-      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R2-deep-path",
       "file": "packages/chat/src/react/features/chat-pane/types.ts",
-      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed"
+      "reason": "deep-path import \"@jini-ai/chat/core\" — only bare \"@jini-ai/chat\" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed"
     },
     {
       "rule": "R5-neutrality",
