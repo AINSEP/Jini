@@ -950,11 +950,26 @@ export function registerAttachmentRoutes(
   // second host) must not share one upload budget.
   const state = { activeUploads: 0 };
   app.post(ATTACHMENTS_ROUTE_PATH, async (req, res) => {
-    if (!passesOriginGuard(req, res, deps, adapter)) return;
-    await handleAttachmentUpload(req, res, deps, state);
+    try {
+      if (!passesOriginGuard(req, res, deps, adapter)) return;
+      await handleAttachmentUpload(req, res, deps, state);
+    } catch (error) {
+      // `handleAttachmentUpload` already catches everything inside its own body — this only ever
+      // fires for `passesOriginGuard`/`guardSameOrigin` throwing, which is Result-returning by
+      // contract but not guaranteed never to throw (`isLocalSameOrigin` really does throw on a
+      // malformed `JINI_ALLOWED_ORIGINS` entry — see the paired regression test). Mounting this
+      // route bypasses `mountJsonRoute`'s adapter (see this function's own doc), so nothing else
+      // stood between that throw and an unhandled rejection with no process-level guard anywhere
+      // in this package's path.
+      if (!res.headersSent) respondToUploadFailure(res, deps, error, null, 'attachment-upload');
+    }
   });
   app.delete(ATTACHMENTS_ROUTE_PATH, async (req, res) => {
-    if (!passesOriginGuard(req, res, deps, adapter)) return;
-    await handleAttachmentCleanup(req, res, deps);
+    try {
+      if (!passesOriginGuard(req, res, deps, adapter)) return;
+      await handleAttachmentCleanup(req, res, deps);
+    } catch (error) {
+      if (!res.headersSent) sendApiError(res, 500, reportInternalError(deps, 'attachment-cleanup', error, null));
+    }
   });
 }

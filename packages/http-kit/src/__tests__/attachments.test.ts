@@ -1379,6 +1379,75 @@ describe('attachment routes — same-origin guard', () => {
   });
 });
 
+describe('attachment routes — origin guard throwing before either handler starts', () => {
+  // `passesOriginGuard` runs ahead of `handleAttachmentUpload`/`handleAttachmentCleanup` inside
+  // `registerAttachmentRoutes`'s `app.post`/`app.delete` callbacks — see that function's own doc
+  // for why (raw-stream upload, 204-no-body cleanup) it bypasses `mountJsonRoute`'s adapter, which
+  // would otherwise have caught this for free. `guardSameOrigin`/`isLocalSameOrigin` are
+  // Result/boolean-returning by contract, but `isLocalSameOrigin` unconditionally calls
+  // `configuredAllowedOrigins(env)` (origin-validation.ts), which really does throw on a malformed
+  // `JINI_ALLOWED_ORIGINS` entry (a bare hostname with no `http(s)://` scheme, or a non-http(s)
+  // scheme) — a genuine misconfiguration, not a hypothetical. Neither `app.post` nor `app.delete`
+  // callback here has a try/catch of its own, and this route is mounted directly on `express()` (no
+  // process-level guard exists anywhere in this package's path either), so before this fix that
+  // throw became an unhandled rejection with nothing to catch it — the same crash class the Tovu
+  // decrypt-handler bug that prompted this sweep hit.
+  it('does not leak an unhandled rejection when JINI_ALLOWED_ORIGINS is malformed, and keeps serving requests after', async () => {
+    const rejections: unknown[] = [];
+    const onUnhandledRejection = (reason: unknown): void => {
+      rejections.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandledRejection);
+    const originalAllowedOrigins = process.env.JINI_ALLOWED_ORIGINS;
+    // `process.env.X = undefined` coerces to the string `"undefined"` rather than clearing the
+    // key — itself another malformed origin — so restoring an unset var needs `delete`, not a
+    // plain reassignment.
+    const restoreAllowedOrigins = (): void => {
+      if (originalAllowedOrigins === undefined) delete process.env.JINI_ALLOWED_ORIGINS;
+      else process.env.JINI_ALLOWED_ORIGINS = originalAllowedOrigins;
+    };
+    try {
+      const { url } = await harness({ requireSameOrigin: true });
+      const origin = new URL(url).origin;
+      process.env.JINI_ALLOWED_ORIGINS = 'not-a-valid-origin';
+
+      // A handler whose returned promise rejects with nothing to catch it never calls `res.end()`,
+      // so this specific request would hang forever if awaited — firing it without awaiting is the
+      // whole point: it is exactly how Express itself invokes every handler (return value ignored).
+      // The client aborts its own end shortly after so the socket doesn't stay open across the
+      // `afterEach` `server.close()` below, which otherwise waits for every open connection; this
+      // test awaits that abort settling itself, before returning, so cleanup never has to.
+      const neverAnswered = fetch(`${url}?batch=batch-origin-guard-throw&name=a.txt`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream' },
+        body: 'never answered',
+        signal: AbortSignal.timeout(200),
+      }).catch(() => undefined);
+      // Unlike a direct in-process handler call, this request travels over a real loopback
+      // socket — the server needs at least one real I/O poll cycle to receive and dispatch it
+      // before the throw (if any) even happens, so a bare microtask/macrotask tick isn't enough
+      // here the way it is for a mocked handler. 100ms is generous headroom over loopback latency.
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(rejections).toEqual([]);
+
+      // Prove survival, not just silence: fix the config back and confirm the server still answers
+      // a normal request afterward.
+      restoreAllowedOrigins();
+      const response = await fetch(`${url}?batch=batch-origin-guard-throw-2&name=b.txt`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/octet-stream', origin },
+        body: 'still alive',
+      });
+      expect(response.status).toBe(201);
+
+      await neverAnswered;
+    } finally {
+      restoreAllowedOrigins();
+      process.off('unhandledRejection', onUnhandledRejection);
+    }
+  });
+});
+
 describe('attachment routes — default internal-error sink', () => {
   it('logs to console.error when no host sink is supplied', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
