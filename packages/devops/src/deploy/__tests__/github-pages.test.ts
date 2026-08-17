@@ -130,6 +130,93 @@ describe('GitHubPagesDeployTarget.publish', () => {
     expect(buildPollCount).toBe(4);
   });
 
+  it('bounds every call in the ref -> blob -> tree -> commit -> branch -> pages -> build-poll chain with a timeout signal', async () => {
+    const signals: Record<string, AbortSignal | null | undefined> = {};
+    let buildPollCount = 0;
+
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+
+      if (method === 'GET' && url.endsWith('/git/ref/heads/gh-pages')) {
+        signals.refLookup = init?.signal;
+        return new Response('', { status: 404 });
+      }
+      if (method === 'POST' && url.endsWith('/git/blobs')) {
+        signals.blob = init?.signal;
+        return jsonResponse(201, { sha: 'blob-sha-1' });
+      }
+      if (method === 'POST' && url.endsWith('/git/trees')) {
+        signals.tree = init?.signal;
+        return jsonResponse(201, { sha: 'tree-sha-1' });
+      }
+      if (method === 'POST' && url.endsWith('/git/commits')) {
+        signals.commit = init?.signal;
+        return jsonResponse(201, { sha: 'commit-sha-1' });
+      }
+      if (method === 'POST' && url.endsWith('/git/refs')) {
+        signals.createRef = init?.signal;
+        return jsonResponse(201, { ref: 'refs/heads/gh-pages', object: { sha: 'commit-sha-1', type: 'commit' } });
+      }
+      if (method === 'GET' && isPagesSiteUrl(url)) {
+        signals.pagesLookup = init?.signal;
+        return new Response('', { status: 404 });
+      }
+      if (method === 'POST' && isPagesSiteUrl(url)) {
+        signals.pagesCreate = init?.signal;
+        return jsonResponse(201, { html_url: 'https://octo.github.io/demo/', source: { branch: 'gh-pages', path: '/' } });
+      }
+      if (method === 'GET' && url.endsWith('/pages/builds/latest')) {
+        buildPollCount += 1;
+        signals.buildPoll = init?.signal;
+        return jsonResponse(200, { commit: 'commit-sha-1', status: 'built' });
+      }
+      // Reachability probe — a different, already-protected call site.
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const target = new GitHubPagesDeployTarget({ token: 'tok', owner: 'octo', repo: 'demo' });
+    await target.publish({ files: [{ file: 'index.html', data: '<html></html>' }], projectName: 'demo' });
+
+    expect(buildPollCount).toBeGreaterThan(0);
+    for (const [name, signal] of Object.entries(signals)) {
+      expect(signal, `${name} should carry a timeout AbortSignal`).toBeInstanceOf(AbortSignal);
+    }
+    expect(Object.keys(signals).sort()).toEqual(
+      ['blob', 'buildPoll', 'commit', 'createRef', 'pagesCreate', 'pagesLookup', 'refLookup', 'tree'].sort(),
+    );
+  });
+
+  it('bounds the PATCH branch-update call with a timeout signal too', async () => {
+    let updateRefSignal: AbortSignal | null | undefined;
+    const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (method === 'GET' && url.endsWith('/git/ref/heads/gh-pages')) {
+        return jsonResponse(200, { ref: 'refs/heads/gh-pages', object: { sha: 'old-tip-sha', type: 'commit' } });
+      }
+      if (method === 'POST' && url.endsWith('/git/trees')) return jsonResponse(201, { sha: 'tree-sha' });
+      if (method === 'POST' && url.endsWith('/git/commits')) return jsonResponse(201, { sha: 'new-commit-sha' });
+      if (method === 'PATCH' && url.endsWith('/git/refs/heads/gh-pages')) {
+        updateRefSignal = init?.signal;
+        return jsonResponse(200, { ref: 'refs/heads/gh-pages', object: { sha: 'new-commit-sha', type: 'commit' } });
+      }
+      if (method === 'GET' && isPagesSiteUrl(url)) {
+        return jsonResponse(200, { html_url: 'https://octo.github.io/demo/', source: { branch: 'gh-pages', path: '/' } });
+      }
+      if (method === 'GET' && url.endsWith('/pages/builds/latest')) {
+        return jsonResponse(200, { commit: 'new-commit-sha', status: 'built' });
+      }
+      return new Response('', { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const target = new GitHubPagesDeployTarget({ token: 'tok', owner: 'octo', repo: 'demo' });
+    await target.publish({ files: [], projectName: 'demo' });
+    expect(updateRefSignal).toBeInstanceOf(AbortSignal);
+  });
+
   it('updates an existing branch (force push) instead of creating a new ref when the branch already has a tip commit', async () => {
     const fetchSpy = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);

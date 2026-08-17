@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
 import { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
 import { assertNotRedirected, redirectGuardInit } from './redirect-guard.js';
 import {
@@ -198,9 +199,10 @@ async function getGitHubRefSha(
   repo: string,
   branch: string,
 ): Promise<string | undefined> {
-  const resp = await fetch(
+  const resp = await fetchWithTimeout(
     `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/ref/heads/${enc(branch)}`,
     redirectGuardInit({ headers: githubHeaders(config.token) }),
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
   );
   assertNotRedirected(resp, 'GitHub Pages branch lookup');
   if (resp.status === 404) return undefined;
@@ -211,13 +213,14 @@ async function getGitHubRefSha(
 }
 
 async function createGitHubBlob(config: GitHubPagesDeployConfig, owner: string, repo: string, data: DeployFile['data']): Promise<string> {
-  const resp = await fetch(
+  const resp = await fetchWithTimeout(
     `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/blobs`,
     redirectGuardInit({
       method: 'POST',
       headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ content: Buffer.from(data).toString('base64'), encoding: 'base64' }),
     }),
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
   );
   assertNotRedirected(resp, 'GitHub blob creation');
   const json = await readGitHubJson<JsonObject>(resp);
@@ -251,13 +254,14 @@ async function createGitHubTreeFromFiles(config: GitHubPagesDeployConfig, owner:
     tree.push({ path: file.file, mode: '100644', type: 'blob', sha: blobSha });
   }
 
-  const resp = await fetch(
+  const resp = await fetchWithTimeout(
     `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/trees`,
     redirectGuardInit({
       method: 'POST',
       headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ tree }),
     }),
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
   );
   assertNotRedirected(resp, 'GitHub tree creation');
   const json = await readGitHubJson<JsonObject>(resp);
@@ -275,13 +279,14 @@ async function createGitHubCommit(
   treeSha: string,
   parents: string[],
 ): Promise<string> {
-  const resp = await fetch(
+  const resp = await fetchWithTimeout(
     `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/commits`,
     redirectGuardInit({
       method: 'POST',
       headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ message, tree: treeSha, parents }),
     }),
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
   );
   assertNotRedirected(resp, 'GitHub commit creation');
   const json = await readGitHubJson<JsonObject>(resp);
@@ -292,13 +297,14 @@ async function createGitHubCommit(
 }
 
 async function createGitHubRef(config: GitHubPagesDeployConfig, owner: string, repo: string, branch: string, sha: string): Promise<void> {
-  const resp = await fetch(
+  const resp = await fetchWithTimeout(
     `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/refs`,
     redirectGuardInit({
       method: 'POST',
       headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ ref: `refs/heads/${branch}`, sha }),
     }),
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
   );
   assertNotRedirected(resp, 'GitHub Pages branch creation');
   const json = await readGitHubJson<JsonObject>(resp);
@@ -317,13 +323,14 @@ async function createGitHubRef(config: GitHubPagesDeployConfig, owner: string, r
  * the first one produced).
  */
 async function updateGitHubRef(config: GitHubPagesDeployConfig, owner: string, repo: string, branch: string, sha: string): Promise<void> {
-  const resp = await fetch(
+  const resp = await fetchWithTimeout(
     `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/git/refs/heads/${enc(branch)}`,
     redirectGuardInit({
       method: 'PATCH',
       headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
       body: JSON.stringify({ sha, force: true }),
     }),
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
   );
   assertNotRedirected(resp, 'GitHub Pages branch update');
   const json = await readGitHubJson<JsonObject>(resp);
@@ -340,19 +347,21 @@ async function updateGitHubRef(config: GitHubPagesDeployConfig, owner: string, r
  * is configured against a different branch than this call targets.
  */
 async function ensureGitHubPagesSite(config: GitHubPagesDeployConfig, owner: string, repo: string, branch: string): Promise<JsonObject> {
-  const getResp = await fetch(
+  const getResp = await fetchWithTimeout(
     `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages`,
     redirectGuardInit({ headers: githubHeaders(config.token) }),
+    { timeoutMs: FETCH_TIMEOUT_MS.QUICK },
   );
   assertNotRedirected(getResp, 'GitHub Pages site lookup');
   if (getResp.status === 404) {
-    const createResp = await fetch(
+    const createResp = await fetchWithTimeout(
       `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages`,
       redirectGuardInit({
         method: 'POST',
         headers: githubHeaders(config.token, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ source: { branch, path: '/' }, build_type: 'legacy' }),
       }),
+      { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
     );
     assertNotRedirected(createResp, 'GitHub Pages site creation');
     const created = await readGitHubJson<JsonObject>(createResp);
@@ -404,9 +413,10 @@ async function pollGitHubPagesBuild(
   let last: GitHubPagesBuildOutcome | null = null;
   for (let i = 0; i < 30; i += 1) {
     await new Promise((resolve) => setTimeout(resolve, i < 5 ? 1000 : 2000));
-    const resp = await fetch(
+    const resp = await fetchWithTimeout(
       `${GITHUB_API}/repos/${enc(owner)}/${enc(repo)}/pages/builds/latest`,
       redirectGuardInit({ headers: githubHeaders(config.token) }),
+      { timeoutMs: FETCH_TIMEOUT_MS.DEPLOY },
     );
     assertNotRedirected(resp, 'GitHub Pages build status check');
     if (resp.status === 404) continue;
