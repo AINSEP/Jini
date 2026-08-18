@@ -69,7 +69,9 @@
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
-    "@jini-ai/ui": "workspace:*"
+    "@jini-ai/ui": "workspace:*",
+    "@mcp-ui/client": "7.1.1",
+    "@mcp-ui/server": "6.1.0"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
