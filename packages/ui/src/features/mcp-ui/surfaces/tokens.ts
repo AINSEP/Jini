@@ -31,6 +31,9 @@
  * browser resolves that `var()` against whichever `--jini-mcpui-accent` cascades on the element at
  * used-value time, light or dark. Redeclaring a derived token per scheme would just be two ways to
  * get the same answer with an extra place for them to drift.
+ *
+ * Currently moot: {@link FORCE_LIGHT_SURFACE_THEME} suppresses the dark block entirely, because
+ * `prefers-color-scheme` reads the OS/browser, not any real app theme — see that constant's own doc.
  */
 
 /**
@@ -127,8 +130,21 @@ const DERIVED_TOKENS: Readonly<Record<string, string>> = {
 const DARK_SURFACE_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.32)';
 
 /**
- * Renders the `:root` declaration block for a surface document, plus a `prefers-color-scheme: dark`
- * variant of it.
+ * Whether every generated surface is pinned to the light palette regardless of the embedding
+ * browser/OS's `prefers-color-scheme`.
+ *
+ * True today because Tovu — currently this package's only consumer — has no real light/dark toggle
+ * yet (`apps/admin`'s Appearance section is a disabled "SOON" placeholder), so a surface that honors
+ * the OS preference doesn't track any actual app theme — it tracks whatever the operator's OS
+ * happens to be set to, which produces a dark card floating in an always-light admin UI. Flip this
+ * to `false` once Tovu has a real app-level theme signal to forward in; nothing else about
+ * {@link renderTokenBlock} needs to change.
+ */
+export const FORCE_LIGHT_SURFACE_THEME = true;
+
+/**
+ * Renders the `:root` declaration block for a surface document, plus — unless
+ * {@link FORCE_LIGHT_SURFACE_THEME} is set — a `prefers-color-scheme: dark` variant of it.
  *
  * @param overrides - Base tokens to replace, applied in both schemes. Unknown names are a compile
  * error, not a silent no-op, because a mistyped token name would otherwise leave the real one at its
@@ -136,8 +152,9 @@ const DARK_SURFACE_SHADOW = '0 1px 2px rgba(0, 0, 0, 0.32)';
  * verbatim — a caller passing a token value is trusted the same way it is trusted with the surface's
  * own body HTML. A caller wanting scheme-specific values is not served by this parameter; it exists
  * for a host's brand tokens, which by design apply the same way regardless of scheme.
- * @returns A `:root { … }` block followed by a `@media (prefers-color-scheme: dark) { :root { … } }`
- * block, ready to paste into the first `<style>` tag.
+ * @returns A `:root { … }` block, followed by a `@media (prefers-color-scheme: dark) { :root { … } }`
+ * block unless {@link FORCE_LIGHT_SURFACE_THEME} suppresses it, ready to paste into the first
+ * `<style>` tag.
  * @complexity O(n) in the number of tokens.
  */
 export function renderTokenBlock(overrides: Partial<Record<SurfaceTokenName, string>> = {}): string {
@@ -148,10 +165,13 @@ export function renderTokenBlock(overrides: Partial<Record<SurfaceTokenName, str
     ...Object.entries({ ...SURFACE_TOKENS, ...overrides }),
     ...Object.entries(DERIVED_TOKENS),
   ]);
+  const lightBlock = `:root {\n${light}\n}`;
+  if (FORCE_LIGHT_SURFACE_THEME) return lightBlock;
+
   const dark = declare([
     ...Object.entries({ ...SURFACE_TOKENS_DARK, ...overrides }),
     ['--jini-mcpui-surface-shadow', DARK_SURFACE_SHADOW],
   ]);
 
-  return `:root {\n${light}\n}\n@media (prefers-color-scheme: dark) {\n  :root {\n${dark}\n  }\n}`;
+  return `${lightBlock}\n@media (prefers-color-scheme: dark) {\n  :root {\n${dark}\n  }\n}`;
 }

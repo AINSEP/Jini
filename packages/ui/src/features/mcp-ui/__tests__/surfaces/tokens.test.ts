@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SURFACE_TOKENS, renderTokenBlock } from '../../surfaces/tokens.js';
+import { FORCE_LIGHT_SURFACE_THEME, SURFACE_TOKENS, SURFACE_TOKENS_DARK, renderTokenBlock } from '../../surfaces/tokens.js';
 
 describe('renderTokenBlock', () => {
   const block = renderTokenBlock();
@@ -36,5 +36,19 @@ describe('renderTokenBlock', () => {
     expect(block).not.toContain('@import');
     expect(block).not.toContain('http');
     expect(SURFACE_TOKENS['--jini-mcpui-font']).toContain('-apple-system');
+  });
+
+  it('pins the light palette and drops the dark media query while FORCE_LIGHT_SURFACE_THEME is set', () => {
+    // Tovu has no real app-level theme yet, so `prefers-color-scheme` would otherwise track the
+    // operator's OS rather than any real Tovu setting — see FORCE_LIGHT_SURFACE_THEME's own doc.
+    expect(FORCE_LIGHT_SURFACE_THEME).toBe(true);
+    expect(block).not.toContain('@media (prefers-color-scheme: dark)');
+    for (const [name, value] of Object.entries(SURFACE_TOKENS)) {
+      expect(block).toContain(`${name}: ${value};`);
+    }
+    for (const [name, value] of Object.entries(SURFACE_TOKENS_DARK)) {
+      if (SURFACE_TOKENS[name as keyof typeof SURFACE_TOKENS] === value) continue;
+      expect(block).not.toContain(`${name}: ${value};`);
+    }
   });
 });
