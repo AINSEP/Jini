@@ -1,100 +1,81 @@
-import { act, render, screen } from '@testing-library/react';
+/**
+ * `McpUiHost` after the `@mcp-ui/client` swap (see `useMcpUiHost.ts`'s module doc). Exercises the
+ * REAL, unmocked `AppRenderer` from `@mcp-ui/client` — same rigor as the PoC that validated the
+ * package before this swap: real DOM assertions, not "no exceptions".
+ *
+ * What jsdom genuinely cannot prove (a real sandbox-proxy page loading over the network and posting
+ * back `ui/notifications/sandbox-proxy-ready`) is NOT faked here. Those tests assert on what
+ * `AppRenderer` does synchronously and unconditionally on mount — real, unmocked behavior — same
+ * boundary the PoC drew. The handshake-dependent behaviors (ready state, size-driven height, tool
+ * calls) are covered in `useMcpUiHost.test.tsx` by invoking the REAL callback functions
+ * `AppRenderer` would call, directly — see that file's own header for why that is still a genuine
+ * exercise of this package's own adapter code, not a stub.
+ */
+import { render, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { McpUiHost } from '../McpUiHost.js';
-import { MCP_UI_VIEW_SANDBOX } from '../../../features/mcp-ui/protocol.js';
-import type { BufferedWindowMessage } from '../../../features/mcp-ui/early-message-buffer.js';
 
-function createTestSource() {
-  const handlers = new Set<(message: BufferedWindowMessage) => void>();
-  return {
-    source: (handler: (message: BufferedWindowMessage) => void) => {
-      handlers.add(handler);
-      return () => handlers.delete(handler);
-    },
-    deliver(data: unknown, source: unknown) {
-      act(() => {
-        for (const handler of [...handlers]) handler({ data, origin: 'null', source });
-      });
-    },
-  };
-}
-
-function frame(): HTMLIFrameElement {
-  return screen.getByTitle('A view') as HTMLIFrameElement;
-}
-
-/** Drives a mounted host to `ready` and reports the given content size. */
-function reportSize(bus: ReturnType<typeof createTestSource>, height: number) {
-  const view = frame().contentWindow!;
-  bus.deliver({ jsonrpc: '2.0', id: 1, method: 'ui/initialize', params: {} }, view);
-  bus.deliver({ jsonrpc: '2.0', method: 'ui/notifications/initialized' }, view);
-  bus.deliver({ jsonrpc: '2.0', method: 'ui/notifications/size-changed', params: { width: 300, height } }, view);
-}
+const SANDBOX_URL = new URL('https://sandbox.example.test/sandbox_proxy.html');
 
 describe('McpUiHost', () => {
-  it('never grants allow-same-origin — the one flag that would hand the surface the host’s origin', () => {
-    render(<McpUiHost title="A view" html="<p>hi</p>" />);
-    expect(frame().getAttribute('sandbox')).toBe('allow-scripts');
-    expect(MCP_UI_VIEW_SANDBOX).not.toContain('allow-same-origin');
+  it('mounts AppRenderer, which creates a real sandboxed iframe pointed at the configured sandbox proxy URL', async () => {
+    const { container } = render(<McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} />);
+    await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
+    const iframe = container.querySelector('iframe')!;
+    expect(iframe.src).toBe(SANDBOX_URL.href);
+    // AppRenderer's own hardcoded default (verified against the installed @mcp-ui/client bundle) —
+    // this package no longer controls the sandbox attribute value directly, unlike the old srcdoc
+    // implementation's MCP_UI_VIEW_SANDBOX constant.
+    expect(iframe.getAttribute('sandbox')).toBe('allow-scripts allow-same-origin allow-forms');
+    // Never a srcdoc document anymore — the View reaches the DOM only via the sandbox proxy relay.
+    expect(iframe.hasAttribute('srcdoc')).toBe(false);
   });
 
-  it('mounts the document via srcdoc, not a URL', () => {
-    render(<McpUiHost title="A view" html="<p>hello</p>" />);
-    expect(frame().getAttribute('srcdoc')).toBe('<p>hello</p>');
-    expect(frame().hasAttribute('src')).toBe(false);
-  });
-
-  it('exposes the session state and an optional class name on the wrapper', () => {
-    const { container } = render(<McpUiHost title="A view" html="<p>hi</p>" className="chat-card" />);
+  it('labels the wrapper with the given title and forwards className, and exposes the host state as a data attribute', () => {
+    const { container } = render(
+      <McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} className="chat-card" />,
+    );
     const wrapper = container.querySelector('[data-mcpui-host]')!;
-    expect(wrapper.getAttribute('data-mcpui-state')).toBe('awaiting-initialize');
+    expect(wrapper.getAttribute('aria-label')).toBe('A view');
     expect(wrapper.className).toBe('chat-card');
+    // Nothing has driven a handshake yet in this synchronous assertion — real starting state.
+    expect(wrapper.getAttribute('data-mcpui-state')).toBe('awaiting-ready');
   });
 
-  it('starts at the default height and follows the View’s reported size', () => {
-    const bus = createTestSource();
-    render(<McpUiHost title="A view" html="<p>hi</p>" messageSource={bus.source} />);
-    expect(frame().style.height).toBe('220px');
-    reportSize(bus, 410);
-    expect(frame().style.height).toBe('410px');
+  it('starts at the default initial height before any size report', () => {
+    const { container } = render(<McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} />);
+    const wrapper = container.querySelector('[data-mcpui-host]') as HTMLElement;
+    expect(wrapper.style.height).toBe('220px');
   });
 
-  it('clamps a runaway reported height so a View cannot push the page off-screen', () => {
-    const bus = createTestSource();
-    render(<McpUiHost title="A view" html="<p>hi</p>" messageSource={bus.source} maxHeight={300} />);
-    reportSize(bus, 99_999);
-    expect(frame().style.height).toBe('300px');
+  it('keeps the fixed initial height when autoResize is off, ignoring the initialHeight override', () => {
+    const { container } = render(
+      <McpUiHost title="A view" html="<p>hi</p>" sandboxProxyUrl={SANDBOX_URL} autoResize={false} initialHeight={140} />,
+    );
+    const wrapper = container.querySelector('[data-mcpui-host]') as HTMLElement;
+    expect(wrapper.style.height).toBe('140px');
   });
 
-  it('floors a zero-height report at one pixel rather than collapsing the frame', () => {
-    const bus = createTestSource();
-    render(<McpUiHost title="A view" html="<p>hi</p>" messageSource={bus.source} />);
-    reportSize(bus, 0);
-    expect(frame().style.height).toBe('1px');
+  it('threads the html prop straight through to AppRenderer, keyed by sessionKey so a changed document forces a fresh session', async () => {
+    const { container, rerender } = render(
+      <McpUiHost title="A view" html="<p>one</p>" sandboxProxyUrl={SANDBOX_URL} sessionKey="a" />,
+    );
+    await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
+    const firstIframe = container.querySelector('iframe')!;
+
+    rerender(<McpUiHost title="A view" html="<p>two</p>" sandboxProxyUrl={SANDBOX_URL} sessionKey="b" />);
+    await waitFor(() => expect(container.querySelector('iframe')).not.toBe(firstIframe));
   });
 
-  it('keeps the fixed height when autoResize is off', () => {
-    const bus = createTestSource();
-    render(<McpUiHost title="A view" html="<p>hi</p>" messageSource={bus.source} autoResize={false} initialHeight={140} />);
-    expect(frame().style.height).toBe('140px');
-    reportSize(bus, 900);
-    expect(frame().style.height).toBe('140px');
-  });
+  it('keys off the html itself when no session key is given, so an identical re-render does not remount', async () => {
+    const { container, rerender } = render(<McpUiHost title="A view" html="<p>one</p>" sandboxProxyUrl={SANDBOX_URL} />);
+    await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
+    const firstIframe = container.querySelector('iframe')!;
 
-  it('remounts the frame when the session key changes, so the new document gets a fresh contentWindow', () => {
-    const { rerender } = render(<McpUiHost title="A view" html="<p>one</p>" sessionKey="a" />);
-    const first = frame();
-    rerender(<McpUiHost title="A view" html="<p>two</p>" sessionKey="b" />);
-    expect(frame()).not.toBe(first);
-    expect(frame().getAttribute('srcdoc')).toBe('<p>two</p>');
-  });
+    rerender(<McpUiHost title="A view" html="<p>one</p>" sandboxProxyUrl={SANDBOX_URL} />);
+    expect(container.querySelector('iframe')).toBe(firstIframe);
 
-  it('keys off the html itself when no session key is given', () => {
-    const { rerender } = render(<McpUiHost title="A view" html="<p>one</p>" />);
-    const first = frame();
-    rerender(<McpUiHost title="A view" html="<p>one</p>" />);
-    expect(frame()).toBe(first);
-    rerender(<McpUiHost title="A view" html="<p>changed</p>" />);
-    expect(frame()).not.toBe(first);
+    rerender(<McpUiHost title="A view" html="<p>changed</p>" sandboxProxyUrl={SANDBOX_URL} />);
+    await waitFor(() => expect(container.querySelector('iframe')).not.toBe(firstIframe));
   });
 });

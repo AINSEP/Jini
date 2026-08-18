@@ -26,12 +26,15 @@
  *
  * ## The parent-DOM mirror
  *
- * A surface renders inside a `srcdoc` iframe sandboxed to `allow-scripts` alone (no
- * `allow-same-origin`, deliberately — see `MCP_UI_VIEW_SANDBOX`), which gives it an opaque origin
- * no ancestor document can read into. `page.find_elements` (`@jini-ai/agentic`'s page-control
- * capability) scans the PARENT document only, so no amount of `data-agent-*` tagging inside the
- * frame (see `surfaces/document.ts`'s `renderActions`) makes a surface's pending confirmation, or
- * its buttons' labels, discoverable to it. `readActionPlan` (this component's other new import)
+ * A surface renders inside a real, `@mcp-ui/client`-managed sandboxed iframe (see
+ * `@jini-ai/ui/mcp-ui`'s `useMcpUiHost.ts` module doc for the 2026-08-18 swap from a hand-rolled
+ * `srcdoc` frame to the official `AppRenderer`), which — regardless of the exact sandbox attributes
+ * that swap changed — still renders the View at arm's length from the surrounding page: nothing
+ * this package or its caller controls directly reaches into that frame's DOM. `page.find_elements`
+ * (`@jini-ai/agentic`'s page-control capability) scans the PARENT document only, so no amount of
+ * `data-agent-*` tagging inside the frame (see `surfaces/document.ts`'s `renderActions`) makes a
+ * surface's pending confirmation, or its buttons' labels, discoverable to it. `readActionPlan`
+ * (this component's other new import)
  * gives this component the same `{title, actions}` a surface renders as real buttons, via a typed
  * `_meta` channel rather than scraping HTML — see `MCP_UI_ACTION_PLAN_META_KEY`'s own doc.
  *
@@ -74,6 +77,14 @@ import { useT } from '../hooks/context.js';
 export const MCP_UI_EXT_EVENT_NAME = 'mcp-ui';
 
 export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
+  /**
+   * Where the sandbox proxy page is served. Required since 2026-08-18, when this card's rendering
+   * switched from a hand-rolled `srcdoc` iframe to the real `@mcp-ui/client` `AppRenderer`, which
+   * mounts every View through a real, separately-served proxy page rather than inline HTML — see
+   * `@jini-ai/ui/mcp-ui`'s `SANDBOX_PROXY_HTML` (in `sandbox-proxy.js`) for what must be running at
+   * that URL and why this package cannot supply a default itself.
+   */
+  sandboxProxyUrl: URL;
   /** Executes a tool a View asked for. Omit and every `tools/call` is refused — visibly, in the dialog. */
   onToolCall?: McpUiToolCallHandler;
   onOpenLink?: (url: string) => void;
@@ -144,7 +155,7 @@ function PendingSurfaceMirror({ uri, plan, t }: { uri: string; plan: McpUiAction
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, onToolCall, onOpenLink, maxHeight }: McpUiSurfaceCardProps) {
+export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight }: McpUiSurfaceCardProps) {
   const t = useT();
   const resources = useMemo(() => latestResourcesByUri(events), [events]);
 
@@ -170,6 +181,8 @@ export function McpUiSurfaceCard({ events, onToolCall, onOpenLink, maxHeight }: 
             <McpUiHost
               title={resource.resource.uri}
               html={resource.resource.text}
+              sandboxProxyUrl={sandboxProxyUrl}
+              toolName={resource.resource.uri}
               // The whole document, not its LENGTH. `useMcpUiHost` already defaults `sessionKey` to
               // `html` — exact by construction — and this override replaced that with a digest so
               // coarse that any two documents of equal size under one URI collided: a genuine update
@@ -194,6 +207,9 @@ export function McpUiSurfaceCard({ events, onToolCall, onOpenLink, maxHeight }: 
 /**
  * Registers {@link McpUiSurfaceCard} against the ext-event registry.
  *
+ * @param options.sandboxProxyUrl - See {@link McpUiSurfaceCardProps.sandboxProxyUrl}. Required for
+ * the same reason it is required there — every View this registers a renderer for now mounts
+ * through a real, host-served sandbox proxy page rather than inline HTML.
  * @param options.onToolCall - The tool executor every View in the transcript calls through. This is
  * the one dependency a host must supply — the card cannot know what "run this tool" means, and
  * hardcoding a transport here would make the component unusable in any host with a different one.
@@ -204,17 +220,17 @@ export function McpUiSurfaceCard({ events, onToolCall, onOpenLink, maxHeight }: 
  * accepting the library's full-width-oriented 720px default.
  * @returns An unregister handle, so a test or a hot reload can dispose cleanly.
  */
-export function registerMcpUiSurfaceRenderer(
-  options: {
-    onToolCall?: McpUiToolCallHandler;
-    onOpenLink?: (url: string) => void;
-    name?: string;
-    maxHeight?: number;
-  } = {},
-): () => void {
+export function registerMcpUiSurfaceRenderer(options: {
+  sandboxProxyUrl: URL;
+  onToolCall?: McpUiToolCallHandler;
+  onOpenLink?: (url: string) => void;
+  name?: string;
+  maxHeight?: number;
+}): () => void {
   return registerExtEventRenderer(options.name ?? MCP_UI_EXT_EVENT_NAME, (props) => (
     <McpUiSurfaceCard
       {...props}
+      sandboxProxyUrl={options.sandboxProxyUrl}
       {...(options.onToolCall === undefined ? {} : { onToolCall: options.onToolCall })}
       {...(options.onOpenLink === undefined ? {} : { onOpenLink: options.onOpenLink })}
       {...(options.maxHeight === undefined ? {} : { maxHeight: options.maxHeight })}

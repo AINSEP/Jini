@@ -99,6 +99,7 @@
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
+    "@mcp-ui/client": "7.1.1",
     "clsx": "^2.1.1",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0",
