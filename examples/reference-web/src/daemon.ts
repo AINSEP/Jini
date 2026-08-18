@@ -11,7 +11,6 @@ import {
   type AgentToRendererMessage,
   type RendererToAgentMessage,
 } from '@jini-ai/agentic/a2ui';
-import { createGenUiEncoder } from '@jini-ai/agentic';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { ToolRegistration } from '@jini-ai/core';
 import {
@@ -19,7 +18,6 @@ import {
   registerAttachmentRoutes,
   registerMediaRoutes,
   registerMemoryRoutes,
-  registerRunStreamRoute,
 } from '@jini-ai/http-kit';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
@@ -548,8 +546,6 @@ async function main(): Promise<void> {
         // file used to carry. The same-origin guard is on by default and works here because
         // `JINI_ALLOWED_ORIGINS` above already names the Vite dev origin the browser sends.
         (app, { adapter }) => registerAttachmentRoutes(app, { store: attachmentStore }, adapter),
-        (app, { lifecycle }) =>
-          registerRunStreamRoute(app, { lifecycle, encoder: createGenUiEncoder() }),
         (app, { adapter }) => registerMemoryRoutes(app, memoryRoutesDeps, adapter),
         (app, { adapter }) =>
           registerMediaRoutes(

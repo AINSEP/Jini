@@ -9,7 +9,6 @@ import type { RouteRegistration } from '../route-registration-guard.js';
 import { registerAgentRoutes } from '../agents.js';
 import { registerDelegatedToolRoutes } from '../delegated-tools.js';
 import { registerHealthRoutes } from '../health.js';
-import { registerRunStreamRoute } from '../run-stream.js';
 import { registerRunRoutes } from '../runs.js';
 import { registerToolCatalogRoutes } from '../tool-catalog.js';
 
@@ -49,12 +48,7 @@ const anyDeps = {} as never;
 /** Mounts one family exactly as a composition would, and returns what registered. */
 const MOUNT_FAMILY: Readonly<Record<string, (app: Express) => void>> = {
   health: (app) => registerHealthRoutes(app, anyDeps, adapter),
-  // `registerRunRoutes` already mounts the run's own event stream; `registerRunStreamRoute` is the
-  // separate protocol-encoded stream a composition mounts alongside it.
-  runs: (app) => {
-    registerRunRoutes(app, anyDeps, adapter);
-    registerRunStreamRoute(app, anyDeps);
-  },
+  runs: (app) => registerRunRoutes(app, anyDeps, adapter),
   agents: (app) => registerAgentRoutes(app, anyDeps, adapter),
   toolCatalog: (app) => registerToolCatalogRoutes(app, anyDeps, adapter),
   delegatedToolCalls: (app) => registerDelegatedToolRoutes(app, anyDeps, adapter),
@@ -91,13 +85,10 @@ describe('route manifest matches what each family really registers', () => {
     expect(sortKeys(JINI_ROUTE_MANIFEST.runs!)).toContain('GET /api/runs');
   });
 
-  // Both streaming routes are registered without a route spec, so they are the entries a refactor
-  // could orphan — and they are easy to confuse with each other. A proxy that forwards only one leaves
-  // the other 404-ing at the host's own router, which is how this class of bug has actually presented.
-  it('includes both spec-less streaming routes, not just one of them', () => {
-    const keys = sortKeys(JINI_ROUTE_MANIFEST.runs!);
-    expect(keys).toContain('GET /api/runs/:runId/events');
-    expect(keys).toContain('GET /api/runs/:runId/agui-stream');
+  // The run's own event stream is registered without a route spec, so it is an entry a refactor
+  // could orphan.
+  it('includes the spec-less run event stream route', () => {
+    expect(sortKeys(JINI_ROUTE_MANIFEST.runs!)).toContain('GET /api/runs/:runId/events');
   });
 });
 

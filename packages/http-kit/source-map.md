@@ -2072,3 +2072,35 @@ default is the real `process.env` **object**, not a snapshot, because `createLoc
 `JINI_BIND_HOST` into it at boot and a copy would stop tracking that.
 
 Verified: `packages/http-kit` 1245/1245 passing, 100/100/100/100 coverage.
+
+## 2026-08-18 — `agui-stream` route removed: zero callers, never published
+
+`run-stream.ts` (`RUN_STREAM_ROUTE_PATH`, `registerRunStreamRoute`, `handleRunStreamRequest`) and its
+test file were deleted outright, not renamed. The route mounted at `/api/runs/:runId/agui-stream` was
+known-misnamed since 2026-07-27 (see `@jini-ai/agentic/src/core/index.ts`'s module doc and that
+package's own source-map) but kept on the assumption an already-deployed client might depend on the
+URL.
+
+An audit turned up zero callers: no client anywhere in this repo or the sibling `Tovu` repo ever
+requested that path — both real SSE consumers (`examples/reference-web/src/daemon-transport.ts`'s
+`streamRun` and `A2uiLab.tsx`'s `streamA2uiRun`) read `/api/runs/:runId/events` instead, a wholly
+separate route (`runs.ts`'s `RUN_EVENTS_ROUTE_PATH`, unaffected by this change). The one real
+reference left in the repo was `examples/reference-web/src/daemon.ts`, which *registered* the route on
+the server; nothing in that same example app's frontend ever called it, so this was a mounted handler
+with no reachable path to it, not a live integration. `@jini-ai/http-kit` has also never been
+published to npm (`npm view @jini-ai/http-kit` returns `E404`), so there is no external consumer this
+could break either.
+
+Removed: the route, its registrar, its handler, its types (`RunStreamDeps`/`RunStreamEncoder`/
+`RunStreamInternalErrorContext`), its barrel exports, `route-manifest.ts`'s entry and the module doc's
+now-stale "single exception" wording (now correctly names `RUN_EVENTS_ROUTE_PATH`, the one spec-less
+route left), `__tests__/run-stream.test.ts` in full, the barrel smoke-test assertion in
+`__tests__/index.test.ts`, and the manifest coverage in `__tests__/route-manifest.test.ts` asserting
+both streaming routes were present (now asserts the one remaining). `raw-sse.ts`'s module doc, which
+cited `run-stream.ts` as `createSseResponse`'s example caller, now cites `frontend-sessions.ts`'s
+`handleFrontendSessionStream` — the primitive's one surviving consumer.
+
+Not touched: `@jini-ai/agentic`'s `gen-ui/` module (the six `GenUi*` event kinds and
+`createGenUiEncoder`) — this route was its only real caller in the repo, but removing the encoder
+itself is a bigger, separate call this change deliberately did not make. Flagged in that package's own
+source-map entry for whoever picks that question up.

@@ -284,9 +284,9 @@ export async function handleRunEventStreamRequest(
 }
 
 /**
- * Path {@link registerRunEventStream} mounts. Exported as a constant, like `RUN_STREAM_ROUTE_PATH`, so
- * a caller that needs to know this route exists — a reverse proxy's forward list, `route-manifest.ts` —
- * references it rather than restating the literal and later drifting from it.
+ * Path {@link registerRunEventStream} mounts. Exported as a constant so a caller that needs to know
+ * this route exists — a reverse proxy's forward list, `route-manifest.ts` — references it rather than
+ * restating the literal and later drifting from it.
  */
 export const RUN_EVENTS_ROUTE_PATH = '/api/runs/:runId/events';
 

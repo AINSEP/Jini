@@ -28,8 +28,7 @@ optional peers.
   `registerApiBearerAuthMiddleware`/`registerApiOriginGuardMiddleware`, and
   `requireLocalDaemonRequest`/`validateLocalDaemonRequest` for daemon-local-only routes.
 - **Streaming** — `createSseChannel` (cursor-replayable SSE with a bounded queue) and
-  `createSseResponse` (raw, unbuffered SSE), plus the shipped run-stream route
-  (`registerRunStreamRoute`, `handleRunStreamRequest`, `RUN_STREAM_ROUTE_PATH`).
+  `createSseResponse` (raw, unbuffered SSE, used by the frontend-session stream).
 - **Pack composition glue** — `mountPackHttp(app, packs, daemon)` calls every composed
   `@jini-ai/core` pack's own `http(app, services)` registrar with the services `createDaemon`
   already resolved for it; `cancelRunsOwnedBy` and `installRouteRegistrationGuard`/

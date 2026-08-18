@@ -120,9 +120,6 @@ export {
   timingSafeTokenMatch,
 } from './api-security-middleware.js';
 
-export type { RunStreamDeps, RunStreamEncoder, RunStreamInternalErrorContext } from './run-stream.js';
-export { handleRunStreamRequest, registerRunStreamRoute, RUN_STREAM_ROUTE_PATH } from './run-stream.js';
-
 export {
   isLoopbackHostname,
   isLoopbackPeerAddress,
