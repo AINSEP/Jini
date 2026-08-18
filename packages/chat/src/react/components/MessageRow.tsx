@@ -34,7 +34,7 @@ import React, { type ReactNode } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage } from '../../core/index.js';
 import { splitOnQuestionForms, stripArtifact } from '../../core/index.js';
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
-import { useExtEventGroups } from '../hooks/useExtEventGroups.js';
+import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';
 import { useT } from '../hooks/context.js';
 import { getExtEventRenderer } from '../ext-event-renderer-registry.js';
@@ -145,6 +145,21 @@ export function MessageRow({
     />
   );
 
+  const renderExtGroup = (group: ExtEventGroup) => {
+    const renderer = getExtEventRenderer(group.name);
+    if (!renderer) return null;
+    const node = renderer({ name: group.name, events: group.events, runStreaming, runSucceeded, runId: message.runId });
+    if (!node) return null;
+    return (
+      // `key` includes the event count so a group that failed on an earlier, shorter event list
+      // gets a fresh boundary instance (not the still-tripped one) once a new event actually
+      // arrives for it, instead of staying tombstoned for the message's whole lifetime.
+      <ExtEventErrorBoundary key={`${group.name}:${group.events.length}`} name={group.name}>
+        <div>{node}</div>
+      </ExtEventErrorBoundary>
+    );
+  };
+
   const renderTextSegments = (text: string, keyPrefix: string): ReactNode =>
     splitOnQuestionForms(text).map((segment, i) =>
       segment.kind === 'text' ? (
@@ -175,15 +190,25 @@ export function MessageRow({
     >
       {message.agentName ? <div className="jini-message-agent">{message.agentName}</div> : null}
       {blocks
-        ? blocks.map((block) =>
-            block.kind === 'text' ? (
-              <React.Fragment key={block.key}>{renderTextSegments(block.text, block.key)}</React.Fragment>
-            ) : (
-              <div className="jini-message-tools" key={block.key}>
-                {block.rows.map(renderToolCard)}
+        ? blocks.map((block) => {
+            if (block.kind === 'text') {
+              return <React.Fragment key={block.key}>{renderTextSegments(block.text, block.key)}</React.Fragment>;
+            }
+            if (block.kind === 'tools') {
+              return (
+                <div className="jini-message-tools" key={block.key}>
+                  {block.rows.map(renderToolCard)}
+                </div>
+              );
+            }
+            const group = extGroups.find((g) => g.name === block.name);
+            if (!group) return null;
+            return (
+              <div className="jini-message-ext-events" key={block.key}>
+                {renderExtGroup(group)}
               </div>
-            ),
-          )
+            );
+          })
         : (
           <>
             {segments.map((segment, i) =>
@@ -206,27 +231,9 @@ export function MessageRow({
             {timeline.rows.length > 0 ? (
               <div className="jini-message-tools">{timeline.rows.map(renderToolCard)}</div>
             ) : null}
+            {extGroups.length > 0 ? <div className="jini-message-ext-events">{extGroups.map(renderExtGroup)}</div> : null}
           </>
         )}
-      {extGroups.length > 0 ? (
-        <div className="jini-message-ext-events">
-          {extGroups.map((group) => {
-            const renderer = getExtEventRenderer(group.name);
-            if (!renderer) return null;
-            const node = renderer({ name: group.name, events: group.events, runStreaming, runSucceeded, runId: message.runId });
-            if (!node) return null;
-            return (
-              // `key` includes the event count so a group that failed on an earlier, shorter
-              // event list gets a fresh boundary instance (not the still-tripped one) once a new
-              // event actually arrives for it, instead of staying tombstoned for the message's
-              // whole lifetime.
-              <ExtEventErrorBoundary key={`${group.name}:${group.events.length}`} name={group.name}>
-                <div>{node}</div>
-              </ExtEventErrorBoundary>
-            );
-          })}
-        </div>
-      ) : null}
       {usageEvent ? <UsageSummary usage={usageEvent} /> : null}
       {message.runStatus === 'failed' ? <div className="jini-message-error">{t('This turn failed.')}</div> : null}
       {message.runStatus === 'running' && !visibleContent.trim() && timeline.rows.length === 0 ? (
