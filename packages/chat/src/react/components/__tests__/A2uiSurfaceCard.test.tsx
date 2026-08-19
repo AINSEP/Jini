@@ -251,6 +251,39 @@ describe('A2uiSurfaceCard', () => {
     expect(screen.getByText(/A2UI surface refused/)).toBeInTheDocument();
   });
 
+  it('relays a catalog-validation refusal to onAgentAction, not just a local notice — the tool call that opened the surface must be able to learn it was refused', () => {
+    // Regression: a real render was refused (a required prop missing) yet the tool call that opened
+    // it still returned success to the model, because nothing told it otherwise — this component
+    // showed `refusalNotice` locally and stopped there. `onAgentAction` is the surface's only pipe
+    // back to whatever opened it (a button click already uses it); a validation error must use the
+    // exact same one, not a second bespoke channel.
+    const events = [createSurfaceMessage('s1', [{ id: 'root', component: 'Text' }])];
+    const onAgentAction = vi.fn();
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" onAgentAction={onAgentAction} />);
+
+    expect(screen.getByText(/A2UI surface refused/)).toBeInTheDocument();
+    expect(onAgentAction).toHaveBeenCalledTimes(1);
+    expect(onAgentAction).toHaveBeenCalledWith(
+      'run-1',
+      expect.objectContaining({ error: expect.objectContaining({ code: 'VALIDATION_FAILED', surfaceId: 's1' }) }),
+    );
+  });
+
+  it('clears an earlier refusal once a later message in the same conversation applies cleanly', () => {
+    // Regression, caught live: a retry loop (agent gets a validation error, fixes the props, tries
+    // again) landed a real, correctly-rendered chart on screen — with the OLD "Action refused" banner
+    // still sitting underneath it, because `refusalNotice` only ever got set, never cleared.
+    const events = [
+      createSurfaceMessage('s1', [{ id: 'root', component: 'TotallyMadeUpType' }]),
+      { version: 'v1.0', updateComponents: { surfaceId: 's1', components: [{ id: 'root', component: 'Text', text: 'fixed!' }] } },
+    ];
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+
+    expect(screen.getByText('fixed!')).toBeInTheDocument();
+    expect(screen.queryByText(/A2UI surface refused/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Action refused/)).not.toBeInTheDocument();
+  });
+
   it('degrades to a visible placeholder for a missing child id instead of crashing', () => {
     const events = [createSurfaceMessage('s1', [{ id: 'root', component: 'Column', children: ['does-not-exist'] }])];
     render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
@@ -430,5 +463,40 @@ describe('A2uiSurfaceCard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'To agent' }));
     expect(screen.getByText(/has not wired up a live agent-action relay/)).toBeInTheDocument();
     expect(screen.queryByText(/Local action resolved/)).not.toBeInTheDocument();
+  });
+
+  // --- registry components (shadcn/recharts), merged into this card's own catalog -------------
+
+  it('renders a registry-sourced shadcn component inside a Card, not the placeholder', () => {
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Card', child: 'btn' },
+        { id: 'btn', component: 'shadcn.button', label: 'Publish' },
+      ]),
+    ];
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    expect(document.querySelector('.a2ui-card')).not.toBeNull();
+    expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
+  });
+
+  it('renders a real recharts pie chart from real data, not the placeholder', () => {
+    const events = [
+      createSurfaceMessage('s1', [
+        { id: 'root', component: 'Column', children: ['title', 'chart'] },
+        { id: 'title', component: 'Text', text: 'Posts vs Pages' },
+        {
+          id: 'chart',
+          component: 'recharts.pie-chart',
+          data: [
+            { name: 'Posts', value: 12 },
+            { name: 'Pages', value: 4 },
+          ],
+        },
+      ]),
+    ];
+    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    expect(screen.getByText('Posts vs Pages')).toBeInTheDocument();
+    expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
   });
 });

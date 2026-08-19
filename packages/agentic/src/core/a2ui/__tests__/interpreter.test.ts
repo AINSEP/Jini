@@ -200,6 +200,22 @@ describe('createA2uiInterpreter — adversarial: catalog enforcement (component 
     expect(interpreter.getSurface('s1')?.components.has('root')).toBe(false);
   });
 
+  it('names the missing/invalid field in the human-readable message, not just the machine-readable path', () => {
+    // Regression for a real refusal an admin saw with zero actionable detail: "Component "root"
+    // (recharts.bar-chart) failed catalog validation: Required" — true but useless, since `path`
+    // (which DOES name the field) never made it into `message`, the only part a chat UI shows.
+    const interpreter = freshInterpreter();
+    interpreter.applyAgentMessage(createSurfaceMsg('s1'));
+    const result = interpreter.applyAgentMessage({
+      version: 'v1.0',
+      updateComponents: { surfaceId: 's1', components: [{ id: 'root', component: 'Text' }] },
+    });
+    const error = (result.rendererMessages[0] as { error: { path: string; message: string } }).error;
+    expect(error.path).toBe('/components/0/text');
+    expect(error.message).toContain('text');
+    expect(error.message).not.toMatch(/validation: Required$/);
+  });
+
   it('a later updateComponents can overwrite an earlier component definition for the same id', () => {
     const interpreter = freshInterpreter();
     interpreter.applyAgentMessage(createSurfaceMsg('s1'));

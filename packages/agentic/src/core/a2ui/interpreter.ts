@@ -224,11 +224,15 @@ export function createA2uiInterpreter(catalog: Catalog): A2uiInterpreter {
         // zod guarantees a non-empty `issues` array on failure — see agent-to-renderer.ts's
         // parseAgentToRendererMessage for the same asserted (not defensively branched) invariant.
         const issue = parsed.error.issues[0]!;
+        // `issue.message` alone ("Required") names no field — Zod puts the field on `issue.path`
+        // instead, so it has to be spliced back in here or the only place a human sees this (this
+        // string, not the sibling `path` pointer on the built message) never says which prop.
+        const field = issue.path.length > 0 ? issue.path.join('.') : '(root)';
         errors.push(
           buildValidationFailedMessage(
             surface.surfaceId,
             `/components/${index}/${issue.path.join('/')}`,
-            `Component "${id}" (${type}) failed catalog validation: ${issue.message}`,
+            `Component "${id}" (${type}) failed catalog validation: ${field}: ${issue.message}`,
           ),
         );
         return;
