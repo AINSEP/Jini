@@ -1,6 +1,7 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { createFakeExecutionPort } from '../../../dependencies.js';
+import type { ExecutionPort } from '../../../ports.js';
 import type { ByokConfig } from '../../../types.js';
 import { useExecutionTab } from '../../../react/hooks/useExecutionTab.js';
 
@@ -129,5 +130,95 @@ describe('useExecutionTab — stale responses', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(result.current.agentTest).toMatchObject({ status: 'ok', agentId: 'agent-b' });
+  });
+});
+
+describe('useExecutionTab — resetModelDiscovery', () => {
+  it('returns to idle and discards a response still in flight', async () => {
+    const pending: Array<(models: readonly string[]) => void> = [];
+    const port: ExecutionPort = {
+      detectLocalAgents: () => Promise.resolve([]),
+      testConnection: () => Promise.resolve({ ok: true }),
+      listModels: () =>
+        new Promise<readonly string[]>((resolve) => {
+          pending.push(resolve);
+        }),
+    };
+    const { result } = renderHook(() => useExecutionTab({ port, autoDetect: false }));
+
+    act(() => result.current.loadModels(byok));
+    expect(result.current.modelDiscovery).toEqual({ status: 'loading' });
+
+    act(() => result.current.resetModelDiscovery());
+    expect(result.current.modelDiscovery).toEqual({ status: 'idle' });
+
+    await act(async () => {
+      pending[0]!(['late-model']);
+    });
+    expect(result.current.modelDiscovery).toEqual({ status: 'idle' });
+  });
+});
+
+describe('useExecutionTab — describeProbeError', () => {
+  it('words a rejected listModels and a rejected testConnection through the host', async () => {
+    const port: ExecutionPort = {
+      ...createFakeExecutionPort({ modelsError: 'raw refusal' }),
+      testConnection: () => Promise.reject(new Error('raw refusal')),
+    };
+    const { result } = renderHook(() =>
+      useExecutionTab({
+        port,
+        autoDetect: false,
+        describeProbeError: (error) => `plain: ${error instanceof Error ? error.message : String(error)}`,
+      }),
+    );
+
+    act(() => {
+      result.current.loadModels(byok);
+      result.current.testConnection(byok);
+    });
+
+    await waitFor(() => expect(result.current.modelDiscovery).toEqual({ status: 'error', message: 'plain: raw refusal' }));
+    await waitFor(() => expect(result.current.connectionTest).toEqual({ status: 'error', message: 'plain: raw refusal' }));
+  });
+
+  it('keeps loadModels and testConnection stable when the describer changes identity', () => {
+    const port = createFakeExecutionPort();
+    const { result, rerender } = renderHook(
+      ({ describer }: { describer: (error: unknown) => string }) =>
+        useExecutionTab({ port, autoDetect: false, describeProbeError: describer }),
+      { initialProps: { describer: (error: unknown) => String(error) } },
+    );
+    const { loadModels, testConnection } = result.current;
+
+    rerender({ describer: (error: unknown) => `other: ${String(error)}` });
+
+    expect(result.current.loadModels).toBe(loadModels);
+    expect(result.current.testConnection).toBe(testConnection);
+  });
+
+  it('uses the describer passed most recently, even for a probe started before it changed', async () => {
+    const pending: Array<(error: Error) => void> = [];
+    const port: ExecutionPort = {
+      detectLocalAgents: () => Promise.resolve([]),
+      testConnection: () => Promise.resolve({ ok: true }),
+      listModels: () =>
+        new Promise<readonly string[]>((_resolve, reject) => {
+          pending.push(reject);
+        }),
+    };
+    const { result, rerender } = renderHook(
+      ({ describer }: { describer: (error: unknown) => string }) =>
+        useExecutionTab({ port, autoDetect: false, describeProbeError: describer }),
+      { initialProps: { describer: () => 'old wording' } },
+    );
+
+    act(() => result.current.loadModels(byok));
+    rerender({ describer: () => 'new wording' });
+    await act(async () => {
+      pending[0]!(new Error('raw refusal'));
+    });
+
+    expect(result.current.modelDiscovery).toEqual({ status: 'error', message: 'new wording' });
   });
 });

@@ -15,6 +15,18 @@ export interface UseExecutionTabOptions {
   /** Skips the mount-time detection call — useful when the host already has
    *  agents in hand, or when the tab is rendered but not visible. */
   autoDetect?: boolean;
+  /**
+   * Turns a rejected BYOK probe (`testConnection` or `listModels`) into the message the tab shows.
+   * Defaults to the error's own message.
+   *
+   * For a host whose backend refuses some probes in words written for API callers. The host knows its
+   * own error codes and the operator's locale; this package knows neither.
+   *
+   * Read through a ref when the probe settles, so it never becomes part of `testConnection`'s or
+   * `loadModels`'s identity. Hosts pass inline arrows, and `ExecutionTab`'s discovery effect depends on
+   * `loadModels`: an identity that followed this function would re-probe on every render.
+   */
+  describeProbeError?: (error: unknown) => string;
 }
 
 export interface UseExecutionTabResult {
@@ -34,8 +46,16 @@ export interface UseExecutionTabResult {
   testConnection: (config: ByokConfig) => void;
   testAgent: (agentId: string, model?: string | undefined) => void;
   loadModels: (config: ByokConfig) => void;
+  /** Returns `modelDiscovery` to `idle` and discards any `loadModels` response still in flight. Sends
+   *  nothing. For a host that says discovery cannot run — see `ExecutionTab`'s `canDiscoverModels`. */
+  resetModelDiscovery: () => void;
   canRescan: boolean;
   canTestAgent: boolean;
+}
+
+/** A rejected async edge's default message: the error's own text. */
+function describeErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 /**
@@ -46,7 +66,11 @@ export interface UseExecutionTabResult {
  * Every async result is dropped if the hook unmounted first, so a slow probe
  * can't set state on a torn-down tree.
  */
-export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOptions): UseExecutionTabResult {
+export function useExecutionTab({
+  port,
+  autoDetect = true,
+  describeProbeError = describeErrorMessage,
+}: UseExecutionTabOptions): UseExecutionTabResult {
   const [agents, setAgents] = useState<readonly DetectedAgent[]>([]);
   const [scan, setScan] = useState<AgentScanState>({ status: 'idle' });
   const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({ status: 'idle' });
@@ -70,6 +94,10 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
   const agentTestTicket = useRef(0);
   const modelDiscoveryTicket = useRef(0);
 
+  /** The host's describer as of the latest render — see `UseExecutionTabOptions.describeProbeError`. */
+  const describeProbeErrorRef = useRef(describeProbeError);
+  describeProbeErrorRef.current = describeProbeError;
+
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -92,7 +120,7 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
         },
         (error: unknown) => {
           if (!isCurrent()) return;
-          setScan({ status: 'error', message: error instanceof Error ? error.message : String(error) });
+          setScan({ status: 'error', message: describeErrorMessage(error) });
         },
       );
     },
@@ -126,10 +154,7 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
         },
         (error: unknown) => {
           if (!isCurrent()) return;
-          setConnectionTest({
-            status: 'error',
-            message: error instanceof Error ? error.message : String(error),
-          });
+          setConnectionTest({ status: 'error', message: describeProbeErrorRef.current(error) });
         },
       );
     },
@@ -163,11 +188,7 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
         },
         (error: unknown) => {
           if (!isCurrent()) return;
-          setAgentTest({
-            status: 'error',
-            agentId,
-            message: error instanceof Error ? error.message : String(error),
-          });
+          setAgentTest({ status: 'error', agentId, message: describeErrorMessage(error) });
         },
       );
     },
@@ -194,15 +215,18 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
           // failures, timeouts, and unreachable endpoints are all operator-
           // actionable and must not read as "this provider has no models."
           if (!isCurrent()) return;
-          setModelDiscovery({
-            status: 'error',
-            message: error instanceof Error ? error.message : String(error),
-          });
+          setModelDiscovery({ status: 'error', message: describeProbeErrorRef.current(error) });
         },
       );
     },
     [port],
   );
+
+  const resetModelDiscovery = useCallback(() => {
+    // Taking a new ticket is what discards a response still in flight: its `isCurrent()` goes false.
+    ++modelDiscoveryTicket.current;
+    setModelDiscovery({ status: 'idle' });
+  }, []);
 
   return {
     agents,
@@ -214,6 +238,7 @@ export function useExecutionTab({ port, autoDetect = true }: UseExecutionTabOpti
     testConnection,
     testAgent,
     loadModels,
+    resetModelDiscovery,
     canRescan: typeof port.rescanLocalAgents === 'function',
     canTestAgent: typeof port.testAgent === 'function',
   };

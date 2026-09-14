@@ -1,9 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { createFakeExecutionPort } from '../../../dependencies.js';
+import type { ExecutionPort } from '../../../ports.js';
 import type { ExecutionConfig, ProviderPreset } from '../../../types.js';
 import { ExecutionTab } from '../../../react/components/ExecutionTab.js';
 
@@ -502,5 +503,191 @@ describe('ExecutionTab — agentHandle', () => {
     // The BYOK card is a distinct nested component with its own sub-handle namespace
     // (`settings-execution-byok-*`) — proving the chain wires through, not just the top level.
     expect(screen.getByDisplayValue(SYNTHETIC_API_KEY)).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-execution-byok-api-key');
+  });
+});
+
+/**
+ * Host-gated discovery. Reported in a host (Tovu, 2026-09-13): the host's server held a key saved for
+ * one endpoint, the operator picked another provider, and the endpoint-change discovery below asked the
+ * host to probe the new endpoint with that stored key. The host's server refused, and its refusal text,
+ * written for API callers, rendered raw under the Model field.
+ *
+ * `canDiscoverModels` lets a host say discovery has nothing it may send right now; `describeProbeError`
+ * lets it word a probe failure it recognises.
+ */
+describe('ExecutionTab — canDiscoverModels and describeProbeError', () => {
+  const RAW_REFUSAL =
+    "the stored credential is saved for 'https://a.example.com' and cannot be probed against 'https://b.example.com' — save the new endpoint first, or supply an apiKey for it in this request";
+  const PLAIN = 'Your saved key is for a different provider. Paste a key for this one.';
+  const describeRefusal = (error: unknown) =>
+    error instanceof Error && error.message === RAW_REFUSAL ? PLAIN : String(error);
+
+  function emptyKey(): ExecutionConfig {
+    return config({ byok: { ...config().byok, apiKey: '' } });
+  }
+
+  /** A port whose `listModels` settles only when the test resolves it. */
+  function pendingModelsPort() {
+    const pending: Array<(models: readonly string[]) => void> = [];
+    const port: ExecutionPort = {
+      ...createFakeExecutionPort(),
+      listModels: vi.fn(
+        () =>
+          new Promise<readonly string[]>((resolve) => {
+            pending.push(resolve);
+          }),
+      ),
+    };
+    return { port, pending };
+  }
+
+  it('does not discover on mount when the host says it cannot, and shows no error', async () => {
+    const port = createFakeExecutionPort({ modelsError: RAW_REFUSAL });
+    const listModels = vi.spyOn(port, 'listModels');
+    render(
+      <ExecutionTab config={emptyKey()} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels={false} />,
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(listModels).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Could not load live models/)).not.toBeInTheDocument();
+  });
+
+  it("drops the previous provider's live models when the new endpoint cannot be discovered", async () => {
+    const port = createFakeExecutionPort({ models: ['provider-a-model'] });
+    const listModels = vi.spyOn(port, 'listModels');
+    const { rerender } = render(
+      <ExecutionTab config={emptyKey()} onConfigChange={() => {}} port={port} presets={PRESETS} apiKeyStoredExternally />,
+    );
+    await waitFor(() => expect(screen.getByTestId('jini-byok-model-select')).toBeInTheDocument());
+
+    const gateway: ExecutionConfig = {
+      ...emptyKey(),
+      byok: { ...emptyKey().byok, providerId: 'gw', protocol: 'openai', baseUrl: 'https://gw.example.com/v1', model: 'gw-model' },
+    };
+    rerender(
+      <ExecutionTab config={gateway} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels={false} />,
+    );
+
+    await waitFor(() => expect(screen.queryByTestId('jini-byok-model-select')).not.toBeInTheDocument());
+    expect(listModels).toHaveBeenCalledTimes(1);
+  });
+
+  it('discards a discovery still in flight when the host learns it cannot run', async () => {
+    const { port, pending } = pendingModelsPort();
+    const { rerender } = render(
+      <ExecutionTab config={emptyKey()} onConfigChange={() => {}} port={port} presets={PRESETS} />,
+    );
+    await waitFor(() => expect(pending).toHaveLength(1));
+
+    rerender(
+      <ExecutionTab config={emptyKey()} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels={false} />,
+    );
+    await act(async () => {
+      pending[0]!(['late-model']);
+    });
+
+    expect(screen.queryByTestId('jini-byok-model-select')).not.toBeInTheDocument();
+    expect(port.listModels).toHaveBeenCalledTimes(1);
+  });
+
+  it('never discovers just because the host flips canDiscoverModels to true', async () => {
+    // A host flips it when its stored key is re-pointed at the selected endpoint. Probing on that flip
+    // alone would send the stored key to the new endpoint without the operator asking for it.
+    const port = createFakeExecutionPort();
+    const listModels = vi.spyOn(port, 'listModels');
+    const { rerender } = render(
+      <ExecutionTab config={emptyKey()} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels={false} />,
+    );
+    rerender(<ExecutionTab config={emptyKey()} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels />);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(listModels).not.toHaveBeenCalled();
+  });
+
+  it('discovers once a key is typed, with that key, at the selected endpoint', async () => {
+    const port = createFakeExecutionPort();
+    const listModels = vi.spyOn(port, 'listModels');
+    const { rerender } = render(
+      <ExecutionTab config={emptyKey()} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels={false} />,
+    );
+    rerender(<ExecutionTab config={config()} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels />);
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(listModels).toHaveBeenCalledTimes(1);
+    expect(listModels).toHaveBeenLastCalledWith(config().byok);
+  });
+
+  it('Test connection leaves discovery alone while the host says it cannot run', async () => {
+    const port = createFakeExecutionPort();
+    const listModels = vi.spyOn(port, 'listModels');
+    const testConnection = vi.spyOn(port, 'testConnection');
+    render(<ExecutionTab config={config()} onConfigChange={() => {}} port={port} presets={PRESETS} canDiscoverModels={false} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+
+    await waitFor(() => expect(testConnection).toHaveBeenCalledTimes(1));
+    expect(listModels).not.toHaveBeenCalled();
+  });
+
+  it("shows the host's wording for a rejected discovery, never the raw refusal", async () => {
+    render(
+      <ExecutionTab
+        config={emptyKey()}
+        onConfigChange={() => {}}
+        port={createFakeExecutionPort({ modelsError: RAW_REFUSAL })}
+        presets={PRESETS}
+        apiKeyStoredExternally
+        describeProbeError={describeRefusal}
+      />,
+    );
+
+    await waitFor(() => expect(screen.getByText(`Could not load live models: ${PLAIN}`)).toBeInTheDocument());
+    expect(screen.queryByText(/save the new endpoint first/)).not.toBeInTheDocument();
+  });
+
+  it("shows the host's wording for a Test connection that could not run", async () => {
+    const port: ExecutionPort = {
+      ...createFakeExecutionPort(),
+      testConnection: () => Promise.reject(new Error(RAW_REFUSAL)),
+    };
+    render(
+      <ExecutionTab
+        config={config()}
+        onConfigChange={() => {}}
+        port={port}
+        presets={PRESETS}
+        describeProbeError={describeRefusal}
+      />,
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Test connection' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(PLAIN));
+    expect(screen.getByRole('alert')).not.toHaveTextContent('save the new endpoint first');
+  });
+
+  it('a new describeProbeError on every render does not re-run discovery', async () => {
+    // Hosts pass an inline arrow. If its identity reached `loadModels`, the discovery effect (which
+    // depends on `loadModels`) would probe on every render.
+    const port = createFakeExecutionPort();
+    const listModels = vi.spyOn(port, 'listModels');
+    const tab = (label: string) => (
+      <ExecutionTab
+        config={config()}
+        onConfigChange={() => {}}
+        port={port}
+        presets={PRESETS}
+        describeProbeError={(error) => `${label}: ${String(error)}`}
+      />
+    );
+    const { rerender } = render(tab('first'));
+    await waitFor(() => expect(listModels).toHaveBeenCalledTimes(1));
+
+    rerender(tab('second'));
+    rerender(tab('third'));
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(listModels).toHaveBeenCalledTimes(1);
   });
 });

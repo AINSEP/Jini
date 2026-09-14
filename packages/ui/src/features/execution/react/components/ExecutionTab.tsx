@@ -71,6 +71,24 @@ export interface ExecutionTabProps {
   apiKeyStoredExternally?: boolean;
   apiKeyPlaceholder?: string;
   /**
+   * Whether the tab may run model discovery right now. Defaults to `true`.
+   *
+   * For a host that holds a key the browser cannot read and knows that key cannot be used at the
+   * selected endpoint, e.g. a key its backend saved for another provider and refuses to send anywhere
+   * else. With nothing typed, discovery then has nothing it may send, so the tab stays idle instead of
+   * showing that refusal.
+   *
+   * Read when discovery would run anyway (an endpoint change, a key typed or cleared, Test connection)
+   * and deliberately NOT a trigger of its own. A host flips it to `true` when its stored key is
+   * re-pointed at the selected endpoint, and probing on that flip alone would send the key there
+   * without the operator asking. Turning it `false` only resets discovery to idle and discards any
+   * response still in flight, which sends nothing.
+   */
+  canDiscoverModels?: boolean;
+  /** Pass-through to `useExecutionTab`'s `describeProbeError` — see that option's doc. Words a failed
+   *  model discovery and a failed Test connection. */
+  describeProbeError?: (error: unknown) => string;
+  /**
    * This tab's own agent handle, published by the host. Every interactive control below — the mode
    * switch, every provider chip, the whole BYOK card, and every detected-CLI card — derives its own
    * `data-agent-*` handle from this ONE base via `agentHandleProps`/`agentSubHandle`. Omit and no
@@ -106,6 +124,8 @@ export function ExecutionTab({
   formFooter,
   apiKeyStoredExternally,
   apiKeyPlaceholder,
+  canDiscoverModels = true,
+  describeProbeError,
   agentHandle,
 }: ExecutionTabProps) {
   const t = useT();
@@ -119,11 +139,13 @@ export function ExecutionTab({
     testConnection,
     testAgent,
     loadModels,
+    resetModelDiscovery,
     canRescan,
     canTestAgent,
   } = useExecutionTab({
     port,
     autoDetect: autoDetect && config.mode === 'local-cli',
+    ...(describeProbeError ? { describeProbeError } : {}),
   });
 
   const selectedPreset = resolveSelectedPreset(presets, config.byok);
@@ -154,11 +176,20 @@ export function ExecutionTab({
   // `gemini-2.5-flash` even though `Test Key` — the one control that did force
   // a fresh attempt, see `ByokProviderForm`'s `onTestConnection` below —
   // returned 42 models.
+  //
+  // `canDiscoverModels` is read here but is deliberately not a dependency — see that prop's doc for why
+  // its turning `true` on its own must never probe.
   useEffect(() => {
-    if (config.mode !== 'byok' || typeof port.listModels !== 'function') return;
+    if (config.mode !== 'byok' || typeof port.listModels !== 'function' || !canDiscoverModels) return;
     loadModels(config.byok);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [config.mode, port, loadModels, config.byok.protocol, config.byok.baseUrl, config.byok.providerId, hasApiKey]);
+
+  // All a turn to "cannot discover" does: drop the current result and any response still in flight —
+  // e.g. one started before the host learned that its stored key belongs to another endpoint.
+  useEffect(() => {
+    if (!canDiscoverModels) resetModelDiscovery();
+  }, [canDiscoverModels, resetModelDiscovery]);
   const { protocols, gateways } = groupPresets(presets);
   const configuredPresetIds = new Set(
     presets.filter((preset) => isProviderConfigured(config.byok, preset)).map((preset) => preset.id),
@@ -276,7 +307,7 @@ export function ExecutionTab({
             // itself goes green with the same config.
             onTestConnection={() => {
               testConnection(config.byok);
-              if (typeof port.listModels === 'function') loadModels(config.byok);
+              if (canDiscoverModels && typeof port.listModels === 'function') loadModels(config.byok);
             }}
             {...(apiKeyFooter !== undefined ? { apiKeyFooter } : {})}
             {...(formFooter !== undefined ? { formFooter } : {})}
