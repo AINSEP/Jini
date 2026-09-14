@@ -53,6 +53,27 @@ describe('useSourceConfigAddForm', () => {
     expect(addSource).not.toHaveBeenCalled();
   });
 
+  it('reset discards the whole draft — values, trust, submit attempt and error — without calling the port', async () => {
+    const addSource = vi.fn().mockResolvedValue({ ok: false, message: 'nope' });
+    const { result } = renderHook(() => useSourceConfigAddForm({ port: fakePort({ addSource }), fieldSpecs: [URL_FIELD] }));
+    act(() => {
+      result.current.setField('url', 'https://draft.example');
+      result.current.setTrust('trusted');
+    });
+    await act(async () => {
+      await result.current.submit();
+    });
+    expect(result.current.submitError).toBe('nope');
+
+    act(() => result.current.reset());
+
+    expect(result.current.values).toEqual({ url: '' });
+    expect(result.current.trust).toBeUndefined();
+    expect(result.current.submitAttempted).toBe(false);
+    expect(result.current.submitError).toBeNull();
+    expect(addSource).toHaveBeenCalledTimes(1);
+  });
+
   it('submit calls addSource with the fields (and trust, when set) and resets the draft on success', async () => {
     const created: SourceConfigItem = { id: 'new', fields: { url: 'https://new.example' }, trust: 'trusted' };
     const addSource = vi.fn().mockResolvedValue({ ok: true, source: created });

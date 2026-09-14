@@ -4166,6 +4166,34 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: not-allowed;
 }
 
+.source-config-add-form-actions {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-config-add-form-cancel {
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jini-text);
+  background: transparent;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.source-config-add-form-cancel:hover:not(:disabled) {
+  background: var(--jini-bg-subtle);
+}
+
+.source-config-add-form-cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .source-config-test-control {
   display: flex;
   align-items: center;

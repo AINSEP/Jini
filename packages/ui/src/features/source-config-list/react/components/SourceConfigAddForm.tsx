@@ -47,6 +47,14 @@ export interface SourceConfigAddFormProps {
    * emitted at all. See the table below and `../../agent-handles.ts`.
    */
   agentHandle?: string;
+  /**
+   * Renders a Cancel button beside submit when given. The host owns what
+   * cancelling means (typically `useSourceConfigAddForm().reset()` plus closing
+   * the form); omit it and no button renders, byte-identical to before.
+   */
+  onCancel?: () => void;
+  /** Cancel button copy, translated. Defaults to `'Cancel'`. */
+  cancelLabel?: string;
 }
 
 /**
@@ -94,10 +102,22 @@ export function SourceConfigAddForm({
   testResult,
   onTest,
   agentHandle,
+  onCancel,
+  cancelLabel,
 }: SourceConfigAddFormProps) {
   const t = useT();
   const submitLabel = addLabel ? t(addLabel) : t('Add source');
   const trustLabel = t('Trust level');
+  const submitButton = (
+    <button
+      type="submit"
+      className="source-config-add-form-submit"
+      disabled={submitting}
+      {...sourceConfigAgentProps(agentHandle, { role: 'button', label: submitLabel, action: 'submit' })}
+    >
+      {submitting ? t('Adding…') : submitLabel}
+    </button>
+  );
 
   return (
     <form
@@ -160,14 +180,22 @@ export function SourceConfigAddForm({
           {t(submitError)}
         </div>
       ) : null}
-      <button
-        type="submit"
-        className="source-config-add-form-submit"
-        disabled={submitting}
-        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: submitLabel, action: 'submit' })}
-      >
-        {submitting ? t('Adding…') : submitLabel}
-      </button>
+      {onCancel ? (
+        <div className="source-config-add-form-actions">
+          {submitButton}
+          <button
+            type="button"
+            className="source-config-add-form-cancel"
+            disabled={submitting}
+            {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t(cancelLabel ?? 'Cancel'), action: 'cancel' })}
+            onClick={onCancel}
+          >
+            {t(cancelLabel ?? 'Cancel')}
+          </button>
+        </div>
+      ) : (
+        submitButton
+      )}
     </form>
   );
 }

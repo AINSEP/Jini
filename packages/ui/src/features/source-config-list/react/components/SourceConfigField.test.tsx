@@ -58,6 +58,12 @@ describe('SourceConfigField', () => {
     expect(input).toHaveAttribute('type', 'password');
   });
 
+  it('marks a password field autoComplete="new-password", so Chrome never fills the saved site login into a source credential', () => {
+    const spec: SourceFieldSpec = { key: 'clientSecret', label: 'Client secret', kind: 'password' };
+    render(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
+    expect(screen.getByLabelText('Client secret')).toHaveAttribute('autocomplete', 'new-password');
+  });
+
   it('renders a select field with the given options', async () => {
     const onChange = vi.fn();
     const spec: SourceFieldSpec = {

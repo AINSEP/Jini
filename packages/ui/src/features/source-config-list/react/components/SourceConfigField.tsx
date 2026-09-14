@@ -181,6 +181,10 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
           <input
             id={inputId}
             type={revealed ? 'text' : 'password'}
+            // `new-password`, NOT `off`: Chrome deliberately ignores `off` and fills a saved site
+            // login into the first password input it finds (and the text input above it as the
+            // username). A source's credential is never the operator's own login.
+            autoComplete="new-password"
             value={value}
             placeholder={placeholder}
             disabled={disabled}

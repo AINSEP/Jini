@@ -25,6 +25,8 @@ export interface SourceConfigAddFormController {
   setField: (key: string, value: string) => void;
   setTrust: (value: string | undefined) => void;
   submit: () => Promise<void>;
+  /** Discards the draft — values, trust, submit attempt and error — back to a freshly seeded form. What a host's Cancel calls. */
+  reset: () => void;
 }
 
 /**
@@ -76,7 +78,14 @@ export function useSourceConfigAddForm<TSource extends SourceConfigItem>(
     }
   }, [fieldSpecs, onAdded, port, trust, validation.ok, values]);
 
-  return { values, trust, validation, submitting, submitAttempted, submitError, setField, setTrust, submit };
+  const reset = useCallback(() => {
+    setValues(emptySourceDraft(fieldSpecs));
+    setTrustState(undefined);
+    setSubmitAttempted(false);
+    setSubmitError(null);
+  }, [fieldSpecs]);
+
+  return { values, trust, validation, submitting, submitAttempted, submitError, setField, setTrust, submit, reset };
 }
 
 export type UseWiredSourceConfigAddFormParams<TSource extends SourceConfigItem> = Omit<
