@@ -83,7 +83,15 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     title: 'OpenAI',
     protocol: 'openai',
     baseUrl: 'https://api.openai.com/v1',
-    preferredModels: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
+    // `gpt-4o`/`gpt-4o-mini`/`o3`/`o4-mini` are stale: OpenAI's GPT-5.6 family
+    // (released 2026-07-09, per the API changelog) replaced the old
+    // flagship/mini/nano naming with named tiers — sol/terra/luna. `sol` is
+    // the one the changelog and pricing docs call out as "recommended for
+    // production API usage", so it leads (see `preferredModels[0]` default
+    // in `rules.ts`) rather than the newer, pricier `gpt-6-astra` flagship
+    // (released 2026-09-03) — picking that as the silent default would jump
+    // an existing user's cost without them choosing it.
+    preferredModels: ['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
     kind: 'protocol',
     apiKeyPrefix: 'sk-',
   },
@@ -123,7 +131,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     title: 'OpenRouter',
     protocol: 'openai',
     baseUrl: 'https://openrouter.ai/api/v1',
-    preferredModels: ['anthropic/claude-sonnet-5', 'google/gemini-2.5-pro', 'openai/gpt-4o'],
+    preferredModels: ['anthropic/claude-sonnet-5', 'google/gemini-2.5-pro', 'openai/gpt-5.6-sol'],
     kind: 'gateway',
     // Longer than OpenAI's `sk-`, and deliberately so: `apiKeyFormatWarning` resolves a key to the
     // MOST specific prefix that claims it, so `sk-or-v1-…` is attributed here rather than to OpenAI.
