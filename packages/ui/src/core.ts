@@ -149,6 +149,20 @@ export type { ExecutionPort } from './features/execution/ports.js';
 export { createFakeExecutionPort } from './features/execution/dependencies.js';
 export type { FakeExecutionPortOptions } from './features/execution/dependencies.js';
 
+// --- folder-path-drop ---
+export type { FolderPathDropPort } from './features/folder-path-drop/ports.js';
+export type {
+  CaptureFolderPathDropInput,
+  FolderPathDropEvent,
+  FolderPathDropInsertTarget,
+  FolderPathDropInsertTargetRef,
+} from './features/folder-path-drop/types.js';
+export {
+  captureFolderPathDrop,
+  folderPathsFromDataTransfer,
+  formatDroppedFolderPaths,
+} from './features/folder-path-drop/rules.js';
+
 // --- integrations ---
 export type {
   CodexInstallStatus,

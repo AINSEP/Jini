@@ -332,6 +332,12 @@ Real content has landed in several parallel passes — see
   See `packages/ui/source-map.md` for the consolidation evidence, a real
   infinite-render-loop bug found and fixed during this port, and full
   test/coverage numbers.
+- `src/features/folder-path-drop/` (2026-09-14) — dropping a folder onto a
+  host with native file access (e.g. an Electron preload exposing
+  `webUtils.getPathForFile` as a `FolderPathDropPort`) inserts the folder's
+  absolute path as text instead of uploading its contents. The
+  framework-free rules are also on `./core`; `useFolderPathDropCapture`
+  returns a stable `onDropCapture` handler. See `packages/ui/source-map.md`.
 - `src/utils/scroll-tabs-with-wheel.ts` and `src/utils/color-math.ts`
   (2026-07-18) — two flat bucket-A atoms from
   `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s Consolidation map §C:
