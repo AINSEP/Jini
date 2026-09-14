@@ -29,8 +29,8 @@ export const opencodeAgentDef = {
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
       {
-        id: 'anthropic/claude-sonnet-4-5',
-        label: 'anthropic/claude-sonnet-4-5',
+        id: 'anthropic/claude-sonnet-5',
+        label: 'anthropic/claude-sonnet-5',
       },
       { id: 'openai/gpt-5', label: 'openai/gpt-5' },
       { id: 'google/gemini-2.5-pro', label: 'google/gemini-2.5-pro' },

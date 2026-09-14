@@ -34,10 +34,10 @@ export const piAgentDef = {
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
       {
-        id: 'anthropic/claude-sonnet-4-5',
-        label: 'Claude Sonnet 4.5 (anthropic)',
+        id: 'anthropic/claude-sonnet-5',
+        label: 'Claude Sonnet 5 (anthropic)',
       },
-      { id: 'anthropic/claude-opus-4-5', label: 'Claude Opus 4.5 (anthropic)' },
+      { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5 (anthropic)' },
       { id: 'openai/gpt-5', label: 'GPT-5 (openai)' },
       { id: 'openai/o4-mini', label: 'o4-mini (openai)' },
       { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro (google)' },

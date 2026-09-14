@@ -163,6 +163,13 @@ describe('piAgentDef shape', () => {
     expect(piAgentDef.bin).toBe('pi');
     expect(piAgentDef.versionProbeTimeoutMs).toBe(15_000);
     expect(piAgentDef.fallbackModels).toContainEqual(DEFAULT_MODEL_OPTION);
+    // Pins both Claude entries to the current generation (see `claude.ts`'s
+    // `CLAUDE_FALLBACK_MODELS`, the source of truth for which Anthropic ids
+    // are current) so this fallback doesn't silently go stale the way
+    // `claude-sonnet-4-5`/`claude-opus-4-5` did.
+    expect(piAgentDef.fallbackModels.map((m) => m.id)).toEqual(
+      expect.arrayContaining(['anthropic/claude-sonnet-5', 'anthropic/claude-opus-5']),
+    );
     expect(piAgentDef.reasoningOptions?.length).toBeGreaterThan(0);
     expect(piAgentDef.promptViaStdin).toBe(true);
     expect(piAgentDef.streamFormat).toBe('pi-rpc');

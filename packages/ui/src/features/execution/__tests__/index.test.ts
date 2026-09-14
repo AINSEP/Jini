@@ -47,6 +47,19 @@ describe('execution tab barrel', () => {
     expect(Array.isArray(ExecutionBarrel.PROTOCOL_OPTIONS)).toBe(true);
   });
 
+  it('pins the Claude ids in DEFAULT_PROVIDER_PRESETS to the current generation', () => {
+    // Source of truth is `claude.ts`'s `CLAUDE_FALLBACK_MODELS` in
+    // `@jini-ai/agent-runtime` — these ids went stale once already
+    // (`claude-sonnet-4-5`/`claude-opus-4-5`, `claude-3.7-sonnet`), so this
+    // pin exists to make the next staleness a failing test instead of a
+    // silent drift.
+    const anthropic = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'anthropic');
+    expect(anthropic?.preferredModels).toEqual(['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5']);
+
+    const openrouter = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openrouter');
+    expect(openrouter?.preferredModels[0]).toBe('anthropic/claude-sonnet-5');
+  });
+
   it('exports the port fake and every React component', () => {
     expect(typeof ExecutionBarrel.createFakeExecutionPort).toBe('function');
     expect(typeof ExecutionBarrel.ExecutionTab).toBe('function');

@@ -74,7 +74,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     title: 'Anthropic',
     protocol: 'anthropic',
     baseUrl: 'https://api.anthropic.com',
-    preferredModels: ['claude-sonnet-4-5', 'claude-opus-4-5', 'claude-haiku-4-5'],
+    preferredModels: ['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5'],
     kind: 'protocol',
     apiKeyPrefix: 'sk-ant-',
   },
@@ -123,7 +123,7 @@ export const DEFAULT_PROVIDER_PRESETS: readonly ProviderPreset[] = [
     title: 'OpenRouter',
     protocol: 'openai',
     baseUrl: 'https://openrouter.ai/api/v1',
-    preferredModels: ['anthropic/claude-3.7-sonnet', 'google/gemini-2.5-pro', 'openai/gpt-4o'],
+    preferredModels: ['anthropic/claude-sonnet-5', 'google/gemini-2.5-pro', 'openai/gpt-4o'],
     kind: 'gateway',
     // Longer than OpenAI's `sk-`, and deliberately so: `apiKeyFormatWarning` resolves a key to the
     // MOST specific prefix that claims it, so `sk-or-v1-…` is attributed here rather than to OpenAI.
