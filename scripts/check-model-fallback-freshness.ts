@@ -25,8 +25,8 @@
  *
  * **MF3 — when a live source IS reachable, the fallback must not be missing anything it reports.**
  * The direction matters: extra entries in the fallback are fine and deliberate (a superseded model
- * an operator may still be pinned to), a MISSING entry is the defect. Both live sources are
- * credential-free and machine-local:
+ * an operator may still be pinned to), a MISSING entry is the defect. This only holds for a def
+ * whose fallback list claims to BE the complete rendered picker when nothing live answers:
  *
  *   - `codex` — `codex debug models`, the same probe the def itself uses, parsed by the def's own
  *     `parseCodexDebugModels` so the guard and the runtime can never disagree about what "visible"
@@ -35,14 +35,29 @@
  *     Code's own `/model` picker renders. This is the source that already knew about Fable while
  *     the def did not, so it is precisely the signal that was missing.
  *
+ * `pi`, `aider`, and `opencode` are guarded for MF1/MF2 only (`liveSource: 'none'`) — their
+ * `fallbackModels` are explicitly a small curated safety net ("the most commonly used providers/
+ * models", per each def's own comment), not a claim of completeness, so MF3's one-directional rule
+ * does not apply. This is not a hypothetical: wiring `opencode-cli models` into MF3 during this
+ * guard's own extension immediately produced 306 "missing" entries — that CLI enumerates this
+ * installation's entire routed catalog across every configured gateway (cloudflare-ai-gateway,
+ * nvidia, opencode-go, …), which is a per-installation routing table, not a vendor-published model
+ * list, and will never fit inside a short curated default list. Comparing the two would make the
+ * guard permanently and meaninglessly red — exactly the "recurring chore people learn to silence"
+ * failure mode {@link DEFAULT_MAX_AGE_DAYS}'s doc warns against. `aider` has no enumerable catalog
+ * at all (it proxies to whatever LiteLLM-routed model the user configures). `pi`'s CLI is
+ * structurally the same shape (provider/model-routed) as `opencode`'s, so it gets the same
+ * treatment rather than waiting to hit the identical false-positive live.
+ *
  * ## What it does with no credential, and what it does in CI
  *
  * Nothing here needs an API key. MF3's two sources need a locally installed CLI, not a credential.
  * When a source is unavailable — no `codex` on PATH, no `~/.claude.json`, an unreadable or empty
  * cache — MF3 **skips that def and says so on stdout, naming the def and the reason**. It never
- * passes silently, and it never fails for the absence of a tool. A machine with neither CLI runs
- * MF1 and MF2 only, which is the correct amount of signal for a machine that cannot observe
- * reality.
+ * passes silently, and it never fails for the absence of a tool. `pi`/`aider`/`opencode` always
+ * report an MF3 skip (by design, not by environment) for the reason above. A machine with neither
+ * CLI runs MF1 and MF2 only for every guarded def, which is the correct amount of signal for a
+ * machine that cannot observe reality.
  *
  * The one way this check goes red without anybody changing code is MF2, on a calendar. That is
  * deliberate and it is the only credential-free way to detect "nobody has compared this list to
@@ -91,8 +106,10 @@ interface GuardedDef {
   readonly modulePath: string;
   /** Exported name of the def literal in that module. */
   readonly exportName: string;
-  /** Which live source MF3 should consult for this def. */
-  readonly liveSource: 'codex-catalog' | 'claude-code-picker-cache';
+  /** Which live source MF3 should consult for this def. `'none'` means MF3 does not apply — either
+   *  no credential-free enumerable catalog exists, or (see module doc) the fallback list is a
+   *  curated safety net rather than a claim of completeness — and only MF1/MF2 apply. */
+  readonly liveSource: 'codex-catalog' | 'claude-code-picker-cache' | 'none';
 }
 
 const GUARDED_DEFS: readonly GuardedDef[] = [
@@ -109,6 +126,27 @@ const GUARDED_DEFS: readonly GuardedDef[] = [
     modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/codex.ts'),
     exportName: 'codexAgentDef',
     liveSource: 'codex-catalog',
+  },
+  {
+    agentId: 'pi',
+    file: 'packages/agent-runtime/src/defs/pi.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/pi.ts'),
+    exportName: 'piAgentDef',
+    liveSource: 'none',
+  },
+  {
+    agentId: 'aider',
+    file: 'packages/agent-runtime/src/defs/aider.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/aider.ts'),
+    exportName: 'aiderAgentDef',
+    liveSource: 'none',
+  },
+  {
+    agentId: 'opencode',
+    file: 'packages/agent-runtime/src/defs/opencode.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/opencode.ts'),
+    exportName: 'opencodeAgentDef',
+    liveSource: 'none',
   },
 ];
 
@@ -202,14 +240,14 @@ function checkAssertion(
     return { violations: [violation(target, `\`fallbackModelsAssertedAt\` is in the future: ${assertedAt}`)] };
   }
   if (ageDays > maxAgeDays) {
+    const remedy =
+      target.liveSource === 'none'
+        ? 'Manually re-check the list against the vendor/LiteLLM docs, then bump the date.'
+        : `Re-run \`pnpm guard\` on a machine with the ${target.agentId} CLI installed so rule MF3 can` +
+          ' compare the list against the vendor, then bump the date.';
     return {
       violations: [
-        violation(
-          target,
-          `\`fallbackModelsAssertedAt\` is ${ageDays} days old (limit ${maxAgeDays}). Re-run \`pnpm guard\`` +
-            ` on a machine with the ${target.agentId} CLI installed so rule MF3 can compare the list against` +
-            ' the vendor, then bump the date.',
-        ),
+        violation(target, `\`fallbackModelsAssertedAt\` is ${ageDays} days old (limit ${maxAgeDays}). ${remedy}`),
       ],
     };
   }
@@ -271,7 +309,17 @@ async function probeCodexCatalog(): Promise<LiveProbe> {
 }
 
 async function defaultProbeLive(target: GuardedDef): Promise<LiveProbe> {
-  return target.liveSource === 'codex-catalog' ? probeCodexCatalog() : probeClaudeCodePickerCache();
+  switch (target.liveSource) {
+    case 'codex-catalog':
+      return probeCodexCatalog();
+    case 'claude-code-picker-cache':
+      return probeClaudeCodePickerCache();
+    case 'none':
+      // See the module doc's MF3 section: either no credential-free enumerable catalog exists
+      // (`aider`), or the fallback is a curated safety net rather than a claim of completeness
+      // (`pi`, `opencode`) — either way MF3 does not apply and only MF1/MF2 (staleness date) do.
+      return { kind: 'skipped', reason: `MF3 does not apply to \`${target.agentId}\` — only MF1/MF2 (staleness date) apply` };
+  }
 }
 
 /**

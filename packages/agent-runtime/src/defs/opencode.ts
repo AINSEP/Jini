@@ -35,6 +35,11 @@ export const opencodeAgentDef = {
       { id: 'openai/gpt-5', label: 'openai/gpt-5' },
       { id: 'google/gemini-2.5-pro', label: 'google/gemini-2.5-pro' },
     ],
+    // Checked against `packages/ui/src/features/execution/constants.ts`'s current OpenAI preset —
+    // `gpt-5` is a distinct, still-current generation from the newer gpt-5.6 sol/terra/luna tier
+    // names, so it is not stale. See `RuntimeAgentDef.fallbackModelsAssertedAt` and
+    // `scripts/check-model-fallback-freshness.ts`.
+    fallbackModelsAssertedAt: '2026-09-16',
     // OpenCode's CLI help currently exposes model selection and session
     // controls, but not an explicit per-run reasoning / effort flag. Keep
     // `reasoningOptions` undefined and do not synthesize argv for

@@ -16,10 +16,19 @@ export const aiderAgentDef = {
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
       { id: 'sonnet', label: 'sonnet' },
-      { id: 'gpt-4o', label: 'gpt-4o' },
+      // `gpt-4o` is stale — OpenAI's GPT-5.6 family replaced the old flagship/mini/nano naming
+      // with named tiers (sol/terra/luna); `sol` is the flagship `gpt-4o` mapped to, bare (no
+      // `openai/` prefix) to match this list's existing LiteLLM-provider-default spelling. See
+      // `packages/ui/src/features/execution/constants.ts`'s OpenAI preset and
+      // `scripts/check-model-fallback-freshness.ts`.
+      { id: 'gpt-5.6-sol', label: 'gpt-5.6-sol' },
       { id: 'deepseek/deepseek-chat', label: 'deepseek/deepseek-chat' },
       { id: 'gemini/gemini-2.0-flash', label: 'gemini/gemini-2.0-flash' },
     ],
+    // Asserted against `packages/ui/src/features/execution/constants.ts`'s current OpenAI preset
+    // (gpt-5.6-sol/terra/luna). See `RuntimeAgentDef.fallbackModelsAssertedAt` and
+    // `scripts/check-model-fallback-freshness.ts`.
+    fallbackModelsAssertedAt: '2026-09-16',
     // Aider's one-shot mode requires the prompt as `--message <text>` on
     // argv; neither `--message` nor `--message-file` accept `-` as a stdin
     // sentinel (it is treated as a literal filename), so we cannot pipe
