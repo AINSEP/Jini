@@ -7,6 +7,7 @@ import type { ToolExecutionContext } from "@jini-ai/core";
 import { buildMediaRegistrations, type MediaToolDeps } from "../tool-registrations.js";
 import { InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo, InMemoryMediaRepo } from "../repo.memory.js";
 import { InMemoryBlobStore } from "../blob-store.memory.js";
+import { MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES } from "../html-attributes.js";
 import type { MediaRecord } from "../types.js";
 
 /**
@@ -142,4 +143,85 @@ test("a hook that throws AFTER uploadMedia() commits does not leave the media/re
     blob === null || blob.status === "tombstoned",
     "the orphaned blob must be removed or tombstoned, never left 'active' with nothing pointing at it"
   );
+});
+
+/**
+ * Covers `media_update_metadata`'s 2026-09-16 `cssClass`/`htmlAttributes` fields (item 1 — an
+ * assistant can set a media asset's presentation, enforced through the same allowlist
+ * `html-attributes.ts` gives the render path).
+ */
+async function seedAsset(deps: MediaToolDeps): Promise<string> {
+  const registrations = buildMediaRegistrations(deps);
+  const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
+  assert.ok(upload, "media_upload_asset must be wired");
+  const result = (await upload.handler(
+    executionContext({ dataBase64: PNG_BYTES.toString("base64"), filename: "logo.png", contentType: "image/png" })
+  )) as { media: { id: string } };
+  return result.media.id;
+}
+
+test("media_update_metadata writes htmlAttributes through the allowlist and returns it on the view", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const mediaId = await seedAsset(deps);
+  const registrations = buildMediaRegistrations(deps);
+  const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
+  assert.ok(update, "media_update_metadata must be wired");
+
+  const result = (await update.handler(
+    executionContext({ mediaId, htmlAttributes: "autoplay muted loop playsinline" })
+  )) as { media: { htmlAttributes: string | null } };
+
+  assert.equal(result.media.htmlAttributes, "autoplay muted loop playsinline");
+  const row = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
+  assert.equal(row?.htmlAttributes, "autoplay muted loop playsinline");
+});
+
+test("media_update_metadata rejects an on* handler and writes nothing", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const mediaId = await seedAsset(deps);
+  const registrations = buildMediaRegistrations(deps);
+  const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
+  assert.ok(update);
+  const before = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
+
+  await assert.rejects(() => update.handler(executionContext({ mediaId, htmlAttributes: 'onerror="x"' })), (error: unknown) => {
+    const message = (error as Error).message;
+    assert.match(message, /event handler attributes like 'onerror'/);
+    assert.match(message, /"additionalProperties":false/);
+    return true;
+  });
+
+  const after = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
+  assert.equal(after?.version, before?.version, "a rejected write must leave the row's version unchanged");
+});
+
+test("media_update_metadata sets and clears cssClass", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const mediaId = await seedAsset(deps);
+  const registrations = buildMediaRegistrations(deps);
+  const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
+  assert.ok(update);
+
+  const set = (await update.handler(executionContext({ mediaId, cssClass: "hero wide" }))) as { media: { cssClass: string | null } };
+  assert.equal(set.media.cssClass, "hero wide");
+
+  const cleared = (await update.handler(executionContext({ mediaId, cssClass: "" }))) as { media: { cssClass: string | null } };
+  assert.equal(cleared.media.cssClass, null);
+
+  const row = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
+  assert.equal(row?.cssClass, null);
+});
+
+test("media_update_metadata publishes cssClass and htmlAttributes in its schema, naming every allowlisted attribute", async () => {
+  const { deps } = fakeDeps();
+  const registrations = buildMediaRegistrations(deps);
+  const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
+  assert.ok(update);
+
+  const schema = update.descriptor.inputSchema as { properties: Record<string, { description?: string }> };
+  assert.ok(schema.properties.cssClass, "cssClass must be published in the schema");
+  assert.ok(schema.properties.htmlAttributes, "htmlAttributes must be published in the schema");
+  for (const name of MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES) {
+    assert.ok(schema.properties.htmlAttributes!.description?.includes(name), `htmlAttributes description must name '${name}'`);
+  }
 });

@@ -135,6 +135,11 @@ interface MediaToolView {
   sha256: string;
   status: MediaRecord["status"];
   version: number;
+  /** Asset-wide presentation overrides (2026-09-16) — see `media_update_metadata`'s own schema doc
+   *  for why these are readable here: a model must see the CURRENT value before it can safely
+   *  replace it (`htmlAttributes`/`cssClass` are whole-value replaces, not patches). */
+  cssClass: string | null;
+  htmlAttributes: string | null;
 }
 
 /**
@@ -152,6 +157,8 @@ function toMediaToolView(record: MediaRecord): MediaToolView {
     sha256: record.source.sha256,
     status: record.status,
     version: record.version,
+    cssClass: record.cssClass,
+    htmlAttributes: record.htmlAttributes,
   };
 }
 
@@ -245,18 +252,22 @@ export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistrat
       const input = requireInputRecord(ctx.input);
       const mediaId = requireString(input, "mediaId");
       await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "media.update", entityType: "media", entityId: mediaId });
-      const { media } = await updateMediaMetadata({
-        deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
-        input: {
-          workspaceId: routeDeps.workspaceId,
-          id: mediaId,
-          title: typeof input.title === "string" ? input.title : undefined,
-          alt: typeof input.alt === "string" ? input.alt : undefined,
-          caption: typeof input.caption === "string" ? input.caption : undefined,
-          credit: typeof input.credit === "string" ? input.credit : undefined,
-        },
+      return withSchemaOnRejection({ toolId: "media_update_metadata", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection }, async () => {
+        const { media } = await updateMediaMetadata({
+          deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
+          input: {
+            workspaceId: routeDeps.workspaceId,
+            id: mediaId,
+            title: typeof input.title === "string" ? input.title : undefined,
+            alt: typeof input.alt === "string" ? input.alt : undefined,
+            caption: typeof input.caption === "string" ? input.caption : undefined,
+            credit: typeof input.credit === "string" ? input.credit : undefined,
+            cssClass: typeof input.cssClass === "string" ? input.cssClass : undefined,
+            htmlAttributes: typeof input.htmlAttributes === "string" ? input.htmlAttributes : undefined,
+          },
+        });
+        return { media: toMediaToolView(media) };
       });
-      return { media: toMediaToolView(media) };
     },
 
     media_trash_asset: async (ctx) => {

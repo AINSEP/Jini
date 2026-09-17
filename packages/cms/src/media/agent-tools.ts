@@ -39,6 +39,7 @@
  * published JSON Schemas cannot drift from the validators.
  */
 
+import { MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES } from "./html-attributes.js";
 import { DEFAULT_ALLOWED_MIME_TYPES, DEFAULT_MAX_UPLOAD_BYTES } from "./media-service.js";
 
 export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
@@ -119,8 +120,11 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "media_update_metadata",
     description:
-      "Updates a media asset's editorial metadata (title/alt/caption/credit only). The asset's underlying bytes " +
-      "(sha256) are write-once and cannot be changed by this or any tool — to replace the file itself, upload a new asset.",
+      "Updates a media asset's metadata: title, alt, caption, credit, and its asset-wide presentation (cssClass, " +
+      "htmlAttributes). Omit a field to leave it unchanged. htmlAttributes/cssClass apply EVERYWHERE this asset " +
+      "renders; to change one placement on one page only, put the attribute on that page's data-embed-config " +
+      "marker element instead (pages_write_region). The bytes (sha256) are write-once and cannot be changed by " +
+      "this or any tool — to replace the file itself, upload a new asset.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "media.update" },
     inputSchema: {
@@ -133,6 +137,22 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
         alt: { type: "string", description: "New alt text. Omit to leave unchanged." },
         caption: { type: "string", description: "New caption. Omit to leave unchanged." },
         credit: { type: "string", description: "New credit line. Omit to leave unchanged." },
+        cssClass: {
+          type: "string",
+          description:
+            "Space-separated class names added to the rendered <img>/<video> tag everywhere this asset renders. " +
+            "Replaces the stored value; empty string clears it.",
+        },
+        htmlAttributes: {
+          type: "string",
+          description:
+            "Extra attributes for the rendered <img>/<video> tag, written as HTML attribute text, e.g. " +
+            '`autoplay muted loop playsinline` or `loading="eager" data-motion="fade"`. REPLACES the whole ' +
+            "stored value: read the current value first and keep what should stay. Empty string clears it. " +
+            `Allowed names only: ${MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES.join(", ")}, plus any data-* or aria-*. ` +
+            "Anything else (on* handlers, javascript: values, style, class) is rejected and NOTHING is written. " +
+            "Browsers autoplay only video that is also muted (and playsinline on iPhone).",
+        },
       },
     },
   },
