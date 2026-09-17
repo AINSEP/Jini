@@ -588,7 +588,7 @@ describe('AgentRuntimePicker', () => {
     expect(within(piRow).getByText('No tools')).toBeInTheDocument();
     expect(within(piRow).getByText('No tools')).toHaveAttribute(
       'title',
-      'This CLI has no MCP support, so it cannot use Tovu tools.',
+      "This CLI has no MCP support, so it cannot use this app's tools.",
     );
 
     const claudeRow = screen.getByRole('radio', { name: /Claude Code/ });
