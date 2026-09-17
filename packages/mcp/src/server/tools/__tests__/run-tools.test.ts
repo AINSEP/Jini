@@ -117,6 +117,22 @@ describe('getActiveContextTool', () => {
     const result = await getActiveContextTool.handler({}, ctx);
     expect(result).toMatchObject({ active: false, hint: expect.stringContaining('No active resource') });
   });
+
+  // A host that never mounts GET /api/active answers 404. Surfaced as the bare "daemon 404 on ..."
+  // error, a model read it as "no pointer set / aged past the TTL" (Tovu, 2026-09-16) and told the
+  // user nothing was recorded — the tool must say the host does not support it at all.
+  it('fails with an explicit "not supported by this host" error when the daemon does not serve /api/active', async () => {
+    getDaemonJson.mockRejectedValueOnce(Object.assign(new Error('daemon 404 on http://d.example/api/active: HTTP 404'), { status: 404 }));
+    await expect(getActiveContextTool.handler({}, ctx)).rejects.toThrow(
+      'get_active_context is not supported by this host: its daemon does not serve GET /api/active (HTTP 404). This is NOT the same as {active:false} — no focus is tracked through this tool here at all. Use any screen/page context the host put in your prompt, or ask the user.',
+    );
+  });
+
+  it('rethrows any other daemon failure unchanged', async () => {
+    const failure = Object.assign(new Error('daemon 500 on http://d.example/api/active: HTTP 500'), { status: 500 });
+    getDaemonJson.mockRejectedValueOnce(failure);
+    await expect(getActiveContextTool.handler({}, ctx)).rejects.toBe(failure);
+  });
 });
 
 describe('listAgentsTool', () => {

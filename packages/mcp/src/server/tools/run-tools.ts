@@ -116,15 +116,33 @@ interface ActiveContextPayload {
   readonly [key: string]: unknown;
 }
 
+/**
+ * What a model is told when the host's daemon never mounted `GET /api/active` (a 404 — the route
+ * itself has no 404 answer). Without it the model saw a bare "daemon 404 on ..." and, primed by this
+ * tool's own description, reported "no pointer set / aged past the TTL" (Tovu, 2026-09-16).
+ */
+const ACTIVE_CONTEXT_NOT_SUPPORTED =
+  'get_active_context is not supported by this host: its daemon does not serve GET /api/active (HTTP 404). This is NOT the same as {active:false} — no focus is tracked through this tool here at all. Use any screen/page context the host put in your prompt, or ask the user.';
+
+/** Reads `/api/active`, turning a 404 into {@link ACTIVE_CONTEXT_NOT_SUPPORTED}; every other failure is rethrown unchanged. */
+async function fetchActiveContext(ctx: Parameters<McpToolDef['handler']>[1]): Promise<ActiveContextPayload> {
+  try {
+    return await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', daemonCallOptions(ctx));
+  } catch (err) {
+    if ((err as { status?: unknown } | null)?.status === 404) throw new Error(ACTIVE_CONTEXT_NOT_SUPPORTED);
+    throw err;
+  }
+}
+
 /** `get_active_context` -> `GET /api/active` (`packages/http/src/active-context.ts`'s `getActiveRoute`). */
 export const getActiveContextTool: McpToolDef = {
   name: 'get_active_context',
   description:
-    'The resource (resourceRef) plus optional detail the caller last recorded as its current focus via POST /api/active — a generic, product-neutral pointer (this kernel has no "project" or "file" noun; a host maps resourceRef to whatever domain object it manages). Returns {active:false} once the pointer has aged past its TTL (5 minutes, see ACTIVE_CONTEXT_TTL_MS in packages/http/src/active-context.ts) or was never set.',
+    'The resource (resourceRef) plus optional detail the caller last recorded as its current focus via POST /api/active — a generic, product-neutral pointer (this kernel has no "project" or "file" noun; a host maps resourceRef to whatever domain object it manages). Returns {active:false} once the pointer has aged past its TTL (5 minutes, see ACTIVE_CONTEXT_TTL_MS in packages/http/src/active-context.ts) or was never set. On a host that does not support active context at all, the call fails with an explicit "not supported by this host" error instead — that means nothing is tracked here, not that the pointer expired.',
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
   annotations: { ...READ_ANNOTATIONS, title: 'What is the caller focused on?' },
   handler: async (_args, ctx) => {
-    const data = await getDaemonJson<ActiveContextPayload>(ctx.baseUrl, '/api/active', daemonCallOptions(ctx));
+    const data = await fetchActiveContext(ctx);
     if (data.active !== true) {
       return {
         active: false,
