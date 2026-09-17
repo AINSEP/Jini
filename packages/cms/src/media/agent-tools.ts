@@ -76,7 +76,7 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "media_list_assets",
     description:
-      "Lists every media asset in the workspace (all statuses — active and trashed), with id, title, alt, caption, credit, sha256, and status. Read-only. Call this to find a mediaId before updating or trashing an asset.",
+      "Lists every media asset in the workspace (all statuses — active and trashed), with id, slug, title, alt, caption, credit, sha256, and status. Read-only. Call this to find a mediaId before updating or trashing an asset.",
     sideEffects: "none",
     authorization: { permission: "media.read" },
     inputSchema: {
@@ -137,6 +137,13 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
         alt: { type: "string", description: "New alt text. Omit to leave unchanged." },
         caption: { type: "string", description: "New caption. Omit to leave unchanged." },
         credit: { type: "string", description: "New credit line. Omit to leave unchanged." },
+        slug: {
+          type: "string",
+          description:
+            "New slug: lowercase letters, numbers and dashes, not UUID-shaped, unique in the workspace (a slug " +
+            "another asset uses is refused and nothing is written). Changing it breaks any page marker that " +
+            "references the OLD slug.",
+        },
         cssClass: {
           type: "string",
           description:

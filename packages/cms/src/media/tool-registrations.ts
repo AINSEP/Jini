@@ -128,6 +128,9 @@ function isMediaShapeRejection(error: unknown): boolean {
 /** What a Media tool returns to the model — see {@link toMediaToolView}. */
 interface MediaToolView {
   id: string;
+  /** The asset's short lookup name (2026-09-16) — a page marker can reference this instead of the
+   *  long `id`; see `media_update_metadata`'s `slug` field for how to change it. */
+  slug: string;
   title: string;
   alt: string;
   caption: string;
@@ -150,6 +153,7 @@ interface MediaToolView {
 function toMediaToolView(record: MediaRecord): MediaToolView {
   return {
     id: record.id,
+    slug: record.slug,
     title: record.title,
     alt: record.alt,
     caption: record.caption,
@@ -262,6 +266,7 @@ export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistrat
             alt: typeof input.alt === "string" ? input.alt : undefined,
             caption: typeof input.caption === "string" ? input.caption : undefined,
             credit: typeof input.credit === "string" ? input.credit : undefined,
+            slug: typeof input.slug === "string" ? input.slug : undefined,
             cssClass: typeof input.cssClass === "string" ? input.cssClass : undefined,
             htmlAttributes: typeof input.htmlAttributes === "string" ? input.htmlAttributes : undefined,
           },

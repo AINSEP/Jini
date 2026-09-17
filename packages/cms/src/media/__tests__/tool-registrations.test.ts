@@ -225,3 +225,55 @@ test("media_update_metadata publishes cssClass and htmlAttributes in its schema,
     assert.ok(schema.properties.htmlAttributes!.description?.includes(name), `htmlAttributes description must name '${name}'`);
   }
 });
+
+/**
+ * Covers `media_update_metadata`'s 2026-09-16 `slug` field and every media tool view's new `slug`
+ * field (owner report: the assistant said "media assets have no slug field at all", which was false
+ * — `MediaRecord.slug` shipped 2026-09-07 but no tool view ever returned it).
+ */
+test("media tool views include the asset slug", async () => {
+  const { deps } = fakeDeps();
+  const mediaId = await seedAsset(deps);
+  const registrations = buildMediaRegistrations(deps);
+  const list = registrations.find((r) => r.descriptor.id === "media_list_assets");
+  assert.ok(list);
+
+  const result = (await list.handler(executionContext({}))) as { media: Array<{ id: string; slug: string }> };
+  const row = result.media.find((m) => m.id === mediaId);
+  assert.ok(row, "the seeded asset must appear in the list");
+  assert.ok(row!.slug, "every media tool view must carry a non-empty slug");
+});
+
+test("media_update_metadata changes the slug", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const mediaId = await seedAsset(deps);
+  const registrations = buildMediaRegistrations(deps);
+  const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
+  assert.ok(update);
+
+  const result = (await update.handler(executionContext({ mediaId, slug: "tovu-commercial-edit" }))) as { media: { slug: string } };
+  assert.equal(result.media.slug, "tovu-commercial-edit");
+
+  const row = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: mediaId });
+  assert.equal(row?.slug, "tovu-commercial-edit");
+});
+
+test("media_update_metadata refuses a slug another asset already uses and writes nothing", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const firstId = await seedAsset(deps);
+  const secondId = await seedAsset(deps);
+  const registrations = buildMediaRegistrations(deps);
+  const update = registrations.find((r) => r.descriptor.id === "media_update_metadata");
+  assert.ok(update);
+
+  await update.handler(executionContext({ mediaId: firstId, slug: "taken-slug" }));
+  const before = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: secondId });
+
+  await assert.rejects(
+    () => update.handler(executionContext({ mediaId: secondId, slug: "taken-slug" })),
+    /taken-slug.*already used/
+  );
+
+  const after = await mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: secondId });
+  assert.equal(after?.version, before?.version, "a refused slug conflict must leave the row's version unchanged");
+});
