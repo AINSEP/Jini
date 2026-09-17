@@ -125,7 +125,7 @@ const KIND_TO_CAST_LITERAL: Record<IndexableFieldKind, string> = {
  *
  * The PARAMETER type is deliberately the wider `ContentTypeFieldKind`. Narrowing it would be a
  * breaking change for `@jini-ai/cms`'s public consumers (`content-types/index.ts` documents this
- * function as what a host's own DDL provisioner calls, and Tovu re-exports it), and it would also
+ * function as what a host's own DDL provisioner calls, and the host re-exports it), and it would also
  * make the runtime guard below unreachable-looking to a reader while remaining fully reachable to
  * an untyped JavaScript caller. The runtime gate — not the signature — is what excludes
  * storage-only kinds.

@@ -98,7 +98,7 @@ export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
  * image types above, an accepted video is never re-encoded — there is no
  * `TransformFormat` for video (`transform-types.ts`'s union is image-only), so
  * a video asset's public URL bypasses the transform/rendition pipeline
- * entirely and serves the original bytes as-is (host concern; see Tovu's
+ * entirely and serves the original bytes as-is (host concern; see the host's
  * `routes/site/media-rendition.ts`). This widens the SAME advisory,
  * client-declared-string check item 4 above already discloses as untrusted —
  * no new ingress hardening was added for video.
@@ -198,9 +198,9 @@ function capSlugCandidate(candidate: string, maxLength: number): string {
 
 /** Turns free text into a slug candidate: lowercase, non-alphanumeric runs collapsed to one dash,
  *  leading/trailing dashes trimmed. Same algorithm as `post.ts`'s private `slugify` (duplicated, not
- *  imported — cross-repo: `post.ts` lives in Tovu, this file in `@jini-ai/cms`; this codebase's own
+ *  imported — cross-repo: `post.ts` lives in the host, this file in `@jini-ai/cms`; this codebase's own
  *  precedent for a small hand-copied helper mirrored across a repo boundary is `DEFAULT_ALLOWED_MIME_TYPES`
- *  vs. Tovu's `FILE_HANDLER_ALLOWED_MIME_TYPES`/`IMPORTABLE_CONTENT_TYPES`). Never throws and never
+ *  vs. the host's `FILE_HANDLER_ALLOWED_MIME_TYPES`/`IMPORTABLE_CONTENT_TYPES`). Never throws and never
  *  returns `undefined` — an all-punctuation input collapses to `""`, which every caller here treats
  *  as "derive nothing, fall back to a fixed default" rather than a malformed-input error. */
 function slugifyMediaTitle(title: string): string {
@@ -215,12 +215,12 @@ function slugifyMediaTitle(title: string): string {
  * Derives a unique-per-workspace slug from `title`, suffixing `-2`, `-3`, … on collision — the
  * identical loop shape `post.ts`'s `createPost` uses for its own derived-slug path. Shared by
  * {@link uploadMedia} (derive-on-create) and the backfill a host runs once for pre-existing rows
- * with no slug yet (see Tovu's `development/scripts/backfill-media-slugs.ts`).
+ * with no slug yet (see the host's `development/scripts/backfill-media-slugs.ts`).
  *
  * `base` falls back to `"untitled"` when `title` slugifies to the empty string (all-punctuation or
  * non-Latin titles that `slugifyMediaTitle` strips to nothing) — `uploadMedia`'s own title is never
  * empty (`deriveTitleFromFilename` guarantees a non-empty string), but the backfill script
- * (`development/scripts/backfill-media-slugs.ts`, Tovu) calls this against arbitrary pre-existing
+ * (`development/scripts/backfill-media-slugs.ts`, host-side) calls this against arbitrary pre-existing
  * titles, so this fallback is load-bearing there, not just a defensive floor. Note this is the SAME
  * fallback base every empty-slugifying title collapses onto, so two such titles in one workspace
  * collide on `"untitled"` and are disambiguated by the ordinary suffix loop below exactly like any

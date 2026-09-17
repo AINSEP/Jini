@@ -15,7 +15,7 @@ import type { ByokConfig, ProviderPreset } from '../../../types.js';
  * `settings-dialog.en.ts`'s header comment, which lists the OTHER variable-keyed calls it traced and
  * omits these two). The English key equals the English string, so this was invisible in English:
  * every non-English locale silently showed raw English instead of its own language, forever, with no
- * missing-key warning anywhere — this is the exact path Tovu's admin uses
+ * missing-key warning anywhere — this is the exact path a host's admin uses
  * (`apps/admin/src/features/ai-assistant/AiAssistant.tsx` mounts `ByokProviderForm` under
  * `<I18nProvider dictionaries={SETTINGS_DIALOG_DICTIONARIES}>`).
  */
@@ -44,7 +44,7 @@ function configWith(apiKey: string): ByokConfig {
   };
 }
 
-/** Mounts the form exactly as Tovu's admin does: a real `I18nProvider` carrying this package's own
+/** Mounts the form exactly as a host's admin does: a real `I18nProvider` carrying this package's own
  *  shipped dictionaries, in a non-English locale. */
 function renderLocalized(locale: 'es', apiKey: string) {
   return render(

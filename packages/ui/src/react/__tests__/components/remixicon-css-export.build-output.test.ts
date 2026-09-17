@@ -90,7 +90,7 @@ describe('the ./remixicon.css subpath export reaches built output', () => {
 
   it('is inside a directory the package actually publishes', () => {
     // `files` is `["dist", ...negations]`; a target that escaped `dist/` would resolve locally in
-    // this monorepo (where Tovu symlinks the checkout) and 404 for anyone installing the tarball.
+    // this monorepo (where a host symlinks the checkout) and 404 for anyone installing the tarball.
     expect(manifest.exports[SUBPATH] as string).toMatch(/^\.\/dist\//);
   });
 });

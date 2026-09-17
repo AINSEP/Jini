@@ -137,7 +137,7 @@ export interface OutboxPort {
    * attempt cap) — an implementation must persist exactly what it is told, not re-derive the
    * decision from the row's own stored `attempts` (2026-09-06: this parameter replaced that
    * adapter-side re-derivation, mirroring `WebhookDeliveryRepoPort.markFailed`'s `nextStatus`
-   * shape in the Tovu host). `"pending"` re-enters the retry queue at `nextAttemptAt`; `"failed"`
+   * shape in the host). `"pending"` re-enters the retry queue at `nextAttemptAt`; `"failed"`
    * is terminal — `claimPending` only ever selects `"pending"` rows, so a `"failed"` row is
    * permanently excluded from retry regardless of `nextAttemptAt`.
    */

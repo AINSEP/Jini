@@ -118,13 +118,13 @@ const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
 
 /**
  * The CANONICAL href allowlist for an author-authored link — same accepted shapes (`#…`, same-origin
- * `/…`, `http(s)://`, `mailto:`) as Tovu's render-time `safeHref` in `render.ts` and its
+ * `/…`, `http(s)://`, `mailto:`) as the host's render-time `safeHref` in `render.ts` and its
  * `features/theme/static-render.ts` duplicate. **This is now the single source of truth**: exported
  * from this package's public surface (`navigation/index.ts` -> `@jini-ai/cms/navigation`) so the
- * dependency runs the direction that is actually legal — Tovu already depends on `@jini-ai/cms`, not
+ * dependency runs the direction that is actually legal — the host already depends on `@jini-ai/cms`, not
  * the reverse — rather than each consumer hand-copying the predicate.
  *
- * The two Tovu copies (`render.ts:252`, `features/theme/static-render.ts:210`, both a coercing
+ * The two host-side copies (`render.ts:252`, `features/theme/static-render.ts:210`, both a coercing
  * `value => passes ? value : "#"` wrapper around the identical predicate below) have **not yet been
  * retired to import this** — that edit is intentionally out of this change's scope (a
  * `check:boundaries` no-deep-import concern is NOT what blocks it: `render.ts` already imports
@@ -149,7 +149,7 @@ const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
  * workspace's stored menu data (`content.db`, `content.seed.db`) before this change: every existing
  * `url`-kind href already starts with `#` or `/`, so this tightening rejects nothing that exists
  * today — it governs `createMenu` too, so it also reaches the Jini MCP agent-tool path, not just
- * hrefs written through Tovu's admin editor.
+ * hrefs written through the host's admin editor.
  *
  * @param rawHref - The href to check, already confirmed non-empty by `validateTarget`. Any string is
  *   otherwise a valid input — this function performs no other precondition checks.

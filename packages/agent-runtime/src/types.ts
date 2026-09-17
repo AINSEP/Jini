@@ -106,7 +106,7 @@ export type RuntimeBuildOptions = {
    * expresses a deny-list — today, `claude`'s own `--disallowedTools` (verified against installed
    * Claude Code 2.1.263: `--disallowedTools, --disallowed-tools <tools...>`, "Comma or
    * space-separated list of tool names to deny"). This is a `@jini-ai/agent-runtime`-level
-   * *mechanism* only: no product's tool policy is baked in here (not Tovu's Bash-forbid opinion,
+   * *mechanism* only: no product's tool policy is baked in here (not one host's Bash-forbid opinion,
    * not anyone else's) — the caller decides which names to pass. A def whose CLI has no equivalent
    * flag simply ignores this field, same as `systemPromptOverlay` on a def with no overlay
    * delivery. `undefined`/empty means no restriction — byte-identical to today's behavior (every

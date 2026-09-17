@@ -20,7 +20,7 @@ import { normalizeUsername } from "./username.js";
  * verifying credentials, and a host that identifies a principal by some other means (e.g. a
  * loopback-only single-use boot token, which has nothing to verify a password against) calls it
  * directly instead of re-implementing session construction. Before this export existed, a
- * downstream host (Tovu) had duplicated this file's private `hashToken` byte-for-byte because
+ * downstream host had duplicated this file's private `hashToken` byte-for-byte because
  * `login()` was the only minter and hard-requires a password — this closes that fork.
  *
  * Architectural role:

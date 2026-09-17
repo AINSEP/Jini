@@ -119,7 +119,7 @@ interface ActiveContextPayload {
 /**
  * What a model is told when the host's daemon never mounted `GET /api/active` (a 404 — the route
  * itself has no 404 answer). Without it the model saw a bare "daemon 404 on ..." and, primed by this
- * tool's own description, reported "no pointer set / aged past the TTL" (Tovu, 2026-09-16).
+ * tool's own description, reported "no pointer set / aged past the TTL" (a host product, 2026-09-16).
  */
 const ACTIVE_CONTEXT_NOT_SUPPORTED =
   'get_active_context is not supported by this host: its daemon does not serve GET /api/active (HTTP 404). This is NOT the same as {active:false} — no focus is tracked through this tool here at all. Use any screen/page context the host put in your prompt, or ask the user.';

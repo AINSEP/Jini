@@ -7,7 +7,7 @@ import { useFileDropTarget } from '../useFileDropTarget.js';
  * Pins that a drop target's drag-over state (the chat composer's dashed "drop here" outline, among
  * others) can never stay on after the drag is over. Each case below is a way the drag ends; the first
  * two used to leave `draggingFiles` stuck at `true`, because only this target's own `onDrop` and
- * `onDragLeave` ever cleared it — and a host that handles a drop itself in the capture phase (Tovu's
+ * `onDragLeave` ever cleared it — and a host that handles a drop itself in the capture phase (a host's
  * folder-drop-to-path, which stops propagation) means this target's `onDrop` never runs.
  */
 

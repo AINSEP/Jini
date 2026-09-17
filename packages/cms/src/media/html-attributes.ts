@@ -1,17 +1,17 @@
 /**
  * @file Server-side allowlist for `MediaRecord.htmlAttributes` (2026-09-07) — the enforcement half
- * of a validator that ALSO has a browser-side copy in Tovu's admin
+ * of a validator that ALSO has a browser-side copy in the consuming product's admin
  * (`apps/admin/src/features/media/rules.ts`, `parseMediaHtmlAttributes` and friends).
  *
  * Deliberately duplicated, not shared via one imported module, for the same reason this codebase
- * already hand-copies `DEFAULT_ALLOWED_MIME_TYPES` into Tovu's `FILE_HANDLER_ALLOWED_MIME_TYPES`/
+ * already hand-copies `DEFAULT_ALLOWED_MIME_TYPES` into that admin's `FILE_HANDLER_ALLOWED_MIME_TYPES`/
  * `IMPORTABLE_CONTENT_TYPES`: `@jini-ai/cms/media`'s barrel (`index.ts`) re-exports files that
  * import real Node built-ins (`node:crypto` in `media-service.ts`, `node:fs` in
  * `blob-store.fs.ts`, native `sharp` bindings in `image-transformer.sharp.ts`) — importing this
- * subpath from a browser-bundled Vite app (Tovu's `apps/admin`) risks pulling those into the admin
+ * subpath from a browser-bundled Vite app (that product's `apps/admin`) risks pulling those into the admin
  * SPA's bundle even if only this one pure function is actually used, and this admin's own copy
  * already exists, tested, with no such risk. This file is the copy every Node-side consumer
- * (`media-service.ts`'s own `updateMediaMetadata`, and Tovu's `apps/website` render path, both pure
+ * (`media-service.ts`'s own `updateMediaMetadata`, and that product's `apps/website` render path, both pure
  * backend code) can safely import from `@jini-ai/cms/media` instead of re-deriving the rules a
  * third time.
  *
@@ -21,7 +21,7 @@
  * needed — that is the one piece of drift risk this duplication accepts, the same risk every other
  * hand-copied list in this codebase already accepts.
  *
- * This is a SECURITY boundary, not a syntax convenience: media metadata is authored in Tovu's admin
+ * This is a SECURITY boundary, not a syntax convenience: media metadata is authored in the consuming product's admin
  * but rendered on the public site, so a free-text HTML-attribute passthrough is a stored-XSS vector
  * (`onerror`, `onclick`, `style`, `href="javascript:"`, any `on*` handler) the moment it reaches a
  * public page. A client-side-only check is not a control, since the API accepts whatever a caller
@@ -34,7 +34,7 @@
  * families (checked separately in {@link isAllowedMediaHtmlAttributeName}). Picked for the owner's
  * stated near-term uses (animations, custom WebMCP hooks) plus the standard `<img>`/`<video>`
  * attributes those uses actually need; extend this list, not the parser, when a new one is needed —
- * and keep it in sync with the identical constant in Tovu's admin copy (see this file's header).
+ * and keep it in sync with the identical constant in that admin's copy (see this file's header).
  */
 export const MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES = [
   "loading",

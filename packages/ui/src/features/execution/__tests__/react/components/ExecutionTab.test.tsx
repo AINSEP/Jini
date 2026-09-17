@@ -507,7 +507,7 @@ describe('ExecutionTab — agentHandle', () => {
 });
 
 /**
- * Host-gated discovery. Reported in a host (Tovu, 2026-09-13): the host's server held a key saved for
+ * Host-gated discovery. Reported in a host (2026-09-13): the host's server held a key saved for
  * one endpoint, the operator picked another provider, and the endpoint-change discovery below asked the
  * host to probe the new endpoint with that stored key. The host's server refused, and its refusal text,
  * written for API callers, rendered raw under the Model field.

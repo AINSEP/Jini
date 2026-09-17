@@ -4,11 +4,11 @@
  *
  * Relocated here from Jini's `@jini-ai/ui` (2026-08-08): these keys aren't UI-rendering logic,
  * they're settings-domain presentation copy, and this package's `settings` module is the actual
- * domain owner shared across every host (Tovu, Zana, ...). `@jini-ai/ui` keeps the *component*
+ * domain owner shared across every host. `@jini-ai/ui` keeps the *component*
  * that renders a settings dialog; a host supplies the copy, and this is the shared copy any
  * OD-parity host can reuse instead of re-authoring its own. See project memory "Settings-dialog
- * i18n relocation" for the full decision record and the sibling move of the 8 Tovu-specific
- * capability-fact keys (those stayed host-side — see Tovu's own `settings-capabilities-i18n.ts`).
+ * i18n relocation" for the full decision record and the sibling move of the 8 host-specific
+ * capability-fact keys (those stayed host-side — see the host's own `settings-capabilities-i18n.ts`).
  *
  * No `en` dictionary: this package's convention (matching `@jini-ai/ui`) is "the English string
  * IS the key" — `translateSettingsDialog` falls back to the raw key for English and any

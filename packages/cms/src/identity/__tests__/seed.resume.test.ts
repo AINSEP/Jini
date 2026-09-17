@@ -23,13 +23,13 @@ import type { PolicyRecord, RoleRecord } from "../types.js";
  *
  * The defect these tests pin: `seedIdentity`'s only idempotency guard is "does the owner user
  * exist". That guard is correct for a seed that ran to completion and wrong for one that did not.
- * A host kicks the seed off without awaiting it (Tovu's `features/identity/wiring.ts` hands the
+ * A host kicks the seed off without awaiting it (its `features/identity/wiring.ts` hands the
  * promise back as `identityReady`), so any process that exits before the seed's argon2-gated final
  * step — a fast-failing CLI command, a Ctrl-C, a crash — leaves roles/policies written and no owner
  * user. The next boot's guard sees no owner user, replays the seed from the top, and re-inserts a
  * role that is already there.
  *
- * Verified against the real product path before this file was written (Tovu @ content.db, SQLite):
+ * Verified against the real product path before this file was written (a real host @ content.db, SQLite):
  *   boot 1  `tovu init <dir>`                       -> roles: 0 rows (init does not seed identity)
  *   boot 2  `tovu export <dir> --out <non-empty>`   -> exits 3 mid-seed; leaves roles: 1 row
  *                                                      ('owner'), policies: 0, identity_users: 0
@@ -115,7 +115,7 @@ const seedInput = { workspaceId: WORKSPACE, ownerPassword: SEED_OWNER_PASSWORD }
  * different points: dying on a `policies.save` leaves a role with no policy, dying on a
  * `policyPermissions.save` leaves a policy with no permissions, and dying on the single
  * `principalRoles.save` leaves the owner USER written with no role link at all.
- * `{ repo: "policies", after: 0 }` reproduces the state observed live on Tovu — the 'owner' role
+ * `{ repo: "policies", after: 0 }` reproduces the state observed live on a host — the 'owner' role
  * row written, nothing after it.
  */
 async function seedThenAbort(
@@ -335,7 +335,7 @@ async function ownerDecision(repos: IdentityRepos, principalId: string) {
  * workspace whose owner exists, can log in, and holds no role — and every later boot early-returns
  * on the user it finds, so the seed never repairs it. `resolveEffectivePermissions` starts from
  * `principal_roles` + `principal_policies`, finds neither, and every permission evaluates to
- * `no_grant`. Neither of Tovu's boot-time reconcilers can fix it: `migrateDeprecatedPermissionGrants`
+ * `no_grant`. Neither of the host's boot-time reconcilers can fix it: `migrateDeprecatedPermissionGrants`
  * and `applyBuiltinRoleGrants` are handed policy/role repos only, never `principalRoles`.
  */
 test("a seed interrupted between the owner user and its role link repairs the binding on the next boot", async () => {

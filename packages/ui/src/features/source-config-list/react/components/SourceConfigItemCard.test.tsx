@@ -354,7 +354,7 @@ describe('SourceConfigItemCard', () => {
     it('declares an explicit text color on the Edit/Save/Cancel toggle buttons, so a host page that resets bare <button> color to its own accent-ink cannot render them invisible', () => {
       // Regression: `.source-config-item-card-edit-toggle button` shipped with no `color` at all,
       // unlike its sibling rules (`.source-config-item-card-actions button, select` and
-      // `.source-config-test-button`, both of which set `color: var(--jini-text)`). Tovu's own admin
+      // `.source-config-test-button`, both of which set `color: var(--jini-text)`). A host's own admin
       // design system has a global `button { ...; color: var(--primary-ink); }` base rule (an
       // off-white ink meant to sit on that rule's own colored `background`) that is MORE specific
       // than nothing, so it kept applying color even after this rule's `background` override took —

@@ -35,7 +35,7 @@ export function useFileDropTarget(onUploadFiles: (files: File[]) => void): UseFi
   const clearDropReadError = useCallback(() => setDropReadError(null), []);
 
   // This target's own `onDrop`/`onDragLeave` are not guaranteed to run when a drag ends: a host that
-  // handles a drop itself in the capture phase and stops propagation (Tovu's folder-drop-to-path) or a
+  // handles a drop itself in the capture phase and stops propagation (a host's folder-drop-to-path) or a
   // drag that ends elsewhere leaves the drag-over state stuck on. Window-capture listeners run before
   // any element handler, so no `stopPropagation` can skip them. Registered only while dragging.
   useEffect(() => {

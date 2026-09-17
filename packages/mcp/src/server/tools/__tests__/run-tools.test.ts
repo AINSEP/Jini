@@ -119,7 +119,7 @@ describe('getActiveContextTool', () => {
   });
 
   // A host that never mounts GET /api/active answers 404. Surfaced as the bare "daemon 404 on ..."
-  // error, a model read it as "no pointer set / aged past the TTL" (Tovu, 2026-09-16) and told the
+  // error, a model read it as "no pointer set / aged past the TTL" (a host product, 2026-09-16) and told the
   // user nothing was recorded — the tool must say the host does not support it at all.
   it('fails with an explicit "not supported by this host" error when the daemon does not serve /api/active', async () => {
     getDaemonJson.mockRejectedValueOnce(Object.assign(new Error('daemon 404 on http://d.example/api/active: HTTP 404'), { status: 404 }));

@@ -9,7 +9,7 @@ import {
 
 /**
  * @file `html-attributes.ts`'s allowlist — the server-side (Node) copy of the identical validator
- * Tovu's admin carries in `apps/admin/src/features/media/rules.ts`. See that file's header and this
+ * the consuming product's admin carries in `apps/admin/src/features/media/rules.ts`. See that file's header and this
  * one's for why the two copies are deliberately duplicated rather than shared through one import.
  *
  * Ported verbatim from the admin copy's own test suite

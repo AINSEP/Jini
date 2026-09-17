@@ -42,7 +42,7 @@ async function exerciseContract(store: BlobStorePort, label: string) {
 
 /**
  * `putIfAbsent`'s create-only contract, exercised against both adapters — the property
- * `hydrateBlobStoreFromSeed()` (Tovu) depends on to close its check-then-overwrite race: a second
+ * `hydrateBlobStoreFromSeed()` (host-side) depends on to close its check-then-overwrite race: a second
  * `putIfAbsent` for an already-occupied key must report `written: false` AND must leave the
  * FIRST writer's bytes untouched, never silently replace them with the second caller's bytes.
  */

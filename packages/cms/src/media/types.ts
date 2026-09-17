@@ -53,7 +53,7 @@ export interface MediaRecord {
    *
    * Derived from `title` at upload time (`deriveMediaSlug`), then independently editable afterward
    * — renaming `title` does NOT recompute this field; it changes only on an explicit `slug` write.
-   * Unique per `(workspaceId, slug)`, enforced by the host's own DB index (see Tovu's
+   * Unique per `(workspaceId, slug)`, enforced by the host's own DB index (see the host's
    * `idx_media_workspace_slug`) — `updateMediaMetadata`'s own `findBySlug` check is a friendly-error
    * courtesy on top of that, not the enforcement itself, the same split `posts_workspace_slug_unique`
    * already establishes for `post`'s identical `slug` field.

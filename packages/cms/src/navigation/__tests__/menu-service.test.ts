@@ -296,7 +296,7 @@ test("updateMenuTree rejects a javascript: url target", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// url target href write-time allowlist — the write-time twin of Tovu's
+// url target href write-time allowlist — the write-time twin of the host's
 // render-time `safeHref` (`apps/website/.../http/site/render.ts` and its
 // `features/theme/static-render.ts` duplicate). Replaces a `startsWith`
 // scheme DENYLIST that failed open against control characters and
@@ -312,8 +312,8 @@ test("updateMenuTree rejects a javascript: url target", async () => {
  * cross-repo behavioral-equivalence gate
  * (`apps/website/development/scripts/check-menu-href-allowlist-sync.ts`) feeds
  * through this function's `@jini-ai/cms/navigation` export and both of
- * Tovu's `safeHref` copies — kept independently maintained here (Jini
- * cannot import Tovu's dev-scripts, and vice versa) rather than a single
+ * the host's `safeHref` copies — kept independently maintained here (Jini
+ * cannot import the host's dev-scripts, and vice versa) rather than a single
  * shared file, so verify the two lists match when editing either.
  */
 const DISALLOWED_URL_TARGET_HREFS: readonly string[] = [
@@ -380,7 +380,7 @@ for (const href of DISALLOWED_URL_TARGET_HREFS) {
   });
 }
 
-/** Legitimate shapes the allowlist must keep accepting — matches Tovu's render-time `safeHref` table. */
+/** Legitimate shapes the allowlist must keep accepting — matches the host's render-time `safeHref` table. */
 const ALLOWED_URL_TARGET_HREFS: readonly string[] = [
   "/quickstart",
   "#posts",

@@ -6170,7 +6170,7 @@ describe("AgentExecutor — Finding 1 (SEC-assistant-env-isolation-2026-09-07): 
   // disallowedTools flows through buildAgentBuildArgsOptions into the def's own buildArgs/argv,
   // while isolation flows through prepareClaudeConfigDirIfNeeded into the spawned env. Nothing in
   // either path reads the other's flag. This run exercises both in one real `.run()` call, with
-  // isolation left at its default (disabled), to prove Tovu's own tool restriction is not
+  // isolation left at its default (disabled), to prove the host's own tool restriction is not
   // collateral damage of the 2026-09-08 default-off rollback.
   it('still applies disallowedTools to a "claude"-id def\'s argv when CLAUDE_CONFIG_DIR isolation is left at its default (disabled)', async () => {
     const { claudeConfigDirIsolation, mkdtempCalls } = createClaudeConfigDirFsSpies();

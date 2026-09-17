@@ -131,7 +131,7 @@ function ftypBytes(majorBrand: string, compatibleBrands: readonly string[]): Uin
  * Regression (2026-09-06): AVIF is an ISO-BMFF container, so its leading `ftyp` box matched the
  * MP4 check — which tests ONLY for the `ftyp` tag and never reads the brand — and every real
  * `.avif` upload was sniffed as `video/mp4`. Because the sniffed type is persisted as the
- * image-vs-video source of truth (Tovu's `routes/media/upload.ts` writes it to
+ * image-vs-video source of truth (the host's `routes/media/upload.ts` writes it to
  * `mediaContentTypeStore`), that mislabel made an AVIF render as an unplayable `<video>` on a
  * public page. These bytes are the real leading box of a genuine AVIF file.
  */

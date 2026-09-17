@@ -188,7 +188,7 @@ export interface SeedIdentityResult {
 /**
  * Why every step below is "find, then save only what is missing" rather than a straight insert.
  *
- * This function's writes are NOT transactional and its caller is not awaited by its hosts (Tovu
+ * This function's writes are NOT transactional and its caller is not awaited by its hosts (one host
  * hands `seedIdentity`'s promise back as `RouteDeps.identityReady` and returns synchronously), so
  * a process that exits before the seed finishes — a fast-failing CLI command, a Ctrl-C, a crash —
  * leaves the workspace half-seeded. `seedIdentity`'s own early-return guard keys on the OWNER USER,
@@ -320,7 +320,7 @@ async function seedBuiltinRoleWithPolicy(required: {
  * still log in, and holds no role — and `resolveEffectivePermissions` (`authorize.ts`) starts from
  * `principal_roles` + `principal_policies`, so with neither present EVERY permission evaluates to
  * `no_grant`. Without this step the guard early-returns on the user it finds forever and the site
- * stays bricked for its owner, silently. Neither host-side reconciler closes it either: Tovu's
+ * stays bricked for its owner, silently. Neither host-side reconciler closes it either: the host's
  * `migrateDeprecatedPermissionGrants` and `applyBuiltinRoleGrants` are handed policy and role repos
  * only, never `principalRoles`, so neither can write a principal->role link at all.
  *
@@ -374,7 +374,7 @@ async function ensureOwnerRoleBinding(required: {
  * - A seed that RAN TO COMPLETION is a no-op — the owner-username lookup below early-returns after
  *   a single confirming read (`ensureOwnerRoleBinding`) and writes nothing. (This path does not
  *   reconcile a built-in policy whose permission list has since grown; that is the host's job — see
- *   Tovu's `applyBuiltinRoleGrants` / `migrateDeprecatedPermissionGrants`, chained onto
+ *   the host's `applyBuiltinRoleGrants` / `migrateDeprecatedPermissionGrants`, chained onto
  *   `identityReady`.)
  * - "Ran to completion" is judged on the owner user AND its role link, not the user alone. The link
  *   is the seed's last write, so the user is not on its own evidence the seed finished — see
