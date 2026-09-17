@@ -29,7 +29,7 @@
  * octet-stream type is immune to every body parser.
  */
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
-import type { ChatAttachment } from '@jini-ai/chat/core';
+import type { ChatAttachment } from '@jini-ai/chat';
 import type { ChatPaneAttachmentUploadOptions, ChatPaneProps } from './types.js';
 
 export interface CreateDaemonAttachmentUploaderOptions {

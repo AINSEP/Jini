@@ -15,8 +15,8 @@ import type {
   ChatPaneRunContext,
   ChatPaneWorkingDirectoryAccess,
 } from '../types.js';
-import type { ChatAttachment, ChatMessage } from '@jini-ai/chat/core';
-import type { ChatTransport } from '@jini-ai/chat/core';
+import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
+import type { ChatTransport } from '@jini-ai/chat';
 import { definedProps } from '../../../util/defined-props.js';
 import { cacheAttachmentPreviewSource } from '../../../hooks/attachment-preview-cache.js';
 import { useComposer, type UseComposerResult } from '../../../hooks/useComposer.js';

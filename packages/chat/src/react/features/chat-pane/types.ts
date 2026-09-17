@@ -1,8 +1,8 @@
 import type { CSSProperties, ReactNode, RefObject } from 'react';
-import type { ChatAttachment, ChatMessage } from '@jini-ai/chat/core';
+import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 
 import type { ComposerSlots } from '../../slots.js';
-import type { ChatTransport, RunContext } from '@jini-ai/chat/core';
+import type { ChatTransport, RunContext } from '@jini-ai/chat';
 
 export interface ChatPaneAgentOption {
   id: string;

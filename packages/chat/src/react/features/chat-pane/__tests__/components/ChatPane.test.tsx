@@ -3,7 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ChatMessage } from '@jini-ai/chat/core';
+import type { ChatMessage } from '@jini-ai/chat';
 import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
