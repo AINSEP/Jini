@@ -18,11 +18,6 @@
     },
     {
       "rule": "R5-neutrality",
-      "file": "packages/cms/src/settings/dictionaries/index.ts",
-      "reason": "product-identity string \"Tovu\" (comments included)"
-    },
-    {
-      "rule": "R5-neutrality",
       "file": "packages/devops/src/deploy/redirect-guard.ts",
       "reason": "product-identity string \"Tovu\" (comments included)"
     },
