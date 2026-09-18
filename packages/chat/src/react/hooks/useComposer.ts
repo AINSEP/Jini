@@ -17,15 +17,15 @@
  * draft/attachment/mention/agent-selection *state shape* is kept.
  *
  * `conversationId` (when supplied) keys the draft — and, on a change, the staged attachments and
- * mention popover — against `composer-draft-cache.ts`'s module-level cache, so a switch between
- * conversations round-trips whatever was typed instead of losing it or leaking it into the wrong
- * conversation. That cache is a separate, always-on mechanism from `persistence` above: `persistence`
- * is a single opaque host-owned slot (e.g. localStorage, for surviving a page *reload*) that this
- * hook still never touches directly; the cache instead survives a `ChatPane` remount within the same
- * page session — see its own module doc for why a switch here so often means a full remount. Staged
- * attachments and the mention popover are deliberately NOT cached across a switch (unlike the draft
- * text): they reference an in-flight upload batch, and carrying them into a different conversation
- * risks attaching the wrong files to the wrong thread, so they are cleared instead.
+ * mention popover — against `composer-draft-cache.ts`, so whatever was typed comes back on a switch
+ * between conversations, on a `ChatPane` remount, and on a full page reload, without leaking into
+ * the wrong conversation. That cache is a separate, always-on mechanism from `persistence` above,
+ * which stays an opt-in host-owned slot this hook never touches directly and which still wins at
+ * mount when a host wires one; the cache needs no host wiring and is what actually fixes the
+ * reported data loss (see its module doc). Staged attachments and the mention popover are
+ * deliberately NOT cached across a switch (unlike the draft text): they reference an in-flight
+ * upload batch, and carrying them into a different conversation risks attaching the wrong files to
+ * the wrong thread, so they are cleared instead.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatAttachment } from '../../core/index.js';
@@ -101,6 +101,11 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     [persistence, conversationId],
   );
 
+  // Lets the conversation-change effect below read the live draft without taking `draft` as a
+  // dependency, which would re-run it on every keystroke.
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
   // Re-keys the draft (and drops attachments/the mention popover — see this module's doc) when
   // `conversationId` changes WITHOUT a remount — a host that keeps the composer mounted across
   // conversations, unlike a host that remounts `ChatPane` via a conversation-keyed `key` (the
@@ -108,9 +113,26 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   // render via the ref comparison so it never fights that initializer.
   const previousConversationIdRef = useRef(conversationId);
   useEffect(() => {
+    const previousConversationId = previousConversationIdRef.current;
     if (conversationId === previousConversationIdRef.current) return;
     previousConversationIdRef.current = conversationId;
-    setDraftState(readCachedDraft(conversationId) ?? '');
+    const restored = readCachedDraft(conversationId);
+
+    // An id arriving where there was none is NOT a switch between two conversations — it is the one
+    // the operator is already looking at finally getting a key (a new chat created server-side
+    // mid-compose, or a host that resolves the active id asynchronously after mount). Adopt what
+    // they have typed instead of wiping it: writes no-op while the id is absent, so that text
+    // exists in this hook's state and nowhere else, and an empty restore must never clobber text
+    // the person can currently see. Guarded to `previousConversationId == null` so a real
+    // conversation-to-conversation switch still clears, and cannot leak one thread's half-written
+    // message into another. Attachments and the mention popover are left alone here for the same
+    // reason — nothing was switched away from.
+    if (previousConversationId == null && conversationId != null && restored === null && draftRef.current.trim() !== '') {
+      writeCachedDraft(conversationId, draftRef.current);
+      return;
+    }
+
+    setDraftState(restored ?? '');
     setAttachments([]);
     setMention(EMPTY_MENTION);
   }, [conversationId]);

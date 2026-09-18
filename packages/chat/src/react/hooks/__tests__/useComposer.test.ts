@@ -303,4 +303,90 @@ describe('useComposer', () => {
       expect(back.result.current.draft).toBe('');
     });
   });
+
+  /**
+   * The bug this covers, reported 2026-09-18: an operator was mid-way through composing in the
+   * assistant chat when a site-server restart took the page down, and the text was gone. Resetting
+   * the cache with `keepStorage` is the honest simulation — fresh module scope, storage that
+   * outlived it.
+   */
+  describe('draft persistence across a page reload', () => {
+    beforeEach(() => __resetComposerDraftCacheForTests());
+
+    it('brings back what was being typed when the page goes down and comes back', () => {
+      const before = renderHook(() => useComposer({ conversationId: 'convo-a' }));
+      act(() => before.result.current.setDraft('the long message I had not sent yet'));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const after = renderHook(() => useComposer({ conversationId: 'convo-a' }));
+      expect(after.result.current.draft).toBe('the long message I had not sent yet');
+    });
+
+    it('still keeps conversations apart after a reload', () => {
+      const a = renderHook(() => useComposer({ conversationId: 'convo-a' }));
+      act(() => a.result.current.setDraft('half-written message for A'));
+      a.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const b = renderHook(() => useComposer({ conversationId: 'convo-b' }));
+      expect(b.result.current.draft).toBe('');
+    });
+
+    it('does not bring back a message that was already sent', () => {
+      const before = renderHook(() => useComposer({ conversationId: 'convo-a' }));
+      act(() => before.result.current.setDraft('this one gets sent'));
+      act(() => before.result.current.reset());
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const after = renderHook(() => useComposer({ conversationId: 'convo-a' }));
+      expect(after.result.current.draft).toBe('');
+    });
+
+    it('adopts text typed before the conversation had an id, rather than wiping it', () => {
+      const { result, rerender } = renderHook(
+        ({ conversationId }: { conversationId: string | null }) => useComposer({ conversationId }),
+        { initialProps: { conversationId: null as string | null } },
+      );
+      act(() => result.current.setDraft('typed before the chat was created'));
+
+      rerender({ conversationId: 'convo-new' });
+      expect(result.current.draft).toBe('typed before the chat was created');
+
+      // And it is now durable under the id it was adopted into.
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+      const after = renderHook(() => useComposer({ conversationId: 'convo-new' }));
+      expect(after.result.current.draft).toBe('typed before the chat was created');
+    });
+
+    it('prefers a stored draft over adoption when the composer is empty as the id arrives', () => {
+      const seeded = renderHook(() => useComposer({ conversationId: 'convo-seeded' }));
+      act(() => seeded.result.current.setDraft('what was already saved here'));
+      seeded.unmount();
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const { result, rerender } = renderHook(
+        ({ conversationId }: { conversationId: string | null }) => useComposer({ conversationId }),
+        { initialProps: { conversationId: null as string | null } },
+      );
+      rerender({ conversationId: 'convo-seeded' });
+      expect(result.current.draft).toBe('what was already saved here');
+    });
+
+    it('does not adopt across a real conversation switch', () => {
+      const { result, rerender } = renderHook(
+        ({ conversationId }: { conversationId: string }) => useComposer({ conversationId }),
+        { initialProps: { conversationId: 'convo-a' } },
+      );
+      act(() => result.current.setDraft('belongs to A only'));
+
+      rerender({ conversationId: 'convo-b' });
+
+      expect(result.current.draft).toBe('');
+    });
+  });
 });
