@@ -29,7 +29,12 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatAttachment } from '../../core/index.js';
-import { readCachedDraft, writeCachedDraft } from './composer-draft-cache.js';
+import {
+  readCachedAttachments,
+  readCachedDraft,
+  writeCachedAttachments,
+  writeCachedDraft,
+} from './composer-draft-cache.js';
 import { cacheAttachmentPreviewSource } from './attachment-preview-cache.js';
 import type { AgentSelection, ComposerSlots, MentionResult, ProjectContextValue } from '../slots.js';
 
@@ -51,6 +56,23 @@ export interface UseComposerOptions {
    * exists.
    */
   conversationId?: string | null;
+  /**
+   * Confirms which of a conversation's previously staged attachments still exist, so a restored
+   * draft never shows a chip for a file the host has since garbage-collected — that looks intact and
+   * then fails at send, which is worse than not restoring it at all.
+   *
+   * Receives the cached references and returns the subset still valid (order need not be preserved;
+   * an empty array means none survived). A rejection is treated as "none survived" — restoring
+   * unverified references is the failure mode this option exists to prevent.
+   *
+   * **Omitting it disables attachment persistence entirely** — nothing is written and nothing is
+   * restored, which is exactly the behavior before this option existed. Only the draft TEXT is
+   * persisted then, so a host that cannot answer the liveness question loses nothing and risks
+   * nothing. Text and attachments are stored under separate keys and degrade independently.
+   *
+   * Captured in a ref, so an inline arrow is safe and will not re-run the restore on every render.
+   */
+  validateAttachments?: (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
 }
 
 export interface MentionPopoverState {
@@ -84,7 +106,7 @@ export interface UseComposerResult {
 const EMPTY_MENTION: MentionPopoverState = { open: false, query: '', results: [] };
 
 export function useComposer(options: UseComposerOptions = {}): UseComposerResult {
-  const { project, composerSlots, persistence, conversationId } = options;
+  const { project, composerSlots, persistence, conversationId, validateAttachments } = options;
   const [draft, setDraftState] = useState<string>(
     () => options.initialDraft ?? persistence?.read() ?? readCachedDraft(conversationId) ?? '',
   );
@@ -136,6 +158,67 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     setAttachments([]);
     setMention(EMPTY_MENTION);
   }, [conversationId]);
+
+  // Held in a ref so an inline arrow from the host does not re-run the restore below on every
+  // render. Reassigned each render so a host that swaps implementations still gets the new one.
+  const validateAttachmentsRef = useRef(validateAttachments);
+  validateAttachmentsRef.current = validateAttachments;
+
+  // Which conversation the attachment restore has already settled for. Compared against the live
+  // `conversationId` before any persist, so the switch effect's own `setAttachments([])` can never
+  // race ahead and delete the conversation being switched TO. `undefined` means "not settled yet",
+  // which is why this is not a boolean.
+  const attachmentsHydratedForRef = useRef<string | null | undefined>(undefined);
+
+  // Restores previously staged attachments, but only ones the host confirms still exist. Without a
+  // validator this does nothing at all: attachment persistence stays off and only the draft text
+  // survives, which is the documented default (see `validateAttachments`).
+  useEffect(() => {
+    const validate = validateAttachmentsRef.current;
+    if (!validate || !conversationId) {
+      attachmentsHydratedForRef.current = conversationId;
+      return;
+    }
+    const cached = readCachedAttachments(conversationId);
+    if (cached === null || cached.length === 0) {
+      attachmentsHydratedForRef.current = conversationId;
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      let valid: readonly ChatAttachment[] = [];
+      try {
+        valid = await validate(cached);
+      } catch {
+        // A validator that throws tells us nothing about the files, so assume none survived rather
+        // than restoring references we cannot vouch for.
+        valid = [];
+      }
+      if (cancelled) return;
+      if (valid.length > 0) {
+        // Only seeds an untouched composer: anything the operator staged while validation was in
+        // flight is theirs and outranks a restore.
+        setAttachments((prev) => (prev.length === 0 ? [...valid] : prev));
+      } else {
+        // Every reference was dead. Purge them so the next load does not pay for this again.
+        writeCachedAttachments(conversationId, []);
+      }
+      attachmentsHydratedForRef.current = conversationId;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
+
+  // Persists staged attachments once the restore for THIS conversation has settled. Gated on the
+  // settle marker so a mount's initial empty `attachments` cannot delete what is still being
+  // restored. An empty list deletes the entry, so a send (which clears attachments) also clears the
+  // cached references, matching the draft text's own rule.
+  useEffect(() => {
+    if (!validateAttachmentsRef.current || !conversationId) return;
+    if (attachmentsHydratedForRef.current !== conversationId) return;
+    writeCachedAttachments(conversationId, attachments);
+  }, [attachments, conversationId]);
 
   const addAttachment = useCallback((attachment: ChatAttachment) => {
     setAttachments((prev) => [...prev, attachment]);

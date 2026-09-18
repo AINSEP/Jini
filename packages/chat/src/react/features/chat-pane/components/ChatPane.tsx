@@ -17,6 +17,7 @@ import type {
 import { isChatPaneApiModeConfigured } from '../rules.js';
 import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.js';
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
+import { useChatPaneComposerPlaceholder } from '../hooks/useChatPaneComposerPlaceholder.hooks.js';
 import { useChatPaneControlsHeight } from '../hooks/useChatPaneControlsHeight.hooks.js';
 import {
   useChatPaneFileDrop,
@@ -480,8 +481,10 @@ export function ChatPane({
   byokRuntime,
   onByokModelChange,
   initialDraft,
+  validateAttachments,
   composerHandle,
   placeholder,
+  placeholders,
   suggestions = [],
   workingDirectory,
   initialWorkingDirectory,
@@ -501,6 +504,7 @@ export function ChatPane({
   style,
 }: ChatPaneProps) {
   const t = useT();
+  const composerPlaceholder = useChatPaneComposerPlaceholder(placeholder, placeholders);
   const inventory = useChatPaneRuntimeInventory(definedProps({
     access: runtimeAccess,
     initialAgents: injectedAgents,
@@ -528,6 +532,7 @@ export function ChatPane({
     onSelectionChange,
     runContext,
     initialDraft,
+    validateAttachments,
     uploadAttachments,
     onActivityChange,
     onMessagesChange,
@@ -642,7 +647,7 @@ export function ChatPane({
             pane={pane}
             disabled={disabled}
             unavailable={unavailable}
-            placeholder={placeholder}
+            placeholder={composerPlaceholder}
             slots={slots}
             attachmentAccept={attachmentAccept}
             workingDirectoryAccess={workingDirectoryAccess}

@@ -160,6 +160,18 @@ export interface ChatPaneProps {
   onByokModelChange?: (model: string) => void;
   initialDraft?: string;
   /**
+   * Confirms which previously staged attachments still exist, so a draft restored after a reload
+   * never shows a chip for a file the backend has since garbage-collected — that looks intact and
+   * then fails at send. Receives the cached references, returns the subset still valid; a rejection
+   * is treated as "none survived".
+   *
+   * **Optional, and omitting it keeps the previous behavior exactly**: attachment persistence stays
+   * off, nothing is written and nothing is restored, and only the draft TEXT survives a reload. No
+   * existing host needs to change anything. Wire it only if the host can actually answer the
+   * liveness question — restoring references it cannot vouch for is the failure this prevents.
+   */
+  validateAttachments?: (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
+  /**
    * A ref `ChatPane` populates with a `ChatPaneComposerHandle` once mounted, for a host that needs
    * to insert text into the draft from OUTSIDE this component's own props — e.g. an absolute path
    * a desktop host recovered from a native drag-drop event and could not have known at
@@ -168,6 +180,14 @@ export interface ChatPaneProps {
    */
   composerHandle?: RefObject<ChatPaneComposerHandle | null>;
   placeholder?: string;
+  /**
+   * Rotating composer suggestions, cycled every few seconds in place of one fixed `placeholder` —
+   * see `useChatPaneComposerPlaceholder`. Takes over from `placeholder` once it has two or more
+   * entries; a single-entry list (or `prefers-reduced-motion: reduce`) shows that one entry with no
+   * rotation. `placeholder` keeps resolving exactly as before when this is omitted or empty, so
+   * this is additive — no existing host needs to change anything.
+   */
+  placeholders?: readonly string[];
   suggestions?: readonly string[];
   /** Controlled working-directory value. */
   workingDirectory?: string | null;

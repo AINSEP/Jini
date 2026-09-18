@@ -389,4 +389,133 @@ describe('useComposer', () => {
       expect(result.current.draft).toBe('');
     });
   });
+
+  /**
+   * The owner's follow-up question: "will it save any attachments I put?". By the time an attachment
+   * reaches the composer it is already uploaded (`ChatPane` blocks sending while uploads are in
+   * flight), so what is persisted is a server-side REFERENCE, never bytes. The catch is retention:
+   * the host may have pruned the file, so a reference is only restored once the host confirms it.
+   */
+  describe('attachment persistence across a page reload', () => {
+    beforeEach(() => __resetComposerDraftCacheForTests());
+
+    const FILE: ChatAttachment = { path: 'attachment:abc-123', name: 'notes.md', kind: 'file' };
+    const IMAGE: ChatAttachment = { path: 'attachment:def-456', name: 'shot.png', kind: 'image' };
+
+    it('restores attachments the host confirms are still there', async () => {
+      const validateAttachments = vi.fn(async (a: readonly ChatAttachment[]) => a);
+      const before = renderHook(() => useComposer({ conversationId: 'convo-a', validateAttachments }));
+      act(() => before.result.current.addAttachment(FILE));
+      await waitFor(() => expect(before.result.current.attachments).toHaveLength(1));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const after = renderHook(() => useComposer({ conversationId: 'convo-a', validateAttachments }));
+      await waitFor(() => expect(after.result.current.attachments).toEqual([FILE]));
+      expect(validateAttachments).toHaveBeenLastCalledWith([FILE]);
+    });
+
+    it('drops a reference the host says is gone, rather than restoring a dead chip', async () => {
+      const keepOnlyTheImage = vi.fn(async (a: readonly ChatAttachment[]) =>
+        a.filter((one) => one.kind === 'image'),
+      );
+      const before = renderHook(() =>
+        useComposer({ conversationId: 'convo-a', validateAttachments: keepOnlyTheImage }),
+      );
+      act(() => before.result.current.addAttachment(FILE));
+      act(() => before.result.current.addAttachment(IMAGE));
+      await waitFor(() => expect(before.result.current.attachments).toHaveLength(2));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const after = renderHook(() =>
+        useComposer({ conversationId: 'convo-a', validateAttachments: keepOnlyTheImage }),
+      );
+      await waitFor(() => expect(after.result.current.attachments).toEqual([IMAGE]));
+    });
+
+    it('restores no attachments when the host cannot vouch for any', async () => {
+      const allGone = vi.fn(async () => []);
+      const before = renderHook(() =>
+        useComposer({ conversationId: 'convo-a', validateAttachments: allGone }),
+      );
+      act(() => before.result.current.setDraft('the words still matter'));
+      act(() => before.result.current.addAttachment(FILE));
+      await waitFor(() => expect(before.result.current.attachments).toHaveLength(1));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const after = renderHook(() =>
+        useComposer({ conversationId: 'convo-a', validateAttachments: allGone }),
+      );
+      await waitFor(() => expect(allGone).toHaveBeenCalled());
+      expect(after.result.current.attachments).toEqual([]);
+      // Text and attachments degrade INDEPENDENTLY: losing every file must not cost the words.
+      expect(after.result.current.draft).toBe('the words still matter');
+    });
+
+    it('keeps the text when the validator throws, and restores nothing', async () => {
+      const boom = vi.fn(async () => {
+        throw new Error('attachment service unreachable');
+      });
+      const before = renderHook(() => useComposer({ conversationId: 'convo-a', validateAttachments: boom }));
+      act(() => before.result.current.setDraft('still here'));
+      act(() => before.result.current.addAttachment(FILE));
+      await waitFor(() => expect(before.result.current.attachments).toHaveLength(1));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const after = renderHook(() => useComposer({ conversationId: 'convo-a', validateAttachments: boom }));
+      await waitFor(() => expect(boom).toHaveBeenCalled());
+      expect(after.result.current.attachments).toEqual([]);
+      expect(after.result.current.draft).toBe('still here');
+    });
+
+    it('persists nothing at all when no validator is supplied', async () => {
+      const before = renderHook(() => useComposer({ conversationId: 'convo-a' }));
+      act(() => before.result.current.setDraft('text is still persisted'));
+      act(() => before.result.current.addAttachment(FILE));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      // Text survives; attachments do not, because nothing could vouch for them.
+      const after = renderHook(() => useComposer({ conversationId: 'convo-a' }));
+      expect(after.result.current.draft).toBe('text is still persisted');
+      expect(after.result.current.attachments).toEqual([]);
+    });
+
+    it('does not leak one conversation attachments into another', async () => {
+      const validateAttachments = vi.fn(async (a: readonly ChatAttachment[]) => a);
+      const before = renderHook(() => useComposer({ conversationId: 'convo-a', validateAttachments }));
+      act(() => before.result.current.addAttachment(FILE));
+      await waitFor(() => expect(before.result.current.attachments).toHaveLength(1));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const other = renderHook(() => useComposer({ conversationId: 'convo-b', validateAttachments }));
+      await waitFor(() => expect(other.result.current.attachments).toEqual([]));
+    });
+
+    it('clears the cached attachments on send, so they do not come back', async () => {
+      const validateAttachments = vi.fn(async (a: readonly ChatAttachment[]) => a);
+      const before = renderHook(() => useComposer({ conversationId: 'convo-a', validateAttachments }));
+      act(() => before.result.current.addAttachment(FILE));
+      await waitFor(() => expect(before.result.current.attachments).toHaveLength(1));
+      act(() => before.result.current.reset());
+      await waitFor(() => expect(before.result.current.attachments).toEqual([]));
+      before.unmount();
+
+      __resetComposerDraftCacheForTests({ keepStorage: true });
+
+      const after = renderHook(() => useComposer({ conversationId: 'convo-a', validateAttachments }));
+      await waitFor(() => expect(after.result.current.draft).toBe(''));
+      expect(after.result.current.attachments).toEqual([]);
+    });
+  });
 });

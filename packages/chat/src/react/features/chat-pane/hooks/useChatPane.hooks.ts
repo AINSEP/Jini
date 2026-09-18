@@ -39,6 +39,8 @@ export interface UseChatPaneOptions {
   onSelectionChange?: (selection: ChatPaneAgentSelection) => void;
   runContext?: ChatPaneRunContext;
   initialDraft?: string;
+  /** Forwarded verbatim to `useComposer`; see `validateAttachments` there for the contract. */
+  validateAttachments?: (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
   uploadAttachments?: (
     files: File[],
     options?: ChatPaneAttachmentUploadOptions,
@@ -206,6 +208,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     initialDraft: options.initialDraft,
     initialAgent: selection,
     conversationId: options.conversationId,
+    validateAttachments: options.validateAttachments,
   }));
   const conversation = useConversation(definedProps({
     transport: options.transport,

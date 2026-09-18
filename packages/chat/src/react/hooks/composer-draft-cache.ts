@@ -47,6 +47,8 @@
  * next load.
  */
 
+import type { ChatAttachment } from '../../core/index.js';
+
 /** Cap on distinct conversations tracked at once, per tier; see the module doc's `@tradeoffs`. */
 export const MAX_CACHED_CONVERSATION_DRAFTS = 50;
 
@@ -56,6 +58,14 @@ export const MAX_CACHED_CONVERSATION_DRAFTS = 50;
  */
 export const COMPOSER_DRAFT_STORAGE_PREFIX = 'jini.chat.composer-draft.v1.';
 
+/**
+ * Key prefix for a conversation's staged attachment REFERENCES. Deliberately a separate entry from
+ * the draft text rather than one combined record: text and attachments must degrade independently,
+ * so a corrupt or unwritable attachment entry can never cost the operator their words, and vice
+ * versa. See {@link readCachedAttachments} for what these references are and are not.
+ */
+export const COMPOSER_ATTACHMENTS_STORAGE_PREFIX = 'jini.chat.composer-attachments.v1.';
+
 /** The stored shape. `t` is a write timestamp, used only to pick an eviction victim at the cap. */
 interface StoredDraft {
   readonly v: 1;
@@ -63,7 +73,15 @@ interface StoredDraft {
   readonly d: string;
 }
 
+/** The attachment entry's stored shape; `a` holds plain references, never file bytes. */
+interface StoredAttachments {
+  readonly v: 1;
+  readonly t: number;
+  readonly a: readonly ChatAttachment[];
+}
+
 const drafts = new Map<string, string>();
+const stagedAttachments = new Map<string, readonly ChatAttachment[]>();
 
 /**
  * The origin's `localStorage`, or `null` when it cannot be used.
@@ -129,17 +147,17 @@ function readStoredDraft(conversationId: string): string | null {
  * practice by `MAX_CACHED_CONVERSATION_DRAFTS` plus whatever a previous session left behind. Space
  * O(n) in the same.
  */
-function pruneStoredDrafts(keep: number): void {
+function pruneStored(prefix: string, keep: number): void {
   const store = storage();
   if (!store) return;
   try {
     const entries: { key: string; at: number }[] = [];
     for (let i = 0; i < store.length; i += 1) {
       const key = store.key(i);
-      if (key === null || !key.startsWith(COMPOSER_DRAFT_STORAGE_PREFIX)) continue;
+      if (key === null || !key.startsWith(prefix)) continue;
       let at = 0;
       try {
-        const parsed = JSON.parse(store.getItem(key) ?? '') as StoredDraft | null;
+        const parsed = JSON.parse(store.getItem(key) ?? '') as { t?: unknown } | null;
         at = typeof parsed?.t === 'number' ? parsed.t : 0;
       } catch {
         at = 0;
@@ -159,7 +177,7 @@ function pruneStoredDrafts(keep: number): void {
  *
  * @param draft A blank draft removes the entry. A quota rejection is swallowed: the in-memory tier
  * has already accepted the draft, so the composer keeps working and only reload-survival is lost.
- * @complexity Time O(n) in the draft's length, plus a prune (see {@link pruneStoredDrafts}) only
+ * @complexity Time O(n) in the draft's length, plus a prune (see {@link pruneStored}) only
  * when this introduces a new key at the cap. Space O(n) in the draft's length.
  */
 function writeStoredDraft(conversationId: string, draft: string): void {
@@ -171,7 +189,7 @@ function writeStoredDraft(conversationId: string, draft: string): void {
       store.removeItem(key);
       return;
     }
-    if (store.getItem(key) === null) pruneStoredDrafts(MAX_CACHED_CONVERSATION_DRAFTS - 1);
+    if (store.getItem(key) === null) pruneStored(COMPOSER_DRAFT_STORAGE_PREFIX, MAX_CACHED_CONVERSATION_DRAFTS - 1);
     const envelope: StoredDraft = { v: 1, t: Date.now(), d: draft };
     store.setItem(key, JSON.stringify(envelope));
   } catch {
@@ -245,6 +263,128 @@ export function clearCachedDraft(conversationId: string | null | undefined): voi
   if (!conversationId) return;
   drafts.delete(conversationId);
   writeStoredDraft(conversationId, '');
+  writeCachedAttachments(conversationId, []);
+}
+
+/**
+ * Narrows one parsed array element to a `ChatAttachment`.
+ *
+ * Validated field by field rather than trusted, for the same reason the draft envelope is: this
+ * data came back from storage, where anything on the origin could have written it. `size`/`order`
+ * are optional in the type, so they are checked only when present.
+ * @complexity Time/space: O(1).
+ */
+function isChatAttachment(candidate: unknown): candidate is ChatAttachment {
+  if (typeof candidate !== 'object' || candidate === null) return false;
+  const { path, name, kind, size, order } = candidate as Record<string, unknown>;
+  if (typeof path !== 'string' || path === '') return false;
+  if (typeof name !== 'string') return false;
+  if (kind !== 'image' && kind !== 'file') return false;
+  if (size !== undefined && typeof size !== 'number') return false;
+  if (order !== undefined && typeof order !== 'number') return false;
+  return true;
+}
+
+/**
+ * Reads the stored attachment references for `conversationId`.
+ *
+ * Elements that do not validate are dropped individually rather than failing the whole entry — one
+ * malformed row should cost the operator that row, not every attachment on the turn.
+ *
+ * @returns The stored references, or `null` when there are none, storage is unavailable, or nothing
+ * in the entry validated.
+ * @complexity Time/space: O(n) in the number of stored references.
+ */
+function readStoredAttachments(conversationId: string): readonly ChatAttachment[] | null {
+  const store = storage();
+  if (!store) return null;
+  const key = `${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}${conversationId}`;
+  try {
+    const raw = store.getItem(key);
+    if (raw === null) return null;
+    const parsed: unknown = JSON.parse(raw);
+    const list = (parsed as StoredAttachments | null)?.a;
+    if (!Array.isArray(list)) {
+      store.removeItem(key);
+      return null;
+    }
+    const valid = list.filter(isChatAttachment);
+    if (valid.length === 0) {
+      store.removeItem(key);
+      return null;
+    }
+    return valid;
+  } catch {
+    try {
+      store.removeItem(key);
+    } catch {
+      /* storage is unusable; the in-memory tier still serves this conversation */
+    }
+    return null;
+  }
+}
+
+/**
+ * Reads the cached attachment references for `conversationId`, in memory first, storage second.
+ *
+ * **These are references, never bytes.** By the time an attachment reaches the composer it has
+ * already been uploaded (`ChatPane` blocks sending while uploads are in flight), so what is cached
+ * here is the server-side record — a path, a name, a kind. The file itself lives wherever the host
+ * put it and is subject to that host's retention, which is why a caller must not treat a returned
+ * reference as proof the file still exists. `useComposer` restores these only when the host supplies
+ * a validator; see its `validateAttachments` option.
+ *
+ * @returns The cached references, or `null` when there are none.
+ * @complexity Time/space: O(1) on an in-memory hit, O(n) in the stored count otherwise.
+ */
+export function readCachedAttachments(
+  conversationId: string | null | undefined,
+): readonly ChatAttachment[] | null {
+  if (!conversationId) return null;
+  const remembered = stagedAttachments.get(conversationId);
+  if (remembered !== undefined) return remembered;
+  const stored = readStoredAttachments(conversationId);
+  if (stored === null) return null;
+  stagedAttachments.set(conversationId, stored);
+  return stored;
+}
+
+/**
+ * Stores `attachments` for `conversationId` in both tiers.
+ *
+ * @param attachments An empty list deletes the entry, so a sent or cleared turn leaves nothing to
+ * restore — the same rule the draft text follows.
+ * @complexity Time/space: O(n) in the number of references.
+ */
+export function writeCachedAttachments(
+  conversationId: string | null | undefined,
+  attachments: readonly ChatAttachment[],
+): void {
+  if (!conversationId) return;
+  const key = `${COMPOSER_ATTACHMENTS_STORAGE_PREFIX}${conversationId}`;
+  const store = storage();
+  if (attachments.length === 0) {
+    stagedAttachments.delete(conversationId);
+    try {
+      store?.removeItem(key);
+    } catch {
+      /* blocked storage; the in-memory tier is already correct */
+    }
+    return;
+  }
+  if (!stagedAttachments.has(conversationId) && stagedAttachments.size >= MAX_CACHED_CONVERSATION_DRAFTS) {
+    const oldest = stagedAttachments.keys().next().value;
+    if (oldest !== undefined) stagedAttachments.delete(oldest);
+  }
+  stagedAttachments.set(conversationId, attachments);
+  if (!store) return;
+  try {
+    if (store.getItem(key) === null) pruneStored(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, MAX_CACHED_CONVERSATION_DRAFTS - 1);
+    const envelope: StoredAttachments = { v: 1, t: Date.now(), a: attachments };
+    store.setItem(key, JSON.stringify(envelope));
+  } catch {
+    /* blocked, full, or unusable storage — memory-only is the documented degraded mode */
+  }
 }
 
 /**
@@ -257,6 +397,8 @@ export function clearCachedDraft(conversationId: string | null | undefined): voi
  */
 export function __resetComposerDraftCacheForTests(options?: { readonly keepStorage?: boolean }): void {
   drafts.clear();
+  stagedAttachments.clear();
   if (options?.keepStorage === true) return;
-  pruneStoredDrafts(0);
+  pruneStored(COMPOSER_DRAFT_STORAGE_PREFIX, 0);
+  pruneStored(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, 0);
 }
