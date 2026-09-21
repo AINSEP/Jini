@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
+import { ConfirmDialogDefaultsProvider } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 import type { UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 
 function renderDialog(props: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) {
@@ -72,6 +73,47 @@ describe('ConfirmDialog content', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Keep it' })).toBeInTheDocument();
+  });
+});
+
+describe('ConfirmDialog defaults context', () => {
+  it("uses the enclosing provider's cancelLabel when no explicit prop is passed", () => {
+    render(
+      <ConfirmDialogDefaultsProvider cancelLabel="Abbrechen">
+        <ConfirmDialog
+          open
+          title="Delete post?"
+          body="This cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ConfirmDialogDefaultsProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Abbrechen' })).toBeInTheDocument();
+  });
+
+  it('lets an explicit cancelLabel prop win over the provider default', () => {
+    render(
+      <ConfirmDialogDefaultsProvider cancelLabel="Abbrechen">
+        <ConfirmDialog
+          open
+          title="Delete post?"
+          body=""
+          confirmLabel="Delete"
+          cancelLabel="Keep it"
+          onConfirm={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ConfirmDialogDefaultsProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Keep it' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Abbrechen' })).not.toBeInTheDocument();
+  });
+
+  it('falls back to the component\'s built-in "Cancel" with no enclosing provider at all', () => {
+    renderDialog();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
 });
 
