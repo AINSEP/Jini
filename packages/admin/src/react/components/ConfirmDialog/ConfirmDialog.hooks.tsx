@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useId,
+  useMemo,
   useRef,
   type MouseEvent,
   type ReactNode,
@@ -57,12 +58,16 @@ export type UseConfirmDialog = (
  * that provider's doc comment for why it exists.
  */
 export interface ConfirmDialogDefaults {
-  cancelLabel?: string;
+  cancelLabel?: string | undefined;
 }
 
-/** Empty object, not `undefined` — {@link useConfirmDialogDefaults} always returns an object it can
- *  read `cancelLabel` off without an extra null check, whether or not a provider is mounted. */
+/** Empty object, not `undefined` — {@link useConfirmDialogCancelLabel} can always read `cancelLabel`
+ *  off it without an extra null check, whether or not a provider is mounted. */
 const ConfirmDialogDefaultsContext = createContext<ConfirmDialogDefaults>({});
+
+/** The built-in last resort for {@link useConfirmDialogCancelLabel}, used when neither the prop nor
+ *  an enclosing provider supplies a label. */
+const DEFAULT_CANCEL_LABEL = 'Cancel';
 
 export interface ConfirmDialogDefaultsProviderProps extends ConfirmDialogDefaults {
   children: ReactNode;
@@ -75,26 +80,33 @@ export interface ConfirmDialogDefaultsProviderProps extends ConfirmDialogDefault
  * to add it to every new one it writes later).
  *
  * An explicit `cancelLabel` prop on a given `ConfirmDialog` still wins over this (see
- * `ConfirmDialog.tsx`'s label resolution). A `ConfirmDialog` mounted with no enclosing provider at
+ * {@link useConfirmDialogCancelLabel}). A `ConfirmDialog` mounted with no enclosing provider at
  * all is unaffected — it falls back to the component's own built-in `"Cancel"`, exactly as before
  * this provider existed.
  *
  * Optional by design, unlike `Sidebar`'s `useSidebar` context: a caller with no localization need
  * should never be forced to wrap anything just to render one dialog.
  */
-export function ConfirmDialogDefaultsProvider({ children, ...defaults }: ConfirmDialogDefaultsProviderProps) {
+export function ConfirmDialogDefaultsProvider({ children, cancelLabel }: ConfirmDialogDefaultsProviderProps) {
+  // Memoized so a host re-render that leaves `cancelLabel` unchanged does not publish a new context
+  // value — a fresh object would re-render every `ConfirmDialog` beneath it, even under a memoized
+  // parent that otherwise bailed out.
+  const defaults = useMemo<ConfirmDialogDefaults>(() => ({ cancelLabel }), [cancelLabel]);
   return <ConfirmDialogDefaultsContext.Provider value={defaults}>{children}</ConfirmDialogDefaultsContext.Provider>;
 }
 
 /**
- * Reads the enclosing {@link ConfirmDialogDefaultsProvider}'s defaults, or `{}` when there is
- * none — unlike `useSidebar`, absence is a normal, fully-supported state rather than a caller
- * error, so this never throws.
+ * Resolves `ConfirmDialog`'s Cancel button text: the explicit `cancelLabel` prop first, then the
+ * enclosing {@link ConfirmDialogDefaultsProvider}'s default, then the built-in `"Cancel"`. No
+ * provider is a normal, fully-supported state (unlike `useSidebar`, this never throws).
  *
+ * @param explicit - The dialog's own `cancelLabel` prop, or `undefined` when the caller passed none.
+ * @returns The label to render.
  * @complexity O(1).
  */
-export function useConfirmDialogDefaults(): ConfirmDialogDefaults {
-  return useContext(ConfirmDialogDefaultsContext);
+export function useConfirmDialogCancelLabel(explicit: string | undefined): string {
+  const { cancelLabel } = useContext(ConfirmDialogDefaultsContext);
+  return explicit ?? cancelLabel ?? DEFAULT_CANCEL_LABEL;
 }
 
 /**

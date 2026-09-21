@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { agentHandle, type AgentElementRole } from '@jini-ai/agentic';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
-import { useConfirmDialog, useConfirmDialogDefaults, type UseConfirmDialog } from './ConfirmDialog.hooks.js';
+import { useConfirmDialog, useConfirmDialogCancelLabel, type UseConfirmDialog } from './ConfirmDialog.hooks.js';
 
 /**
  * @file Shared modal confirmation primitive — the replacement for `window.confirm`, which blocks
@@ -81,8 +81,6 @@ export interface ConfirmDialogProps {
    *  scheme. Omit and no `data-agent-*` markup is emitted at all. */
   agentHandle?: string;
 }
-
-const DEFAULT_CANCEL_LABEL = 'Cancel';
 
 /** Sub-handle segments appended to the caller's base — literals this component chooses itself,
  *  never host data (see this file's "Agent handles" doc comment for why that means neither needs
@@ -172,11 +170,7 @@ export function ConfirmDialog({ useDialog = useConfirmDialog, agentHandle: baseH
   );
 
   const tone = resolveTone(props);
-  const defaults = useConfirmDialogDefaults();
-  // Explicit prop first, then the enclosing provider's default (if any), then the component's
-  // own built-in default — see `ConfirmDialogDefaultsProvider`'s doc comment in
-  // `ConfirmDialog.hooks.js` for why the provider exists.
-  const cancelLabel = props.cancelLabel ?? defaults.cancelLabel ?? DEFAULT_CANCEL_LABEL;
+  const cancelLabel = useConfirmDialogCancelLabel(props.cancelLabel);
 
   return (
     <dialog

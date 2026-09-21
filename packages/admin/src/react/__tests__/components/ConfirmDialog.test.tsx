@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
@@ -114,6 +114,53 @@ describe('ConfirmDialog defaults context', () => {
   it('falls back to the component\'s built-in "Cancel" with no enclosing provider at all', () => {
     renderDialog();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('does not re-render a dialog under a memoized parent when the provider re-renders with the same cancelLabel', () => {
+    // The injected `useDialog` runs once per `ConfirmDialog` render, so its call count is the
+    // dialog's render count. `memo` makes the parent bail out on the provider's re-render, so the
+    // only way the dialog can re-render is a new context value.
+    const renderCount = vi.fn();
+    const countingDialog: UseConfirmDialog = () => {
+      renderCount();
+      return {
+        titleId: 't',
+        dialogRef: { current: null },
+        cancelRef: { current: null },
+        handleNativeCancel: () => {},
+        handleBackdropClick: () => {},
+      };
+    };
+    const MemoizedParent = memo(function MemoizedParent() {
+      return (
+        <ConfirmDialog
+          open
+          title="Delete post?"
+          body=""
+          confirmLabel="Delete"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+          useDialog={countingDialog}
+        />
+      );
+    });
+    const tree = (label: string) => (
+      <ConfirmDialogDefaultsProvider cancelLabel={label}>
+        <MemoizedParent />
+      </ConfirmDialogDefaultsProvider>
+    );
+
+    const { rerender } = render(tree('Abbrechen'));
+    expect(renderCount).toHaveBeenCalledTimes(1);
+
+    rerender(tree('Abbrechen'));
+    expect(renderCount).toHaveBeenCalledTimes(1);
+
+    rerender(tree('Annuler'));
+    expect(renderCount).toHaveBeenCalledTimes(2);
+    // `hidden`: the fake controller never opens the `<dialog>`, so its contents sit outside the
+    // accessibility tree.
+    expect(screen.getByRole('button', { name: 'Annuler', hidden: true })).toBeInTheDocument();
   });
 });
 
