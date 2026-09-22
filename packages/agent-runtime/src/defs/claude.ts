@@ -30,7 +30,8 @@
 import { agentCapabilities } from '../capabilities.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from './shared.js';
 import { loadMmdRouteModels } from '../mmd-routes.js';
-import { loadAnthropicLiveModels } from '../anthropic-live-models.js';
+import { loadAnthropicLiveModels, mergeLiveModels } from '../anthropic-live-models.js';
+import { loadClaudeCodeModels } from '../claude-code-models.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 /**
@@ -46,8 +47,9 @@ const CLAUDE_EFFORT_LEVELS: ReadonlySet<string> = new Set([
 
 /**
  * The list a picker renders when nothing live is available — no `~/.config/mms/model-routes.json`,
- * no `ANTHROPIC_API_KEY` in the agent's environment, or a failed live call. Not the primary source:
- * see `fetchModels` below.
+ * the CLI's own picker catalog unreadable (see `claude-code-models.ts`), and no `ANTHROPIC_API_KEY`
+ * in the agent's environment or a failed live call. Not the primary source: see `fetchModels` below.
+ * Every live source is unioned ON TOP of this list, so it is also the floor that never shrinks.
  *
  * Ordered current-first, then the still-active-but-superseded generations, which are KEPT rather
  * than dropped — an installed CLI may be pinned to one via its own config, and removing a working
@@ -117,11 +119,14 @@ export const claudeAgentDef = {
     //   1. Local mmd/MMS routes, when `~/.config/mms/model-routes.json` exists — an explicit local
     //      routing config is the operator's own authoritative statement of what this CLI can reach,
     //      including proxy-backed Claude-compatible models the vendor API knows nothing about.
-    //   2. The account's live Anthropic catalog, when `ANTHROPIC_API_KEY` is in this agent's
-    //      environment. Merged ON TOP of the static list, never in place of it.
-    //   3. The static list, for the ordinary Local-CLI case: subscription-authenticated `claude`,
-    //      no API key anywhere. This is the common path and it must stay zero-latency, which is why
-    //      step 2 makes no network call at all when no key is resolvable.
+    //   2. Otherwise, the UNION of two live sources, run in parallel:
+    //      a. The CLI's own `/model` picker catalog — NO credential needed (subscription auth
+    //         works). See `claude-code-models.ts`: the stream-json `initialize` control request,
+    //         falling back to `~/.claude.json`'s `additionalModelOptionsCache`. Cached per process.
+    //      b. The account's live Anthropic catalog, when `ANTHROPIC_API_KEY` is in this agent's
+    //         environment (makes no network call at all without a key).
+    //      Both are merged ON TOP of the static list, never in place of it; neither shadows the other.
+    //   3. The static list, when neither live source answers.
     //
     // Returning `null` from any step is "nothing to add", and `detection.ts#fetchModels` renders
     // `fallbackModels` for it — so a live-discovery failure can never empty or shrink the picker.
@@ -130,9 +135,16 @@ export const claudeAgentDef = {
     // `~/.claude.json`'s server-fetched `additionalModelOptionsCache`. See
     // `RuntimeAgentDef.fallbackModelsAssertedAt` and `scripts/check-model-fallback-freshness.ts`.
     fallbackModelsAssertedAt: '2026-09-05',
-    fetchModels: async (_resolvedBin, env) =>
-      (await loadMmdRouteModels(env, CLAUDE_FALLBACK_MODELS))
-      ?? (await loadAnthropicLiveModels(env, CLAUDE_FALLBACK_MODELS)),
+    fetchModels: async (resolvedBin, env) => {
+      const routed = await loadMmdRouteModels(env, CLAUDE_FALLBACK_MODELS);
+      if (routed) return routed;
+      const [fromCli, fromApi] = await Promise.all([
+        loadClaudeCodeModels(resolvedBin, env, CLAUDE_FALLBACK_MODELS),
+        loadAnthropicLiveModels(env, CLAUDE_FALLBACK_MODELS),
+      ]);
+      if (!fromCli) return fromApi;
+      return fromApi ? mergeLiveModels(fromCli, fromApi) : fromCli;
+    },
     // `claude --effort <level>`. The set differs from codex's on both ends — it
     // has `max` and has no `none`/`minimal` — so it is spelled out rather than
     // shared, and `CLAUDE_EFFORT_LEVELS` below is what `buildArgs` validates

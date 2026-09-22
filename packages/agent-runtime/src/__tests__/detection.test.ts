@@ -31,11 +31,12 @@ vi.mock('node:child_process', () => ({
   },
 }));
 
-import { detectAgents, detectAgentsStream } from '../detection.js';
+import { detectAgents, detectAgentsStream, probeAgentModels } from '../detection.js';
 import { agentCapabilities } from '../capabilities.js';
 import { getRememberedLiveModels, rememberLiveModels } from '../models.js';
 import { setAcpModelProbe } from '../acp-model-probe.js';
 import type { AmrProfileResolver } from '../amr-profile-resolver.js';
+import { AGENT_DEFS } from '../registry.js';
 
 function makeExecutable(filePath: string): void {
   writeFileSync(filePath, '#!/bin/sh\necho stub\n', 'utf8');
@@ -488,5 +489,43 @@ describe('detectAgents — codex effort options come from the live catalog', () 
     const codex = await detectCodex(LIVE_CATALOG);
     expect((codex as unknown as { deriveReasoningOptions?: unknown }).deriveReasoningOptions).toBeUndefined();
     expect(JSON.parse(JSON.stringify(codex))).not.toHaveProperty('deriveReasoningOptions');
+  });
+});
+
+describe('probeAgentModels — the model half of detection, for hosts with their own availability check', () => {
+  let dir: string;
+  const cursorDef = () => AGENT_DEFS.find((def) => def.id === 'cursor-agent')!;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-probe-models-test-'));
+    mockState.responses.clear();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns the live list (without a --version probe) and remembers it for model validation', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['models']), { stdout: 'gpt-probe-live - GPT Probe\n' });
+
+    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: bin });
+
+    expect(result.source).toBe('live');
+    expect(result.models.some((m) => m.id === 'gpt-probe-live')).toBe(true);
+    expect(getRememberedLiveModels('cursor-agent').some((m) => m.id === 'gpt-probe-live')).toBe(true);
+  });
+
+  it('returns fallbackModels when the binary cannot be found', async () => {
+    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: path.join(dir, 'missing') , PATH: dir });
+    expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
+  });
+
+  it('returns fallbackModels when the model listing fails', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: bin });
+    expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
   });
 });

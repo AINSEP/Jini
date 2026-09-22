@@ -1,8 +1,10 @@
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetAnthropicLiveModelCacheForTesting } from '../../anthropic-live-models.js';
 import { agentCapabilities } from '../../capabilities.js';
+import { setClaudeCodeModelIoForTesting, type ClaudeCodeModelIo } from '../../claude-code-models.js';
 import { claudeAgentDef } from '../claude.js';
 import { sanitizeCustomModel } from '../../models.js';
 
@@ -263,14 +265,88 @@ describe('claudeAgentDef.fetchModels', () => {
   let dir: string;
   const originalHome = process.env.HOME;
 
+  // Default: the credential-free CLI step finds nothing (no real `claude` is ever spawned, no real
+  // ~/.claude.json read). Individual cases install their own fake.
+  const silentIo: ClaudeCodeModelIo = { runInitialize: async () => null, readConfigFile: async () => null };
+
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-claude-fetchmodels-test-'));
+    setClaudeCodeModelIoForTesting(silentIo);
+    resetAnthropicLiveModelCacheForTesting();
   });
 
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
     if (originalHome === undefined) delete process.env.HOME;
     else process.env.HOME = originalHome;
+    setClaudeCodeModelIoForTesting(null);
+    resetAnthropicLiveModelCacheForTesting();
+    vi.restoreAllMocks();
+  });
+
+  /** A fake CLI whose `initialize` answer lists `models` (the 2.1.280 shape, trimmed). */
+  function cliAnswering(models: Array<{ value: string; resolvedModel?: string; displayName?: string }>): ClaudeCodeModelIo {
+    const line = JSON.stringify({ type: 'control_response', response: { subtype: 'success', response: { models } } });
+    return { runInitialize: async () => `${line}\n`, readConfigFile: async () => null };
+  }
+
+  const noRoutes = () => ({ HOME: dir, MMD_MODEL_ROUTES_FILE: path.join(dir, 'no-routes.json') });
+
+  it('unions the CLI picker catalog into the static list with NO credential (subscription-only install)', async () => {
+    setClaudeCodeModelIoForTesting(cliAnswering([
+      { value: 'opus[1m]', resolvedModel: 'claude-opus-5-5[1m]', displayName: 'Opus (1M context)' },
+      { value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet' },
+    ]));
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(() => {
+      throw new Error('no network call should have been attempted');
+    });
+    const result = await claudeAgentDef.fetchModels!('claude', noRoutes());
+    const ids = result!.map((m) => m.id);
+    // Static list fully present, first, in its own order — never shrunk, never reordered.
+    expect(ids.slice(0, claudeAgentDef.fallbackModels.length)).toEqual(claudeAgentDef.fallbackModels.map((m) => m.id));
+    expect(ids).toContain('claude-opus-5-5');
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('falls back to ~/.claude.json\'s picker cache when the CLI probe gives nothing', async () => {
+    writeFileSync(
+      path.join(dir, '.claude.json'),
+      JSON.stringify({ additionalModelOptionsCache: [{ value: 'claude-fable-6[1m]', label: 'Fable 6' }] }),
+      'utf8',
+    );
+    // Real file read against the temp HOME; only the CLI spawn is faked.
+    setClaudeCodeModelIoForTesting({
+      runInitialize: async () => null,
+      readConfigFile: async (p) => (await import('node:fs/promises')).readFile(p, 'utf8').catch(() => null),
+    });
+    const result = await claudeAgentDef.fetchModels!('claude', noRoutes());
+    expect(result!.map((m) => m.id)).toEqual([...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-fable-6']);
+  });
+
+  it('returns null (static list renders) when the CLI and a malformed ~/.claude.json both give nothing', async () => {
+    writeFileSync(path.join(dir, '.claude.json'), '{not json', 'utf8');
+    setClaudeCodeModelIoForTesting({
+      runInitialize: async () => 'error: unknown option\n',
+      readConfigFile: async (p) => (await import('node:fs/promises')).readFile(p, 'utf8').catch(() => null),
+    });
+    await expect(claudeAgentDef.fetchModels!('claude', noRoutes())).resolves.toBeNull();
+  });
+
+  it('keeps the BYOK path when the CLI step finds nothing, and unions both when both answer', async () => {
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(
+      JSON.stringify({ data: [{ id: 'claude-api-only-1', display_name: 'API only', type: 'model' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ) as unknown as Response);
+    const byokOnly = await claudeAgentDef.fetchModels!('claude', { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' });
+    expect(byokOnly!.map((m) => m.id)).toEqual([...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-api-only-1']);
+
+    resetAnthropicLiveModelCacheForTesting();
+    setClaudeCodeModelIoForTesting(cliAnswering([{ value: 'claude-opus-5-5' }]));
+    const both = await claudeAgentDef.fetchModels!('claude', { ...noRoutes(), ANTHROPIC_API_KEY: 'sk-a' });
+    expect(both!.map((m) => m.id)).toEqual([
+      ...claudeAgentDef.fallbackModels.map((m) => m.id), 'claude-opus-5-5', 'claude-api-only-1',
+    ]);
   });
 
   it('falls back to null when no mmd routes file is resolvable (no HOME, no override)', async () => {

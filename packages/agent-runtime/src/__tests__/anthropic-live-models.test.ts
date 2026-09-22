@@ -6,6 +6,7 @@ import {
   resetAnthropicLiveModelCacheForTesting,
   resolveAnthropicCredential,
 } from '../anthropic-live-models.js';
+import { setClaudeCodeModelIoForTesting } from '../claude-code-models.js';
 import { claudeAgentDef } from '../defs/claude.js';
 import type { RuntimeModelOption } from '../types.js';
 
@@ -158,11 +159,15 @@ describe('loadAnthropicLiveModels', () => {
 describe("claudeAgentDef.fetchModels — the def's own resolution order", () => {
   beforeEach(() => {
     resetAnthropicLiveModelCacheForTesting();
+    // The credential-free CLI step finds nothing here, so these cases pin the BYOK path exactly as
+    // it behaved before that step existed — and no real `claude` is ever spawned by this suite.
+    setClaudeCodeModelIoForTesting({ runInitialize: async () => null, readConfigFile: async () => null });
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
     resetAnthropicLiveModelCacheForTesting();
+    setClaudeCodeModelIoForTesting(null);
   });
 
   it('reaches live discovery when no mmd routes file resolves, and merges into the static list', async () => {

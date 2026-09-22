@@ -72,8 +72,6 @@
  * than silently yielding an empty list — the failure mode a text scan would have had.
  */
 import { execFile } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
@@ -254,39 +252,24 @@ function checkAssertion(
   return { date };
 }
 
-/** Strips the bracketed context-window variant marker Claude Code's picker cache appends
- *  (`claude-fable-5-1[1m]`) — `models.ts#sanitizeCustomModel` rejects brackets, so the def lists the
- *  bare id and the comparison has to normalize before it can be meaningful. */
-function normalizePickerModelId(raw: string): string {
-  return raw.replace(/\[[^\]]*\]$/, '').trim();
-}
-
-/** Claude Code writes its server-fetched `/model` picker options here. Credential-free, and it is
- *  the source that already knew about Fable while the def did not. */
+/** The CLI's own full `/model` picker list — built-in models plus the server's extras — via the
+ *  same credential-free stream-json `initialize` handshake `claude-code-models.ts#loadClaudeCodeModels`
+ *  uses at runtime (it falls back to the `~/.claude.json` cache file internally when that handshake
+ *  is unavailable). Loaded the same runtime-specifier way as the def, so the guard and the runtime
+ *  cannot disagree. Passing an EMPTY fallback list makes the merged result equal to the live ids
+ *  alone, which is what MF3's drift check needs. */
 async function probeClaudeCodePickerCache(): Promise<LiveProbe> {
-  const configPath = join(homedir(), '.claude.json');
-  let raw: string;
-  try {
-    raw = await readFile(configPath, 'utf8');
-  } catch {
-    return { kind: 'skipped', reason: `no readable ${configPath} (Claude Code not installed here)` };
+  const mod = (await import(pathToFileURL(join(REPO_ROOT, 'packages/agent-runtime/src/claude-code-models.ts')).href)) as {
+    loadClaudeCodeModels?: (bin: string, env: NodeJS.ProcessEnv, fallbackModels: readonly unknown[]) => Promise<readonly { id: string }[] | null>;
+  };
+  if (!mod.loadClaudeCodeModels) {
+    return { kind: 'skipped', reason: '`loadClaudeCodeModels` is no longer exported by claude-code-models.ts' };
   }
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return { kind: 'skipped', reason: `${configPath} is not valid JSON` };
+  const live = await mod.loadClaudeCodeModels('claude', process.env, []);
+  if (!live || live.length === 0) {
+    return { kind: 'skipped', reason: 'no readable ~/.claude.json and the CLI initialize handshake found nothing (Claude Code not installed/usable here)' };
   }
-  const cached = (parsed as { additionalModelOptionsCache?: unknown }).additionalModelOptionsCache;
-  if (!Array.isArray(cached) || cached.length === 0) {
-    return { kind: 'skipped', reason: 'no `additionalModelOptionsCache` in ~/.claude.json (never opened the /model picker?)' };
-  }
-  const ids = cached
-    .map((entry) => (entry && typeof entry === 'object' ? (entry as { value?: unknown }).value : null))
-    .filter((value): value is string => typeof value === 'string')
-    .map(normalizePickerModelId)
-    .filter((id) => id.length > 0);
-  return ids.length > 0 ? { kind: 'ids', ids } : { kind: 'skipped', reason: '~/.claude.json listed no usable model values' };
+  return { kind: 'ids', ids: live.map((m) => m.id) };
 }
 
 /** The Codex catalog, parsed by the def's OWN parser so the guard and the runtime cannot disagree

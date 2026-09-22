@@ -195,6 +195,51 @@ function derivedReasoningOverride(
   return derived && derived.length > 0 ? { reasoningOptions: derived } : {};
 }
 
+/** The env every probe of one def spawns with — the same env a real run would see. */
+function probeEnvForLaunch(
+  def: RuntimeAgentDef,
+  configuredEnv: Record<string, string>,
+  launch: ReturnType<typeof resolveAgentLaunch>,
+): NodeJS.ProcessEnv {
+  return applyAgentLaunchEnv(
+    spawnEnvForAgent(def.id, { ...process.env, ...(def.env || {}) }, configuredEnv, undefined, {}),
+    launch,
+  );
+}
+
+/** Result of {@link probeAgentModels}: the models to surface and where they came from. */
+export type ProbedAgentModels = FetchedRuntimeModels;
+
+/**
+ * The model half of {@link detectAgents} for ONE def, without the `--version`/`--help`/auth probes:
+ * resolves the launch path, builds the same probe env, runs the def's `fetchModels`/`listModels`,
+ * and refreshes the live-model validation cache exactly like `detectAgents` does.
+ *
+ * For hosts that do their own cheaper availability check but still want the live model catalog —
+ * without this, such a host can only ever show `fallbackModels`.
+ *
+ * @returns `source: 'live'` when the CLI supplied a list; otherwise the def's `fallbackModels` with
+ * `source: 'fallback'` (including when the binary is not found). Never rejects.
+ * @complexity At most one model-listing spawn, bounded by the def's own timeout.
+ */
+export async function probeAgentModels(
+  def: RuntimeAgentDef,
+  configuredEnv: Record<string, string> = {},
+  amrProfileResolver: AmrProfileResolver = noopAmrProfileResolver,
+): Promise<ProbedAgentModels> {
+  try {
+    const launch = resolveAgentLaunch(def, configuredEnv);
+    if (!launch.launchPath) return { models: def.fallbackModels, source: 'fallback' };
+    const probeEnv = probeEnvForLaunch(def, configuredEnv, launch);
+    const fetched = await fetchModels(def, launch.launchPath, probeEnv);
+    const result = withRememberedAmrModels(def, probeEnv, fetched, amrProfileResolver);
+    rememberDetectedModelList(def, configuredEnv, result.models, amrProfileResolver);
+    return result;
+  } catch {
+    return { models: def.fallbackModels, source: 'fallback' };
+  }
+}
+
 async function probe(
   def: RuntimeAgentDef,
   configuredEnv: Record<string, string> = {},
@@ -212,10 +257,7 @@ async function probe(
   if (!launch.selectedPath || !launch.launchPath) {
     return unavailableAgent(def, [buildExecutableDiagnostic(def, configuredEnv)]);
   }
-  const probeEnv = applyAgentLaunchEnv(
-    spawnEnvForAgent(def.id, { ...process.env, ...(def.env || {}) }, configuredEnv, undefined, {}),
-    launch,
-  );
+  const probeEnv = probeEnvForLaunch(def, configuredEnv, launch);
   const outcome = await probeVersionAtPath(def, launch.launchPath, probeEnv);
   if (outcome.kind === 'not-invocable') {
     return unavailableAgent(def, [buildNotInvocableDiagnostic(def, launch, outcome.cause)]);
@@ -313,12 +355,21 @@ function rememberDetectedLiveModels(
   agent: DetectedAgent,
   amrProfileResolver: AmrProfileResolver,
 ): void {
-  if (def.id === 'amr' && agent.models.length === 0) return;
+  rememberDetectedModelList(def, configuredEnv, agent.models, amrProfileResolver);
+}
+
+function rememberDetectedModelList(
+  def: RuntimeAgentDef,
+  configuredEnv: Record<string, string>,
+  models: RuntimeModelOption[],
+  amrProfileResolver: AmrProfileResolver,
+): void {
+  if (def.id === 'amr' && models.length === 0) return;
   const scope =
     def.id === 'amr'
       ? amrModelScopeFromEnv({ ...process.env, ...(def.env || {}), ...configuredEnv }, amrProfileResolver)
       : null;
-  rememberLiveModels(agent.id, agent.models, scope);
+  rememberLiveModels(def.id, models, scope);
 }
 
 export async function detectAgents(
