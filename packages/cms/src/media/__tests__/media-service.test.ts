@@ -160,6 +160,39 @@ test("uploadMedia rejects a file over the size cap", async () => {
   );
 });
 
+/**
+ * Covers the 2026-09-21 fix for the size-cap error's wording: it used to state the raw byte count
+ * (`uploaded file exceeds the 5242880-byte size cap`), which is unreadable for a human and, worse,
+ * was the ONLY place a caller could learn the actual configured cap now that `agent-tools.ts`'s
+ * catalog description no longer states a specific number (see that file's own header — the
+ * catalog is a module-load-time constant shared by every host, so it cannot state one host's
+ * `maxUploadBytes` override without lying to every other host).
+ */
+test("uploadMedia's size-cap rejection states the limit in MB, not raw bytes", async () => {
+  const { deps } = makeDeps();
+  await assert.rejects(
+    () =>
+      uploadMedia(
+        {
+          deps,
+          input: {
+            workspaceId: WORKSPACE_ID,
+            bytes: new Uint8Array(6 * 1024 * 1024), // over the 5 MB cap below
+            filename: "big.png",
+            contentType: "image/png",
+            createdByPrincipal: "user-1",
+          },
+        },
+        { maxUploadBytes: 5 * 1024 * 1024 }
+      ),
+    (error: unknown) => {
+      assert.match((error as Error).message, /5 MB/, "the message must state the configured cap in MB");
+      assert.doesNotMatch((error as Error).message, /5242880/, "the message must not also state the raw byte count");
+      return true;
+    }
+  );
+});
+
 test("uploadMedia rejects an empty file", async () => {
   const { deps } = makeDeps();
   await assert.rejects(

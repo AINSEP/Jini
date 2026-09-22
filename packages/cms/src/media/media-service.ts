@@ -80,6 +80,23 @@ export {
 export const DEFAULT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MiB
 
 /**
+ * Renders a byte count as a human-readable MB figure for the size-cap rejection below (2026-09-21).
+ * Every real caller passes a MiB-scale `maxUploadBytes` (10 MiB default, or a host override such as
+ * Tovu's 50 MiB), so one decimal place is enough precision without ever showing a raw byte count —
+ * the whole point of this fix (see `uploadMedia`'s size-cap check, and `agent-tools.ts`'s file header
+ * for why the catalog description can no longer state a specific number either). `toFixed(1)`'s
+ * trailing `.0` is trimmed so a clean multiple of 1 MB (the common case) reads as `10 MB`, not `10.0
+ * MB`.
+ *
+ * @complexity O(1).
+ */
+function formatMaxUploadBytesAsMb(bytes: number): string {
+  const mb = bytes / (1024 * 1024);
+  const rounded = mb.toFixed(1);
+  return `${rounded.endsWith(".0") ? rounded.slice(0, -2) : rounded} MB`;
+}
+
+/**
  * Advisory MIME allowlist. SVG is deliberately EXCLUDED (not "TODO, forgot") —
  * SVG must be sanitized at ingest before it's safe to store;
  * that sanitizer is not built in this pass, so SVG upload is rejected rather
@@ -325,7 +342,7 @@ export async function uploadMedia(
   }
   if (input.bytes.byteLength > maxUploadBytes) {
     throw new MediaValidationError(
-      `uploaded file exceeds the ${maxUploadBytes}-byte size cap`
+      `uploaded file exceeds the ${formatMaxUploadBytesAsMb(maxUploadBytes)} size cap`
     );
   }
 

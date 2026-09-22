@@ -34,13 +34,23 @@
  * content-types pass-through-`ToolPolicy` reasoning, not an oversight.
  *
  * Architectural role:
- * `media` domain declaration. Imports only the constants its own domain already enforces
- * (`DEFAULT_MAX_UPLOAD_BYTES`/`DEFAULT_ALLOWED_MIME_TYPES` from `media-service.ts`), so the
- * published JSON Schemas cannot drift from the validators.
+ * `media` domain declaration. Imports only the constant its own domain already enforces
+ * (`DEFAULT_ALLOWED_MIME_TYPES` from `media-service.ts`), so the published JSON Schema's allowed
+ * content types cannot drift from the validator.
+ *
+ * `media_upload_asset`'s size-cap wording (2026-09-21): this catalog is a module-load-time constant
+ * shared by every host (see this file's own module doc above), but a host can now override
+ * `uploadMedia`'s cap per-call via `MediaToolDeps.maxUploadBytes` (`tool-registrations.ts`). Stating
+ * `DEFAULT_MAX_UPLOAD_BYTES` (10 MiB) here would be an outright lie for a host that raised its own
+ * cap (e.g. Tovu's 50 MiB) — the model would be told a wrong, lower number than what the tool
+ * actually accepts. The description and schema below therefore describe the cap generically instead
+ * of stating a figure; the size-rejection error itself (`uploadMedia`'s `MediaValidationError`,
+ * `media-service.ts`) states the ACTUAL configured limit in MB, which is the one place that can be
+ * host-accurate.
  */
 
 import { MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES } from "./html-attributes.js";
-import { DEFAULT_ALLOWED_MIME_TYPES, DEFAULT_MAX_UPLOAD_BYTES } from "./media-service.js";
+import { DEFAULT_ALLOWED_MIME_TYPES } from "./media-service.js";
 
 export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
@@ -91,8 +101,9 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
     description:
       `Uploads a new media asset from base64-encoded bytes. Rejects a content type outside the allowed set ` +
       `(${[...DEFAULT_ALLOWED_MIME_TYPES].join(", ")} — SVG is never accepted, even here: it requires a sanitizer ` +
-      `this build does not have) or a file over ${DEFAULT_MAX_UPLOAD_BYTES} bytes. Uploading the same bytes twice ` +
-      `always creates two separate library entries (the underlying blob is deduplicated, but each upload is its own asset).`,
+      `this build does not have) or a file over this host's configured size cap (a rejected upload's error ` +
+      `states the exact limit, in MB). Uploading the same bytes twice always creates two separate library ` +
+      `entries (the underlying blob is deduplicated, but each upload is its own asset).`,
     sideEffects: "mutates-durable-state",
     authorization: { permission: "media.upload" },
     inputSchema: {
@@ -109,7 +120,7 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
         dataBase64: {
           type: "string",
           minLength: 1,
-          description: `The file's bytes, base64-encoded. Decoded size must be over 0 and at most ${DEFAULT_MAX_UPLOAD_BYTES} bytes.`,
+          description: "The file's bytes, base64-encoded. Decoded size must be over 0 bytes and within this host's configured upload size cap (a too-large upload's error states the exact limit, in MB).",
         },
         alt: { type: "string", description: "Optional accessibility alt text." },
         caption: { type: "string", description: "Optional display caption." },
