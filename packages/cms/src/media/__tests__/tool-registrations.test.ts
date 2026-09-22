@@ -106,6 +106,42 @@ test("a hook that throws propagates — an upload must not be silently reported 
   );
 });
 
+/**
+ * Covers `MediaToolDeps.maxUploadBytes` (2026-09-21) — a host-supplied override of
+ * `uploadMedia`'s own `DEFAULT_MAX_UPLOAD_BYTES` (10 MiB), forwarded from `media_upload_asset`'s
+ * handler as `uploadMedia`'s third (`optional`) argument. Before this fix the handler called
+ * `uploadMedia({ deps, input })` with no third argument at all, so every host's assistant upload
+ * tool was hard-capped at 10 MiB regardless of what cap the host's own HTTP upload route enforced.
+ */
+const ELEVEN_MIB = 11 * 1024 * 1024;
+
+test("media_upload_asset accepts a file over the 10 MiB default when the host supplies a higher maxUploadBytes cap", async () => {
+  const { deps } = fakeDeps({ maxUploadBytes: 20 * 1024 * 1024 });
+  const registrations = buildMediaRegistrations(deps);
+  const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
+  assert.ok(upload, "media_upload_asset must be wired");
+
+  const bigBytes = Buffer.alloc(ELEVEN_MIB, 0xab);
+  const result = (await upload.handler(
+    executionContext({ dataBase64: bigBytes.toString("base64"), filename: "big.png", contentType: "image/png" })
+  )) as { media: { id: string } };
+
+  assert.ok(result.media.id, "an 11 MiB upload must succeed once the host's maxUploadBytes cap is 20 MiB");
+});
+
+test("media_upload_asset still rejects a file over 10 MiB when the host supplies no maxUploadBytes cap (today's default, unchanged)", async () => {
+  const { deps } = fakeDeps(); // no maxUploadBytes override
+  const registrations = buildMediaRegistrations(deps);
+  const upload = registrations.find((r) => r.descriptor.id === "media_upload_asset");
+  assert.ok(upload);
+
+  const bigBytes = Buffer.alloc(ELEVEN_MIB, 0xab);
+  await assert.rejects(
+    () => upload.handler(executionContext({ dataBase64: bigBytes.toString("base64"), filename: "big.png", contentType: "image/png" })),
+    /exceeds/
+  );
+});
+
 test("a hook that throws AFTER uploadMedia() commits does not leave the media/rendition/blob rows orphaned", async () => {
   let uploadedMediaId: string | undefined;
   const { deps, mediaRepo, assetBlobRepo, assetRenditionRepo } = fakeDeps({

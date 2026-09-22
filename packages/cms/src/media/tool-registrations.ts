@@ -101,6 +101,18 @@ export interface MediaToolDeps {
    * `resolvePublicUrls`-precedent contract.
    */
   recordUploadContentType?: (params: { media: MediaRecord; bytes: Uint8Array }) => Promise<void>;
+  /**
+   * Optional host-supplied override of `uploadMedia`'s own `DEFAULT_MAX_UPLOAD_BYTES` (10 MiB,
+   * `media-service.ts`), forwarded verbatim as `uploadMedia`'s third (`optional`) argument in the
+   * `media_upload_asset` handler below (2026-09-21). Before this field existed, the handler called
+   * `uploadMedia({ deps, input })` with no third argument at all, so EVERY host's assistant upload
+   * tool was hard-capped at 10 MiB regardless of what limit that host's own HTTP upload route
+   * enforced — a host raising its own cap (e.g. to 50 MiB) had no way to raise this tool's cap to
+   * match. Omitted: `uploadMedia`'s own default applies unchanged, matching this field's own
+   * pre-2026-09-21 absence for every host that has not opted in yet — the same degrade-soft
+   * contract {@link resolvePublicUrls} and {@link recordUploadContentType} already established.
+   */
+  maxUploadBytes?: number;
 }
 
 /**
@@ -227,7 +239,7 @@ export function buildMediaRegistrations(routeDeps: MediaToolDeps): ToolRegistrat
             credit: typeof input.credit === "string" ? input.credit : undefined,
             createdByPrincipal: ctx.principal.id,
           },
-        });
+        }, { maxUploadBytes: routeDeps.maxUploadBytes });
         if (routeDeps.recordUploadContentType) {
           try {
             await routeDeps.recordUploadContentType({ media, bytes });
