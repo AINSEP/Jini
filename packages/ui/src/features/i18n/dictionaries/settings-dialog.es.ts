@@ -65,6 +65,8 @@ export const SETTINGS_DIALOG_ES: SettingsDialogDict = {
   'Copy': 'Copiar',
   'Copy to clipboard': 'Copiar al portapapeles',
   'Could not load live models: {message}': 'No se pudieron cargar los modelos en vivo: {message}',
+  'No API key — connection test needs the key from this browser.': 'Sin clave de API: la prueba de conexión necesita la clave desde este navegador.',
+  'No API key — model discovery needs the key from this browser.': 'Sin clave de API: la detección de modelos necesita la clave desde este navegador.',
   'Could not load skills: {error}': 'No se pudieron cargar las skills: {error}',
   'Could not reach the daemon: {error}': 'No se pudo contactar con el daemon: {error}',
   'Could not reach the server. Showing local changes only.': 'No se pudo contactar con el servidor. Mostrando solo cambios locales.',

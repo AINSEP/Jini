@@ -65,6 +65,8 @@ export const SETTINGS_DIALOG_TR: SettingsDialogDict = {
   'Copy': 'Kopyala',
   'Copy to clipboard': 'Panoya kopyala',
   'Could not load live models: {message}': 'Canlı modeller yüklenemedi: {message}',
+  'No API key — connection test needs the key from this browser.': 'API anahtarı yok — bağlantı testi için bu tarayıcıdan anahtar gerekiyor.',
+  'No API key — model discovery needs the key from this browser.': 'API anahtarı yok — model keşfi için bu tarayıcıdan anahtar gerekiyor.',
   'Could not load skills: {error}': 'Beceriler yüklenemedi: {error}',
   'Could not reach the daemon: {error}': 'Arka plan sürecine ulaşılamadı: {error}',
   'Could not reach the server. Showing local changes only.': 'Sunucuya ulaşılamadı. Yalnızca yerel değişiklikler gösteriliyor.',

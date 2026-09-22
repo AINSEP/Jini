@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_RU: SettingsDialogDict = {
   'Copy': 'Копировать',
   'Copy to clipboard': 'Копировать в буфер обмена',
   'Could not load live models: {message}': 'Не удалось загрузить актуальные модели: {message}',
+  'No API key — connection test needs the key from this browser.': 'Нет API-ключа — для проверки подключения нужен ключ из этого браузера.',
+  'No API key — model discovery needs the key from this browser.': 'Нет API-ключа — для поиска моделей нужен ключ из этого браузера.',
   'Could not load skills: {error}': 'Не удалось загрузить навыки: {error}',
   'Could not reach the daemon: {error}': 'Не удалось связаться с демоном: {error}',
   'Could not reach the server. Showing local changes only.': 'Не удалось связаться с сервером. Показаны только локальные изменения.',

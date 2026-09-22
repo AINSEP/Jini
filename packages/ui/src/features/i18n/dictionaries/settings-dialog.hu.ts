@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_HU: SettingsDialogDict = {
   'Copy': 'Másolás',
   'Copy to clipboard': 'Másolás vágólapra',
   'Could not load live models: {message}': 'Nem sikerült betölteni az élő modelleket: {message}',
+  'No API key — connection test needs the key from this browser.': 'Nincs API-kulcs — a kapcsolati teszthez a kulcs szükséges ebből a böngészőből.',
+  'No API key — model discovery needs the key from this browser.': 'Nincs API-kulcs — a modellek felderítéséhez a kulcs szükséges ebből a böngészőből.',
   'Could not load skills: {error}': 'Nem sikerült betölteni a képességeket: {error}',
   'Could not reach the daemon: {error}': 'Nem sikerült elérni a démont: {error}',
   'Could not reach the server. Showing local changes only.': 'Nem sikerült elérni a szervert. Csak a helyi módosítások jelennek meg.',

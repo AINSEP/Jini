@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_AR: SettingsDialogDict = {
   'Copy': 'نسخ',
   'Copy to clipboard': 'نسخ إلى الحافظة',
   'Could not load live models: {message}': 'تعذّر تحميل النماذج المباشرة: {message}',
+  'No API key — connection test needs the key from this browser.': 'لا يوجد مفتاح API — يحتاج اختبار الاتصال إلى المفتاح من هذا المتصفح.',
+  'No API key — model discovery needs the key from this browser.': 'لا يوجد مفتاح API — يحتاج اكتشاف النماذج إلى المفتاح من هذا المتصفح.',
   'Could not load skills: {error}': 'تعذّر تحميل المهارات: {error}',
   'Could not reach the daemon: {error}': 'تعذّر الوصول إلى الخدمة الخلفية: {error}',
   'Could not reach the server. Showing local changes only.': 'تعذّر الوصول إلى الخادم. تُعرض التغييرات المحلية فقط.',

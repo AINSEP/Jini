@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_KO: SettingsDialogDict = {
   'Copy': '복사',
   'Copy to clipboard': '클립보드에 복사',
   'Could not load live models: {message}': '실시간 모델을 불러올 수 없습니다: {message}',
+  'No API key — connection test needs the key from this browser.': 'API 키가 없습니다 — 연결 테스트에는 이 브라우저의 키가 필요합니다.',
+  'No API key — model discovery needs the key from this browser.': 'API 키가 없습니다 — 모델 검색에는 이 브라우저의 키가 필요합니다.',
   'Could not load skills: {error}': '스킬을 불러올 수 없습니다: {error}',
   'Could not reach the daemon: {error}': '데몬에 연결할 수 없습니다: {error}',
   'Could not reach the server. Showing local changes only.': '서버에 연결할 수 없습니다. 로컬 변경 사항만 표시합니다.',

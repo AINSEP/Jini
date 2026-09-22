@@ -65,6 +65,8 @@ export const SETTINGS_DIALOG_ZH_CN: SettingsDialogDict = {
   'Copy': '复制',
   'Copy to clipboard': '复制到剪贴板',
   'Could not load live models: {message}': '无法加载实时模型列表：{message}',
+  'No API key — connection test needs the key from this browser.': '没有 API 密钥——连接测试需要来自此浏览器的密钥。',
+  'No API key — model discovery needs the key from this browser.': '没有 API 密钥——模型发现需要来自此浏览器的密钥。',
   'Could not load skills: {error}': '无法加载技能：{error}',
   'Could not reach the daemon: {error}': '无法连接到守护进程：{error}',
   'Could not reach the server. Showing local changes only.': '无法连接到服务器，仅显示本地更改。',

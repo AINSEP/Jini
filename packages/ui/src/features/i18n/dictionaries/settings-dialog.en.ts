@@ -81,6 +81,8 @@ export const SETTINGS_DIALOG_EN: SettingsDialogDict = {
   'Copy': 'Copy',
   'Copy to clipboard': 'Copy to clipboard',
   'Could not load live models: {message}': 'Could not load live models: {message}',
+  'No API key — connection test needs the key from this browser.': 'No API key — connection test needs the key from this browser.',
+  'No API key — model discovery needs the key from this browser.': 'No API key — model discovery needs the key from this browser.',
   'Could not load skills: {error}': 'Could not load skills: {error}',
   'Could not reach the daemon: {error}': 'Could not reach the daemon: {error}',
   'Could not reach the server. Showing local changes only.': 'Could not reach the server. Showing local changes only.',

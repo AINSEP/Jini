@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
 import { I18nProvider, SETTINGS_DIALOG_DICTIONARIES } from '../../../../i18n/index.js';
-import type { ByokConfig, ProviderPreset } from '../../../types.js';
+import type { ByokConfig, ConnectionTestState, ModelDiscoveryState, ProviderPreset } from '../../../types.js';
 
 /**
  * @file The key-format warnings (`apiKeyFormatWarning` in `rules.ts`) are correctly routed through
@@ -110,5 +110,76 @@ describe('ByokProviderForm — key-format warnings with no I18nProvider mounted'
       />,
     );
     expect(screen.getByText(ENGLISH_TOO_SHORT_TEXT)).toBeInTheDocument();
+  });
+});
+
+/**
+ * The runtime's no-key refusals (`agent-runtime`'s `connection-test.ts` / `model-catalog.ts`) reach
+ * this card as HOST-supplied `connectionTest.message` / `modelDiscovery.message`. They used to render
+ * raw, so every non-English admin saw English. They are fixed English sentences, so they are
+ * dictionary keys; a provider's free-form error is not, and must still render verbatim.
+ */
+describe('ByokProviderForm — host-reported no-key messages', () => {
+  const NO_KEY_TEST = 'No API key — connection test needs the key from this browser.';
+  const NO_KEY_DISCOVERY = 'No API key — model discovery needs the key from this browser.';
+
+  function renderWith(
+    locale: 'de' | 'en' | null,
+    connectionTest: ConnectionTestState,
+    modelDiscovery: ModelDiscoveryState = { status: 'idle' },
+  ) {
+    const form = (
+      <ByokProviderForm
+        config={configWith('')}
+        onConfigChange={vi.fn()}
+        preset={GOOGLE_PRESET}
+        modelDiscovery={modelDiscovery}
+        connectionTest={connectionTest}
+        onTestConnection={vi.fn()}
+      />
+    );
+    return render(
+      locale === null ? form : (
+        <I18nProvider initialLocale={locale} dictionaries={SETTINGS_DIALOG_DICTIONARIES}>
+          {form}
+        </I18nProvider>
+      ),
+    );
+  }
+
+  it('translates the connection-test no-key refusal in German', () => {
+    renderWith('de', { status: 'error', message: NO_KEY_TEST });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Kein API-Schlüssel — der Verbindungstest benötigt den Schlüssel aus diesem Browser.',
+    );
+    expect(screen.queryByText(NO_KEY_TEST)).not.toBeInTheDocument();
+  });
+
+  it('translates the model-discovery no-key refusal inside the discovery hint in German', () => {
+    renderWith('de', { status: 'idle' }, { status: 'error', message: NO_KEY_DISCOVERY });
+    expect(
+      screen.getByText(
+        'Live-Modelle konnten nicht geladen werden: Kein API-Schlüssel — die Modellerkennung benötigt den Schlüssel aus diesem Browser.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps English byte-identical, with and without a provider', () => {
+    renderWith('en', { status: 'error', message: NO_KEY_TEST });
+    expect(screen.getByRole('alert').textContent).toBe(NO_KEY_TEST);
+  });
+
+  it('renders a provider error that is not a dictionary key verbatim', () => {
+    const providerText = 'API key not valid. Please pass a valid API key. {code}';
+    renderWith('de', { status: 'error', message: providerText });
+    expect(screen.getByRole('alert').textContent).toBe(providerText);
+  });
+
+  it('still renders an ok message verbatim and the default success text translated', () => {
+    const { unmount } = renderWith(null, { status: 'ok', message: '42 models available' });
+    expect(screen.getByRole('status').textContent).toBe('42 models available');
+    unmount();
+    renderWith('de', { status: 'ok' });
+    expect(screen.getByRole('status').textContent).toBe('Verbindung erfolgreich');
   });
 });

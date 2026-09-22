@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_HI: SettingsDialogDict = {
   'Copy': 'कॉपी करें',
   'Copy to clipboard': 'क्लिपबोर्ड पर कॉपी करें',
   'Could not load live models: {message}': 'लाइव मॉडल लोड नहीं हो सके: {message}',
+  'No API key — connection test needs the key from this browser.': 'कोई API कुंजी नहीं — कनेक्शन परीक्षण के लिए इस ब्राउज़र से कुंजी चाहिए।',
+  'No API key — model discovery needs the key from this browser.': 'कोई API कुंजी नहीं — मॉडल खोजने के लिए इस ब्राउज़र से कुंजी चाहिए।',
   'Could not load skills: {error}': 'स्किल्स लोड नहीं हो सकीं: {error}',
   'Could not reach the daemon: {error}': 'डेमन तक नहीं पहुंच सके: {error}',
   'Could not reach the server. Showing local changes only.': 'सर्वर तक नहीं पहुंच सके। केवल स्थानीय बदलाव दिखाए जा रहे हैं।',

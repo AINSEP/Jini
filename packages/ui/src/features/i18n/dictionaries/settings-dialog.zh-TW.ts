@@ -68,6 +68,8 @@ export const SETTINGS_DIALOG_ZH_TW: SettingsDialogDict = {
   'Copy': '複製',
   'Copy to clipboard': '複製到剪貼簿',
   'Could not load live models: {message}': '無法載入即時模型清單：{message}',
+  'No API key — connection test needs the key from this browser.': '沒有 API 金鑰——連線測試需要來自此瀏覽器的金鑰。',
+  'No API key — model discovery needs the key from this browser.': '沒有 API 金鑰——模型探索需要來自此瀏覽器的金鑰。',
   'Could not load skills: {error}': '無法載入技能：{error}',
   'Could not reach the daemon: {error}': '無法連上背景程序：{error}',
   'Could not reach the server. Showing local changes only.': '無法連上伺服器，僅顯示本機變更。',

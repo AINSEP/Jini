@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_FA: SettingsDialogDict = {
   'Copy': 'کپی',
   'Copy to clipboard': 'کپی در کلیپ‌بورد',
   'Could not load live models: {message}': 'بارگذاری مدل‌های زنده ممکن نشد: {message}',
+  'No API key — connection test needs the key from this browser.': 'کلید API وجود ندارد — آزمون اتصال به کلید از همین مرورگر نیاز دارد.',
+  'No API key — model discovery needs the key from this browser.': 'کلید API وجود ندارد — کشف مدل‌ها به کلید از همین مرورگر نیاز دارد.',
   'Could not load skills: {error}': 'بارگذاری مهارت‌ها ممکن نشد: {error}',
   'Could not reach the daemon: {error}': 'ارتباط با دیمون برقرار نشد: {error}',
   'Could not reach the server. Showing local changes only.': 'ارتباط با سرور برقرار نشد. فقط تغییرات محلی نمایش داده می‌شود.',

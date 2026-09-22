@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_PL: SettingsDialogDict = {
   'Copy': 'Kopiuj',
   'Copy to clipboard': 'Kopiuj do schowka',
   'Could not load live models: {message}': 'Nie udało się wczytać modeli na żywo: {message}',
+  'No API key — connection test needs the key from this browser.': 'Brak klucza API — test połączenia wymaga klucza z tej przeglądarki.',
+  'No API key — model discovery needs the key from this browser.': 'Brak klucza API — wykrywanie modeli wymaga klucza z tej przeglądarki.',
   'Could not load skills: {error}': 'Nie udało się wczytać umiejętności: {error}',
   'Could not reach the daemon: {error}': 'Nie udało się połączyć z demonem: {error}',
   'Could not reach the server. Showing local changes only.': 'Nie udało się połączyć z serwerem. Wyświetlane są tylko zmiany lokalne.',

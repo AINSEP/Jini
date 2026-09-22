@@ -55,6 +55,8 @@ export const SETTINGS_DIALOG_JA: SettingsDialogDict = {
   'Copy': 'コピー',
   'Copy to clipboard': 'クリップボードにコピー',
   'Could not load live models: {message}': 'ライブモデルを読み込めませんでした：{message}',
+  'No API key — connection test needs the key from this browser.': 'API キーがありません — 接続テストには、このブラウザーからのキーが必要です。',
+  'No API key — model discovery needs the key from this browser.': 'API キーがありません — モデルの検出には、このブラウザーからのキーが必要です。',
   'Could not load skills: {error}': 'スキルを読み込めませんでした：{error}',
   'Could not reach the daemon: {error}': 'デーモンに接続できませんでした：{error}',
   'Could not reach the server. Showing local changes only.': 'サーバーに接続できませんでした。ローカルの変更のみ表示しています。',

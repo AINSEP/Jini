@@ -65,6 +65,8 @@ export const SETTINGS_DIALOG_ID: SettingsDialogDict = {
   'Copy': 'Salin',
   'Copy to clipboard': 'Salin ke clipboard',
   'Could not load live models: {message}': 'Tidak dapat memuat model live: {message}',
+  'No API key — connection test needs the key from this browser.': 'Tidak ada kunci API — uji koneksi memerlukan kunci dari browser ini.',
+  'No API key — model discovery needs the key from this browser.': 'Tidak ada kunci API — penemuan model memerlukan kunci dari browser ini.',
   'Could not load skills: {error}': 'Tidak dapat memuat skill: {error}',
   'Could not reach the daemon: {error}': 'Tidak dapat menjangkau daemon: {error}',
   'Could not reach the server. Showing local changes only.': 'Tidak dapat menjangkau server. Hanya menampilkan perubahan lokal.',

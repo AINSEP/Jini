@@ -65,6 +65,8 @@ export const SETTINGS_DIALOG_TH: SettingsDialogDict = {
   'Copy': 'คัดลอก',
   'Copy to clipboard': 'คัดลอกไปยังคลิปบอร์ด',
   'Could not load live models: {message}': 'ไม่สามารถโหลดโมเดลแบบเรียลไทม์ได้: {message}',
+  'No API key — connection test needs the key from this browser.': 'ไม่มีคีย์ API — การทดสอบการเชื่อมต่อต้องใช้คีย์จากเบราว์เซอร์นี้',
+  'No API key — model discovery needs the key from this browser.': 'ไม่มีคีย์ API — การค้นหาโมเดลต้องใช้คีย์จากเบราว์เซอร์นี้',
   'Could not load skills: {error}': 'ไม่สามารถโหลดทักษะได้: {error}',
   'Could not reach the daemon: {error}': 'ไม่สามารถติดต่อดีมอนได้: {error}',
   'Could not reach the server. Showing local changes only.': 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้ กำลังแสดงเฉพาะการเปลี่ยนแปลงในเครื่อง',
