@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import grapesjs, { type Editor } from 'grapesjs';
+import grapesjs, { type Component, type Editor } from 'grapesjs';
 import { applyCanvasContentWrapper } from '../../canvas-content-wrapper.js';
 import { applyCanvasEmbedPlaceholders, type CanvasEmbedPlaceholderDescriptor } from '../../canvas-embed-placeholders.js';
 import { buildCanvasStyleConfig, type CanvasStyling } from '../../canvas-style.js';
 import { prettifyCss } from '../../css.js';
+import { indexElementSourceRanges, pathKey, spliceElementInner, type ElementPath } from '../../source-splice.js';
 
 /**
  * @file `InteractiveHtmlEditor`'s GrapesJS lifecycle: construct the editor once per mount against
@@ -87,6 +88,13 @@ function initInteractiveHtmlEditor(
     panels: { defaults: [] },
     blockManager: { blocks: [] },
     richTextEditor: { actions: RTE_ACTIONS },
+    // Default `true`. Left `true`, GrapesJS rewrites every inline `style="…"` into a generated
+    // `#iXXXX` CSS rule the moment ANY edit triggers a re-sync — including on elements the operator
+    // never touched — which is one of Bug C's root-cause symptoms (see this repo's `pages-redo` plan,
+    // "Bug C"). `false` here is the editor-wide config half of that fix; `serializeCleaned` below is
+    // the other half (the splice path does not depend on this at all, since it never re-serializes
+    // untouched elements from the component model in the first place).
+    avoidInlineStyle: false,
     canvas: buildCanvasStyleConfig(canvasStyling),
     plugins: isProtectedElement
       ? [(editor: Editor) => registerProtectedElementType(editor, isProtectedElement)]
@@ -94,29 +102,166 @@ function initInteractiveHtmlEditor(
   });
 }
 
+/** One accumulated text edit, keyed by `pathKey(path)` in the caller's `dirty` map: the element-only
+ *  path and tag name `spliceElementInner` needs to locate and verify the target, plus the new inner
+ *  HTML to splice in. See `serializeWithSplice`'s own doc for why the map accumulates across the
+ *  whole mount rather than resetting per edit. */
+interface DirtyTextEdit {
+  readonly path: ElementPath;
+  readonly tagName: string;
+  readonly inner: string;
+}
+
+/** Mirrors `source-splice.ts`'s own `UNINDEXED_TAGS` filter, but for GrapesJS's live component tree
+ *  rather than a parsed HTML string: `textnode` and `comment` components never consume a path slot,
+ *  matching how `indexElementSourceRanges` numbers the original string. No equivalent check is needed
+ *  for `style`/`script` here — GrapesJS never represents either as a tree component in the first
+ *  place (moved into `CssComposer`, or dropped outright), so a live sibling list already excludes
+ *  them without this hook's help. */
+function isPathableComponent(component: Component): boolean {
+  return !component.is('textnode') && !component.is('comment');
+}
+
 /**
- * `editor.getHtml()` and `editor.getCss()` are separate outputs in GrapesJS — the component tree
- * and its CSS rules live in independent models (`CodeManager` vs `CssComposer`). Confirmed live, the
- * hard way: calling `getHtml()` alone silently drops every CSS rule the moment a real edit triggers
- * GrapesJS's component-tree re-sync (before any edit, GrapesJS passes an unparsed `<style>` block
- * through untouched, masking this; after one real edit, `getHtml()`'s output is built fresh from the
- * component model, which has no CSS in it at all — reproduced with a real page's content: one text
- * edit took `getHtml()`'s output from 8215 characters down to 3160, `<style>` block and all rules
- * gone, the typed edit itself the only thing that survived). `keepUnusedStyles: true` on `getCss()`
- * matters here specifically: real documents commonly carry `@media` blocks and `::before`/`::after`
- * rules that don't correspond to any single "matched" component in the tree — GrapesJS's default CSS
- * export can drop rules it doesn't consider currently referenced, which would silently re-lose exactly
- * the kind of rule a real design (dark-mode variants, decorative pseudo-elements) depends on.
+ * `component`'s element-only child path from the editor's wrapper root, in the exact numbering
+ * scheme `indexElementSourceRanges` uses for the original HTML string — so a path computed here can
+ * be looked up directly against that index. Returns `null` only if `component` (or an ancestor)
+ * cannot be found in its own parent's `components()` collection, which is not reachable for a live
+ * component an actual GrapesJS event just handed this hook; kept as a defensive guard rather than
+ * assumed away, the same convention `canvas-embed-placeholders.ts`'s own "Unreachable ... defensive
+ * only" comment uses for its analogous case.
+ *
+ * @complexity O(d + s) — d = depth from the wrapper, s = total siblings visited across every
+ * ancestor level. Editor documents in this product are shallow; not a hot path.
  */
-function serializeEditorContent(editor: Editor): string {
-  const css = editor.getCss({ keepUnusedStyles: true });
-  const html = editor.getHtml();
+function computeComponentPath(component: Component): ElementPath | null {
+  const path: number[] = [];
+  let current: Component = component;
+  for (;;) {
+    const parent = current.parent();
+    if (!parent) return path;
+    const siblings = parent.components().models;
+    const at = siblings.indexOf(current);
+    if (at === -1) return null; // Unreachable for a live component; defensive only.
+    const elementIndex = siblings.slice(0, at).filter(isPathableComponent).length;
+    path.unshift(elementIndex);
+    current = parent;
+  }
+}
+
+/**
+ * Records (or overwrites) the latest inner HTML for the nearest `text` component whose content
+ * changed, keyed by its element-only path. Silently ignores anything that is not a `text` component
+ * — this is the mechanism that keeps a non-text element (a host's embed marker `<div>`, an image, a
+ * plain container) from ever becoming a splice target, even if some other GrapesJS event happens to
+ * name it as its argument — and anything whose path cannot be resolved from the live tree.
+ */
+function recordDirtyTextEdit(component: Component | undefined, dirty: Map<string, DirtyTextEdit>): void {
+  if (!component || !component.is('text')) return;
+  const path = computeComponentPath(component);
+  if (!path) return;
+  dirty.set(pathKey(path), { path, tagName: component.tagName.toLowerCase(), inner: component.getInnerHTML() });
+}
+
+/** Dev-only, so a fallback is never silent — see `serializeWithSplice` for each trigger this names. */
+function warnFallback(reason: string): void {
+  if (process.env.NODE_ENV !== 'production') {
+    console.warn(`[useInteractiveHtmlEditor] falling back to full re-serialization: ${reason}`);
+  }
+}
+
+/**
+ * Fallback whole-document serialization for when the lossless splice (see `serializeWithSplice`)
+ * cannot be trusted. This is the "cleaned" formula from this repo's `pages-redo` plan ("Bug C"), and
+ * differs from the whole-document serialization this hook used before the splice existed:
+ * `avoidProtected: true` on `getCss()` drops GrapesJS's own `* { box-sizing: border-box; } body
+ * {margin: 0;}` block, which GrapesJS otherwise prepends even to a page with no CSS of its own; and
+ * `getWrapper().getInnerHTML()` — the wrapper's INNER content — omits the `<body>` tag `editor.
+ * getHtml()` serializes the wrapper component itself as. Combined with `avoidInlineStyle: false` on
+ * the editor's own config (see `initInteractiveHtmlEditor`), inline `style="…"` attributes also
+ * survive here instead of being rewritten into generated `#iXXXX` CSS rules. Still not a byte-
+ * identical round trip — this is a full re-serialization from GrapesJS's component model, which
+ * cannot recover the original string's entities or authored formatting — just the least-lossy shape
+ * available when a true splice is not possible.
+ *
+ * `keepUnusedStyles: true` carries over unchanged from the serialization this replaces: real
+ * documents commonly carry `@media` blocks and `::before`/`::after` rules that don't correspond to
+ * any single "matched" component in the tree, which GrapesJS's default CSS export can otherwise drop.
+ */
+function serializeCleaned(editor: Editor): string {
+  const css = editor.getCss({ avoidProtected: true, keepUnusedStyles: true });
+  const wrapper = editor.getWrapper();
+  // `wrapper` is undefined only before/without a successful init, which cannot be true once this
+  // hook's `editor` has fired `update` — defensive only, mirroring `serializeCleaned`'s own doc.
+  const html = wrapper ? wrapper.getInnerHTML() : editor.getHtml();
   return css ? `<style>${prettifyCss(css)}</style>${html}` : html;
 }
 
 /**
+ * Builds this edit cycle's exported HTML. The default path splices every accumulated dirty text edit
+ * (see `recordDirtyTextEdit`) back into the ORIGINAL source string via `spliceElementInner` (see
+ * `source-splice.ts`), so every other byte — entities, attribute quoting, an untouched embed marker,
+ * unrelated formatting — passes through unchanged instead of being rebuilt from GrapesJS's component
+ * model. Falls back to `serializeCleaned` (and warns via `warnFallback`, so it is never silent)
+ * whenever that guarantee cannot be trusted:
+ *  - `hadStructuralChange` — a component was added or removed since mount (a block move, clone, or
+ *    delete fires both: a remove then an add). Every dirty path's offset was computed against the
+ *    pristine `original` string; once the LIVE tree's shape has diverged from it, those offsets (and
+ *    even the paths themselves) can silently address the wrong element instead of failing loudly, so
+ *    this is checked first and unconditionally, regardless of what is or isn't in `dirty`. There is no
+ *    path back to `false` once this flips — a later purely-textual edit still cannot trust offsets
+ *    computed before the structural change, so the whole rest of the mount stays on the cleaned path.
+ *  - `dirty` is empty — `update` fired (a real content/style/attribute mutation happened) but no
+ *    text-component edit was ever recorded for it. Nothing addressable means nothing spliceable.
+ *  - any individual `spliceElementInner` call returns `null` — that path's element is no longer where
+ *    it was, or its tag no longer matches what the live component believes.
+ *
+ * Dirty edits are applied in descending original-offset order (highest first): a splice at a later
+ * offset never shifts the byte positions of anything before it, so replaying strictly back-to-front
+ * lets every subsequent `spliceElementInner` call re-locate its own (still-untouched-until-its-turn)
+ * range correctly without this function tracking running offset deltas itself.
+ *
+ * @complexity O(n·k) where n = size of `original` (each of up to k dirty splices re-indexes the
+ * current string internally) and k = number of dirty edits accumulated this mount — small in
+ * practice (an operator edits a handful of elements per session), never a hot loop here.
+ */
+function serializeWithSplice(
+  editor: Editor,
+  original: string,
+  dirty: Map<string, DirtyTextEdit>,
+  hadStructuralChange: boolean,
+): string {
+  if (hadStructuralChange) {
+    warnFallback('a structural (block) edit — add/remove — happened since mount');
+    return serializeCleaned(editor);
+  }
+  if (dirty.size === 0) {
+    warnFallback('no text edit was recorded for this change');
+    return serializeCleaned(editor);
+  }
+
+  const originalIndex = indexElementSourceRanges(original);
+  const ordered = [...dirty.values()].sort((a, b) => {
+    const aStart = originalIndex.get(pathKey(a.path))?.start ?? -1;
+    const bStart = originalIndex.get(pathKey(b.path))?.start ?? -1;
+    return bStart - aStart;
+  });
+
+  let result = original;
+  for (const edit of ordered) {
+    const spliced = spliceElementInner(result, edit.path, edit.tagName, edit.inner);
+    if (spliced === null) {
+      warnFallback(`element at path "${pathKey(edit.path)}" could not be spliced (removed, or its tag drifted)`);
+      return serializeCleaned(editor);
+    }
+    result = spliced;
+  }
+  return result;
+}
+
+/**
  * Owns one GrapesJS `Editor` instance for the lifetime of the calling component's mount. `onChange`
- * fires with the editor's current serialized content (see `serializeEditorContent`) on every content
+ * fires with the editor's current serialized content (see `serializeWithSplice`) on every content
  * mutation (GrapesJS's `update` event — components, styles, or attributes changing); it is not
  * debounced, so a caller replacing an existing uncontrolled `<textarea>` (which already pushes a full
  * value on every keystroke) sees matching behavior.
@@ -159,8 +304,35 @@ export function useInteractiveHtmlEditor(
     mountEl.style.height = '100%';
     wrapper.appendChild(mountEl);
     const editor = initInteractiveHtmlEditor(mountEl, html, isProtectedElement, canvasStyling);
-    const handleUpdate = () => onChangeRef.current(serializeEditorContent(editor));
+
+    // Splice bookkeeping — see `serializeWithSplice`'s own doc for how these two are used. Plain
+    // closure state scoped to this one mount-only effect run (like `editor`/`mountEl` above), not
+    // `useRef`: nothing outside this effect ever reads them.
+    const dirty = new Map<string, DirtyTextEdit>();
+    let hadStructuralChange = false;
+
+    const handleUpdate = () => onChangeRef.current(serializeWithSplice(editor, html, dirty, hadStructuralChange));
+    // `component:update:content` fires with the changed component itself as its argument (GrapesJS's
+    // general `component:update:{propertyName}` pattern); `rte:disable` fires with `(view, rte)` —
+    // the view whose RTE session just closed, `view.model` being the component it edited. Both name
+    // the SAME kind of thing (a text component whose content just changed) through two different
+    // GrapesJS code paths (a direct model update vs. the RTE toolbar's close), so both feed the one
+    // `recordDirtyTextEdit` sink rather than each growing their own tracking.
+    const handleContentUpdate = (component: Component) => recordDirtyTextEdit(component, dirty);
+    const handleRteDisable = (view: { model?: Component }) => recordDirtyTextEdit(view?.model, dirty);
+    // A block move, clone, or delete — the drag/clone/delete toolbar Interactive scope does not yet
+    // turn off (see this repo's `pages-redo` plan, "Bug C" design, Owner question 2) — fires
+    // `component:add`/`component:remove` on the live tree. Once either fires, `serializeWithSplice`
+    // stops trusting any offset computed against the original string for the rest of this mount; see
+    // its own doc for why this never resets back to `false`.
+    const handleStructuralChange = () => {
+      hadStructuralChange = true;
+    };
     editor.on('update', handleUpdate);
+    editor.on('component:update:content', handleContentUpdate);
+    editor.on('rte:disable', handleRteDisable);
+    editor.on('component:add', handleStructuralChange);
+    editor.on('component:remove', handleStructuralChange);
     // `load` fires once the canvas's initial component render is done (`editor.Canvas.getBody()` is
     // populated) — see `applyCanvasContentWrapper`'s own file header for why the wrap has to happen
     // here, against the live canvas, rather than folded into `components` above. Embed placeholders
@@ -176,6 +348,10 @@ export function useInteractiveHtmlEditor(
     editor.on('load', handleLoad);
     return () => {
       editor.off('update', handleUpdate);
+      editor.off('component:update:content', handleContentUpdate);
+      editor.off('rte:disable', handleRteDisable);
+      editor.off('component:add', handleStructuralChange);
+      editor.off('component:remove', handleStructuralChange);
       editor.off('load', handleLoad);
       editor.destroy();
       mountEl.remove();
