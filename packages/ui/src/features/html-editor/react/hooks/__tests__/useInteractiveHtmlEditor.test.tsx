@@ -31,6 +31,8 @@ interface FakeComponent {
   setInnerHTML: (next: string) => void;
   _parent?: FakeComponent;
   _children: FakeComponent[];
+  /** GrapesJS's public `prevColl`: the collection a just-removed component was removed from. */
+  prevColl?: { parent?: FakeComponent };
 }
 
 function makeFakeComponent(tagName: string, type: string, innerHTML = ''): FakeComponent {
@@ -354,8 +356,8 @@ describe('useInteractiveHtmlEditor — lossless splice (Bug C, Slice C2)', () =>
     );
     lastFake!.editor.getCss.mockReturnValue('');
 
-    // A block move/clone/delete fires component:remove (and, for a move, an add) on the live tree —
-    // the toolbar Interactive scope does not yet turn off (see the plan's Owner question 2).
+    // A block move/copy/delete fires component:remove (and, for a move, an add) on the live tree —
+    // the Interactive tab keeps all three (owner decision 2026-09-23).
     lastFake!.fire('component:remove');
     lastFake!.fire('update');
 
@@ -577,8 +579,8 @@ describe('useInteractiveHtmlEditor — embed markers are selectable atomic block
     lastFake!.fire('load');
     expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
 
-    lastFake!.fire('component:remove', {});
-    lastFake!.fire('component:add', {});
+    lastFake!.fire('component:remove', makeFakeComponent('p', 'text'));
+    lastFake!.fire('component:add', makeFakeComponent('p', 'text'));
     expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(0);
@@ -588,7 +590,7 @@ describe('useInteractiveHtmlEditor — embed markers are selectable atomic block
 
   it('does not re-apply cards for adds and removes before load (GrapesJS parsing the initial document)', () => {
     render(<ProtectedHarness describeEmbedPlaceholder={vi.fn()} />);
-    lastFake!.fire('component:add', {});
+    lastFake!.fire('component:add', makeFakeComponent('p', 'text'));
     vi.advanceTimersByTime(0);
     expect(applyCanvasEmbedPlaceholders).not.toHaveBeenCalled();
   });
@@ -596,9 +598,97 @@ describe('useInteractiveHtmlEditor — embed markers are selectable atomic block
   it('cancels a pending card repair on unmount', () => {
     const { unmount } = render(<ProtectedHarness describeEmbedPlaceholder={vi.fn()} />);
     lastFake!.fire('load');
-    lastFake!.fire('component:remove', {});
+    lastFake!.fire('component:remove', makeFakeComponent('p', 'text'));
     unmount();
     vi.advanceTimersByTime(0);
     expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Slice B (text-only-plan §3, 2026-09-23). Live check P1 showed every real RTE edit taking the
+// fallback: when the RTE closes, GrapesJS fires `rte:disable` BEFORE `syncContent` rewrites the text
+// component's children, and that rewrite fires `component:remove`/`component:add` for the inline and
+// textnode children. These tests replay that real order.
+describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slice B)', () => {
+  const EDITED = `<style>body{margin:0}</style>` +
+    `<p id="a">Hello, edited</p>` +
+    `<div data-embed-config='{"type":"video"}'></div>` +
+    `<p id="b">Old &mdash; New</p>`;
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    vi.restoreAllMocks();
+    lastFake = undefined;
+    lastInitConfig = undefined;
+    nextWrapper = undefined;
+  });
+
+  it('splices the text as it is AFTER the RTE sync, with no warning, when only the text component\'s own children churn', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onChange = vi.fn();
+    const { pA } = buildSpliceComponentTree();
+    render(<SpliceTestHarness html={SPLICE_ORIGINAL_HTML} onChange={onChange} />);
+
+    lastFake!.fire('rte:disable', { model: pA }, {}); // pA still holds "Hello" here
+    pA.setInnerHTML('Hello, edited'); // syncContent
+    const removedChild = makeFakeComponent('', 'textnode', 'Hello');
+    removedChild.prevColl = { parent: pA };
+    lastFake!.fire('component:remove', removedChild);
+    const addedChild = makeFakeComponent('', 'textnode', 'Hello, edited');
+    linkFakeComponents(pA, [addedChild]);
+    lastFake!.fire('component:add', addedChild);
+    lastFake!.fire('update');
+
+    expect(onChange).toHaveBeenLastCalledWith(EDITED);
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it('still falls back, naming the cause, when a block outside any text component is added', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onChange = vi.fn();
+    const { wrapper, pA } = buildSpliceComponentTree();
+    nextWrapper = wrapper;
+    render(<SpliceTestHarness html={SPLICE_ORIGINAL_HTML} onChange={onChange} />);
+
+    const clone = makeFakeComponent('p', 'text', 'Hello');
+    linkFakeComponents(wrapper, [pA, clone, ...wrapper._children.slice(1)]);
+    lastFake!.fire('component:add', clone);
+    lastFake!.fire('update');
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount (first: component:add <p>)',
+    );
+  });
+
+  it('still falls back when a block is removed from outside any text component', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { wrapper, pB } = buildSpliceComponentTree();
+    nextWrapper = wrapper;
+    render(<SpliceTestHarness html={SPLICE_ORIGINAL_HTML} onChange={vi.fn()} />);
+
+    pB.prevColl = { parent: wrapper };
+    delete pB._parent;
+    lastFake!.fire('component:remove', pB);
+    lastFake!.fire('update');
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount (first: component:remove <p>)',
+    );
+  });
+
+  it('still falls back when component:remove fires with no component at all', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { wrapper } = buildSpliceComponentTree();
+    nextWrapper = wrapper;
+    render(<SpliceTestHarness html={SPLICE_ORIGINAL_HTML} onChange={vi.fn()} />);
+
+    lastFake!.fire('component:remove');
+    lastFake!.fire('update');
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount (first: component:remove <unknown>)',
+    );
   });
 });

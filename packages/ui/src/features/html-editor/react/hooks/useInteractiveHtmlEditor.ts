@@ -107,13 +107,15 @@ function initInteractiveHtmlEditor(
 }
 
 /** One accumulated text edit, keyed by `pathKey(path)` in the caller's `dirty` map: the element-only
- *  path and tag name `spliceElementInner` needs to locate and verify the target, plus the new inner
- *  HTML to splice in. See `serializeWithSplice`'s own doc for why the map accumulates across the
- *  whole mount rather than resetting per edit. */
+ *  path and tag name `spliceElementInner` needs to locate and verify the target, plus the edited
+ *  component itself. Its inner HTML is read at serialize time, not recorded here: GrapesJS fires
+ *  `rte:disable` BEFORE `syncContent` writes the edited text into the model, so a snapshot taken at
+ *  that event is the OLD text. See `serializeWithSplice`'s own doc for why the map accumulates across
+ *  the whole mount rather than resetting per edit. */
 interface DirtyTextEdit {
   readonly path: ElementPath;
   readonly tagName: string;
-  readonly inner: string;
+  readonly component: Component;
 }
 
 /** Mirrors `source-splice.ts`'s own `UNINDEXED_TAGS` filter, but for GrapesJS's live component tree
@@ -164,7 +166,24 @@ function recordDirtyTextEdit(component: Component | undefined, dirty: Map<string
   if (!component || !component.is('text')) return;
   const path = computeComponentPath(component);
   if (!path) return;
-  dirty.set(pathKey(path), { path, tagName: component.tagName.toLowerCase(), inner: component.getInnerHTML() });
+  dirty.set(pathKey(path), { path, tagName: component.tagName.toLowerCase(), component });
+}
+
+/**
+ * True when `component` sits inside a `text` component: the inline and textnode children GrapesJS's
+ * `syncContent` removes and re-adds every time an RTE session closes. That churn is part of a text
+ * edit, which the splice already covers, not a block edit. A just-removed component has no `parent()`
+ * any more, so the walk starts from `prevColl.parent` (the collection it was removed from).
+ *
+ * @complexity O(d) in the component's depth.
+ */
+function isInsideTextComponent(component: Component): boolean {
+  let current: Component | undefined = component.parent() ?? component.prevColl?.parent;
+  while (current) {
+    if (current.is('text')) return true;
+    current = current.parent();
+  }
+  return false;
 }
 
 /** Dev-only, so a fallback is never silent — see `serializeWithSplice` for each trigger this names. */
@@ -208,8 +227,10 @@ function serializeCleaned(editor: Editor): string {
  * unrelated formatting — passes through unchanged instead of being rebuilt from GrapesJS's component
  * model. Falls back to `serializeCleaned` (and warns via `warnFallback`, so it is never silent)
  * whenever that guarantee cannot be trusted:
- *  - `hadStructuralChange` — a component was added or removed since mount (a block move, clone, or
- *    delete fires both: a remove then an add). Every dirty path's offset was computed against the
+ *  - `structuralChange` — a block was added or removed since mount (a block move, clone, or delete;
+ *    a move fires a remove then an add). Its value names the first such event, for the warning. The
+ *    child churn inside a text component that every RTE close causes does not count (see
+ *    `isInsideTextComponent`); that is a text edit, which the splice covers. Every dirty path's offset was computed against the
  *    pristine `original` string; once the LIVE tree's shape has diverged from it, those offsets (and
  *    even the paths themselves) can silently address the wrong element instead of failing loudly, so
  *    this is checked first and unconditionally, regardless of what is or isn't in `dirty`. There is no
@@ -233,10 +254,10 @@ function serializeWithSplice(
   editor: Editor,
   original: string,
   dirty: Map<string, DirtyTextEdit>,
-  hadStructuralChange: boolean,
+  structuralChange: string | undefined,
 ): string {
-  if (hadStructuralChange) {
-    warnFallback('a structural (block) edit — add/remove — happened since mount');
+  if (structuralChange) {
+    warnFallback(`a block was added, moved, copied or deleted since mount (first: ${structuralChange})`);
     return serializeCleaned(editor);
   }
   if (dirty.size === 0) {
@@ -253,7 +274,7 @@ function serializeWithSplice(
 
   let result = original;
   for (const edit of ordered) {
-    const spliced = spliceElementInner(result, edit.path, edit.tagName, edit.inner);
+    const spliced = spliceElementInner(result, edit.path, edit.tagName, edit.component.getInnerHTML());
     if (spliced === null) {
       warnFallback(`element at path "${pathKey(edit.path)}" could not be spliced (removed, or its tag drifted)`);
       return serializeCleaned(editor);
@@ -379,7 +400,7 @@ export function useInteractiveHtmlEditor(
     // closure state scoped to this one mount-only effect run (like `editor`/`mountEl` above), not
     // `useRef`: nothing outside this effect ever reads them.
     const dirty = new Map<string, DirtyTextEdit>();
-    let hadStructuralChange = false;
+    let structuralChange: string | undefined;
     // Set inside `handleLoad`, once the canvas body exists — see `revealCanvasWhenStylesheetsSettle`.
     // `undefined` until then (or if `load` never fires before unmount), so cleanup below guards it.
     let cancelStylesheetWait: (() => void) | undefined;
@@ -396,7 +417,7 @@ export function useInteractiveHtmlEditor(
       }, 0);
     };
 
-    const handleUpdate = () => onChangeRef.current(serializeWithSplice(editor, html, dirty, hadStructuralChange));
+    const handleUpdate = () => onChangeRef.current(serializeWithSplice(editor, html, dirty, structuralChange));
     // `component:update:content` fires with the changed component itself as its argument (GrapesJS's
     // general `component:update:{propertyName}` pattern); `rte:disable` fires with `(view, rte)` —
     // the view whose RTE session just closed, `view.model` being the component it edited. Both name
@@ -405,20 +426,22 @@ export function useInteractiveHtmlEditor(
     // `recordDirtyTextEdit` sink rather than each growing their own tracking.
     const handleContentUpdate = (component: Component) => recordDirtyTextEdit(component, dirty);
     const handleRteDisable = (view: { model?: Component }) => recordDirtyTextEdit(view?.model, dirty);
-    // A block move, clone, or delete — the drag/clone/delete toolbar Interactive scope does not yet
-    // turn off (see this repo's `pages-redo` plan, "Bug C" design, Owner question 2) — fires
-    // `component:add`/`component:remove` on the live tree. Once either fires, `serializeWithSplice`
-    // stops trusting any offset computed against the original string for the rest of this mount; see
-    // its own doc for why this never resets back to `false`.
-    const handleStructuralChange = () => {
-      hadStructuralChange = true;
+    // A block move, copy or delete (the Interactive tab keeps all three, owner decision 2026-09-23)
+    // fires `component:add`/`component:remove` on the live tree. Once one fires outside a text
+    // component, `serializeWithSplice` stops trusting any offset computed against the original string
+    // for the rest of this mount; see its own doc for why this never resets.
+    const handleStructuralChange = (event: 'component:add' | 'component:remove') => (component?: Component) => {
       scheduleCardRepair();
+      if (structuralChange || (component && isInsideTextComponent(component))) return;
+      structuralChange = `${event} <${component?.tagName?.toLowerCase() || 'unknown'}>`;
     };
+    const handleAdd = handleStructuralChange('component:add');
+    const handleRemove = handleStructuralChange('component:remove');
     editor.on('update', handleUpdate);
     editor.on('component:update:content', handleContentUpdate);
     editor.on('rte:disable', handleRteDisable);
-    editor.on('component:add', handleStructuralChange);
-    editor.on('component:remove', handleStructuralChange);
+    editor.on('component:add', handleAdd);
+    editor.on('component:remove', handleRemove);
     // `load` fires once the canvas's initial component render is done (`editor.Canvas.getBody()` is
     // populated) — see `applyCanvasContentWrapper`'s own file header for why the wrap has to happen
     // here, against the live canvas, rather than folded into `components` above. Embed placeholders
@@ -440,8 +463,8 @@ export function useInteractiveHtmlEditor(
       editor.off('update', handleUpdate);
       editor.off('component:update:content', handleContentUpdate);
       editor.off('rte:disable', handleRteDisable);
-      editor.off('component:add', handleStructuralChange);
-      editor.off('component:remove', handleStructuralChange);
+      editor.off('component:add', handleAdd);
+      editor.off('component:remove', handleRemove);
       editor.off('load', handleLoad);
       cancelStylesheetWait?.();
       clearTimeout(cardRepair);
