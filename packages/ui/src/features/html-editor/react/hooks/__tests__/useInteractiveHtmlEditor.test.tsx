@@ -1,5 +1,6 @@
 import { cleanup, render } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { CANVAS_STYLES_PENDING_CLASS } from '../../../canvas-style.js';
 
 /**
  * @file The export-safety half of the canvas-wrapper feature's proof: `useInteractiveHtmlEditor`
@@ -59,12 +60,17 @@ function linkFakeComponents(parent: FakeComponent, children: FakeComponent[]): v
 
 function makeFakeEditor(options: { wrapper?: FakeComponent | undefined } = {}) {
   const handlers: Record<string, Array<(...args: unknown[]) => void>> = {};
-  const fakeBody = document.createElement('body');
+  // A real, isolated `Document` (not the shared jsdom global `document`) so tests can append/remove
+  // `<link>` elements into its `<head>` without leaking them across tests — mirrors what
+  // `editor.Canvas.getDocument()` returns for the real canvas iframe's document.
+  const fakeDocument = document.implementation.createHTMLDocument('canvas');
+  const fakeBody = fakeDocument.body;
   return {
     fakeBody,
+    fakeDocument,
     editor: {
       Components: { addType: vi.fn() },
-      Canvas: { getBody: vi.fn(() => fakeBody) },
+      Canvas: { getBody: vi.fn(() => fakeBody), getDocument: vi.fn((): Document | null => fakeDocument) },
       on: vi.fn((event: string, cb: (...args: unknown[]) => void) => {
         (handlers[event] ??= []).push(cb);
       }),
@@ -396,5 +402,124 @@ describe('useInteractiveHtmlEditor — lossless splice (Bug C, Slice C2)', () =>
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(warnSpy).toHaveBeenCalledTimes(1);
     warnSpy.mockRestore();
+  });
+});
+
+/**
+ * @file Bug B ("Interactive sometimes doesn't render, or renders late, after switching tabs" — this
+ * repo's `pages-redo` plan) fix, Slice B1: proves the canvas body is hidden behind
+ * `CANVAS_STYLES_PENDING_CLASS` from the moment `load` fires until every `<link rel="stylesheet">`
+ * GrapesJS's `canvas.styles` config put in the canvas document's `<head>` has settled (fired `load` or
+ * `error`), or a 3 s cap elapses — whichever comes first — so a theme stylesheet re-fetched on every
+ * mount never shows through as an unstyled flash of browser-default CSS. `grapesjs` stays mocked for
+ * the same reason the wiring tests above do (this file's top header); a real `Document`
+ * (`document.implementation.createHTMLDocument`, see `makeFakeEditor`) stands in for the canvas
+ * iframe's document so `<link>` elements can be appended/dispatched against directly.
+ */
+
+/** Appends one `<link rel="stylesheet">` per href into `doc`'s `<head>`, mirroring what GrapesJS's
+ *  `canvas.styles` config produces in the real canvas document — returns them in the same order so a
+ *  test can dispatch `load`/`error` against a specific one. */
+function appendStylesheetLinks(doc: Document, hrefs: readonly string[]): HTMLLinkElement[] {
+  return hrefs.map((href) => {
+    const link = doc.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    doc.head.appendChild(link);
+    return link;
+  });
+}
+
+describe('useInteractiveHtmlEditor — canvas hidden until theme stylesheets settle (Bug B, Slice B1)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+    vi.clearAllMocks();
+    lastFake = undefined;
+    lastInitConfig = undefined;
+  });
+
+  it('hides the canvas body once load fires while a theme stylesheet is still pending', () => {
+    render(<TestHarness canvasStyling={{ stylesheets: ['/theme.css'] }} />);
+    appendStylesheetLinks(lastFake!.fakeDocument, ['/theme.css']);
+
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(false);
+    lastFake!.fire('load');
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(true);
+  });
+
+  it('reveals the canvas only once every stylesheet link has settled — load and error both count', () => {
+    render(<TestHarness canvasStyling={{ stylesheets: ['/a.css', '/b.css'] }} />);
+    const [a, b] = appendStylesheetLinks(lastFake!.fakeDocument, ['/a.css', '/b.css']);
+    lastFake!.fire('load');
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(true);
+
+    a!.dispatchEvent(new Event('load'));
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(true); // b still pending
+
+    b!.dispatchEvent(new Event('error'));
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(false);
+  });
+
+  it('reveals the canvas at the 3s cap even when a stylesheet never settles, so a dead link can never hide the page', () => {
+    render(<TestHarness canvasStyling={{ stylesheets: ['/dead.css'] }} />);
+    appendStylesheetLinks(lastFake!.fakeDocument, ['/dead.css']);
+    lastFake!.fire('load');
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(true);
+
+    vi.advanceTimersByTime(2999);
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(true);
+
+    vi.advanceTimersByTime(1);
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(false);
+  });
+
+  it('never hides the canvas when canvasStyling has no stylesheets to wait for', () => {
+    render(<TestHarness canvasStyling={{}} />);
+    lastFake!.fire('load');
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(false);
+  });
+
+  it('reveals immediately, defensively, when the canvas document is unavailable', () => {
+    render(<TestHarness canvasStyling={{ stylesheets: ['/theme.css'] }} />);
+    lastFake!.editor.Canvas.getDocument.mockReturnValue(null);
+    lastFake!.fire('load');
+    expect(lastFake!.fakeBody.classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(false);
+  });
+
+  it('applies the content wrapper and embed placeholders before the canvas is ever hidden', () => {
+    vi.mocked(applyCanvasContentWrapper).mockImplementationOnce((body) => {
+      expect((body as HTMLElement).classList.contains(CANVAS_STYLES_PENDING_CLASS)).toBe(false);
+    });
+    render(<TestHarness canvasStyling={{ stylesheets: ['/theme.css'] }} describeEmbedPlaceholder={vi.fn()} />);
+    appendStylesheetLinks(lastFake!.fakeDocument, ['/theme.css']);
+
+    lastFake!.fire('load');
+
+    expect(applyCanvasContentWrapper).toHaveBeenCalledTimes(1);
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancels the pending timer and detaches stylesheet listeners on unmount, without throwing', () => {
+    const { unmount } = render(<TestHarness canvasStyling={{ stylesheets: ['/theme.css'] }} />);
+    const [link] = appendStylesheetLinks(lastFake!.fakeDocument, ['/theme.css']);
+    const removeSpy = vi.spyOn(link!, 'removeEventListener');
+    lastFake!.fire('load');
+
+    unmount();
+
+    expect(removeSpy).toHaveBeenCalledWith('load', expect.any(Function));
+    expect(removeSpy).toHaveBeenCalledWith('error', expect.any(Function));
+    expect(() => vi.advanceTimersByTime(3000)).not.toThrow();
+  });
+
+  it('is idempotent when the canvas already revealed before unmount — no double-remove, no throw', () => {
+    const { unmount } = render(<TestHarness canvasStyling={{}} />);
+    lastFake!.fire('load'); // no stylesheets: reveals synchronously, no timer was ever set
+    expect(() => unmount()).not.toThrow();
   });
 });

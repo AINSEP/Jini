@@ -67,6 +67,23 @@ const CANVAS_SCROLLBAR_STYLE = [
 const CANVAS_DEFAULT_BODY_BACKGROUND = "body { background-color: #fff }";
 
 /**
+ * CSS class the canvas body carries while `react/hooks/useInteractiveHtmlEditor.ts`'s
+ * `revealCanvasWhenStylesheetsSettle` is still waiting on `canvas.styles`' `<link>` elements to settle
+ * (Bug B, Slice B1, this repo's `pages-redo` plan): every Interactive mount re-fetches the theme
+ * stylesheet (no browser cache short-circuit is guaranteed), and GrapesJS renders the canvas body
+ * without waiting for it, so a slow or restarting API left the canvas showing raw browser-default
+ * styling (Times New Roman, blue links) until the stylesheet arrived. Exported so the hook that
+ * toggles this class on/off and this module's CSS rule for it never drift onto two different literal
+ * strings.
+ */
+export const CANVAS_STYLES_PENDING_CLASS = "gjs-canvas-styles-pending";
+
+/** The rule that makes {@link CANVAS_STYLES_PENDING_CLASS} actually hide the canvas. Unconditional —
+ *  unlike {@link CANVAS_DEFAULT_BODY_BACKGROUND}, it doesn't depend on whether the host supplies its
+ *  own styling, since the class is only ever present while a fetch is genuinely in flight. */
+const CANVAS_STYLES_PENDING_RULE = `.${CANVAS_STYLES_PENDING_CLASS} { visibility: hidden }`;
+
+/**
  * Whether the host has taken over the canvas document's appearance. Either input is enough: a
  * stylesheet alone is the common case (a real theme's CSS), and raw `css` alone is enough for a host
  * that only injects variables or a background.
@@ -81,7 +98,7 @@ function hostStylesTheCanvas(styling: CanvasStyling): boolean {
  * and followed by the host's raw `css` when supplied.
  */
 function buildCanvasFrameStyle(styling: CanvasStyling): string {
-  const rules = [CANVAS_SCROLLBAR_STYLE];
+  const rules = [CANVAS_SCROLLBAR_STYLE, CANVAS_STYLES_PENDING_RULE];
   if (!hostStylesTheCanvas(styling)) rules.unshift(CANVAS_DEFAULT_BODY_BACKGROUND);
   if (styling.css) rules.push(styling.css);
   return rules.join("\n");

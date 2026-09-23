@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildCanvasStyleConfig } from "../canvas-style.js";
+import { buildCanvasStyleConfig, CANVAS_STYLES_PENDING_CLASS } from "../canvas-style.js";
 
 /**
  * @file Regression coverage for the canvas styling config. Two bugs are pinned down here:
@@ -55,5 +55,11 @@ describe("buildCanvasStyleConfig", () => {
     const { frameStyle } = buildCanvasStyleConfig({ stylesheets: ["/a.css"], css: ":root{--bg:#111}" });
     expect(frameStyle.indexOf(":root{--bg:#111}")).toBeGreaterThan(frameStyle.indexOf("::-webkit-scrollbar"));
     expect(frameStyle.trimEnd().endsWith(":root{--bg:#111}")).toBe(true);
+  });
+
+  it("always includes a rule that hides the canvas body via the stylesheets-pending class (Bug B, Slice B1)", () => {
+    for (const styling of [{}, { stylesheets: ["/a.css"] }, { css: "body{color:red}" }]) {
+      expect(buildCanvasStyleConfig(styling).frameStyle).toContain(`.${CANVAS_STYLES_PENDING_CLASS} { visibility: hidden }`);
+    }
   });
 });

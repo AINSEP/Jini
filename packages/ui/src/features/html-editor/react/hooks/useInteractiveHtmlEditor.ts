@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import grapesjs, { type Component, type Editor } from 'grapesjs';
 import { applyCanvasContentWrapper } from '../../canvas-content-wrapper.js';
 import { applyCanvasEmbedPlaceholders, type CanvasEmbedPlaceholderDescriptor } from '../../canvas-embed-placeholders.js';
-import { buildCanvasStyleConfig, type CanvasStyling } from '../../canvas-style.js';
+import { buildCanvasStyleConfig, CANVAS_STYLES_PENDING_CLASS, type CanvasStyling } from '../../canvas-style.js';
 import { prettifyCss } from '../../css.js';
 import { indexElementSourceRanges, pathKey, spliceElementInner, type ElementPath } from '../../source-splice.js';
 
@@ -259,6 +259,72 @@ function serializeWithSplice(
   return result;
 }
 
+/** Hard cap on how long the canvas can stay hidden waiting for its theme stylesheet(s) (Bug B, Slice
+ *  B1, this repo's `pages-redo` plan) — a dead URL or a hung dev-server reload must never hide the
+ *  editor forever. */
+const STYLESHEET_SETTLE_TIMEOUT_MS = 3000;
+
+/**
+ * Hides `body` behind {@link CANVAS_STYLES_PENDING_CLASS} until every `<link rel="stylesheet">`
+ * GrapesJS's `canvas.styles` config put in the canvas document (`editor.Canvas.getDocument()`) has
+ * fired `load` or `error`, or {@link STYLESHEET_SETTLE_TIMEOUT_MS} has elapsed — whichever comes first.
+ * Every Interactive mount re-fetches the theme stylesheet (see this repo's `pages-redo` plan, Bug B)
+ * with no guaranteed cache short-circuit; GrapesJS's own `FrameView` renders the canvas body without
+ * waiting for `<link>`s in `<head>` to resolve, so without this the operator sees raw browser-default
+ * styling (Times New Roman, blue links) for however long that fetch takes, or forever if the API is
+ * mid-restart. The cap is unconditional, independent of how many stylesheets are still pending.
+ *
+ * Must be called from `handleLoad`, AFTER the content wrapper and embed placeholder decoration have
+ * already run against the same `body` — so even the zero-stylesheet case (this function reveals in the
+ * same synchronous call) never shows an undecorated canvas for even one frame.
+ *
+ * @returns A cleanup callback that cancels the pending timer and detaches any still-registered
+ *   `load`/`error` listeners. Idempotent — safe to call again (from effect cleanup) after the canvas
+ *   has already revealed; a no-op then.
+ * @complexity O(n) in the number of `<link rel="stylesheet">` elements found — one listener pair per
+ *   link, no polling.
+ */
+function revealCanvasWhenStylesheetsSettle(editor: Editor, body: HTMLElement): () => void {
+  body.classList.add(CANVAS_STYLES_PENDING_CLASS);
+
+  const canvasDocument = editor.Canvas.getDocument();
+  // `getDocument()` returning null is not reachable once `load` has fired on a real editor — defensive
+  // only, same convention as this file's other "Unreachable ... defensive only" guards.
+  const links = canvasDocument ? Array.from(canvasDocument.querySelectorAll('link[rel="stylesheet"]')) : [];
+
+  let settled = false;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const pending = new Set<Element>();
+
+  const reveal = () => {
+    if (settled) return;
+    settled = true;
+    if (timeoutId !== undefined) clearTimeout(timeoutId);
+    for (const link of pending) {
+      link.removeEventListener('load', handleSettle);
+      link.removeEventListener('error', handleSettle);
+    }
+    pending.clear();
+    body.classList.remove(CANVAS_STYLES_PENDING_CLASS);
+  };
+
+  function handleSettle(event: Event): void {
+    pending.delete(event.currentTarget as Element);
+    if (pending.size === 0) reveal();
+  }
+
+  for (const link of links) {
+    pending.add(link);
+    link.addEventListener('load', handleSettle);
+    link.addEventListener('error', handleSettle);
+  }
+
+  if (pending.size === 0) reveal();
+  else timeoutId = setTimeout(reveal, STYLESHEET_SETTLE_TIMEOUT_MS);
+
+  return reveal;
+}
+
 /**
  * Owns one GrapesJS `Editor` instance for the lifetime of the calling component's mount. `onChange`
  * fires with the editor's current serialized content (see `serializeWithSplice`) on every content
@@ -310,6 +376,9 @@ export function useInteractiveHtmlEditor(
     // `useRef`: nothing outside this effect ever reads them.
     const dirty = new Map<string, DirtyTextEdit>();
     let hadStructuralChange = false;
+    // Set inside `handleLoad`, once the canvas body exists — see `revealCanvasWhenStylesheetsSettle`.
+    // `undefined` until then (or if `load` never fires before unmount), so cleanup below guards it.
+    let cancelStylesheetWait: (() => void) | undefined;
 
     const handleUpdate = () => onChangeRef.current(serializeWithSplice(editor, html, dirty, hadStructuralChange));
     // `component:update:content` fires with the changed component itself as its argument (GrapesJS's
@@ -344,6 +413,9 @@ export function useInteractiveHtmlEditor(
       const body = editor.Canvas.getBody();
       applyCanvasContentWrapper(body, canvasStyling.contentWrapper);
       if (describeEmbedPlaceholder) applyCanvasEmbedPlaceholders(body, describeEmbedPlaceholder);
+      // Runs LAST, after both decorations above — see `revealCanvasWhenStylesheetsSettle`'s own doc
+      // for why that order matters even in the zero-stylesheet case.
+      cancelStylesheetWait = revealCanvasWhenStylesheetsSettle(editor, body);
     };
     editor.on('load', handleLoad);
     return () => {
@@ -353,6 +425,7 @@ export function useInteractiveHtmlEditor(
       editor.off('component:add', handleStructuralChange);
       editor.off('component:remove', handleStructuralChange);
       editor.off('load', handleLoad);
+      cancelStylesheetWait?.();
       editor.destroy();
       mountEl.remove();
     };
