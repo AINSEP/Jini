@@ -1,4 +1,4 @@
-import type { ContentLookupPort, EntryTermRepoPort, TaxonomyRepoPort, TaxonomyRevisionRepoPort, TaxonomyRevisionRow, Term, TermRepoPort } from "./write-service.js";
+import type { ContentLookupPort, EntryTermRepoPort, TaxonomyRepoPort, TaxonomyRevisionRepoPort, TaxonomyRevisionRow, Term, TermRepoPort, UnassignableEntryTermRepoPort } from "./write-service.js";
 import type { Taxonomy } from "./write-service.js";
 import type { TaxonomyListPort, TermListPort } from "./list.js";
 
@@ -99,7 +99,7 @@ export class InMemoryTermRepo implements TermRepoPort, TermListPort {
   }
 }
 
-export class InMemoryEntryTermRepo implements EntryTermRepoPort {
+export class InMemoryEntryTermRepo implements EntryTermRepoPort, UnassignableEntryTermRepoPort {
   private readonly rows: Array<{ contentType: string; contentId: string; termId: string; addedAt: string }> = [];
 
   async upsert(row: { contentType: string; contentId: string; termId: string; addedAt: string }): Promise<unknown> {
@@ -148,6 +148,20 @@ export class InMemoryEntryTermRepo implements EntryTermRepoPort {
    * content-assignment guard, see `write-service.ts`'s doc comment on that interface. */
   async countByTerm(params: { termId: string }): Promise<number> {
     return this.rows.filter((r) => r.termId === params.termId).length;
+  }
+
+  /** `UnassignableEntryTermRepoPort` — additive capability for `unassignTerms` (A2, taxonomy
+   * plan). Returns the number of rows actually removed (0 or 1, given `entry_terms_unique`'s
+   * `(contentType, contentId, termId)` uniqueness) rather than throwing on a no-op — mirrors
+   * `deleteByContent`'s own "return the removed count" convention. */
+  async remove(row: { contentType: string; contentId: string; termId: string }): Promise<number> {
+    const before = this.rows.length;
+    const remaining = this.rows.filter(
+      (r) => !(r.contentType === row.contentType && r.contentId === row.contentId && r.termId === row.termId)
+    );
+    this.rows.length = 0;
+    this.rows.push(...remaining);
+    return before - this.rows.length;
   }
 }
 

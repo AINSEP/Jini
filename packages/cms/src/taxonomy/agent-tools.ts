@@ -48,12 +48,16 @@
  * `ToolRegistration`s.
  *
  * Architectural role:
- * `features/taxonomy` domain declaration. Imports only `TAXONOMY_ALLOWED_CONTENT_TYPES` from its
- * own `write-service.ts`, so the published `contentType` enum cannot drift from what the domain
- * actually accepts.
+ * `features/taxonomy` domain declaration. As of A2 (taxonomy plan) it imports nothing from its own
+ * `write-service.ts` — `contentType` is published as an open string (see `CONTENT_TYPE_SCHEMA`
+ * below), since Collections entries widened the set of legal values past the fixed `post`/`page`
+ * allow-list this file used to mirror as an `enum`.
  */
 
-import { TAXONOMY_ALLOWED_CONTENT_TYPES } from "./write-service.js";
+// A2 (taxonomy plan) — no longer imported: `CONTENT_TYPE_SCHEMA` used to build its `enum` from
+// this set, which would reject a Collection key (any `contentType` other than `post`/`page`) at
+// the agent's own input-schema validation, before the write-service's `contentTypeTaxonomyPolicy`
+// ever gets a chance to decide eligibility. See `CONTENT_TYPE_SCHEMA`'s doc comment below.
 
 export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
@@ -85,13 +89,18 @@ const TERM_ID_SCHEMA = {
   description: "A term id, as returned by taxonomy_create_term or taxonomy_list.",
 } as const;
 
+/** A2 (taxonomy plan) — an open string, not an `enum` of `TAXONOMY_ALLOWED_CONTENT_TYPES`. `post`
+ * and `page` are always eligible; a Collection key (e.g. `'recipes'`) is eligible when that
+ * Collection's own content-type policy allows it — a call the write-service's
+ * `contentTypeTaxonomyPolicy` makes, not this schema. An `enum` here would reject a valid
+ * Collection key before the request ever reached that check. */
 const CONTENT_TYPE_SCHEMA = {
   type: "string",
-  enum: [...TAXONOMY_ALLOWED_CONTENT_TYPES],
-  description: "The content kind the target row actually is. Only 'post' and 'page' are eligible for term assignment (a permanent allow-list) — any other value is rejected before anything is written.",
+  minLength: 1,
+  description: "'post', 'page', or a Collection key (entries of that Collection).",
 } as const;
 
-/** The Taxonomy domain's fixed agent-tool catalog: 6 wired (1 read, 4 ordinary writes, 1 gated-plan
+/** The Taxonomy domain's fixed agent-tool catalog: 7 wired (1 read, 5 ordinary writes, 1 gated-plan
  * read) + 1 declared-but-never-wired destructive tool — see this file's header for the full
  * `mergeTerm` safety analysis. */
 export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
@@ -154,8 +163,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
     name: "taxonomy_assign_terms",
     description:
       "Assigns one or more existing terms to a piece of content (the same <TermPicker> operation the Collections editor and the Categories & " +
-      "Tags screen both use). Additive only — this call ADDS assignments; it never removes a term not present in termIds, and calling it twice " +
-      "with the same term is a no-op (idempotent). Every termId is validated (must exist; its taxonomy must be applicable to contentType) " +
+      "Tags screen both use). This call ADDS assignments; calling it twice with the same term is a no-op (idempotent). Use " +
+      "taxonomy_unassign_terms to remove an assignment. Every termId is validated (must exist; its taxonomy must be applicable to contentType) " +
       "before ANY row is written, so a bad id in the list rejects the whole call rather than partially assigning.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.taxonomy.manage" },
@@ -165,8 +174,27 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       required: ["contentType", "contentId", "termIds"],
       properties: {
         contentType: CONTENT_TYPE_SCHEMA,
-        contentId: { type: "string", minLength: 1, description: "The id of the post/page row to assign terms to." },
+        contentId: { type: "string", minLength: 1, description: "The id of the content row to assign terms to." },
         termIds: { type: "array", items: { type: "string" }, description: "Term ids to assign. May be empty (a no-op)." },
+      },
+    },
+  },
+  {
+    name: "taxonomy_unassign_terms",
+    description:
+      "Removes one or more previously-assigned terms from a piece of content. Idempotent — removing a term that isn't currently assigned is a " +
+      "no-op, not an error. Every termId is validated the same way taxonomy_assign_terms validates them (must exist; its taxonomy must be " +
+      "applicable to contentType) before anything is removed.",
+    sideEffects: "mutates-durable-state",
+    authorization: { permission: "admin.taxonomy.manage" },
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["contentType", "contentId", "termIds"],
+      properties: {
+        contentType: CONTENT_TYPE_SCHEMA,
+        contentId: { type: "string", minLength: 1, description: "The id of the content row to unassign terms from." },
+        termIds: { type: "array", items: { type: "string" }, description: "Term ids to unassign. May be empty (a no-op)." },
       },
     },
   },
