@@ -12,10 +12,12 @@ import { useInteractiveHtmlEditor } from '../hooks/useInteractiveHtmlEditor.js';
  * `<textarea>`. See `react/hooks/useInteractiveHtmlEditor.ts` for why this is uncontrolled
  * (mount-once) rather than reacting to `html`/`isProtectedElement` prop changes after construction.
  *
- * **Scope, this pass: text editing + basic formatting only.** GrapesJS also does drag/drop block
- * manipulation, a Style Manager, and a Layers panel; none of that chrome is enabled here (`panels:
- * { defaults: [] }`, `blockManager: { blocks: [] }` in the hook) — Gutenberg-style block
- * move/duplicate/lock/group is explicitly deferred, not merely unbuilt.
+ * **Scope: text editing, basic formatting, and GrapesJS's own block move/copy/delete.** Selecting a
+ * block shows GrapesJS's selection toolbar (move, copy, delete) and Delete removes it; the owner kept
+ * these on purpose (2026-09-23). A text edit is saved as a byte-minimal splice of the original
+ * `html`; a block move/copy/delete falls back to a cleaned full re-serialization, with a dev warning
+ * naming the cause (see the hook's `serializeWithSplice`). No Style Manager, Layers panel or block
+ * library is enabled (`panels: { defaults: [] }`, `blockManager: { blocks: [] }` in the hook).
  *
  * **`GJS_STYLE_VARS` below is a consequence of that same choice, not a separate styling decision.**
  * GrapesJS's own vendor CSS unconditionally reserves layout space for the default chrome this
@@ -30,9 +32,10 @@ import { useInteractiveHtmlEditor } from '../hooks/useInteractiveHtmlEditor.js';
  * its own stylesheet.
  *
  * **This component has zero knowledge of any host's embed/placeholder conventions.** `isProtectedElement`
- * is an optional predicate the caller supplies to lock specific elements (identified however the
- * caller likes) out of every GrapesJS interaction that could edit, move, or remove them — not
- * editable, draggable, droppable, removable, or selectable. When omitted, no elements are protected.
+ * is an optional predicate the caller supplies to turn specific elements (identified however the
+ * caller likes) into atomic blocks: their content can never be edited, dropped into or styled, but a
+ * click selects the element itself (never the block around it), and it can be deliberately moved,
+ * copied or deleted. When omitted, no elements are protected.
  * `describeEmbedPlaceholder` is the same idea for a second, independent concern: recognizing an
  * unresolved embed marker and labeling it for `../../canvas-embed-placeholders.ts`'s explicit
  * placeholder card. See `@jini-ai/admin/react`'s `InteractiveHtmlEditor` for a worked example of both:
@@ -75,8 +78,8 @@ export interface InteractiveHtmlEditorProps {
    *  `onChange`. */
   onChange: (html: string) => void;
   className?: string;
-  /** Identifies elements that must never become editable, draggable, removable, or droppable inside
-   *  the editor. Read once, at mount, same as `html`. Predicates that check attributes should use
+  /** Identifies elements whose content must never be edited or dropped into inside the editor. Each
+   *  one is selectable as a single block that can be deliberately moved, copied or deleted. Read once, at mount, same as `html`. Predicates that check attributes should use
    *  `hasAttributeOnAnyNodeShape` (exported alongside this component) rather than `el.hasAttribute`
    *  directly — see that helper's own doc for why. Omit to protect nothing. */
   isProtectedElement?: (el: Element) => boolean;
