@@ -43,10 +43,13 @@ const RTE_ACTIONS = ['bold', 'italic', 'link'];
 
 /**
  * Registers the `protected-element` component type so any parsed element `isProtectedElement`
- * recognizes is locked out of every GrapesJS interaction that could mutate or move it: not editable
- * (excluded from RTE content-editing, including as a nested island inside a `text` component), not
- * draggable/droppable/removable, and hidden from the layers/style/settings panels this component's
- * minimal chrome does not render anyway. Passed as a `plugins` entry so it registers before
+ * recognizes becomes one atomic block: its content can never be edited (excluded from RTE
+ * content-editing, including as a nested island inside a `text` component), dropped into, or styled,
+ * but the element itself is selectable and can be deliberately moved, copied or deleted like any other
+ * block. Selectable matters for safety: a non-selectable element hands a click to its nearest
+ * selectable ancestor, so clicking an embed selected the block around it and Delete then removed that
+ * block together with the embed. Pair it with `applyCanvasEmbedPlaceholders`, which makes the marker
+ * the clickable surface of its card. Passed as a `plugins` entry so it registers before
  * `editor.setComponents` parses the initial `html` (see `initInteractiveHtmlEditor` below).
  *
  * @complexity O(1) — one type registration; the per-element check GrapesJS then runs during parsing
@@ -59,15 +62,16 @@ function registerProtectedElementType(editor: Editor, isProtectedElement: (el: E
     model: {
       defaults: {
         editable: false,
-        draggable: false,
         droppable: false,
-        removable: false,
-        selectable: false,
-        highlightable: false,
-        hoverable: false,
+        stylable: false,
         layerable: false,
         badgable: false,
-        stylable: false,
+        selectable: true,
+        hoverable: true,
+        highlightable: true,
+        removable: true,
+        draggable: true,
+        copyable: true,
       },
     },
   });
@@ -379,6 +383,18 @@ export function useInteractiveHtmlEditor(
     // Set inside `handleLoad`, once the canvas body exists — see `revealCanvasWhenStylesheetsSettle`.
     // `undefined` until then (or if `load` never fires before unmount), so cleanup below guards it.
     let cancelStylesheetWait: (() => void) | undefined;
+    // Embed placeholder cards live only in the canvas DOM, so a structural edit (delete, move, clone,
+    // undo) can leave one stale. Repaired on the tick after the edit, once GrapesJS has rendered it;
+    // see `applyCanvasEmbedPlaceholders`. Only after `load`: before it, adds are the initial parse.
+    let loaded = false;
+    let cardRepair: ReturnType<typeof setTimeout> | undefined;
+    const scheduleCardRepair = () => {
+      if (!loaded || !describeEmbedPlaceholder || cardRepair !== undefined) return;
+      cardRepair = setTimeout(() => {
+        cardRepair = undefined;
+        applyCanvasEmbedPlaceholders(editor.Canvas.getBody(), describeEmbedPlaceholder);
+      }, 0);
+    };
 
     const handleUpdate = () => onChangeRef.current(serializeWithSplice(editor, html, dirty, hadStructuralChange));
     // `component:update:content` fires with the changed component itself as its argument (GrapesJS's
@@ -396,6 +412,7 @@ export function useInteractiveHtmlEditor(
     // its own doc for why this never resets back to `false`.
     const handleStructuralChange = () => {
       hadStructuralChange = true;
+      scheduleCardRepair();
     };
     editor.on('update', handleUpdate);
     editor.on('component:update:content', handleContentUpdate);
@@ -416,6 +433,7 @@ export function useInteractiveHtmlEditor(
       // Runs LAST, after both decorations above — see `revealCanvasWhenStylesheetsSettle`'s own doc
       // for why that order matters even in the zero-stylesheet case.
       cancelStylesheetWait = revealCanvasWhenStylesheetsSettle(editor, body);
+      loaded = true;
     };
     editor.on('load', handleLoad);
     return () => {
@@ -426,6 +444,7 @@ export function useInteractiveHtmlEditor(
       editor.off('component:remove', handleStructuralChange);
       editor.off('load', handleLoad);
       cancelStylesheetWait?.();
+      clearTimeout(cardRepair);
       editor.destroy();
       mountEl.remove();
     };

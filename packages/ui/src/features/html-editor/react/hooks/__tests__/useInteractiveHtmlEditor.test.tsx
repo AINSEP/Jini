@@ -523,3 +523,82 @@ describe('useInteractiveHtmlEditor — canvas hidden until theme stylesheets set
     expect(() => unmount()).not.toThrow();
   });
 });
+
+// Embed protection (2026-09-23, Lane A). An embed marker is one atomic block: its content can never be
+// edited or dropped into, but a click selects the embed itself (not the block around it), and it can
+// be deliberately moved, copied or deleted like any other block. Its placeholder card is repaired after
+// every structural edit, so a deleted embed never leaves a ghost card and a moved or restored one is
+// never left bare.
+describe('useInteractiveHtmlEditor — embed markers are selectable atomic blocks', () => {
+  function ProtectedHarness({ describeEmbedPlaceholder }: { describeEmbedPlaceholder?: Parameters<typeof useInteractiveHtmlEditor>[4] }) {
+    const { containerRef } = useInteractiveHtmlEditor(RAW_HTML, () => {}, () => true, {}, describeEmbedPlaceholder);
+    return <div ref={containerRef} />;
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    cleanup();
+    vi.clearAllMocks();
+    lastFake = undefined;
+    lastInitConfig = undefined;
+  });
+
+  it('registers the protected type as selectable and removable, but never editable or droppable', () => {
+    render(<ProtectedHarness />);
+    const plugins = lastInitConfig!.plugins as Array<(editor: unknown) => void>;
+    const addType = vi.fn();
+    plugins.forEach((plugin) => plugin({ Components: { addType } }));
+
+    expect(addType).toHaveBeenCalledTimes(1);
+    const [typeName, definition] = addType.mock.calls[0]!;
+    expect(typeName).toBe('protected-element');
+    expect(definition.model.defaults).toEqual({
+      editable: false,
+      droppable: false,
+      stylable: false,
+      layerable: false,
+      badgable: false,
+      selectable: true,
+      hoverable: true,
+      highlightable: true,
+      removable: true,
+      draggable: true,
+      copyable: true,
+    });
+  });
+
+  it('re-applies the placeholder cards once, on the next tick, after any add or remove since load', () => {
+    const describeEmbedPlaceholder = vi.fn();
+    render(<ProtectedHarness describeEmbedPlaceholder={describeEmbedPlaceholder} />);
+    lastFake!.fire('load');
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
+
+    lastFake!.fire('component:remove', {});
+    lastFake!.fire('component:add', {});
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
+
+    vi.advanceTimersByTime(0);
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(2);
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenLastCalledWith(lastFake!.fakeBody, describeEmbedPlaceholder);
+  });
+
+  it('does not re-apply cards for adds and removes before load (GrapesJS parsing the initial document)', () => {
+    render(<ProtectedHarness describeEmbedPlaceholder={vi.fn()} />);
+    lastFake!.fire('component:add', {});
+    vi.advanceTimersByTime(0);
+    expect(applyCanvasEmbedPlaceholders).not.toHaveBeenCalled();
+  });
+
+  it('cancels a pending card repair on unmount', () => {
+    const { unmount } = render(<ProtectedHarness describeEmbedPlaceholder={vi.fn()} />);
+    lastFake!.fire('load');
+    lastFake!.fire('component:remove', {});
+    unmount();
+    vi.advanceTimersByTime(0);
+    expect(applyCanvasEmbedPlaceholders).toHaveBeenCalledTimes(1);
+  });
+});

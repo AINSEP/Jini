@@ -29,6 +29,10 @@
  * (untouched, still literally empty) marker means there is nothing inside the marker for that re-parse
  * to ever pick up, regardless of whether that `isProtectedElement` gap is ever closed.
  *
+ * **Safe to call again after every structural edit** (the hook does, on the tick after any component
+ * add or remove): each pass first drops cards whose marker has gone (see `removeStaleCards`), then
+ * wraps any marker not already inside a card.
+ *
  * Re-entrancy (defensive, mirroring `canvas-content-wrapper.ts`'s own `WRAPPER_ROOT_MARKER` guard): a
  * marker already sitting inside a placeholder card (`el.closest('[' + CARD_ROOT_MARKER + ']')`) is
  * skipped, so a second call — or a caller's own `load` handler firing twice — cannot nest a second card
@@ -51,12 +55,35 @@ export interface CanvasEmbedPlaceholderDescriptor {
  *  header. */
 const CARD_ROOT_MARKER = 'data-tovu-embed-placeholder-root';
 
+/** Flags every child the card itself builds (icon, text), so the one unflagged child is always the
+ *  marker. {@link OVERLAY_RULE} and the stale-card check in `removeStaleCards` both rely on it. */
+const CARD_CHROME_MARKER = 'data-tovu-embed-placeholder-chrome';
+
+/** Identifies the one `<style>` this module adds to the canvas document's `<head>`. */
+const OVERLAY_STYLE_MARKER = 'data-tovu-embed-placeholder-style';
+
+/**
+ * Stretches the (empty) marker over its card as a transparent overlay, so a click anywhere on the card
+ * lands on the marker element itself. GrapesJS resolves a click by walking up from the event target to
+ * the nearest element it rendered; the card is not one of those, so without this a click on the card
+ * selected whatever block wraps the embed, and Delete then removed that block together with the embed.
+ * With it, the editor selects (and outlines) the embed. A stylesheet rule rather than an inline style,
+ * so the marker's own attributes stay untouched. `!important` because the host's theme may style the
+ * marker element.
+ */
+const OVERLAY_RULE =
+  `[${CARD_ROOT_MARKER}] > :not([${CARD_CHROME_MARKER}])` +
+  ' { position: absolute !important; inset: 0 !important; margin: 0 !important; width: auto !important;' +
+  ' height: auto !important; min-width: 0 !important; max-width: none !important; min-height: 0 !important;' +
+  ' display: block !important; background: transparent !important; }';
+
 /** One CSS declaration list, as `property:value` pairs, for the card's own opaque chrome. Deliberately
  *  NOT derived from the host's theme in any way — themes are arbitrary and downloadable, and this card
  *  must stay legible whether the canvas underneath is a light theme, a dark theme, or (mid-edit) no
  *  theme at all. An opaque background plus a fixed, high-contrast foreground guarantees that
  *  regardless of what renders behind it, unlike a translucent or theme-token-based treatment would. */
 const CARD_STYLE = [
+  'position:relative',
   'display:flex',
   'align-items:flex-start',
   'gap:8px',
@@ -110,6 +137,7 @@ function buildPlaceholderCard(doc: Document, descriptor: CanvasEmbedPlaceholderD
   card.setAttribute('style', CARD_STYLE);
 
   const text = doc.createElement('div');
+  text.setAttribute(CARD_CHROME_MARKER, '');
   const heading = doc.createElement('div');
   heading.setAttribute('style', 'font-weight:600;');
   heading.textContent = `Placeholder — ${descriptor.kindLabel}`;
@@ -121,7 +149,9 @@ function buildPlaceholderCard(doc: Document, descriptor: CanvasEmbedPlaceholderD
   note.textContent = 'Shown here for editing only — the real content renders on the published page.';
   text.append(heading, identity, note);
 
-  card.append(buildPlaceholderIcon(doc), text);
+  const icon = buildPlaceholderIcon(doc);
+  icon.setAttribute(CARD_CHROME_MARKER, '');
+  card.append(icon, text);
   return card;
 }
 
@@ -156,6 +186,28 @@ function applyResolvedMaxWidth(marker: Element, card: HTMLElement): void {
   if (maxWidth && maxWidth !== 'none') card.style.setProperty('max-width', maxWidth);
 }
 
+/** Adds {@link OVERLAY_RULE} to `doc`'s `<head>` once. Idempotent. */
+function ensureOverlayRule(doc: Document): void {
+  if (doc.head.querySelector(`style[${OVERLAY_STYLE_MARKER}]`)) return;
+  const style = doc.createElement('style');
+  style.setAttribute(OVERLAY_STYLE_MARKER, '');
+  style.textContent = OVERLAY_RULE;
+  doc.head.appendChild(style);
+}
+
+/**
+ * Removes every card whose marker is no longer inside it. The card lives only in the canvas DOM, so the
+ * editor knows nothing about it: deleting the embed removes just the marker element (leaving a ghost
+ * card that still reads "Placeholder"), and moving it takes the marker out (leaving an empty card
+ * behind). The next pass of `applyCanvasEmbedPlaceholders` then wraps the moved marker again.
+ */
+function removeStaleCards(body: HTMLElement): void {
+  for (const card of Array.from(body.querySelectorAll(`[${CARD_ROOT_MARKER}]`))) {
+    const hasMarker = Array.from(card.children).some((child) => !child.hasAttribute(CARD_CHROME_MARKER));
+    if (!hasMarker) card.remove();
+  }
+}
+
 /**
  * Scans every element under `body` once and, for each one `describe` recognizes (returns a descriptor
  * for), replaces its visible slot with an explicit placeholder card — see this file's header for the
@@ -178,6 +230,7 @@ export function applyCanvasEmbedPlaceholders(
   describe: (el: Element) => CanvasEmbedPlaceholderDescriptor | undefined
 ): void {
   const doc = body.ownerDocument;
+  removeStaleCards(body);
   // Snapshotted into an array before any mutation starts: this function inserts new ancestors as it
   // goes, and a live `querySelectorAll` result must never be iterated while the tree it was taken over
   // is being restructured underneath it — same discipline `applyCanvasContentWrapper` applies to
@@ -207,5 +260,6 @@ export function applyCanvasEmbedPlaceholders(
 
     parent.insertBefore(card, el);
     card.appendChild(el); // Moves the SAME node (auto-detaches from `parent`) — never cloned.
+    ensureOverlayRule(doc);
   }
 }

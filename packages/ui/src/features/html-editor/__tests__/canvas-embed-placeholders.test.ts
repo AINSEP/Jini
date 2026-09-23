@@ -194,3 +194,69 @@ describe('applyCanvasEmbedPlaceholders', () => {
     expect(card.textContent).toContain('Placeholder — <script>');
   });
 });
+
+// Embed protection (2026-09-23, Lane A): a click on the card must land on the MARKER element, so the
+// editor selects the embed itself rather than whatever block wraps it (which Delete would then remove
+// together with the embed). The card makes the marker a transparent overlay over its own box, and a
+// later pass repairs cards a structural edit (delete, move, clone, undo) left stale.
+describe('applyCanvasEmbedPlaceholders — the marker is the card\'s clickable surface', () => {
+  const OVERLAY_STYLE = 'style[data-tovu-embed-placeholder-style]';
+
+  afterEach(() => {
+    document.head.querySelectorAll(OVERLAY_STYLE).forEach((el) => el.remove());
+  });
+
+  it('flags every card-owned child as chrome, leaving the marker the one unflagged child', () => {
+    const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
+    applyCanvasEmbedPlaceholders(body, describeMarked);
+
+    const card = body.querySelector('[data-tovu-embed-placeholder-root]')!;
+    const unflagged = Array.from(card.children).filter((c) => !c.hasAttribute('data-tovu-embed-placeholder-chrome'));
+    expect(unflagged).toEqual([body.querySelector('[data-marker]')]);
+    expect(card.getAttribute('style')).toContain('position:relative');
+  });
+
+  it('adds one overlay rule to the canvas document head, however many passes run', () => {
+    const body = bodyWith('<div data-marker="media" data-id="m1"></div>');
+    applyCanvasEmbedPlaceholders(body, describeMarked);
+    applyCanvasEmbedPlaceholders(body, describeMarked);
+
+    const styles = document.head.querySelectorAll(OVERLAY_STYLE);
+    expect(styles).toHaveLength(1);
+    expect(styles[0]!.textContent).toBe(
+      '[data-tovu-embed-placeholder-root] > :not([data-tovu-embed-placeholder-chrome])' +
+        ' { position: absolute !important; inset: 0 !important; margin: 0 !important; width: auto !important;' +
+        ' height: auto !important; min-width: 0 !important; max-width: none !important; min-height: 0 !important;' +
+        ' display: block !important; background: transparent !important; }'
+    );
+  });
+
+  it('does not add the overlay rule when no marker was decorated', () => {
+    applyCanvasEmbedPlaceholders(bodyWith('<p>hello</p>'), describeMarked);
+    expect(document.head.querySelectorAll(OVERLAY_STYLE)).toHaveLength(0);
+  });
+
+  it('removes a card whose marker is gone (the embed was deleted), so no ghost card stays behind', () => {
+    const body = bodyWith('<p>before</p><div data-marker="media" data-id="m1"></div>');
+    applyCanvasEmbedPlaceholders(body, describeMarked);
+    body.querySelector('[data-marker]')!.remove();
+
+    applyCanvasEmbedPlaceholders(body, describeMarked);
+
+    expect(body.innerHTML).toBe('<p>before</p>');
+  });
+
+  it('re-wraps a marker moved out of its card, and drops the card it left', () => {
+    const body = bodyWith('<div data-marker="media" data-id="m1"></div><p>after</p>');
+    applyCanvasEmbedPlaceholders(body, describeMarked);
+    const marker = body.querySelector('[data-marker]')!;
+    body.appendChild(marker);
+
+    applyCanvasEmbedPlaceholders(body, describeMarked);
+
+    const cards = body.querySelectorAll('[data-tovu-embed-placeholder-root]');
+    expect(cards).toHaveLength(1);
+    expect(marker.parentElement).toBe(cards[0]);
+    expect(Array.from(body.children).map((c) => c.tagName)).toEqual(['P', 'DIV']);
+  });
+});
