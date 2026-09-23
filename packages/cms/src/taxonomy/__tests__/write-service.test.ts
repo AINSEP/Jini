@@ -3,6 +3,7 @@ import { test } from "vitest";
 
 import {
   assignTerms,
+  unassignTerms,
   createTaxonomy,
   createTerm,
   renameTerm,
@@ -11,7 +12,10 @@ import {
   TermHasAssignedContentError,
   TermHasChildTermsError,
   TaxonomyHasAssignedContentError,
+  TermRecordNotFoundError,
+  ContentRecordNotFoundError,
 } from "../write-service.js";
+import { TaxonomyNotApplicableError, ContentTypeMismatchError } from "../validation-chain.js";
 import { ForbiddenError } from "../../core/commands/command.js";
 
 /**
@@ -228,6 +232,237 @@ test("AC-20: assignTerms' commit includes exactly one watermark stamp and one ou
 
   assert.equal(deps.watermarkStamps, 1, "one call to assignTerms must stamp the watermark exactly once, not once per termId");
   assert.equal(deps.outboxEvents.length, 1);
+});
+
+// ---------------------------------------------------------------------------
+// A1 (Job A, taxonomy plan) — per-content-type taxonomy policy for Collection entries.
+// `contentTypeTaxonomyPolicy` is optional on `WriteServiceDeps`; `post`/`page` never consult it
+// (ADR-044/AC-08: posts are unchanged).
+// ---------------------------------------------------------------------------
+
+test("A1: a Collection entry contentType resolves through contentTypeTaxonomyPolicy + contentLookup and assigns normally", async () => {
+  let policyCalls = 0;
+  const deps = baseDeps({
+    contentTypeTaxonomyPolicy: {
+      async taxonomiesFor() {
+        policyCalls += 1;
+        return "all" as const;
+      },
+    },
+    contentLookup: {
+      async resolve({ contentType, contentId }: { contentType: string; contentId: string }) {
+        return contentType === "recipes" && contentId === "entry-1" ? { workspaceId: "ws-1", kind: "recipes" } : null;
+      },
+    },
+  });
+
+  await assignTerms({ deps, principalId: "u-1", contentType: "recipes", contentId: "entry-1", termIds: ["term-1"] });
+
+  assert.equal(policyCalls, 1);
+  assert.equal(deps.watermarkStamps, 1);
+  assert.equal(deps.outboxEvents.length, 1);
+});
+
+test("A1: a Collection contentType the policy declares not applicable rejects with TaxonomyNotApplicableError, zero writes", async () => {
+  const deps = baseDeps({
+    contentTypeTaxonomyPolicy: {
+      async taxonomiesFor() {
+        return null;
+      },
+    },
+    contentLookup: {
+      async resolve() {
+        throw new Error("must not be called: a not-applicable policy never resolves content");
+      },
+    },
+  });
+
+  await assert.rejects(
+    assignTerms({ deps, principalId: "u-1", contentType: "recipes", contentId: "entry-1", termIds: ["term-1"] }),
+    (err: unknown) => err instanceof TaxonomyNotApplicableError
+  );
+  assert.equal(deps.watermarkStamps, 0);
+  assert.equal(deps.outboxEvents.length, 0);
+});
+
+test("A1: the policy applies but the entry lookup finds nothing rejects with ContentRecordNotFoundError", async () => {
+  const deps = baseDeps({
+    contentTypeTaxonomyPolicy: {
+      async taxonomiesFor() {
+        return "all" as const;
+      },
+    },
+    contentLookup: {
+      async resolve() {
+        return null;
+      },
+    },
+  });
+
+  await assert.rejects(
+    assignTerms({ deps, principalId: "u-1", contentType: "recipes", contentId: "entry-1", termIds: ["term-1"] }),
+    (err: unknown) => err instanceof ContentRecordNotFoundError
+  );
+  assert.equal(deps.watermarkStamps, 0);
+});
+
+test("A1: an entry whose resolved kind doesn't match the supplied contentType rejects with ContentTypeMismatchError", async () => {
+  const deps = baseDeps({
+    contentTypeTaxonomyPolicy: {
+      async taxonomiesFor() {
+        return "all" as const;
+      },
+    },
+    contentLookup: {
+      async resolve() {
+        return { workspaceId: "ws-1", kind: "books" };
+      },
+    },
+  });
+
+  await assert.rejects(
+    assignTerms({ deps, principalId: "u-1", contentType: "recipes", contentId: "entry-1", termIds: ["term-1"] }),
+    (err: unknown) => err instanceof ContentTypeMismatchError
+  );
+  assert.equal(deps.watermarkStamps, 0);
+});
+
+test("A1 / AC-08: contentType 'post' never consults contentTypeTaxonomyPolicy — posts are unchanged", async () => {
+  let policyCalls = 0;
+  const deps = baseDeps({
+    contentTypeTaxonomyPolicy: {
+      async taxonomiesFor() {
+        policyCalls += 1;
+        return "all" as const;
+      },
+    },
+  });
+
+  await assignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+
+  assert.equal(policyCalls, 0);
+});
+
+// ---------------------------------------------------------------------------
+// A2 (Job A, taxonomy plan) — unassignTerms: SPEC-018's REQ-07/REQ-13/REQ-14/REQ-17/REQ-22 spec
+// debt. Shares `validateAssignmentTarget` with assignTerms, so it rejects on the same errors.
+// ---------------------------------------------------------------------------
+
+/** Entry-terms double supporting both `upsert` (assignTerms) and `remove` (unassignTerms),
+ * exposing `.rows` so a test can assert the row set directly rather than only side-channel counts. */
+function removableEntryTermsDeps() {
+  const rows: Array<{ contentType: string; contentId: string; termId: string; addedAt: string }> = [];
+  return {
+    rows,
+    async upsert(row: { contentType: string; contentId: string; termId: string; addedAt: string }) {
+      const idx = rows.findIndex((r) => r.contentType === row.contentType && r.contentId === row.contentId && r.termId === row.termId);
+      if (idx >= 0) rows[idx] = row;
+      else rows.push(row);
+      return row;
+    },
+    async remove(row: { contentType: string; contentId: string; termId: string }) {
+      const idx = rows.findIndex((r) => r.contentType === row.contentType && r.contentId === row.contentId && r.termId === row.termId);
+      if (idx < 0) return 0;
+      rows.splice(idx, 1);
+      return 1;
+    },
+  };
+}
+
+// `Object.assign(baseDeps(), { entryTerms, ... })` rather than `baseDeps({ entryTerms, ... })` —
+// same reason the `deleteTerm`/`deleteTaxonomy` tests above use it: `baseDeps`'s own `overrides`
+// param is typed `Partial<Record<string, unknown>>`, which loses `removableEntryTermsDeps()`'s
+// `remove` method statically, and `unassignTerms`'s own `deps` type requires it.
+
+test("A2: assign then unassign leaves zero entry_terms rows", async () => {
+  const entryTerms = removableEntryTermsDeps();
+  const deps = Object.assign(baseDeps(), { entryTerms });
+
+  await assignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  assert.equal(entryTerms.rows.length, 1);
+
+  await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  assert.equal(entryTerms.rows.length, 0);
+});
+
+test("A2: unassigning an absent row is a no-op that still succeeds", async () => {
+  const entryTerms = removableEntryTermsDeps();
+  const deps = Object.assign(baseDeps(), { entryTerms });
+
+  await assert.doesNotReject(
+    unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] })
+  );
+  assert.equal(entryTerms.rows.length, 0);
+});
+
+test("A2 / REQ-13 / REQ-14: one watermark stamp and one 'taxonomy.terms_unassigned' outbox event per call, zero revision rows", async () => {
+  const entryTerms = removableEntryTermsDeps();
+  const deps = Object.assign(baseDeps(), { entryTerms });
+  await assignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1", "term-2"] });
+
+  await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1", "term-2"] });
+
+  assert.equal(deps.watermarkStamps, 2, "one stamp for the assign call, one for the unassign call");
+  assert.equal(deps.outboxEvents.length, 2);
+  const unassignEvent = deps.outboxEvents.at(-1) as { name: string };
+  assert.equal(unassignEvent.name, "taxonomy.terms_unassigned");
+  assert.equal(deps.revisionsInserted.length, 0, "INV-05/REQ-13: unassignTerms must never produce a taxonomy_revisions row");
+});
+
+test("A2 / REQ-17: an unauthorized unassignTerms call is rejected before any side effect", async () => {
+  const entryTerms = removableEntryTermsDeps();
+  const authorizedDeps = Object.assign(baseDeps(), { entryTerms });
+  await assignTerms({ deps: authorizedDeps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+
+  const deniedDeps = Object.assign(baseDeps(), { entryTerms, authorize: async () => ({ allowed: false, reason: "no_grant" }) });
+
+  await assert.rejects(
+    unassignTerms({ deps: deniedDeps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] }),
+    (err: unknown) => err instanceof ForbiddenError
+  );
+  assert.equal(entryTerms.rows.length, 1, "a denied call must not remove the row");
+  assert.equal(deniedDeps.watermarkStamps, 0);
+  assert.equal(deniedDeps.outboxEvents.length, 0);
+});
+
+test("A2 / REQ-07: an unknown term rejects with TermRecordNotFoundError, nothing removed", async () => {
+  const entryTerms = removableEntryTermsDeps();
+  const deps = Object.assign(baseDeps(), { entryTerms });
+
+  await assert.rejects(
+    unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["does-not-exist"] }),
+    (err: unknown) => err instanceof TermRecordNotFoundError
+  );
+  assert.equal(entryTerms.rows.length, 0);
+});
+
+test("A2 / REQ-07: missing content rejects with ContentRecordNotFoundError, nothing removed", async () => {
+  const entryTerms = removableEntryTermsDeps();
+  const deps = Object.assign(baseDeps(), { entryTerms, contentLookup: { async resolve() { return null; } } });
+
+  await assert.rejects(
+    unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] }),
+    (err: unknown) => err instanceof ContentRecordNotFoundError
+  );
+  assert.equal(entryTerms.rows.length, 0);
+});
+
+test("A2 / REQ-07: a wrong resolved kind rejects with ContentTypeMismatchError, nothing removed", async () => {
+  const entryTerms = removableEntryTermsDeps();
+  const deps = Object.assign(baseDeps(), {
+    entryTerms,
+    contentLookup: {
+      async resolve() {
+        return { workspaceId: "ws-1", kind: "page" };
+      },
+    },
+  });
+
+  await assert.rejects(
+    unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] }),
+    (err: unknown) => err instanceof ContentTypeMismatchError
+  );
+  assert.equal(entryTerms.rows.length, 0);
 });
 
 // ---------------------------------------------------------------------------

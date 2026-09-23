@@ -46,6 +46,7 @@ export {
   createTerm,
   renameTerm,
   assignTerms,
+  unassignTerms,
   deleteTerm,
   deleteTaxonomy,
   onContentDeleted,
@@ -56,6 +57,8 @@ export {
   type TermRepoPort,
   type EntryTermRepoPort,
   type ContentLookupPort,
+  type ContentTypeTaxonomyPolicyPort,
+  type UnassignableEntryTermRepoPort,
   type TaxonomyRevisionRow,
   type TaxonomyRevisionRepoPort,
   type ClockPort,
@@ -65,6 +68,7 @@ export {
   type CreateTermRequired,
   type RenameTermRequired,
   type AssignTermsRequired,
+  type UnassignTermsRequired,
   type DeleteTermRequired,
   type DeleteTaxonomyRequired,
   type DeletableTaxonomyRepoPort,
@@ -114,7 +118,10 @@ export {
  */
 export {
   createPostBackedContentLookup,
+  createEntryBackedContentLookup,
+  createContentLookup,
   type ContentRecordLookupPort,
+  type EntryRecordLookupPort,
 } from "./content-lookup.js";
 
 /** The agent-tool surface for this domain (see `agent-tools.ts` for what is deliberately omitted). */
