@@ -2,6 +2,7 @@ import {
   AGENT_ELEMENT_ATTRIBUTE,
   AGENT_LABEL_ATTRIBUTE,
   AGENT_PAGE_ATTRIBUTE,
+  AGENT_PRIVATE_ATTRIBUTE,
   AGENT_ROLE_ATTRIBUTE,
   AGENT_ELEMENT_ROLES,
   resolveHandleSelector,
@@ -193,10 +194,32 @@ function disabledOf(control: Element): boolean | undefined {
     : undefined;
 }
 
+const PRIVATE_SELECTOR = `[${AGENT_PRIVATE_ATTRIBUTE}]`;
+
+/** Whether `node` is inside (or is) a `[data-agent-private]` subtree. @complexity O(depth). */
+function isPrivate(node: Element): boolean {
+  return node.closest(PRIVATE_SELECTOR) !== null;
+}
+
+/**
+ * `element`'s text content with every `[data-agent-private]` subtree left out — the only text
+ * this driver ever reports, so a secret shown inside a published card never rides out on the
+ * card's own text. @complexity O(subtree size).
+ */
+function publicTextOf(element: Element): string {
+  if (element.querySelector(PRIVATE_SELECTOR) === null) {
+    /* c8 ignore next -- `Node.textContent` is typed nullable for the abstract node; on an Element it is always a string, so the `?? ''` satisfies the type and is not a reachable path. */
+    return element.textContent ?? '';
+  }
+  const copy = element.cloneNode(true) as Element;
+  for (const hidden of Array.from(copy.querySelectorAll(PRIVATE_SELECTOR))) hidden.remove();
+  /* c8 ignore next -- as above. */
+  return copy.textContent ?? '';
+}
+
 function describe(element: Element, page: string | undefined): AgentElementDescriptor {
   const role = element.getAttribute(AGENT_ROLE_ATTRIBUTE);
-  /* c8 ignore next -- `Node.textContent` is typed nullable for the abstract node; on an Element it is always a string, so the `?? ''` satisfies the type and is not a reachable path. */
-  const text = element.textContent ?? '';
+  const text = publicTextOf(element);
   // Live text is a fine fallback label for an ordinary element — it is the page's own ontology,
   // rendered openly. For an editable region it is not: a contenteditable's content is the *user's
   // data*, so falling back to it published the contents of a rich-text field to every
@@ -283,7 +306,8 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
    * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
    * here so both callers below can refuse rather than silently pick one.
    */
-  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector(handle)));
+  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector(handle)))
+    .filter((element) => !isPrivate(element));
 
   /**
    * More than one element answers to the same handle — a page-authoring bug (duplicate
@@ -331,7 +355,8 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
     // `<li><label><input>` this descent exists for. Filtering to descendants whose nearest
     // published ancestor is still `element` itself excludes exactly that case while leaving
     // ordinary wrapper descent untouched.
-    const owned = (node: Element): boolean => node.closest(`[${AGENT_ELEMENT_ATTRIBUTE}]`) === element;
+    const owned = (node: Element): boolean => node.closest(`[${AGENT_ELEMENT_ATTRIBUTE}]`) === element
+      && !isPrivate(node);
     const candidate = Array.from(element.querySelectorAll('input, textarea, select, button, a, summary'))
       .find(owned);
     return candidate ?? element;
@@ -340,6 +365,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
   return {
     async findElements(filter: FindElementsFilter) {
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
+        .filter((element) => !isPrivate(element))
         .map((element) => describe(element, pageOf(element)))
         .filter((element) => element.handle.length > 0);
       const query = filter.query?.toLowerCase();
@@ -395,8 +421,7 @@ export function createDomPageDriver(options: DomPageDriverOptions): PageDriver {
       const value = field !== null
         ? (control as HTMLInputElement | HTMLTextAreaElement).value
         : dropdown?.value;
-      /* c8 ignore next -- as in `describe`: an Element's textContent is always a string. */
-      const text = element.textContent ?? '';
+      const text = publicTextOf(element);
       return {
         text,
         // A contenteditable region has no `.value`; its content IS its value, so `text` is the
