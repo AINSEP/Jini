@@ -41,6 +41,7 @@ import {
   type SurfaceDetail,
   type SurfaceStatusText,
 } from './document.js';
+import { renderCheckbox } from './checkbox.js';
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
 
@@ -52,11 +53,38 @@ export interface ConfirmationToolAction {
   readonly params: Readonly<Record<string, unknown>>;
 }
 
+/** One row of an optional per-item checkbox list — see {@link ConfirmationSurfaceSpec.choices}. */
+export interface ConfirmationChoice {
+  /**
+   * The value reported back when this box is ticked. Caller data, not a DOM name: it may contain
+   * any character, because it never becomes an HTML `name`/`id` (those are `choice-<index>` in the
+   * DOM; see `renderChoices`) — only a `data-mcpui-choice` attribute value, which any string escapes
+   * into safely.
+   */
+  readonly id: string;
+  readonly label: string;
+  readonly hint?: string;
+}
+
 export interface ConfirmationSurfaceSpec {
   readonly title: string;
   readonly description?: string;
   /** The facts being agreed about. A dialog that says "delete this?" without naming *this* is not consent. */
   readonly details?: readonly SurfaceDetail[];
+  /**
+   * Optional per-row checkboxes, rendered unchecked between the details and the warning. Ticking one
+   * never confirms anything by itself — the same property the module doc opens with, extended to a
+   * second input: a tick reaches a tool call ONLY by riding along on confirm's own trusted,
+   * past-dwell click, merged into {@link ConfirmationToolAction.params} under {@link choicesParam}
+   * at the moment of that click and never before. With no `choices`, the rendered document and the
+   * params confirm posts are byte-identical to a spec written before this field existed.
+   */
+  readonly choices?: readonly ConfirmationChoice[];
+  /**
+   * The params key the ticked ids are posted under, merged into (never replacing) `confirm.params`.
+   * Defaults to `"overwrite"`.
+   */
+  readonly choicesParam?: string;
   /** A callout above the buttons — the consequence that is not obvious from the details alone. */
   readonly warning?: string;
   /** Styles the affirmative button as destructive. Affects presentation only; it changes no behavior. */
@@ -85,6 +113,32 @@ const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-confirmation', app
 
 function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is ConfirmationToolAction {
   return action !== undefined && 'toolName' in action;
+}
+
+/**
+ * Renders the optional choice checkboxes, one unchecked box per {@link ConfirmationChoice}.
+ *
+ * Named `choice-<index>` in the DOM — never by `choice.id`, which is caller data and may contain
+ * characters `fieldElementId`'s `name` validation rejects — with the real id carried on the
+ * `data-mcpui-choice` attribute instead, which the script reads back on change.
+ *
+ * @returns `''` for an empty list, matching every other optional fragment in this document.
+ */
+function renderChoices(choices: readonly ConfirmationChoice[]): string {
+  if (choices.length === 0) return '';
+  const boxes = choices
+    .map((choice, index) =>
+      renderCheckbox({
+        name: `choice-${index}`,
+        label: choice.label,
+        ...(choice.hint === undefined ? {} : { hint: choice.hint }),
+        dataAttribute: { name: 'data-mcpui-choice', value: choice.id },
+      }),
+    )
+    .join('\n');
+  // Reuses form.ts's `.mcpui-fields` spacing rather than inventing a second stylesheet rule for the
+  // same "stack of controls" layout.
+  return `<fieldset class="mcpui-fields">\n${boxes}\n</fieldset>`;
 }
 
 /**
@@ -120,6 +174,7 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
     renderDetailList(spec.details ?? []),
+    renderChoices(spec.choices ?? []),
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
     renderActions(actions.map((action) => (action.id === 'confirm' ? { ...action, disabled: true } : action))),
@@ -146,6 +201,7 @@ ${SURFACE_SCRIPT_PRELUDE}
   var PLAN = ${escapeJsValue(plan)};
   var TEXT = ${escapeJsValue(text)};
   var DWELL_MS = ${CONFIRM_DWELL_MS};
+  var CHOICES_PARAM = ${escapeJsValue(spec.choicesParam ?? 'overwrite')};
 
   // Monotonic where available: a wall clock set backwards would otherwise stretch the dwell.
   function now() {
@@ -191,6 +247,40 @@ ${SURFACE_SCRIPT_PRELUDE}
     actionButtons[i].addEventListener("click", onClick);
   }
 
+  // Ticked state, tracked ourselves rather than trusted from each input's own \`.checked\` at
+  // confirm-time -- the same "only a browser-attributed action counts" rule \`onClick\` applies to
+  // the buttons, extended to the one other interactive element this document can contain. Keyed by
+  // \`data-mcpui-choice\` (the caller's id), not DOM order, so a checkbox reordering upstream could
+  // never silently swap which id a tick reports.
+  var choiceInputs = Array.prototype.slice.call(document.querySelectorAll("[data-mcpui-choice]"));
+  var checkedIds = {};
+  for (var c = 0; c < choiceInputs.length; c++) {
+    choiceInputs[c].addEventListener("change", onChoiceChange);
+  }
+
+  function onChoiceChange(event) {
+    var id = event.currentTarget.getAttribute("data-mcpui-choice");
+    if (event.isTrusted !== true) {
+      // Put the box back to what we last recorded, so a script-driven toggle from anywhere in this
+      // document can never leave the visible box and the ids confirm would send disagreeing.
+      event.currentTarget.checked = checkedIds[id] === true;
+      return;
+    }
+    if (event.currentTarget.checked) checkedIds[id] = true;
+    else delete checkedIds[id];
+  }
+
+  // DOM order, not \`for...in\` over checkedIds: object key order for arbitrary caller-supplied
+  // strings is not something to depend on, even where every engine we run on happens to preserve it.
+  function checkedChoiceIds() {
+    var ids = [];
+    for (var j = 0; j < choiceInputs.length; j++) {
+      var choiceId = choiceInputs[j].getAttribute("data-mcpui-choice");
+      if (checkedIds[choiceId] === true) ids.push(choiceId);
+    }
+    return ids;
+  }
+
   function onClick(event) {
     // Only a click the browser attributes to the user counts. element.click() and dispatchEvent
     // from any script in this document produce isTrusted === false.
@@ -207,9 +297,19 @@ ${SURFACE_SCRIPT_PRELUDE}
       api.requestTeardown();
       return;
     }
+    // Choices ride only on confirm, and only when this document has any -- with none, \`params\` stays
+    // the exact \`step.params\` reference PLAN was built from, byte-identical to before this existed.
+    var params = step.params;
+    if (action === "confirm" && choiceInputs.length > 0) {
+      var merged = {};
+      var key;
+      for (key in step.params) if (Object.prototype.hasOwnProperty.call(step.params, key)) merged[key] = step.params[key];
+      merged[CHOICES_PARAM] = checkedChoiceIds();
+      params = merged;
+    }
     setBusy(true);
     setStatus(TEXT.working, "pending");
-    api.callTool(step.toolName, step.params).then(function () {
+    api.callTool(step.toolName, params).then(function () {
       setStatus(TEXT.done, "done");
       api.requestTeardown();
     }, function (error) {

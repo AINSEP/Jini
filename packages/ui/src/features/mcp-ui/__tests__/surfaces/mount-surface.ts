@@ -38,11 +38,12 @@ export function mountSurface(html: string, beforeScript?: (doc: Document) => voi
   };
 
   // `isTrusted` is an unforgeable own property in jsdom, so no test can dispatch a trusted event.
-  // Instead, every listener the surface script adds to a button or a form is wrapped: while `trustNext` is set,
-  // the listener receives the REAL dispatched event seen through a view whose `isTrusted` reads true.
-  // The product script is unchanged; only what this harness hands it differs.
+  // Instead, every listener the surface script adds to a button, a choice checkbox, or a form is
+  // wrapped: while `trustNext` is set, the listener receives the REAL dispatched event seen through
+  // a view whose `isTrusted` reads true. The product script is unchanged; only what this harness
+  // hands it differs.
   let trustNext = false;
-  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action], form')) {
+  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action], [data-mcpui-choice], form')) {
     const add = node.addEventListener.bind(node);
     node.addEventListener = ((type: string, listener: EventListener, options?: AddEventListenerOptions) =>
       add(type, (event: Event) => listener(trustNext ? asTrusted(event) : event), options)) as typeof node.addEventListener;
@@ -87,6 +88,33 @@ export function mountSurface(html: string, beforeScript?: (doc: Document) => voi
     /** A trusted Enter keydown in `target`, the way a person presses it. */
     pressEnter(target: Element) {
       asUser(() => target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    },
+    /**
+     * The choice checkbox for a given `data-mcpui-choice` id (its caller-facing value, not its DOM
+     * name). Found by comparing the *decoded* attribute value in JS rather than building a CSS
+     * attribute-selector string, so an id containing a quote or other selector-special character
+     * (exactly what the escaping spec exists to cover) still resolves.
+     */
+    choiceInput(choiceId: string): HTMLInputElement {
+      const node = [...doc.querySelectorAll<HTMLInputElement>('[data-mcpui-choice]')].find(
+        (candidate) => candidate.getAttribute('data-mcpui-choice') === choiceId,
+      );
+      expect(node, `no choice checkbox for id "${choiceId}"`).not.toBeUndefined();
+      return node!;
+    },
+    /** Ticks (or unticks) a choice checkbox the way a person clicking it does: a trusted "change". */
+    trustedToggleChoice(choiceId: string, checked: boolean) {
+      asUser(() => {
+        const node = this.choiceInput(choiceId);
+        node.checked = checked;
+        node.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    },
+    /** What a script setting `.checked` and dispatching "change" itself would produce -- untrusted. */
+    toggleChoice(choiceId: string, checked: boolean) {
+      const node = this.choiceInput(choiceId);
+      node.checked = checked;
+      node.dispatchEvent(new Event('change', { bubbles: true }));
     },
     /**
      * A person clicking the submit button (a trusted click) — deliberately NOT a synthetic "submit" `Event` on the form. The

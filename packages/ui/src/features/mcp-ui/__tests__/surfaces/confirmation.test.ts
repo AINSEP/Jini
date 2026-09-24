@@ -379,6 +379,112 @@ describe('renderConfirmationDocument', () => {
   });
 });
 
+describe('choices', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const CHOICES = [
+    { id: 'a', label: 'Item A' },
+    { id: 'b', label: 'Item B' },
+  ] as const;
+
+  it('renders one unchecked checkbox per choice, after the details', () => {
+    const { doc } = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    const boxes = [...doc.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    expect(boxes).toHaveLength(2);
+    expect(boxes.map((box) => box.checked)).toEqual([false, false]);
+    expect(boxes.map((box) => box.getAttribute('data-mcpui-choice'))).toEqual(['a', 'b']);
+  });
+
+  it('posts only the ticked ids under "overwrite" when a trusted confirm click lands after the dwell', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.trustedToggleChoice('b', true);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'confirm',
+      overwrite: ['b'],
+    });
+  });
+
+  it('sends confirm params byte-identical to a spec written before this field existed when there are no choices', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'confirm',
+    });
+  });
+
+  it('never lets an untrusted checkbox change affect what confirm sends, and snaps the box back', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.toggleChoice('b', true);
+    expect(surface.choiceInput('b').checked).toBe(false);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'confirm',
+      overwrite: [],
+    });
+  });
+
+  it('leaves cancel’s params untouched by any ticked choice', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.trustedToggleChoice('a', true);
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'cancel',
+    });
+  });
+
+  it('posts under a custom choicesParam name when one is given', () => {
+    const surface = mountSurface(
+      renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES, choicesParam: 'forcedEntityKeys' }),
+    );
+    surface.trustedToggleChoice('a', true);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith(
+      'content_post_delete',
+      expect.objectContaining({ forcedEntityKeys: ['a'] }),
+    );
+  });
+
+  it('escapes a choice id containing script- and attribute-breaking characters', () => {
+    const trickyId = '</script>"';
+    const html = renderConfirmationDocument({ ...DELETE_POST, choices: [{ id: trickyId, label: 'Tricky' }] });
+    // The raw sequence never appears unescaped in the served document.
+    expect(html).not.toContain('</script>"');
+    const surface = mountSurface(html);
+    expect(surface.choiceInput(trickyId).getAttribute('data-mcpui-choice')).toBe(trickyId);
+    surface.trustedToggleChoice(trickyId, true);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith(
+      'content_post_delete',
+      expect.objectContaining({ overwrite: [trickyId] }),
+    );
+  });
+
+  it('renders no checkbox at all when choices is omitted or empty', () => {
+    const omitted = mountSurface(renderConfirmationDocument(DELETE_POST));
+    expect(omitted.doc.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    const empty = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: [] }));
+    expect(empty.doc.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+  });
+});
+
 describe('buildConfirmationSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource', () => {
     const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://example-host/content-post-delete/p1/3' });
