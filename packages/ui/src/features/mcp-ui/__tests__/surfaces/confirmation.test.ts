@@ -477,6 +477,56 @@ describe('choices', () => {
     );
   });
 
+  it('freezes the boxes once confirm is sent, so the visible ticks always match what was posted', async () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    const disabledChoices = () => CHOICES.map((choice) => surface.choiceInput(choice.id).disabled);
+    surface.trustedToggleChoice('a', true);
+    humanClick(surface, 'confirm');
+    expect(disabledChoices()).toEqual([true, true]);
+    // A retryable failure re-arms the boxes along with the buttons.
+    await surface.settle('reject', new Error('upstream down'));
+    expect(disabledChoices()).toEqual([false, false]);
+    humanClick(surface, 'confirm');
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(disabledChoices()).toEqual([true, true]);
+  });
+
+  it('keeps the boxes frozen after a confirm succeeds', async () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    humanClick(surface, 'confirm');
+    await surface.settle('resolve', {});
+    expect(CHOICES.map((choice) => surface.choiceInput(choice.id).disabled)).toEqual([true, true]);
+  });
+
+  it('never posts an id whose box does not show a tick when confirm is clicked', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.trustedToggleChoice('a', true);
+    surface.trustedToggleChoice('b', true);
+    // Cleared with no change event at all -- the box now reads unticked, so it must not be sent.
+    surface.choiceInput('a').checked = false;
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', expect.objectContaining({ overwrite: ['b'] }));
+  });
+
+  it('refuses two choices with the same id', () => {
+    expect(() =>
+      renderConfirmationDocument({
+        ...DELETE_POST,
+        choices: [
+          { id: 'a', label: 'One' },
+          { id: 'a', label: 'Two' },
+        ],
+      }),
+    ).toThrow('Confirmation choices must have unique ids; "a" appears more than once.');
+  });
+
+  it('refuses a choicesParam that would overwrite one of confirm’s own params', () => {
+    expect(() =>
+      renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES, choicesParam: 'confirmationToken' }),
+    ).toThrow('choicesParam "confirmationToken" collides with a key already in confirm.params.');
+  });
+
   it('renders no checkbox at all when choices is omitted or empty', () => {
     const omitted = mountSurface(renderConfirmationDocument(DELETE_POST));
     expect(omitted.doc.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);

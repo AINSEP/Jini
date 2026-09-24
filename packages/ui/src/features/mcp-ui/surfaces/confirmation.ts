@@ -126,6 +126,14 @@ function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is Conf
  */
 function renderChoices(choices: readonly ConfirmationChoice[]): string {
   if (choices.length === 0) return '';
+  // Ticked state is keyed by id, so two boxes sharing one would tick and report as one.
+  const seen = new Set<string>();
+  for (const choice of choices) {
+    if (seen.has(choice.id)) {
+      throw new Error(`Confirmation choices must have unique ids; ${JSON.stringify(choice.id)} appears more than once.`);
+    }
+    seen.add(choice.id);
+  }
   const boxes = choices
     .map((choice, index) =>
       renderCheckbox({
@@ -166,6 +174,12 @@ function confirmationActions(spec: ConfirmationSurfaceSpec): SurfaceAction[] {
 
 export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): string {
   const text = { ...DEFAULT_SURFACE_STATUS_TEXT, ...spec.text };
+  const choicesParam = spec.choicesParam ?? 'overwrite';
+  // The ticked ids are merged into confirm.params at click time; a key already there (the token,
+  // say) would be silently replaced by an array.
+  if ((spec.choices ?? []).length > 0 && Object.prototype.hasOwnProperty.call(spec.confirm.params, choicesParam)) {
+    throw new Error(`choicesParam ${JSON.stringify(choicesParam)} collides with a key already in confirm.params.`);
+  }
   const actions = confirmationActions(spec);
 
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
@@ -201,7 +215,7 @@ ${SURFACE_SCRIPT_PRELUDE}
   var PLAN = ${escapeJsValue(plan)};
   var TEXT = ${escapeJsValue(text)};
   var DWELL_MS = ${CONFIRM_DWELL_MS};
-  var CHOICES_PARAM = ${escapeJsValue(spec.choicesParam ?? 'overwrite')};
+  var CHOICES_PARAM = ${escapeJsValue(choicesParam)};
 
   // Monotonic where available: a wall clock set backwards would otherwise stretch the dwell.
   function now() {
@@ -270,13 +284,20 @@ ${SURFACE_SCRIPT_PRELUDE}
     else delete checkedIds[id];
   }
 
+  // Frozen with the buttons while a call is in flight and for good once one settles the dialog, so
+  // the ticks on screen are always the ones that were sent.
+  function setChoicesDisabled(disabled) {
+    for (var k = 0; k < choiceInputs.length; k++) choiceInputs[k].disabled = disabled;
+  }
+
   // DOM order, not \`for...in\` over checkedIds: object key order for arbitrary caller-supplied
   // strings is not something to depend on, even where every engine we run on happens to preserve it.
   function checkedChoiceIds() {
     var ids = [];
     for (var j = 0; j < choiceInputs.length; j++) {
       var choiceId = choiceInputs[j].getAttribute("data-mcpui-choice");
-      if (checkedIds[choiceId] === true) ids.push(choiceId);
+      // Both: a trusted tick recorded, and the box still showing it. Never send what isn't on screen.
+      if (checkedIds[choiceId] === true && choiceInputs[j].checked) ids.push(choiceId);
     }
     return ids;
   }
@@ -291,6 +312,7 @@ ${SURFACE_SCRIPT_PRELUDE}
     // Cancel is exempt: backing out early is never the harm this guards against.
     if (action === "confirm" && !dwellDone()) return;
     locked = true;
+    setChoicesDisabled(true);
     if (step === null) {
       setBusy(true);
       setStatus(TEXT.dismissed, "dismissed");
@@ -317,6 +339,7 @@ ${SURFACE_SCRIPT_PRELUDE}
       // or cancel), unless the Host says this dialog is no longer pending -- see reportCallFailure.
       if (!reportCallFailure(error)) return;
       locked = false;
+      setChoicesDisabled(false);
       // reportCallFailure re-enabled every button; confirm still waits out an unfinished dwell.
       syncConfirm();
     });
