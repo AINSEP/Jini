@@ -155,6 +155,10 @@ ${SURFACE_SCRIPT_PRELUDE}
     visibleSince = document.visibilityState === "hidden" ? null : now();
   });
 
+  // Set while a call is in flight and for good once one settles the dialog. The disabled buttons
+  // already block clicks in a browser; this makes the guarantee not depend on the DOM honoring that.
+  var locked = false;
+
   for (var i = 0; i < actionButtons.length; i++) {
     actionButtons[i].addEventListener("click", onClick);
   }
@@ -162,12 +166,13 @@ ${SURFACE_SCRIPT_PRELUDE}
   function onClick(event) {
     // Only a click the browser attributes to the user counts. element.click() and dispatchEvent
     // from any script in this document produce isTrusted === false.
-    if (event.isTrusted !== true) return;
+    if (event.isTrusted !== true || locked) return;
     var action = event.currentTarget.getAttribute("data-mcpui-action");
     var step = PLAN[action];
     if (step === undefined) return;
     // Cancel is exempt: backing out early is never the harm this guards against.
     if (action === "confirm" && (visibleSince === null || now() - visibleSince < DWELL_MS)) return;
+    locked = true;
     if (step === null) {
       setBusy(true);
       setStatus(TEXT.dismissed, "dismissed");
@@ -180,10 +185,9 @@ ${SURFACE_SCRIPT_PRELUDE}
       setStatus(TEXT.done, "done");
       api.requestTeardown();
     }, function (error) {
-      // Re-enabled on failure: a rejected call did not happen, so the human must be able to retry
-      // or cancel rather than be left with a dead dialog reporting an error it cannot act on.
-      setBusy(false);
-      setStatus(TEXT.failedPrefix + describeError(error), "failed");
+      // Re-enabled on failure (a rejected call did not happen, so the human must be able to retry
+      // or cancel), unless the Host says this dialog is no longer pending -- see reportCallFailure.
+      if (reportCallFailure(error)) locked = false;
     });
   }
 }());`;

@@ -5,6 +5,7 @@ import {
   renderConfirmationDocument,
 } from '../../surfaces/confirmation.js';
 import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 
 const TOKEN = 'single-use-secret-token';
@@ -209,6 +210,41 @@ describe('renderConfirmationDocument', () => {
     // A rejected call did not happen, so the human must still be able to retry or cancel.
     expect(surface.disabledActions()).toEqual([false, false]);
     expect(surface.api.requestTeardown).not.toHaveBeenCalled();
+  });
+
+  it('keeps the buttons disabled and says the dialog expired when the host reports it is no longer pending', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    await surface.settle(
+      'reject',
+      Object.assign(new Error('that dialog is no longer waiting for an answer'), {
+        data: { code: SURFACE_NOT_PENDING_ERROR_CODE },
+      }),
+    );
+
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.statusState()).toBe('expired');
+    expect(surface.disabledActions()).toEqual([true, true]);
+    expect(surface.api.requestTeardown).not.toHaveBeenCalled();
+
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends one call however many trusted clicks land while it is in flight', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    surface.trustedClick('confirm');
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('still re-enables on an error whose data carries some other code', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    await surface.settle('reject', Object.assign(new Error('nope'), { data: { code: 'TOOL_CALL_FAILED' } }));
+    expect(surface.status()).toBe('Failed: nope');
+    expect(surface.disabledActions()).toEqual([false, false]);
   });
 
   it('stringifies a non-Error rejection rather than printing [object Object]', async () => {

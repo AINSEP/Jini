@@ -167,7 +167,8 @@ ${SURFACE_SCRIPT_PRELUDE}
   //
   // Deliberately NOT cleared on success -- the success path tears the surface down, so re-arming
   // would only reopen the window. Cleared on failure, matching what setBusy(false) already does
-  // there: a rejected call did not happen, and the human must be able to retry.
+  // there: a rejected call did not happen, and the human must be able to retry -- unless the Host
+  // says the dialog is no longer pending, where a retry cannot succeed (see reportCallFailure).
   var pending = false;
 
   function runSubmit() {
@@ -192,9 +193,7 @@ ${SURFACE_SCRIPT_PRELUDE}
       setStatus(TEXT.done, "done");
       api.requestTeardown();
     }, function (error) {
-      pending = false;
-      setBusy(false);
-      setStatus(TEXT.failedPrefix + describeError(error), "failed");
+      if (reportCallFailure(error)) pending = false;
     });
   }
 
@@ -233,9 +232,7 @@ ${SURFACE_SCRIPT_PRELUDE}
         setStatus(TEXT.dismissed, "dismissed");
         api.requestTeardown();
       }, function (error) {
-        pending = false;
-        setBusy(false);
-        setStatus(TEXT.failedPrefix + describeError(error), "failed");
+        if (reportCallFailure(error)) pending = false;
       });
     });
   }

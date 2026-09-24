@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFormSurface, renderFormDocument, type FormSurfaceSpec } from '../../surfaces/form.js';
 import { MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 
 const SPEC: FormSurfaceSpec = {
@@ -123,6 +124,29 @@ describe('renderFormDocument', () => {
     await surface.settle('reject', new Error('Schedule conflict'));
     expect(surface.status()).toBe('Failed: Schedule conflict');
     expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
+  it('keeps a submitted form disabled, and Enter inert, once the host says the dialog expired', async () => {
+    const surface = mountSurface(renderFormDocument(SPEC));
+    surface.submit();
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.statusState()).toBe('expired');
+    expect(surface.disabledActions()).toEqual([true, true]);
+
+    const input = surface.doc.querySelector('input[type="text"]')!;
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the form disabled when a cancel tool reports the dialog expired', async () => {
+    const surface = mountSurface(
+      renderFormDocument({ ...SPEC, cancel: { label: 'Cancel', toolName: 'content_post_abandon' } }),
+    );
+    surface.click('cancel');
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.disabledActions()).toEqual([true, true]);
   });
 
   it('dismisses locally when cancel names no tool', () => {
