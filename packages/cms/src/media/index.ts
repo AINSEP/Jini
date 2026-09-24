@@ -86,6 +86,7 @@ export {
   updateMediaMetadata,
   trashMedia,
   purgeMedia,
+  isValidMediaSlugFormat,
   type UploadMediaInput,
   type UploadMediaDeps,
   type UpdateMediaMetadataInput,

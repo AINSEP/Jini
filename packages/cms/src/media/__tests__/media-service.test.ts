@@ -9,6 +9,7 @@ import {
   MediaValidationError,
   findMediaByIdOrSlug,
   getMediaById,
+  isValidMediaSlugFormat,
   listMedia,
   purgeMedia,
   resolveWriteOnceSource,
@@ -805,4 +806,13 @@ test("findMediaByIdOrSlug resolves the ID first — a row claiming another asset
 
   const resolved = await findMediaByIdOrSlug({ deps, input: { workspaceId: WORKSPACE_ID, idOrSlug: victim.id } });
   assert.equal(resolved?.id, victim.id, "an id must always resolve to the asset that owns it");
+});
+
+test("isValidMediaSlugFormat — exported so hosts can decide whether a stored value is safe to emit as a URL", () => {
+  for (const slug of ["abc-123-def", "2026-09-07-launch-clip", "deadbeef", "a"]) {
+    assert.equal(isValidMediaSlugFormat(slug), true, `expected ${JSON.stringify(slug)} to be valid`);
+  }
+  for (const slug of ["..", "a/b", "A", "", UUID_SHAPED]) {
+    assert.equal(isValidMediaSlugFormat(slug), false, `expected ${JSON.stringify(slug)} to be invalid`);
+  }
 });

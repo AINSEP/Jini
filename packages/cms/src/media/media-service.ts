@@ -199,7 +199,7 @@ const MEDIA_SLUG_UUID_SHAPE_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9
  *  "coerce, don't fail" convention `deriveTitleFromFilename`/`slugifyMediaTitle` already use. */
 const MEDIA_MAX_SLUG_LENGTH = 120;
 
-function isValidMediaSlugFormat(slug: string): boolean {
+export function isValidMediaSlugFormat(slug: string): boolean {
   return MEDIA_SLUG_FORMAT_PATTERN.test(slug) && !MEDIA_SLUG_UUID_SHAPE_PATTERN.test(slug);
 }
 
