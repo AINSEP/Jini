@@ -26,18 +26,12 @@
  *   - `confirm()` structurally refuses an agent: `gateway.ts`'s own body — "if (principalKind ===
  *     'agent') throw new ForbiddenError('agent principals may not confirm a gated mutation', ...)"
  *     — before any permission check even runs. No `taxonomy_confirm_merge_term`-equivalent tool
- *     exists in this catalog, and no description below may even imply that step (mirrors
- *     `features/recovery/agent-tools.ts`'s own discipline for `backup_execute_restore`: "the
- *     human confirmation step is exactly the one act the gated-mutations gateway reserves for
- *     kind='user'/api_key principals").
- *   - `execute()` needs a confirmation token a human already minted through the admin UI's own
- *     ceremony (`server/routes/admin/taxonomy/merge-term.ts`'s `/merge/confirm` route) — the same
- *     `confirmer-must-equal-own-delegatedBy` actor-class rule `database_execute_migrate_forward`/
- *     `backup_execute_restore` carry, which `assistant/tool-registration-kit.ts`'s
- *     `ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT` refuses to build regardless of this
- *     catalog's own choice, because the host's `ToolExecutor` has no confirmation transport wired.
- *     `taxonomy_execute_merge_term` is declared here (so the exclusion is a structural build-time
- *     refusal, not just an absent handler) but is NEVER wired by `tool-registrations.ts`.
+ *     exists in this catalog.
+ *   - `taxonomy_execute_merge_term` (2026-09-24) asks the human in chat before it runs: the host
+ *     wires it with the kit's `humanConfirmedHandler`, which shows a confirm dialog and only on the
+ *     human's own click confirms as that human (`kind='user'`) and executes as the agent acting for
+ *     them — the `confirmer-must-equal-own-delegatedBy` rule. The model never sees or supplies a
+ *     token. A merge deletes the source term's assignments with no Trash or undo, so it is gated.
  *
  * Naming: `taxonomy_*`, matching this package's own name — distinct from `features/content-types`'
  * `collections_*` prefix (a different pairing) and from `features/entries`' own
@@ -72,7 +66,7 @@ export interface AgentToolDefinition {
   /**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
    * (`assistant/tool-registration-kit.ts`'s `buildDomainRegistrations`, which refuses to wire any
-   * tool lacking one). Optional — `taxonomy_execute_merge_term` is never wired, so it carries none.
+   * tool lacking one).
    */
   inputSchema?: Readonly<Record<string, unknown>>;
 }
@@ -204,9 +198,7 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       "Previews merging one term into another: recomputes and returns the current overlap-loss disclosure (how many pieces of content are " +
       "already assigned to BOTH terms, whose duplicate assignment would be silently lost by the merge's own dedup step) plus a planId/planHash " +
       "a human can use in the admin UI's own merge confirmation ceremony. Read-only — performs no merge. Rejects immediately if fromTermId " +
-      "equals intoTermId, before computing anything. This tool can only PLAN a merge; actually executing one requires a human to confirm " +
-      "through the admin UI — no tool in this catalog can do that step (by design: merges are destructive and irreversible for the merged-away " +
-      "term's own identity).",
+      "equals intoTermId, before computing anything. To actually merge, call taxonomy_execute_merge_term, which asks the user to confirm first.",
     sideEffects: "none",
     authorization: { permission: "admin.taxonomy.manage" },
     inputSchema: {
@@ -220,13 +212,23 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
     },
   },
   {
-    // EXCLUDED BY DESIGN, never wired: see this file's header. Token-gated; `core/gated-mutations`'s
-    // own confirm() step structurally refuses an agent principal, and no confirmation transport
-    // exists for an agent to be handed a human-minted token through anyway.
+    // Asks the human first — see this file's header.
     name: "taxonomy_execute_merge_term",
-    description: "Executes a previously confirmed term merge using a human-minted confirmation token. NEVER agent-callable — see file header.",
+    description:
+      "Merges one term into another: every piece of content tagged with fromTermId is re-tagged with intoTermId, and fromTermId is " +
+      "deprecated. Shows the user a confirm dialog first and only merges if they confirm. The merge can't be undone. Call " +
+      "taxonomy_plan_merge_term first to see how many items are affected.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.taxonomy.manage" },
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["fromTermId", "intoTermId"],
+      properties: {
+        fromTermId: { ...TERM_ID_SCHEMA, description: "The term to merge away. It is deprecated after the merge." },
+        intoTermId: { ...TERM_ID_SCHEMA, description: "The term that receives every assignment." },
+      },
+    },
     actorClassRule: "confirmer-must-equal-own-delegatedBy",
   },
 ];

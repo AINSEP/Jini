@@ -112,22 +112,65 @@ export type DerivedRiskByToolId = ReadonlyMap<string, AgentToolSideEffect>;
 export const AGENT_TOOL_PRINCIPAL_KIND: "agent" = "agent";
 
 /**
- * Actor-class rules that cannot be honored while no confirmation transport is wired.
+ * Actor-class rules that need a human confirmer.
  *
  * `confirmer-must-equal-own-delegatedBy` means "a human must confirm this, and the confirmer must
- * be the principal who delegated". A host can only deliver that by building `ToolExecutor` with an
- * `ExecutionDelegate`. Without one, `descriptor.requiresConfirmation` would park the execution on a
- * promise only `resumeConfirmation` can settle — and nothing would call it. The park is also unbounded, because `descriptor.timeoutMs`'s timer is armed only AFTER the
- * confirmation await.
+ * be the principal who delegated". The kit never delivers that through `descriptor.requiresConfirmation`:
+ * without a host `ExecutionDelegate`, that flag parks the execution on a promise only
+ * `resumeConfirmation` can settle, and nothing would call it (unbounded, too, because
+ * `descriptor.timeoutMs`'s timer is armed only AFTER the confirmation await).
  *
- * So a tool carrying this rule must not be wired at all. Today none is — `collections_execute_cleanup`,
- * `database_execute_migrate_forward`, and `backup_execute_restore` all carry it and all three are
- * declared unwired — which makes this guard a statement of the invariant rather than a fix: a
- * future edit wiring any of them fails the build instead of silently shipping a tool whose stated
- * human-confirmation requirement is unenforceable. When a confirmation transport does land, this
- * constant is the deliberate place to relax.
+ * So a tool carrying this rule is wirable only when its handler was built with
+ * {@link humanConfirmedHandler}, which asks the human through the host's own confirmation transport
+ * and runs the action only on an explicit yes. Any other handler fails the build.
  */
 export const ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT = new Set(["confirmer-must-equal-own-delegatedBy"]);
+
+/**
+ * The human who confirmed, as {@link humanConfirmedHandler} hands it to `run`: always the run's own
+ * delegating principal (`ctx.principal.id`, see {@link AGENT_TOOL_PRINCIPAL_KIND}), always
+ * `kind: "user"`. The only thing a `run` step may pass to a confirm step as its confirmer.
+ */
+export interface HumanConfirmer {
+  readonly id: string;
+  readonly kind: "user";
+}
+
+/** What the host's transport reports back. Only exactly `confirmed: true` counts as a yes. */
+export type HumanConfirmationAnswer = { confirmed: true } | { confirmed: false; result: unknown };
+
+const HUMAN_CONFIRMED_HANDLERS = new WeakSet<ToolHandler>();
+
+/**
+ * Builds the one kind of handler a `confirmer-must-equal-own-delegatedBy` tool may be wired with
+ * (see {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT}).
+ *
+ * The order is fixed here, not left to each domain: `prepare` (validate, pre-authorize, derive what
+ * the human will see) → `askHuman` (the host's transport, e.g. an MCP-UI dialog) → `run`, only when
+ * the answer is exactly `{ confirmed: true }`. The decision never comes from `ctx.input`, so nothing
+ * the model sends can stand in for the human. `run` gets the confirmer as the delegating human.
+ *
+ * @param steps.prepare - Reads input and derives what the human is asked about. May throw.
+ * @param steps.askHuman - Asks the human through the host's transport. Throws when no human can be
+ *   asked; a no-answer returns `{ confirmed: false, result }` and `result` is the tool's result.
+ * @param steps.run - Performs the action on a yes.
+ * @returns A handler {@link assertToolIsWirable} accepts for a tool carrying the rule.
+ * @complexity O(1) plus the three steps.
+ */
+export function humanConfirmedHandler<TPrepared>(steps: {
+  prepare: (ctx: Parameters<ToolHandler>[0]) => Promise<TPrepared>;
+  askHuman: (ctx: Parameters<ToolHandler>[0], prepared: TPrepared) => Promise<HumanConfirmationAnswer>;
+  run: (ctx: Parameters<ToolHandler>[0], prepared: TPrepared, confirmer: HumanConfirmer) => Promise<unknown>;
+}): ToolHandler {
+  const handler: ToolHandler = async (ctx) => {
+    const prepared = await steps.prepare(ctx);
+    const answer = await steps.askHuman(ctx, prepared);
+    if (answer.confirmed !== true) return answer.result;
+    return steps.run(ctx, prepared, { id: ctx.principal.id, kind: "user" });
+  };
+  HUMAN_CONFIRMED_HANDLERS.add(handler);
+  return handler;
+}
 
 /**
  * Indexes a domain catalog by tool id — the single lookup used for descriptors, risk metadata, and
@@ -349,8 +392,8 @@ export function decorateWithSchema(params: {
 /**
  * Build-time gate on a single tool's risk metadata: refuses to wire a tool whose declared
  * `sideEffects` disagrees with the wiring layer's own {@link DerivedRiskByToolId} classification,
- * whose id that layer has not classified at all, or whose `actorClassRule` needs a confirmation
- * transport that does not exist.
+ * whose id that layer has not classified at all, or whose `actorClassRule` needs a human confirmer
+ * its handler does not ask for.
  *
  * Throws rather than warning, and at registration time rather than call time: a metadata
  * inconsistency is a developer error that should stop the daemon booting, not a runtime condition
@@ -359,7 +402,10 @@ export function decorateWithSchema(params: {
  * @param params.toolId - The wired tool id.
  * @param params.catalogEntry - Its `agent-tools.ts` entry, the declared side of the comparison.
  * @param params.derivedRisk - The wiring layer's independent classification, the derived side.
- * @throws {Error} If the tool is unclassified, misclassified, or needs missing confirmation support.
+ * @param params.handler - The handler being wired; checked only for a tool carrying a rule in
+ *   {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT}.
+ * @throws {Error} If the tool is unclassified, misclassified, or needs a human confirmer its handler
+ *   does not ask for.
  * @complexity O(1) — two map/set lookups.
  * @overallScore 100
  */
@@ -367,6 +413,7 @@ export function assertToolIsWirable(params: {
   toolId: string;
   catalogEntry: WirableToolDefinition;
   derivedRisk: DerivedRiskByToolId;
+  handler?: ToolHandler;
 }): void {
   const { toolId, catalogEntry } = params;
   const derived = params.derivedRisk.get(toolId);
@@ -380,9 +427,10 @@ export function assertToolIsWirable(params: {
       `tool-registrations: '${toolId}' declares sideEffects '${catalogEntry.sideEffects}' but this layer derives '${derived}' from what its handler calls — reconcile the two rather than trusting the declaration`,
     );
   }
-  if (catalogEntry.actorClassRule && ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT.has(catalogEntry.actorClassRule)) {
+  const needsHuman = catalogEntry.actorClassRule && ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT.has(catalogEntry.actorClassRule);
+  if (needsHuman && !(params.handler && HUMAN_CONFIRMED_HANDLERS.has(params.handler))) {
     throw new Error(
-      `tool-registrations: '${toolId}' declares actorClassRule '${catalogEntry.actorClassRule}', which requires a human-confirmation transport this host has not wired — leave it unwired until one exists (see ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT)`,
+      `tool-registrations: '${toolId}' declares actorClassRule '${catalogEntry.actorClassRule}', which needs a human confirmer — build its handler with humanConfirmedHandler so a human answers through the host's confirmation transport (see ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT)`,
     );
   }
 }
@@ -406,9 +454,9 @@ export function assertToolIsWirable(params: {
  * the same rule, and a `ToolPolicy`-only check would be bypassable by any future non-tool caller of
  * the same domain function, which is precisely why the chokepoint owns the gate.
  *
- * `descriptor.requiresConfirmation` is deliberately never set — see
- * {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT} for why that omission is safe rather
- * than a hole.
+ * `descriptor.requiresConfirmation` is deliberately never set — a tool that needs a human confirm
+ * asks inside its own {@link humanConfirmedHandler}; see
+ * {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT}.
  *
  * @param spec.domain - Human-readable domain name, used only in failure messages.
  * @param spec.catalogModule - Path of the catalog file, named in the drift message so the failure
@@ -438,7 +486,7 @@ export function buildDomainRegistrations(spec: {
     if (!catalogEntry) {
       throw new Error(`tool-registrations: ${spec.domain} catalog has no entry named '${id}' — ${spec.catalogModule} drifted`);
     }
-    assertToolIsWirable({ toolId: id, catalogEntry, derivedRisk: spec.derivedRisk });
+    assertToolIsWirable({ toolId: id, catalogEntry, derivedRisk: spec.derivedRisk, handler });
     if (!catalogEntry.inputSchema) {
       throw new Error(
         `tool-registrations: wired tool '${id}' publishes no inputSchema — add one to its entry in ${spec.catalogModule} so the model gets a contract, or leave the tool unwired`,

@@ -4,6 +4,7 @@ import { isReadOnlyTool, ToolInputError } from '@jini-ai/core';
 import {
   buildDomainRegistrations,
   decorateWithSchema,
+  humanConfirmedHandler,
   optionalBoolean,
   optionalNumber,
   optionalString,
@@ -149,5 +150,128 @@ describe('buildDomainRegistrations projects sideEffects onto ToolDescriptor.read
       { name: "thing_update", sideEffects: "mutates-durable-state" },
     ]);
     expect(registrations.map((r) => isReadOnlyTool(r.descriptor))).toEqual([true, false]);
+  });
+});
+
+/**
+ * @file (cont.) A tool whose actor-class rule needs a human confirmer is wirable only through
+ * `humanConfirmedHandler`: the human's answer comes from the host's confirmation transport, never
+ * from the model's input, and `run` gets the delegating human as the confirmer.
+ */
+describe('humanConfirmedHandler: the sanctioned wiring for confirmer-must-equal-own-delegatedBy tools', () => {
+  const inputSchema = { type: "object", additionalProperties: false, properties: {} } as const;
+  const catalog = new Map([
+    [
+      "thing_execute",
+      {
+        name: "thing_execute",
+        description: "thing_execute description",
+        sideEffects: "mutates-durable-state" as const,
+        authorization: { permission: "p" },
+        actorClassRule: "confirmer-must-equal-own-delegatedBy" as const,
+        inputSchema,
+      },
+    ],
+  ]);
+  const derivedRisk = new Map<string, AgentToolSideEffect>([["thing_execute", "mutates-durable-state"]]);
+
+  function ctx(input: unknown = {}) {
+    return {
+      executionId: "exec-1",
+      principal: { id: "human-1" },
+      run: { id: "run-1" },
+      input,
+      signal: new AbortController().signal,
+    };
+  }
+
+  function wire(handler: Parameters<typeof buildDomainRegistrations>[0]["handlers"][string]) {
+    return buildDomainRegistrations({ domain: "test", catalogModule: "test/agent-tools.ts", catalog, handlers: { thing_execute: handler }, derivedRisk });
+  }
+
+  it('still refuses a plain handler for a tool carrying the rule, at build time', () => {
+    expect(() => wire(async () => "ran")).toThrow(
+      "tool-registrations: 'thing_execute' declares actorClassRule 'confirmer-must-equal-own-delegatedBy', which needs a human confirmer — build its handler with humanConfirmedHandler so a human answers through the host's confirmation transport (see ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT)",
+    );
+  });
+
+  it('wires a humanConfirmedHandler, and never sets requiresConfirmation on the descriptor', () => {
+    const [registration] = wire(humanConfirmedHandler({ prepare: async () => null, askHuman: async () => ({ confirmed: true }), run: async () => "ran" }));
+    expect(registration!.descriptor.id).toBe("thing_execute");
+    expect(registration!.descriptor).not.toHaveProperty("requiresConfirmation");
+  });
+
+  it('a human confirm runs the action, with the delegating human as a kind "user" confirmer', async () => {
+    const seen: unknown[] = [];
+    const handler = humanConfirmedHandler({
+      prepare: async () => ({ planHash: "h1" }),
+      askHuman: async (_ctx, prepared) => {
+        seen.push(["ask", prepared]);
+        return { confirmed: true };
+      },
+      run: async (_ctx, prepared, confirmer) => {
+        seen.push(["run", prepared, confirmer]);
+        return { executed: true };
+      },
+    });
+    expect(await handler(ctx())).toEqual({ executed: true });
+    expect(seen).toEqual([
+      ["ask", { planHash: "h1" }],
+      ["run", { planHash: "h1" }, { id: "human-1", kind: "user" }],
+    ]);
+  });
+
+  it('a human decline returns the not-confirmed result and never runs', async () => {
+    let ran = false;
+    const handler = humanConfirmedHandler({
+      prepare: async () => null,
+      askHuman: async () => ({ confirmed: false, result: { executed: false, cancelled: true } }),
+      run: async () => {
+        ran = true;
+      },
+    });
+    expect(await handler(ctx())).toEqual({ executed: false, cancelled: true });
+    expect(ran).toBe(false);
+  });
+
+  it('model input claiming confirmation does not count — only the human answer does', async () => {
+    let ran = false;
+    const handler = humanConfirmedHandler({
+      prepare: async () => null,
+      askHuman: async () => ({ confirmed: false, result: { executed: false } }),
+      run: async () => {
+        ran = true;
+      },
+    });
+    expect(await handler(ctx({ confirm: true, confirmed: true, confirmationToken: "tok" }))).toEqual({ executed: false });
+    expect(ran).toBe(false);
+  });
+
+  it('an answer that is only truthy, not exactly confirmed: true, is a no', async () => {
+    let ran = false;
+    const handler = humanConfirmedHandler({
+      prepare: async () => null,
+      askHuman: async () => ({ confirmed: "yes", result: { executed: false } }) as never,
+      run: async () => {
+        ran = true;
+      },
+    });
+    expect(await handler(ctx())).toEqual({ executed: false });
+    expect(ran).toBe(false);
+  });
+
+  it('a failing ask (no channel) propagates and never runs', async () => {
+    let ran = false;
+    const handler = humanConfirmedHandler({
+      prepare: async () => null,
+      askHuman: async () => {
+        throw new ToolInputError("NO_CONFIRMATION_CHANNEL");
+      },
+      run: async () => {
+        ran = true;
+      },
+    });
+    await expect(handler(ctx())).rejects.toThrow("NO_CONFIRMATION_CHANNEL");
+    expect(ran).toBe(false);
   });
 });
