@@ -201,8 +201,10 @@ ${SURFACE_SCRIPT_PRELUDE}
   // native behavior a single-line text input gets inside a real form. Scoped to the same controls
   // the browser would have honored it for -- type=text/type=number inputs -- so Enter still inserts
   // a newline in a multi-line textarea and still just toggles a checkbox.
+  // Only what the browser attributes to a person counts: element.click(), dispatchEvent and a
+  // synthetic keydown from any script produce isTrusted === false, and submit and cancel call tools.
   form.addEventListener("keydown", function (event) {
-    if (event.key !== "Enter") return;
+    if (event.isTrusted !== true || event.key !== "Enter") return;
     var target = event.target;
     if (!target || target.tagName !== "INPUT") return;
     var type = (target.getAttribute("type") || "text").toLowerCase();
@@ -214,12 +216,14 @@ ${SURFACE_SCRIPT_PRELUDE}
   for (var b = 0; b < actionButtons.length; b++) {
     var action = actionButtons[b].getAttribute("data-mcpui-action");
     if (action === "submit") {
-      actionButtons[b].addEventListener("click", runSubmit);
+      actionButtons[b].addEventListener("click", function (event) {
+        if (event.isTrusted === true) runSubmit();
+      });
       continue;
     }
     if (action !== "cancel") continue;
-    actionButtons[b].addEventListener("click", function () {
-      if (pending) return;
+    actionButtons[b].addEventListener("click", function (event) {
+      if (event.isTrusted !== true || pending) return;
       pending = true;
       setBusy(true);
       if (CANCEL === null) {

@@ -38,11 +38,11 @@ export function mountSurface(html: string, beforeScript?: (doc: Document) => voi
   };
 
   // `isTrusted` is an unforgeable own property in jsdom, so no test can dispatch a trusted event.
-  // Instead, every listener the surface script adds to a button is wrapped: while `trustNext` is set,
+  // Instead, every listener the surface script adds to a button or a form is wrapped: while `trustNext` is set,
   // the listener receives the REAL dispatched event seen through a view whose `isTrusted` reads true.
   // The product script is unchanged; only what this harness hands it differs.
   let trustNext = false;
-  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action]')) {
+  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action], form')) {
     const add = node.addEventListener.bind(node);
     node.addEventListener = ((type: string, listener: EventListener, options?: AddEventListenerOptions) =>
       add(type, (event: Event) => listener(trustNext ? asTrusted(event) : event), options)) as typeof node.addEventListener;
@@ -53,6 +53,16 @@ export function mountSurface(html: string, beforeScript?: (doc: Document) => voi
   const surfaceScript = scripts[1]?.textContent ?? '';
   // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
   new Function('window', 'document', surfaceScript)({ jiniMcpUi: api }, doc);
+
+  /** Runs `dispatch` so every event it fires at a button or form reads `isTrusted: true`. */
+  function asUser(dispatch: () => void): void {
+    trustNext = true;
+    try {
+      dispatch();
+    } finally {
+      trustNext = false;
+    }
+  }
 
   function button(action: string): HTMLButtonElement {
     const node = doc.querySelector<HTMLButtonElement>(`button[data-mcpui-action="${action}"]`);
@@ -71,15 +81,15 @@ export function mountSurface(html: string, beforeScript?: (doc: Document) => voi
     },
     /** A click the surface script sees as `isTrusted: true`, i.e. one the browser says a user made. */
     trustedClick(action: string) {
-      trustNext = true;
-      try {
-        button(action).dispatchEvent(new Event('click', { bubbles: true }));
-      } finally {
-        trustNext = false;
-      }
+      asUser(() => button(action).dispatchEvent(new Event('click', { bubbles: true })));
+    },
+    asUser,
+    /** A trusted Enter keydown in `target`, the way a person presses it. */
+    pressEnter(target: Element) {
+      asUser(() => target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
     },
     /**
-     * Clicks the submit button — deliberately NOT a synthetic "submit" `Event` on the form. The
+     * A person clicking the submit button (a trusted click) — deliberately NOT a synthetic "submit" `Event` on the form. The
      * sandbox these documents actually render in (`allow-scripts`, no `allow-forms`) blocks native
      * form submission before the "submit" event is ever dispatched, so a helper that fired that
      * event directly could report every one of these specs green while the real click path stayed
@@ -88,7 +98,7 @@ export function mountSurface(html: string, beforeScript?: (doc: Document) => voi
      * form's submit event" for the regression test this rewrite exists to make possible.
      */
     submit() {
-      button('submit').dispatchEvent(new Event('click', { bubbles: true }));
+      asUser(() => button('submit').dispatchEvent(new Event('click', { bubbles: true })));
     },
     status(): string {
       return doc.getElementById('mcpui-status')?.textContent ?? '';
