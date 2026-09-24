@@ -129,6 +129,31 @@ export interface ContentTypeWriteServiceDeps {
 }
 
 /** Reserved forever for the legacy `posts` table — an operator Collection can never take these keys. */
+/**
+ * Field-name guards shared by register and update, in order: every name passes the identifier
+ * grammar (`InvalidFieldNameGrammarError`), THEN no name appears twice
+ * (`VALIDATION_ERROR(fields_duplicate_name)`). Duplicates are refused because entry values are
+ * stored keyed by field name and the index-transition diff builds a name-keyed map, so two defs
+ * sharing a name leave one of them unaddressable (last one wins). Returns `null` when both pass.
+ *
+ * @complexity O(f) in the number of submitted fields.
+ */
+function fieldNameError(fields: ReadonlyArray<{ name: string }>): Error | null {
+  for (const field of fields) {
+    if (!validateIdentifierGrammar(field.name)) {
+      return new InvalidFieldNameGrammarError(`field name '${field.name}' fails the identifier grammar gate`);
+    }
+  }
+  const seen = new Set<string>();
+  for (const field of fields) {
+    if (seen.has(field.name)) {
+      return new ValidationError(`field name '${field.name}' appears more than once`, "fields_duplicate_name");
+    }
+    seen.add(field.name);
+  }
+  return null;
+}
+
 const RESERVED_CONTENT_TYPE_KEYS = new Set(["post", "page"]);
 
 /** Per-type cap on `queryable` fields (queryable-index sprawl mitigation). */
@@ -178,12 +203,9 @@ export async function registerContentType(
   if (RESERVED_CONTENT_TYPE_KEYS.has(input.key)) {
     return { ok: false, error: new ReservedContentTypeKeyError(`key '${input.key}' is permanently reserved for the legacy 'posts' table`) };
   }
-  // Guard 3: field-name grammar (every field, before any kind/cap check).
-  for (const field of input.fields) {
-    if (!validateIdentifierGrammar(field.name)) {
-      return { ok: false, error: new InvalidFieldNameGrammarError(`field name '${field.name}' fails the identifier grammar gate`) };
-    }
-  }
+  // Guard 3: field-name grammar, then uniqueness (every field, before any kind/cap check).
+  const nameErrorOnRegister = fieldNameError(input.fields);
+  if (nameErrorOnRegister) return { ok: false, error: nameErrorOnRegister };
   // Guard 4: field-kind, closed enum.
   for (const field of input.fields) {
     if (!isContentTypeFieldKind(field.kind)) {
@@ -292,11 +314,8 @@ export async function updateContentTypeFields(
     return { ok: false, error: new ValidationError(`content type '${input.key}' update submitted an empty fields array`, "fields_empty") };
   }
 
-  for (const field of input.fields) {
-    if (!validateIdentifierGrammar(field.name)) {
-      return { ok: false, error: new InvalidFieldNameGrammarError(`field name '${field.name}' fails the identifier grammar gate`) };
-    }
-  }
+  const nameErrorOnUpdate = fieldNameError(input.fields);
+  if (nameErrorOnUpdate) return { ok: false, error: nameErrorOnUpdate };
   for (const field of input.fields) {
     if (!isContentTypeFieldKind(field.kind)) {
       return { ok: false, error: new InvalidFieldKindError(`field '${field.name}' has kind '${field.kind}', not one of the closed field-kind enum`) };

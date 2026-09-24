@@ -169,3 +169,30 @@ test("a well-formed update with a matching expectedVersion and non-empty fields 
   const revision = repo.revisions[0] as { op: string };
   assert.equal(revision.op, "field-change");
 });
+
+test("an update submitting two fields with the same name is rejected with VALIDATION_ERROR(fields_duplicate_name), schema and version unchanged", async () => {
+  const seed = existingContentType({ version: 3 });
+  const repo = fakeRepo(seed);
+
+  const result = await updateContentTypeFields({
+    deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: fakeIndexProvisioner(), outbox },
+    input: {
+      workspaceId: "ws-1",
+      actorId: "user-1",
+      key: "recipe",
+      fields: [
+        { name: "a", kind: "text", required: false, queryable: false },
+        { name: "a", kind: "integer", required: false, queryable: false },
+      ],
+      expectedVersion: 3,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.message, "field name 'a' appears more than once");
+    assert.deepEqual((result.error as { details?: unknown }).details, { reason: "fields_duplicate_name" });
+  }
+  assert.deepEqual(repo.getStored().fields, seed.fields);
+  assert.equal(repo.getStored().version, 3);
+});

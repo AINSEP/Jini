@@ -190,3 +190,27 @@ test("registerContentType is rejected FORBIDDEN and writes nothing when the call
   assert.equal(result.ok, false);
   assert.equal(repo.rows.length, 0);
 });
+
+test("two fields with the same name are rejected with VALIDATION_ERROR(fields_duplicate_name) and nothing is saved — entry values are keyed by field name, so a duplicate makes one of the two unaddressable", async () => {
+  const repo = fakeRepo();
+  const result = await registerContentType({
+    deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: fakeIndexProvisioner(), outbox },
+    input: {
+      workspaceId: "ws-1",
+      actorId: "user-1",
+      key: "recipe",
+      label: "Recipe",
+      fields: [
+        { name: "price", kind: "integer", required: false, queryable: true },
+        { name: "price", kind: "text", required: false, queryable: false },
+      ],
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.message, "field name 'price' appears more than once");
+    assert.deepEqual((result.error as { details?: unknown }).details, { reason: "fields_duplicate_name" });
+  }
+  assert.equal(repo.rows.length, 0);
+});
