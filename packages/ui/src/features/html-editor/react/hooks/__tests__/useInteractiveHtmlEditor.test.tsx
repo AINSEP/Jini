@@ -1,6 +1,8 @@
+import { createRef } from 'react';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CANVAS_STYLES_PENDING_CLASS } from '../../../canvas-style.js';
+import type { InteractiveHtmlEditorHandle } from '../../components/InteractiveHtmlEditor.js';
 
 /**
  * @file The export-safety half of the canvas-wrapper feature's proof: `useInteractiveHtmlEditor`
@@ -33,6 +35,9 @@ interface FakeComponent {
   _children: FakeComponent[];
   /** GrapesJS's public `prevColl`: the collection a just-removed component was removed from. */
   prevColl?: { parent?: FakeComponent };
+  /** Stands in for GrapesJS's real `Component.getView()`, for the `flush()` tests below: a test
+   *  assigns this to hand back a fake RTE view whose `disableEditing` it controls. */
+  getView?: () => { disableEditing?: () => Promise<void> };
 }
 
 function makeFakeComponent(tagName: string, type: string, innerHTML = ''): FakeComponent {
@@ -60,7 +65,7 @@ function linkFakeComponents(parent: FakeComponent, children: FakeComponent[]): v
   });
 }
 
-function makeFakeEditor(options: { wrapper?: FakeComponent | undefined } = {}) {
+function makeFakeEditor(options: { wrapper?: FakeComponent | undefined; editing?: FakeComponent | undefined } = {}) {
   const handlers: Record<string, Array<(...args: unknown[]) => void>> = {};
   // A real, isolated `Document` (not the shared jsdom global `document`) so tests can append/remove
   // `<link>` elements into its `<head>` without leaking them across tests — mirrors what
@@ -80,6 +85,7 @@ function makeFakeEditor(options: { wrapper?: FakeComponent | undefined } = {}) {
       getCss: vi.fn(() => ''),
       getHtml: vi.fn(() => RAW_HTML),
       getWrapper: vi.fn(() => options.wrapper),
+      getEditing: vi.fn(() => options.editing),
       destroy: vi.fn(),
     },
     fire: (event: string, ...args: unknown[]) => handlers[event]?.forEach((cb) => cb(...args)),
@@ -91,12 +97,15 @@ let lastInitConfig: Record<string, unknown> | undefined;
 /** Set by a splice test right before `render()` so the mocked `grapesjs.init` below can hand the
  *  matching fake `Component` tree's wrapper back through `editor.getWrapper()`. */
 let nextWrapper: FakeComponent | undefined;
+/** Set by a `flush()` test right before `render()` so the mocked `grapesjs.init` below can hand the
+ *  matching fake `Component` back through `editor.getEditing()`. */
+let nextEditing: FakeComponent | undefined;
 
 vi.mock('grapesjs', () => ({
   default: {
     init: vi.fn((config: Record<string, unknown>) => {
       lastInitConfig = config;
-      lastFake = makeFakeEditor({ wrapper: nextWrapper });
+      lastFake = makeFakeEditor({ wrapper: nextWrapper, editing: nextEditing });
       return lastFake.editor;
     }),
   },
@@ -113,6 +122,7 @@ vi.mock('../../../canvas-embed-placeholders.js', () => ({
 const { useInteractiveHtmlEditor } = await import('../useInteractiveHtmlEditor.js');
 const { applyCanvasContentWrapper } = await import('../../../canvas-content-wrapper.js');
 const { applyCanvasEmbedPlaceholders } = await import('../../../canvas-embed-placeholders.js');
+const { InteractiveHtmlEditor } = await import('../../components/InteractiveHtmlEditor.js');
 
 function TestHarness({
   canvasStyling,
@@ -252,6 +262,7 @@ describe('useInteractiveHtmlEditor — lossless splice (Bug C, Slice C2)', () =>
     lastFake = undefined;
     lastInitConfig = undefined;
     nextWrapper = undefined;
+    nextEditing = undefined;
   });
 
   it('passes avoidInlineStyle: false to grapesjs.init', () => {
@@ -622,6 +633,7 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
     lastFake = undefined;
     lastInitConfig = undefined;
     nextWrapper = undefined;
+    nextEditing = undefined;
   });
 
   it('splices the text as it is AFTER the RTE sync, with no warning, when only the text component\'s own children churn', () => {
@@ -690,5 +702,123 @@ describe('useInteractiveHtmlEditor — the splice holds for real RTE edits (Slic
     expect(warnSpy).toHaveBeenCalledWith(
       '[useInteractiveHtmlEditor] falling back to full re-serialization: a block was added, moved, copied or deleted since mount (first: component:remove <unknown>)',
     );
+  });
+});
+
+/**
+ * @file Interactive edit-loss fix (2026-09-23 plan): proves `useInteractiveHtmlEditor`'s `flush()`
+ * — a host calls this right before it saves or unmounts, to sync an open RTE session's still-pending
+ * edit (GrapesJS only syncs the model on `disableEditing`, and `update` is double-debounced and never
+ * fires after `off()`) instead of losing it. `InteractiveHtmlEditor` exposes the same `flush` through
+ * a ref (`useImperativeHandle`), so (e) below proves the component delegates rather than duplicates.
+ */
+describe('useInteractiveHtmlEditor — flush() (Interactive edit-loss fix)', () => {
+  const EDITED =
+    `<style>body{margin:0}</style>` +
+    `<p id="a">Hello, edited</p>` +
+    `<div data-embed-config='{"type":"video"}'></div>` +
+    `<p id="b">Old &mdash; New</p>`;
+
+  let capturedFlush: (() => Promise<string | undefined>) | undefined;
+
+  function FlushHarness({ html, onChange }: { html: string; onChange: (html: string) => void }) {
+    const { containerRef, flush } = useInteractiveHtmlEditor(html, onChange);
+    capturedFlush = flush;
+    return <div ref={containerRef} />;
+  }
+
+  /** Wires a fake open RTE session on `component`: `disableEditing` records `'disable'` into `order`,
+   *  fires `rte:disable` (mirroring GrapesJS's real order — the event fires BEFORE `syncContent`
+   *  writes the edited text into the model), then writes `nextText` into the model, matching the
+   *  real-world replay in the "splice holds for real RTE edits" describe above. */
+  function makeDisableEditing(component: FakeComponent, order: string[], nextText: string) {
+    return async () => {
+      order.push('disable');
+      lastFake!.fire('rte:disable', { model: component }, {});
+      component.setInnerHTML(nextText);
+    };
+  }
+
+  afterEach(() => {
+    cleanup();
+    vi.clearAllMocks();
+    lastFake = undefined;
+    lastInitConfig = undefined;
+    nextWrapper = undefined;
+    nextEditing = undefined;
+    capturedFlush = undefined;
+  });
+
+  it('disables an open RTE session, splices the pending edit, and resolves exactly what onChange received', async () => {
+    const order: string[] = [];
+    const onChange = vi.fn(() => order.push('onChange'));
+    const { pA } = buildSpliceComponentTree();
+    pA.getView = () => ({ disableEditing: makeDisableEditing(pA, order, 'Hello, edited') });
+    nextEditing = pA;
+    render(<FlushHarness html={SPLICE_ORIGINAL_HTML} onChange={onChange} />);
+
+    const result = await capturedFlush!();
+
+    expect(result).toBe(EDITED);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(EDITED);
+    expect(order).toEqual(['disable', 'onChange']);
+  });
+
+  it('resolves to undefined and never calls onChange when nothing was ever edited', async () => {
+    const onChange = vi.fn();
+    nextEditing = undefined;
+    render(<FlushHarness html={SPLICE_ORIGINAL_HTML} onChange={onChange} />);
+
+    const result = await capturedFlush!();
+
+    expect(result).toBeUndefined();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('still resolves, without throwing, when disableEditing rejects', async () => {
+    const onChange = vi.fn();
+    const { pA } = buildSpliceComponentTree();
+    pA.getView = () => ({
+      disableEditing: async () => {
+        throw new Error('boom');
+      },
+    });
+    nextEditing = pA;
+    render(<FlushHarness html={SPLICE_ORIGINAL_HTML} onChange={onChange} />);
+
+    const result = await capturedFlush!();
+
+    expect(result).toBeUndefined();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('resolves to undefined after unmount, without ever calling editor.getEditing', async () => {
+    const { pA } = buildSpliceComponentTree();
+    nextEditing = pA;
+    const { unmount } = render(<FlushHarness html={SPLICE_ORIGINAL_HTML} onChange={vi.fn()} />);
+    unmount();
+
+    const result = await capturedFlush!();
+
+    expect(result).toBeUndefined();
+    expect(lastFake!.editor.getEditing).not.toHaveBeenCalled();
+  });
+
+  it('exposes flush via ref on <InteractiveHtmlEditor>, delegating to the hook', async () => {
+    const order: string[] = [];
+    const onChange = vi.fn(() => order.push('onChange'));
+    const { pA } = buildSpliceComponentTree();
+    pA.getView = () => ({ disableEditing: makeDisableEditing(pA, order, 'Hello, edited') });
+    nextEditing = pA;
+    const ref = createRef<InteractiveHtmlEditorHandle>();
+    render(<InteractiveHtmlEditor html={SPLICE_ORIGINAL_HTML} onChange={onChange} ref={ref} />);
+
+    expect(typeof ref.current?.flush).toBe('function');
+    const result = await ref.current!.flush();
+
+    expect(result).toBe(EDITED);
+    expect(onChange).toHaveBeenCalledWith(EDITED);
+    expect(order).toEqual(['disable', 'onChange']);
   });
 });

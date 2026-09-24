@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import grapesjs, { type Component, type Editor } from 'grapesjs';
 import { applyCanvasContentWrapper } from '../../canvas-content-wrapper.js';
 import { applyCanvasEmbedPlaceholders, type CanvasEmbedPlaceholderDescriptor } from '../../canvas-embed-placeholders.js';
@@ -284,6 +284,26 @@ function serializeWithSplice(
   return result;
 }
 
+/**
+ * Ends whatever RTE session is currently open, so its pending edit syncs into the component model
+ * before `flush` reads it — GrapesJS only writes an RTE session's edited text into the model when
+ * that session closes (`disableEditing`/`syncContent`), never on every keystroke, so a save or
+ * unmount that skips this step silently loses the last, still-open edit. A throw from
+ * `disableEditing` (e.g. GrapesJS internals mid-teardown) must never block `flush` from still
+ * returning whatever was already recorded, so it is swallowed here rather than propagated.
+ *
+ * @complexity O(1) plus whatever the editor's own `disableEditing` costs.
+ */
+async function disableActiveTextEditing(editor: Editor): Promise<void> {
+  const editing = editor.getEditing();
+  if (!editing) return;
+  try {
+    await (editing.getView() as { disableEditing?: () => Promise<void> } | undefined)?.disableEditing?.();
+  } catch {
+    // Swallowed intentionally — see this function's doc.
+  }
+}
+
 /** Hard cap on how long the canvas can stay hidden waiting for its theme stylesheet(s) (Bug B, Slice
  *  B1, this repo's `pages-redo` plan) — a dead URL or a hung dev-server reload must never hide the
  *  editor forever. */
@@ -372,6 +392,15 @@ function revealCanvasWhenStylesheetsSettle(editor: Editor, body: HTMLElement): (
  * `class="frame"` forever, inert and unrendered. `.gjs-frame` — the class `FrameView.render()`
  * assigns — is what callers should select on, never a bare `iframe` under the wrapper.)
  *
+ * **`flush()` exists because GrapesJS's RTE only syncs on `disableEditing`, and `update` is
+ * double-debounced and never fires after `off()`.** A host that calls `onChange` on every keystroke
+ * (like an uncontrolled `<textarea>`) still misses the operator's last edit if they click Save or
+ * navigate away while an RTE session is still open: GrapesJS writes that session's text into the
+ * component model only when it closes, and by the time a host's save handler runs, this hook has
+ * already stopped listening (or the debounce hasn't fired yet). `flush` closes any open RTE session,
+ * computes and emits the current content the same way `handleUpdate` does, and hands the result back
+ * directly — see its own doc below for exactly what it returns and when.
+ *
  * @complexity O(1) setup/teardown. Steady-state cost is GrapesJS's own serialization per edit,
  * proportional to document size — not something this hook controls or should hide a note about
  * beyond that.
@@ -387,6 +416,9 @@ export function useInteractiveHtmlEditor(
   const wrapperRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  // Delegated to by the stable `flush` callback returned below. Reset to a no-op on cleanup, before
+  // `destroy()` — see the effect's cleanup for why the order matters.
+  const flushRef = useRef<() => Promise<string | undefined>>(async () => undefined);
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
@@ -401,6 +433,10 @@ export function useInteractiveHtmlEditor(
     // `useRef`: nothing outside this effect ever reads them.
     const dirty = new Map<string, DirtyTextEdit>();
     let structuralChange: string | undefined;
+    // True once `update` has fired at least once this mount — see `flush`'s "nothing to flush" guard
+    // below for why this is tracked separately from `dirty`/`structuralChange` (a style/attribute-only
+    // edit fires `update` with neither of those set, and still must not be silently dropped).
+    let changed = false;
     // Set inside `handleLoad`, once the canvas body exists — see `revealCanvasWhenStylesheetsSettle`.
     // `undefined` until then (or if `load` never fires before unmount), so cleanup below guards it.
     let cancelStylesheetWait: (() => void) | undefined;
@@ -417,7 +453,10 @@ export function useInteractiveHtmlEditor(
       }, 0);
     };
 
-    const handleUpdate = () => onChangeRef.current(serializeWithSplice(editor, html, dirty, structuralChange));
+    const handleUpdate = () => {
+      changed = true;
+      onChangeRef.current(serializeWithSplice(editor, html, dirty, structuralChange));
+    };
     // `component:update:content` fires with the changed component itself as its argument (GrapesJS's
     // general `component:update:{propertyName}` pattern); `rte:disable` fires with `(view, rte)` —
     // the view whose RTE session just closed, `view.model` being the component it edited. Both name
@@ -442,6 +481,20 @@ export function useInteractiveHtmlEditor(
     editor.on('rte:disable', handleRteDisable);
     editor.on('component:add', handleAdd);
     editor.on('component:remove', handleRemove);
+
+    // See `flush`'s own doc for why this exists. Closes any open RTE session first (so its pending
+    // edit syncs into the model), then emits and returns the current content the same way
+    // `handleUpdate` does — except when nothing has changed since mount, matching `serializeWithSplice`'s
+    // own "nothing to flush" case: no `update` was ever seen, no text edit was recorded, and no
+    // structural change happened either.
+    flushRef.current = async () => {
+      await disableActiveTextEditing(editor);
+      if (!changed && dirty.size === 0 && !structuralChange) return undefined;
+      const next = serializeWithSplice(editor, html, dirty, structuralChange);
+      onChangeRef.current(next);
+      return next;
+    };
+
     // `load` fires once the canvas's initial component render is done (`editor.Canvas.getBody()` is
     // populated) — see `applyCanvasContentWrapper`'s own file header for why the wrap has to happen
     // here, against the live canvas, rather than folded into `components` above. Embed placeholders
@@ -460,6 +513,9 @@ export function useInteractiveHtmlEditor(
     };
     editor.on('load', handleLoad);
     return () => {
+      // FIRST, before `destroy()` — a `flush()` call racing (or arriving after) unmount must resolve
+      // `undefined` without ever touching the about-to-be-destroyed `editor`.
+      flushRef.current = async () => undefined;
       editor.off('update', handleUpdate);
       editor.off('component:update:content', handleContentUpdate);
       editor.off('rte:disable', handleRteDisable);
@@ -474,5 +530,9 @@ export function useInteractiveHtmlEditor(
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally mount-only, see file header
   }, []);
 
-  return { containerRef: wrapperRef };
+  // Stable across renders (the effect above mutates `flushRef.current`, not this callback's identity)
+  // so a caller can safely pass `flush` into a `useCallback`/`useImperativeHandle` dependency array.
+  const flush = useCallback(() => flushRef.current(), []);
+
+  return { containerRef: wrapperRef, flush };
 }

@@ -1,5 +1,5 @@
 export { InteractiveHtmlEditor } from './react/components/InteractiveHtmlEditor.js';
-export type { InteractiveHtmlEditorProps } from './react/components/InteractiveHtmlEditor.js';
+export type { InteractiveHtmlEditorHandle, InteractiveHtmlEditorProps } from './react/components/InteractiveHtmlEditor.js';
 
 export { useInteractiveHtmlEditor } from './react/hooks/useInteractiveHtmlEditor.js';
 

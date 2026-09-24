@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { forwardRef, useImperativeHandle, type CSSProperties } from 'react';
 import 'grapesjs/dist/css/grapes.min.css';
 import type { CanvasEmbedPlaceholderDescriptor } from '../../canvas-embed-placeholders.js';
 import type { CanvasStyling } from '../../canvas-style.js';
@@ -75,7 +75,8 @@ export interface InteractiveHtmlEditorProps {
   html: string;
   /** Fires with the editor's current serialized HTML on every content edit. Does not persist
    *  anything itself — the caller decides when/whether to save, same as an HTML source textarea's
-   *  `onChange`. */
+   *  `onChange`. A host that saves or unmounts should `await ref.flush()` first, to sync an RTE
+   *  session that is still open — see `InteractiveHtmlEditorHandle`. */
   onChange: (html: string) => void;
   className?: string;
   /** Identifies elements whose content must never be edited or dropped into inside the editor. Each
@@ -104,21 +105,29 @@ const GJS_STYLE_VARS = {
   '--gjs-canvas-top': '0px',
 } as CSSProperties;
 
-export function InteractiveHtmlEditor({
-  html,
-  onChange,
-  className,
-  isProtectedElement,
-  canvasStyling,
-  describeEmbedPlaceholder,
-}: InteractiveHtmlEditorProps) {
-  const { containerRef } = useInteractiveHtmlEditor(
-    html,
-    onChange,
-    isProtectedElement,
-    canvasStyling,
-    describeEmbedPlaceholder,
-  );
-  const wrapperClassName = className ? `interactive-html-editor ${className}` : 'interactive-html-editor';
-  return <div ref={containerRef} className={wrapperClassName} style={GJS_STYLE_VARS} />;
+/** Imperative handle exposed via `ref`. A host calls `flush()` right before it saves or unmounts, to
+ *  sync an open RTE session's still-pending edit into `onChange` first — see `onChange`'s own doc and
+ *  `useInteractiveHtmlEditor`'s `flush` for the full rationale (GrapesJS only syncs an RTE session's
+ *  text on close, never on every keystroke). Resolves the flushed HTML, or `undefined` when nothing
+ *  had changed since mount. */
+export interface InteractiveHtmlEditorHandle {
+  flush(): Promise<string | undefined>;
 }
+
+export const InteractiveHtmlEditor = forwardRef<InteractiveHtmlEditorHandle, InteractiveHtmlEditorProps>(
+  function InteractiveHtmlEditor(
+    { html, onChange, className, isProtectedElement, canvasStyling, describeEmbedPlaceholder },
+    ref,
+  ) {
+    const { containerRef, flush } = useInteractiveHtmlEditor(
+      html,
+      onChange,
+      isProtectedElement,
+      canvasStyling,
+      describeEmbedPlaceholder,
+    );
+    useImperativeHandle(ref, () => ({ flush }), [flush]);
+    const wrapperClassName = className ? `interactive-html-editor ${className}` : 'interactive-html-editor';
+    return <div ref={containerRef} className={wrapperClassName} style={GJS_STYLE_VARS} />;
+  },
+);
