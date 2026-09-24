@@ -355,41 +355,61 @@ describe('ConfirmDialog agent handles', () => {
     expect(handlesIn(document.body)).toEqual([]);
   });
 
-  it('publishes the confirm and cancel actions under their own sub-handles, with role button', () => {
+  it('never publishes the confirm action by default — confirming stays a human step', () => {
+    // The page driver clicks any published element, so a tagged confirm lets the assistant open
+    // a destructive dialog and confirm it with no human in the loop.
     renderDialog({ agentHandle: 'delete-role' });
     const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).not.toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE);
+    expect(confirm).not.toHaveAttribute('data-agent-role');
+    expect(confirm).not.toHaveAttribute('data-agent-label');
+    expect(handlesIn(document.body)).toEqual(['delete-role-cancel']);
+  });
+
+  it('still publishes the cancel action under its own sub-handle, with role button', () => {
+    renderDialog({ agentHandle: 'delete-role' });
     const cancel = screen.getByRole('button', { name: 'Cancel' });
-    expect(confirm).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'delete-role-confirm');
-    expect(confirm).toHaveAttribute('data-agent-role', 'button');
     expect(cancel).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'delete-role-cancel');
     expect(cancel).toHaveAttribute('data-agent-role', 'button');
   });
 
+  it('publishes the confirm action only when the caller opts in with agentMayConfirm', () => {
+    renderDialog({ agentHandle: 'delete-role', agentMayConfirm: true });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'delete-role-confirm');
+    expect(confirm).toHaveAttribute('data-agent-role', 'button');
+  });
+
+  it('emits no markup for agentMayConfirm alone, without an agentHandle', () => {
+    renderDialog({ agentMayConfirm: true });
+    expect(handlesIn(document.body)).toEqual([]);
+  });
+
   it('publishes both handles even while the dialog is closed — it stays mounted, never conditionally rendered', () => {
-    renderDialog({ agentHandle: 'delete-role', open: false });
+    renderDialog({ agentHandle: 'delete-role', agentMayConfirm: true, open: false });
     expect(handlesIn(document.body)).toEqual(['delete-role-cancel', 'delete-role-confirm']);
   });
 
   it('states the confirm action and its target in the label, with no consequence phrase at the default tone', () => {
-    renderDialog({ agentHandle: 'delete-role' });
+    renderDialog({ agentHandle: 'delete-role', agentMayConfirm: true });
     const confirm = screen.getByRole('button', { name: 'Delete' });
     expect(confirm).toHaveAttribute('data-agent-label', 'Delete — Delete post?');
   });
 
   it('appends the danger tier\'s irreversibility to the confirm label', () => {
-    renderDialog({ agentHandle: 'delete-role', tone: 'danger' });
+    renderDialog({ agentHandle: 'delete-role', agentMayConfirm: true, tone: 'danger' });
     const confirm = screen.getByRole('button', { name: 'Delete' });
     expect(confirm).toHaveAttribute('data-agent-label', 'Delete — Delete post?; cannot be undone');
   });
 
   it('appends the warning tier\'s reversible-but-access-affecting phrase to the confirm label', () => {
-    renderDialog({ agentHandle: 'delete-role', tone: 'warning', confirmLabel: 'Disable' });
+    renderDialog({ agentHandle: 'delete-role', agentMayConfirm: true, tone: 'warning', confirmLabel: 'Disable' });
     const confirm = screen.getByRole('button', { name: 'Disable' });
     expect(confirm).toHaveAttribute('data-agent-label', 'Disable — Delete post?; changes access, but is reversible');
   });
 
   it('maps the deprecated destructive boolean onto the same danger consequence phrase as tone', () => {
-    renderDialog({ agentHandle: 'delete-role', destructive: true });
+    renderDialog({ agentHandle: 'delete-role', agentMayConfirm: true, destructive: true });
     const confirm = screen.getByRole('button', { name: 'Delete' });
     expect(confirm).toHaveAttribute('data-agent-label', 'Delete — Delete post?; cannot be undone');
   });
