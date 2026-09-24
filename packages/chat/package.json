@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat",
-  "version": "0.3.7",
+  "version": "0.3.9",
   "description": "Jini's chat/artifact frontend, consolidated into one package with two subpaths: framework-free chat vocabulary and pure parsers in `/core`, headless hooks + presentational components + slots in `/react`. Import only the layer you need.",
   "license": "Apache-2.0",
   "repository": {
