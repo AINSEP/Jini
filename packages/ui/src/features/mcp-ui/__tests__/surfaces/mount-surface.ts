@@ -15,7 +15,11 @@ export interface PendingSurfaceCall {
   reject(error: unknown): void;
 }
 
-export function mountSurface(html: string) {
+/**
+ * @param beforeScript - Runs against the parsed document before the surface script does, for state
+ *   the script reads at load (e.g. `visibilityState`).
+ */
+export function mountSurface(html: string, beforeScript?: (doc: Document) => void) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const calls: PendingSurfaceCall[] = [];
   const api = {
@@ -33,6 +37,18 @@ export function mountSurface(html: string) {
     isReady: () => true,
   };
 
+  // `isTrusted` is an unforgeable own property in jsdom, so no test can dispatch a trusted event.
+  // Instead, every listener the surface script adds to a button is wrapped: while `trustNext` is set,
+  // the listener receives the REAL dispatched event seen through a view whose `isTrusted` reads true.
+  // The product script is unchanged; only what this harness hands it differs.
+  let trustNext = false;
+  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action]')) {
+    const add = node.addEventListener.bind(node);
+    node.addEventListener = ((type: string, listener: EventListener, options?: AddEventListenerOptions) =>
+      add(type, (event: Event) => listener(trustNext ? asTrusted(event) : event), options)) as typeof node.addEventListener;
+  }
+
+  beforeScript?.(doc);
   const scripts = [...doc.querySelectorAll('script')];
   const surfaceScript = scripts[1]?.textContent ?? '';
   // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
@@ -49,8 +65,18 @@ export function mountSurface(html: string) {
     api,
     calls,
     button,
+    /** An untrusted click — what `element.click()` or `dispatchEvent` from any script produces. */
     click(action: string) {
       button(action).dispatchEvent(new Event('click', { bubbles: true }));
+    },
+    /** A click the surface script sees as `isTrusted: true`, i.e. one the browser says a user made. */
+    trustedClick(action: string) {
+      trustNext = true;
+      try {
+        button(action).dispatchEvent(new Event('click', { bubbles: true }));
+      } finally {
+        trustNext = false;
+      }
     },
     /**
      * Clicks the submit button — deliberately NOT a synthetic "submit" `Event` on the form. The
@@ -83,4 +109,15 @@ export function mountSurface(html: string) {
       await Promise.resolve();
     },
   };
+}
+
+/** The dispatched event, except `isTrusted` reads true. Reads go to the real event so jsdom's brand checks pass. */
+function asTrusted(event: Event): Event {
+  return new Proxy(event, {
+    get(target, prop) {
+      if (prop === 'isTrusted') return true;
+      const value: unknown = Reflect.get(target, prop, target);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
 }

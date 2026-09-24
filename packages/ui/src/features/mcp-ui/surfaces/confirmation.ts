@@ -72,6 +72,13 @@ export interface ConfirmationSurfaceSpec {
   readonly tokens?: Partial<Record<SurfaceTokenName, string>>;
 }
 
+/**
+ * How long the dialog must have been visible before a confirm click counts, in ms. A click sooner
+ * than a person could have read the dialog is ignored — the same dwell browsers put on permission
+ * prompts against clickjacking, and a guard against an automated click racing the render.
+ */
+export const CONFIRM_DWELL_MS = 800;
+
 const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-confirmation', appVersion: '1' };
 
 function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is ConfirmationToolAction {
@@ -135,14 +142,32 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
 ${SURFACE_SCRIPT_PRELUDE}
   var PLAN = ${escapeJsValue(plan)};
   var TEXT = ${escapeJsValue(text)};
+  var DWELL_MS = ${CONFIRM_DWELL_MS};
+
+  // Monotonic where available: a wall clock set backwards would otherwise stretch the dwell.
+  function now() {
+    return typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
+  }
+  // When the dialog last became visible; null while hidden. A dialog that loads in a background tab
+  // has not been seen, so its dwell starts when it is shown, and restarts each time it is shown again.
+  var visibleSince = document.visibilityState === "hidden" ? null : now();
+  document.addEventListener("visibilitychange", function () {
+    visibleSince = document.visibilityState === "hidden" ? null : now();
+  });
 
   for (var i = 0; i < actionButtons.length; i++) {
     actionButtons[i].addEventListener("click", onClick);
   }
 
   function onClick(event) {
-    var step = PLAN[event.currentTarget.getAttribute("data-mcpui-action")];
+    // Only a click the browser attributes to the user counts. element.click() and dispatchEvent
+    // from any script in this document produce isTrusted === false.
+    if (event.isTrusted !== true) return;
+    var action = event.currentTarget.getAttribute("data-mcpui-action");
+    var step = PLAN[action];
     if (step === undefined) return;
+    // Cancel is exempt: backing out early is never the harm this guards against.
+    if (action === "confirm" && (visibleSince === null || now() - visibleSince < DWELL_MS)) return;
     if (step === null) {
       setBusy(true);
       setStatus(TEXT.dismissed, "dismissed");
