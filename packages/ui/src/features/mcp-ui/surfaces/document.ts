@@ -390,6 +390,8 @@ export interface SurfaceAction {
    * than that sandbox; every current builder passes `button` (the default).
    */
   readonly type?: 'button' | 'submit';
+  /** Renders the button `disabled`; the surface script decides when to enable it. */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -424,7 +426,7 @@ export function renderActions(actions: readonly SurfaceAction[]): string {
       // would accept. That is unenforced on purpose (see the function doc above: `page.find_elements`
       // can never reach this document to resolve it either way), so failing loudly here would refuse
       // markup for a reason that can never matter to the one consumer that can actually query it.
-      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}">${label}</button>`;
+      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}"${action.disabled === true ? ' disabled' : ''}>${label}</button>`;
     })
     .join('\n');
   return `<div class="mcpui-actions">\n${buttons}\n</div>`;

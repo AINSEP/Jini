@@ -75,9 +75,11 @@ export interface ConfirmationSurfaceSpec {
 /**
  * How long the dialog must have been visible before a confirm click counts, in ms. A click sooner
  * than a person could have read the dialog is ignored — the same dwell browsers put on permission
- * prompts against clickjacking, and a guard against an automated click racing the render.
+ * prompts against clickjacking, and a guard against an automated click racing the render. Longer
+ * than the ~1 s render-to-confirm gap of the incident it was added for. The confirm button is
+ * rendered disabled and enabled when the dwell ends, so a person sees why an early click does nothing.
  */
-export const CONFIRM_DWELL_MS = 800;
+export const CONFIRM_DWELL_MS = 1500;
 
 const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-confirmation', appVersion: '1' };
 
@@ -119,7 +121,8 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
     ),
     renderDetailList(spec.details ?? []),
     warning,
-    renderActions(actions),
+    // Confirm starts disabled; the script enables it once the dwell has run out.
+    renderActions(actions.map((action) => (action.id === 'confirm' ? { ...action, disabled: true } : action))),
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
@@ -148,16 +151,41 @@ ${SURFACE_SCRIPT_PRELUDE}
   function now() {
     return typeof performance !== "undefined" && typeof performance.now === "function" ? performance.now() : Date.now();
   }
-  // When the dialog last became visible; null while hidden. A dialog that loads in a background tab
-  // has not been seen, so its dwell starts when it is shown, and restarts each time it is shown again.
-  var visibleSince = document.visibilityState === "hidden" ? null : now();
-  document.addEventListener("visibilitychange", function () {
-    visibleSince = document.visibilityState === "hidden" ? null : now();
-  });
-
   // Set while a call is in flight and for good once one settles the dialog. The disabled buttons
   // already block clicks in a browser; this makes the guarantee not depend on the DOM honoring that.
   var locked = false;
+
+  // When the dialog last became visible; null while hidden. A dialog that loads in a background tab
+  // has not been seen, so its dwell starts when it is shown, and restarts each time it is shown again.
+  var visibleSince = null;
+  var dwellTimer = null;
+  var confirmButton = document.querySelector('[data-mcpui-action="confirm"]');
+
+  function dwellDone() {
+    return visibleSince !== null && now() - visibleSince >= DWELL_MS;
+  }
+  // Confirm is enabled exactly when the dwell has run out and no call holds the dialog.
+  function syncConfirm() {
+    if (confirmButton !== null && !locked) confirmButton.disabled = !dwellDone();
+  }
+  // Re-checks rather than trusts the timer: setTimeout and now() are different clocks, and a timer
+  // that fired a hair early must not leave confirm disabled for good.
+  function onDwellTimer() {
+    dwellTimer = null;
+    if (visibleSince === null) return;
+    var left = DWELL_MS - (now() - visibleSince);
+    if (left > 0) dwellTimer = setTimeout(onDwellTimer, left);
+    else syncConfirm();
+  }
+  function onVisibilityChange() {
+    if (dwellTimer !== null) clearTimeout(dwellTimer);
+    dwellTimer = null;
+    visibleSince = document.visibilityState === "hidden" ? null : now();
+    syncConfirm();
+    if (visibleSince !== null) dwellTimer = setTimeout(onDwellTimer, DWELL_MS);
+  }
+  onVisibilityChange();
+  document.addEventListener("visibilitychange", onVisibilityChange);
 
   for (var i = 0; i < actionButtons.length; i++) {
     actionButtons[i].addEventListener("click", onClick);
@@ -171,7 +199,7 @@ ${SURFACE_SCRIPT_PRELUDE}
     var step = PLAN[action];
     if (step === undefined) return;
     // Cancel is exempt: backing out early is never the harm this guards against.
-    if (action === "confirm" && (visibleSince === null || now() - visibleSince < DWELL_MS)) return;
+    if (action === "confirm" && !dwellDone()) return;
     locked = true;
     if (step === null) {
       setBusy(true);
@@ -187,7 +215,10 @@ ${SURFACE_SCRIPT_PRELUDE}
     }, function (error) {
       // Re-enabled on failure (a rejected call did not happen, so the human must be able to retry
       // or cancel), unless the Host says this dialog is no longer pending -- see reportCallFailure.
-      if (reportCallFailure(error)) locked = false;
+      if (!reportCallFailure(error)) return;
+      locked = false;
+      // reportCallFailure re-enabled every button; confirm still waits out an unfinished dwell.
+      syncConfirm();
     });
   }
 }());`;

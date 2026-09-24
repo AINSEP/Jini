@@ -16,7 +16,7 @@
 import { act, render } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useMcpUiHost, type McpUiHostOptions, type McpUiHostEvent } from '../useMcpUiHost.js';
-import type { AppRendererProps } from '@mcp-ui/client';
+import { AppBridge, type AppRendererProps } from '@mcp-ui/client';
 
 const SANDBOX_URL = new URL('https://sandbox.example.test/sandbox_proxy.html');
 
@@ -164,6 +164,37 @@ describe('useMcpUiHost — onCallTool (rendererProps.onCallTool, the real functi
     await expect(current().rendererProps.onCallTool!({ name: 'content_post_delete', arguments: {} }, extra)).rejects.toThrow(
       'confirmation expired',
     );
+  });
+
+  it('reaches the View with the handler error’s data as the JSON-RPC error data, through the real AppBridge AppRenderer uses', async () => {
+    // The hop a dead dialog depends on: createMcpUiToolCaller puts the server's code on error.data,
+    // and only the MCP SDK's Protocol (not this hook) turns that into the wire error the View reads.
+    const onToolCall = vi.fn().mockRejectedValue(
+      Object.assign(new Error('that dialog is no longer waiting for an answer'), { data: { code: 'SURFACE_NOT_PENDING' } }),
+    );
+    const { current } = renderHarness({ html: '<p>hi</p>', sandboxProxyUrl: SANDBOX_URL, onToolCall });
+
+    const bridge = new AppBridge(null, { name: 'test-host', version: '1' }, {});
+    bridge.oncalltool = current().rendererProps.onCallTool!;
+    const sent: unknown[] = [];
+    const transport = {
+      onmessage: undefined as ((message: unknown) => void) | undefined,
+      start: async () => {},
+      close: async () => {},
+      send: async (message: unknown) => {
+        sent.push(message);
+      },
+    };
+    await bridge.connect(transport as unknown as Parameters<typeof bridge.connect>[0]);
+    transport.onmessage!({ jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'ask_choice', arguments: {} } });
+
+    await vi.waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({
+      jsonrpc: '2.0',
+      id: 7,
+      error: { code: -32603, message: 'that dialog is no longer waiting for an answer', data: { code: 'SURFACE_NOT_PENDING' } },
+    });
+    await bridge.close();
   });
 
   it('throws when no onToolCall handler is supplied, matching the old host refusing every tools/call', async () => {

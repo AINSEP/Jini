@@ -103,8 +103,70 @@ describe('renderConfirmationDocument', () => {
     expect(surface.api.requestTeardown).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the dwell at 800 ms', () => {
-    expect(CONFIRM_DWELL_MS).toBe(800);
+  it('keeps the dwell at 1500 ms, longer than the ~1 s render-to-confirm gap it was added for', () => {
+    expect(CONFIRM_DWELL_MS).toBe(1500);
+  });
+
+  it('renders the confirm button disabled, before any script runs', () => {
+    const raw = new DOMParser().parseFromString(renderConfirmationDocument(DELETE_POST), 'text/html');
+    expect(raw.querySelector<HTMLButtonElement>('button[data-mcpui-action="confirm"]')?.disabled).toBe(true);
+    expect(raw.querySelector<HTMLButtonElement>('button[data-mcpui-action="cancel"]')?.disabled).toBe(false);
+  });
+
+  it('enables confirm when the dwell ends, and leaves cancel usable throughout', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    expect(surface.disabledActions()).toEqual([true, false]);
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    expect(surface.disabledActions()).toEqual([true, false]);
+    vi.advanceTimersByTime(1);
+    expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
+  it('keeps confirm disabled while hidden, and disables it again when hidden after the dwell', () => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST), (doc) => {
+      Object.defineProperty(doc, 'visibilityState', { configurable: true, get: () => visibility });
+    });
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 5);
+    expect(surface.disabledActions()).toEqual([true, false]);
+
+    visibility = 'visible';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([false, false]);
+
+    visibility = 'hidden';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    expect(surface.disabledActions()).toEqual([true, false]);
+    visibility = 'visible';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    expect(surface.disabledActions()).toEqual([true, false]);
+    vi.advanceTimersByTime(1);
+    expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
+  it('does not let the dwell timer re-enable confirm while a cancel is in flight or after it expired', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    surface.trustedClick('cancel');
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([true, true]);
+
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 5);
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.disabledActions()).toEqual([true, true]);
+  });
+
+  it('keeps confirm disabled after a failed early cancel until the dwell has run out', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    surface.trustedClick('cancel');
+    await surface.settle('reject', new Error('upstream down'));
+    expect(surface.status()).toBe('Failed: upstream down');
+    expect(surface.disabledActions()).toEqual([true, false]);
+
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([false, false]);
   });
 
   it('sends nothing for a synthetic (untrusted) confirm click, however late it lands', () => {
@@ -137,7 +199,7 @@ describe('renderConfirmationDocument', () => {
 
     expect(surface.api.callTool).not.toHaveBeenCalled();
     expect(surface.status()).toBe('');
-    expect(surface.disabledActions()).toEqual([false, false]);
+    expect(surface.disabledActions()).toEqual([true, false]);
 
     vi.advanceTimersByTime(1);
     surface.trustedClick('confirm');
