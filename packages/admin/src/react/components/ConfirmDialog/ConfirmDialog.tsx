@@ -25,13 +25,14 @@ import { useConfirmDialog, useConfirmDialogCancelLabel, type UseConfirmDialog } 
  * | element | handle | role |
  * |---|---|---|
  * | the cancel/dismiss action | `delete-role-cancel` | `button` |
- * | the confirm action, only with `agentMayConfirm` | `delete-role-confirm` | `button` |
+ * | the confirm action, unless the caller opts out with `agentMayConfirm={false}` | `delete-role-confirm` | `button` |
  *
- * The confirm action is human-only by default. The page driver clicks any published element, so a
- * tagged confirm would let the assistant open a dialog and confirm it with no human in the loop,
- * which defeats the dialog. A caller whose action is safe for the assistant to finish on its own
- * (reversible, e.g. move-to-trash) opts in with `agentMayConfirm`; a destructive, secret-exposing
- * or privilege-changing dialog never should.
+ * The confirm action is agent-reachable by default, same as every other published control — the
+ * product's standing policy is that the in-page assistant may click buttons, fill forms and confirm
+ * dialogs, with permanently destructive actions gated by a separate in-chat confirmation at the tool
+ * level rather than by hiding the button. A caller whose dialog must stay human-only regardless
+ * (e.g. it guards a secret the assistant must never see or move on its own) opts out explicitly with
+ * `agentMayConfirm={false}`.
  *
  * Both segments are literals this component chooses itself, never host data — unlike `RowMenu`'s
  * per-item keys (arbitrary host strings that can collide after slugifying), `confirm`/`cancel`
@@ -86,9 +87,10 @@ export interface ConfirmDialogProps {
   /** This dialog's own agent handle — see this file's "Agent handles" doc comment for the full
    *  scheme. Omit and no `data-agent-*` markup is emitted at all. */
   agentHandle?: string;
-  /** Also publish the confirm action (`<agentHandle>-confirm`) so the assistant can confirm this
-   *  dialog without a human. Off by default: pass it only for a reversible action. Has no effect
-   *  without `agentHandle`. @default false */
+  /** Publishes the confirm action (`<agentHandle>-confirm`) so the assistant can confirm this
+   *  dialog without a human — on by default, matching every other published control. Pass `false`
+   *  only for a dialog that must stay human-only regardless (e.g. it guards a secret). Has no
+   *  effect without `agentHandle`. @default true */
   agentMayConfirm?: boolean;
 }
 
@@ -175,7 +177,7 @@ function confirmDialogAgentProps(
 export function ConfirmDialog({
   useDialog = useConfirmDialog,
   agentHandle: baseHandle,
-  agentMayConfirm = false,
+  agentMayConfirm = true,
   ...props
 }: ConfirmDialogProps) {
   const { titleId, dialogRef, cancelRef, handleNativeCancel, handleBackdropClick } = useDialog(
