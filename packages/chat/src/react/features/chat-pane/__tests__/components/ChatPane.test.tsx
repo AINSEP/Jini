@@ -79,6 +79,22 @@ describe('ChatPane', () => {
     await waitFor(() => expect(activities).toContain('ready'));
   });
 
+  it('resolves placeholders to a single composer placeholder, taking over from placeholder', () => {
+    // Wiring only — `useChatPaneComposerPlaceholder.test.tsx` owns the rotation/reduced-motion
+    // behavior itself. This just proves `ChatPane` actually threads `placeholders` through.
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        placeholder="Ask Jini…"
+        placeholders={['Summarize this repo', 'Fix the failing test']}
+      />,
+    );
+    expect(screen.getByPlaceholderText('Summarize this repo')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Ask Jini…')).toBeNull();
+  });
+
   it('supports controlled selection, static context, cancellation, reset, and host slots', async () => {
     const transport = createFakeChatTransport();
     const onSelectionChange = vi.fn();
@@ -416,6 +432,30 @@ describe('ChatPane', () => {
       />,
     );
     expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * Regression coverage for the gap `useChatPaneAgentControl.hooks.ts`'s own `webmcp` option
+   * already documented but `ChatPane` never actually wired: `agentControl.webmcp` used to be
+   * dropped on the floor here (only `enabled`/`bridgeAccess` were forwarded), so no host could ever
+   * reach the hook's WebMCP branch through the public component, regardless of what it passed.
+   */
+  it('registers this pane\'s own tools with document.modelContext when agentControl.webmcp is true', () => {
+    const registerTool = vi.fn();
+    Object.defineProperty(globalThis.document, 'modelContext', {
+      configurable: true,
+      writable: true,
+      value: { registerTool, unregisterTool: vi.fn() },
+    });
+    try {
+      const transport = createFakeChatTransport();
+      render(
+        <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
+      );
+      expect(registerTool).toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(globalThis.document as unknown as Record<string, unknown>, 'modelContext');
+    }
   });
 
   it('delegates an explicit rescan to runtimeAccess and reflects the refreshed inventory', async () => {

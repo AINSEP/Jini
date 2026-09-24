@@ -102,6 +102,13 @@ export interface ChatPaneAgentControlOptions {
   enabled?: boolean;
   /** Wires the daemon-relayed transports (HTTP route table, MCP stdio server) in addition to in-page WebMCP. */
   bridgeAccess?: ChatPaneAgentBridgeAccess;
+  /**
+   * Registers this pane's own actions with the in-page WebMCP surface (`document.modelContext`).
+   * Defaults to `false`; forwarded verbatim to `useChatPaneAgentControl`'s own `webmcp` option — see
+   * that hook's doc for why the default is a security position, not caution, and kept separate from
+   * `enabled`/`bridgeAccess` rather than implied by them.
+   */
+  webmcp?: boolean;
 }
 
 export interface ChatPaneRunContextInput {

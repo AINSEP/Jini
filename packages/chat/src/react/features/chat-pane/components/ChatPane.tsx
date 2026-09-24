@@ -569,6 +569,7 @@ export function ChatPane({
   useChatPaneAgentControl(pane, definedProps({
     enabled: agentControl?.enabled ?? false,
     bridgeAccess: agentControl?.bridgeAccess,
+    webmcp: agentControl?.webmcp,
   }));
   // Selection resolution only returns available agents, so absence normally means nothing usable
   // is selected — except a configured BYOK turn (`apiModeConfigured`, computed above), which calls
