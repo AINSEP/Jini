@@ -182,6 +182,28 @@ describe('run()', () => {
     await runB;
   });
 
+  // A late human click must not run an action the model already gave up on: when the MCP client
+  // cancels a call (`notifications/cancelled`, or its own per-tool timeout), the SDK aborts the
+  // request's `extra.signal`. That signal has to reach the handler so the daemon request drops and
+  // the daemon expires the pending dialog.
+  it('hands each tool call the SDK request signal on its context', async () => {
+    const server = makeFakeServer();
+    const transport = new FakeTransport();
+    let seenSignal: AbortSignal | undefined;
+    const handle = createMcpToolServer(baseOptions({
+      tools: [noopTool({ handler: (_args, ctx) => { seenSignal = ctx.signal; return 'ok'; } })],
+      createServer: () => server,
+      createTransport: () => transport,
+    }));
+    const runPromise = handle.run();
+    await flushAsync();
+    const controller = new AbortController();
+    await server.handlers.get(CallToolRequestSchema)!({ params: { name: 'noop', arguments: {} } }, { signal: controller.signal });
+    expect(seenSignal).toBe(controller.signal);
+    hoisted.onIdleRef.current?.();
+    await runPromise;
+  });
+
   it('resolves a sync resolveBaseUrl and strips a trailing slash before building tool context', async () => {
     const server = makeFakeServer();
     const transport = new FakeTransport();

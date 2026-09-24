@@ -4905,7 +4905,7 @@ describe('buildCodexMcpServerToml', () => {
   // `codex mcp list` against a scratch CODEX_HOME and reading back the exact TOML it wrote.
   it('emits the [mcp_servers.jini] table plus a nested .env table', () => {
     expect(buildCodexMcpServerToml(entry)).toBe(
-      '[mcp_servers.jini]\ncommand = "jini-mcp"\nargs = ["--quiet"]\n\n[mcp_servers.jini.env]\nJINI_RUN_ID = "run-1"\nJINI_DAEMON_URL = "http://d"\n',
+      '[mcp_servers.jini]\ncommand = "jini-mcp"\nargs = ["--quiet"]\ntool_timeout_sec = 400\n\n[mcp_servers.jini.env]\nJINI_RUN_ID = "run-1"\nJINI_DAEMON_URL = "http://d"\n',
     );
   });
 
@@ -4914,7 +4914,16 @@ describe('buildCodexMcpServerToml', () => {
   // below constructs that state directly to exercise this function's own defensive branch.
   it('omits the .env table entirely when the entry carries no env vars', () => {
     const noEnv = { ...entry, env: {} } as typeof entry;
-    expect(buildCodexMcpServerToml(noEnv)).toBe('[mcp_servers.jini]\ncommand = "jini-mcp"\nargs = ["--quiet"]\n');
+    expect(buildCodexMcpServerToml(noEnv)).toBe('[mcp_servers.jini]\ncommand = "jini-mcp"\nargs = ["--quiet"]\ntool_timeout_sec = 400\n');
+  });
+
+  // Codex's own per-tool default is 60 s. A delegated call parked on a human dialog outlives
+  // that, and Codex then abandons it while the dialog stays answerable. The CLI's deadline must
+  // outlast the bridge's own delegated-call deadline, so the bridge (which drops the daemon request
+  // and so expires the dialog) always gives up first.
+  it('sets tool_timeout_sec past the delegated-call deadline the bridge will use', () => {
+    // 400 s = the bridge's 6 min DEFAULT_DELEGATED_TOOL_TIMEOUT_MS + 40 s.
+    expect(buildCodexMcpServerToml(entry)).toContain('\ntool_timeout_sec = 400\n');
   });
 
   it('serialises multiple argv tokens as a comma-separated TOML array', () => {

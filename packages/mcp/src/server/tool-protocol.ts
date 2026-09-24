@@ -63,6 +63,14 @@ export interface McpToolContext {
    * Read it via {@link daemonCallOptions} rather than by hand — see that function's doc.
    */
   readonly authHeaders?: Readonly<Record<string, string>>;
+  /**
+   * The MCP request's cancellation signal (the SDK's `extra.signal`), set per tool call. It fires
+   * when the client cancels the call (`notifications/cancelled`, including its own per-tool
+   * timeout). Forwarded to every daemon request by {@link daemonCallOptions}, so an abandoned call
+   * drops its HTTP request and the daemon aborts the tool, which expires any dialog it holds open.
+   * Without it, a human could answer that dialog after the model was told the call failed.
+   */
+  readonly signal?: AbortSignal;
 }
 
 /**
@@ -79,10 +87,11 @@ export interface McpToolContext {
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function daemonCallOptions(ctx: McpToolContext): { fetchImpl: typeof fetch; headers?: Record<string, string> } {
+export function daemonCallOptions(ctx: McpToolContext): { fetchImpl: typeof fetch; headers?: Record<string, string>; signal?: AbortSignal } {
   return {
     fetchImpl: ctx.fetchImpl,
     ...(ctx.authHeaders !== undefined ? { headers: { ...ctx.authHeaders } } : {}),
+    ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
   };
 }
 

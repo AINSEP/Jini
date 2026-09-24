@@ -129,6 +129,11 @@ describe('daemonCallOptions', () => {
     ).toEqual({ fetchImpl, headers: { Authorization: 'Bearer x' } });
   });
 
+  it('passes through the request cancellation signal when present', () => {
+    const signal = new AbortController().signal;
+    expect(daemonCallOptions({ baseUrl: 'http://d.example', fetchImpl, signal })).toEqual({ fetchImpl, signal });
+  });
+
   // Copied, not aliased: a handler mutating its own options object must not corrupt the shared
   // per-process context every later tool call reads from.
   it('copies the header map rather than aliasing the context', () => {

@@ -64,6 +64,15 @@ describe('createExecuteDelegatedToolTool', () => {
     expect(options.timeoutMs).toBeGreaterThan(15_000);
   });
 
+  it('forwards the MCP request cancel signal, so an abandoned call drops the daemon request and expires its dialog', async () => {
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const signal = new AbortController().signal;
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+    await tool.handler({ toolId: 't1' }, { ...ctx, signal });
+    const options = (postDaemonJson.mock.calls[0] as unknown[])[3] as { signal?: AbortSignal };
+    expect(options.signal).toBe(signal);
+  });
+
   it('generates a fresh toolUseId per call via the default randomUUID generator when none is injected', async () => {
     postDaemonJson.mockResolvedValue({ result: { executionId: 'e1', status: 'completed' } });
     const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });

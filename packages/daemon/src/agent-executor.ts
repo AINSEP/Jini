@@ -1277,6 +1277,17 @@ function tomlString(value: string): string {
 }
 
 /**
+ * Codex's per-tool deadline for the Jini bridge, in seconds: `@jini-ai/mcp`'s
+ * `DEFAULT_DELEGATED_TOOL_TIMEOUT_MS` (6 min, mirrored because this package does not depend on
+ * that one) plus 40 s. Codex's own default (60 s) is shorter than a delegated call parked on a
+ * human dialog, and when Codex abandons a call the dialog stayed answerable, so a late click ran
+ * an action the model had been told failed. Outlasting the bridge's deadline means the bridge
+ * times out first, drops its daemon request, and the daemon expires the dialog. Codex does not
+ * pass the parent env through to MCP servers, so the bridge under Codex always runs at its default.
+ */
+const CODEX_TOOL_TIMEOUT_SEC = 6 * 60 + 40;
+
+/**
  * Mechanism 5 of 5 — `'codex-toml'`'s serialization step. Builds the `[mcp_servers.jini]` TOML
  * table (plus, when the entry carries any env vars, a separate `[mcp_servers.jini.env]` table)
  * Codex's own config schema expects.
@@ -1292,7 +1303,9 @@ function tomlString(value: string): string {
  */
 export function buildCodexMcpServerToml(entry: McpJsonServerEntry): string {
   const argsLiteral = entry.args.map(tomlString).join(', ');
-  const serverTable = `[mcp_servers.${JINI_MCP_SERVER_KEY}]\ncommand = ${tomlString(entry.command)}\nargs = [${argsLiteral}]\n`;
+  const serverTable =
+    `[mcp_servers.${JINI_MCP_SERVER_KEY}]\ncommand = ${tomlString(entry.command)}\nargs = [${argsLiteral}]\n` +
+    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n`;
   const envLines = Object.entries(entry.env)
     .filter((pair): pair is [string, string] => typeof pair[1] === 'string')
     .map(([key, value]) => `${key} = ${tomlString(value)}`);

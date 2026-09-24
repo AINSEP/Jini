@@ -61,7 +61,10 @@ export interface McpServerLike {
   setRequestHandler(schema: typeof ListToolsRequestSchema, handler: () => Promise<ListToolsResult>): void;
   setRequestHandler(
     schema: typeof CallToolRequestSchema,
-    handler: (request: { params: { name: string; arguments?: Record<string, unknown> } }) => Promise<CallToolResult>,
+    handler: (
+      request: { params: { name: string; arguments?: Record<string, unknown> } },
+      extra?: { signal?: AbortSignal },
+    ) => Promise<CallToolResult>,
   ): void;
   setRequestHandler(schema: typeof ListResourcesRequestSchema, handler: () => Promise<ListResourcesResult>): void;
   setRequestHandler(
@@ -175,7 +178,8 @@ export function createMcpToolServer(options: McpToolServerOptions): McpToolServe
 
       server.setRequestHandler(
         CallToolRequestSchema,
-        withActivity(async (request) => handleToolCall(request.params.name, request.params.arguments, toolIndex, ctx)),
+        withActivity(async (request, extra) =>
+          handleToolCall(request.params.name, request.params.arguments, toolIndex, extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx)),
       );
 
       if (resources.length > 0) {
