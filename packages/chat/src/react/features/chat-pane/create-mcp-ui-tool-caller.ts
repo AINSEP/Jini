@@ -70,6 +70,20 @@ function errorTextFrom(body: unknown, status: number): string {
 }
 
 /**
+ * The rejection for a non-2xx response. A string `code` in the body rides along as `error.data`,
+ * which the MCP SDK relays to the View as the JSON-RPC error's `data` — how a dialog learns it is
+ * no longer pending (`SURFACE_NOT_PENDING`) and should stay disabled rather than invite a retry.
+ */
+function errorFrom(body: unknown, status: number): Error {
+  const error: Error & { data?: { code: string } } = new Error(errorTextFrom(body, status));
+  if (typeof body === 'object' && body !== null) {
+    const code = (body as Record<string, unknown>)['code'];
+    if (typeof code === 'string' && code.length > 0) error.data = { code };
+  }
+  return error;
+}
+
+/**
  * Builds an {@link McpUiToolCallHandler} that POSTs `{toolName, params}` and returns the parsed
  * response.
  *
@@ -121,7 +135,7 @@ export function createMcpUiToolCaller(
         }
       }
 
-      if (!response.ok) throw new Error(errorTextFrom(parsed, response.status));
+      if (!response.ok) throw errorFrom(parsed, response.status);
       return parsed;
     } catch (error) {
       if (error instanceof Error && error.name === 'AbortError') {

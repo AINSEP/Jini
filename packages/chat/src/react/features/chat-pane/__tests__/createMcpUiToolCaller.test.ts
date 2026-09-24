@@ -137,6 +137,24 @@ describe('createMcpUiToolCaller', () => {
     );
   });
 
+  it('keeps the server\'s machine code as error.data, which the host relays to the View as JSON-RPC error data', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(
+      jsonResponse({ error: 'that dialog is no longer waiting for an answer', code: 'SURFACE_NOT_PENDING' }, 409),
+    );
+
+    const failure = await Promise.resolve(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe('that dialog is no longer waiting for an answer');
+    expect((failure as Error & { data?: unknown }).data).toEqual({ code: 'SURFACE_NOT_PENDING' });
+  });
+
+  it('sets no error.data when the rejection body names no code', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ error: 'Not authorized' }, 403));
+    const failure = await Promise.resolve(createMcpUiToolCaller('')({ name: 'x', arguments: {} })).catch((error: unknown) => error);
+    expect((failure as Error).message).toBe('Not authorized');
+    expect(failure).not.toHaveProperty('data');
+  });
+
   it('also accepts a bare {message} envelope', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue(jsonResponse({ message: 'Not authorized' }, 403));
 
