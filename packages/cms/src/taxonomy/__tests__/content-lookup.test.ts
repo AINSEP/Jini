@@ -4,6 +4,7 @@ import { test } from "vitest";
 import {
   createEntryBackedContentLookup,
   createContentLookup,
+  createPostBackedContentLookup,
   type EntryRecordLookupPort,
 } from "../content-lookup.js";
 import type { ContentRecordLookupPort } from "../content-lookup.js";
@@ -81,4 +82,45 @@ test("createContentLookup: routes every non-post/page contentType to the entry r
   const resolved = await lookup.resolve({ contentType: "recipes", contentId: "entry-1" });
   assert.deepEqual(resolved, { workspaceId: "ws-1", kind: "recipes" });
   assert.equal(postCalls, 0);
+});
+
+// ---------------------------------------------------------------------------
+// S10 (web-high fix plan, 2026-09-24) — row 63: taxonomy assign/unassign must refuse a trashed
+// post/page instead of silently joining terms to it.
+// ---------------------------------------------------------------------------
+
+test("createPostBackedContentLookup: a post with deletedAt set rejects with ENTITY_IN_TRASH instead of resolving", async () => {
+  const lookup = createPostBackedContentLookup({
+    postRepo: {
+      async findById() {
+        return { workspaceId: "w", kind: "post", deletedAt: "2026-09-24T00:00:00.000Z" };
+      },
+    },
+    workspaceId: "w",
+  });
+
+  await assert.rejects(
+    () => lookup.resolve({ contentType: "post", contentId: "p1" }),
+    (err: unknown) => {
+      assert.equal(
+        (err as Error).message,
+        "ENTITY_IN_TRASH: post 'p1' is in the Trash. Restore it from the Trash before changing it."
+      );
+      return true;
+    }
+  );
+});
+
+test("createPostBackedContentLookup: a live post (no deletedAt) still resolves normally", async () => {
+  const lookup = createPostBackedContentLookup({
+    postRepo: {
+      async findById() {
+        return { workspaceId: "w", kind: "post" };
+      },
+    },
+    workspaceId: "w",
+  });
+
+  const resolved = await lookup.resolve({ contentType: "post", contentId: "p1" });
+  assert.deepEqual(resolved, { workspaceId: "w", kind: "post" });
 });

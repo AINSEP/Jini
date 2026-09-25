@@ -1,3 +1,4 @@
+import { assertEntityLive } from "../core/entity-liveness.js";
 import type { ContentLookupPort } from "./write-service.js";
 import { isContentTypeOnAllowList } from "./write-service.js";
 
@@ -33,9 +34,16 @@ import { isContentTypeOnAllowList } from "./write-service.js";
  * structurally — returning extra fields is always assignable — so implementing it costs nothing.
  */
 export interface ContentRecordLookupPort {
-  findById(required: { workspaceId: string; id: string }): Promise<{ workspaceId: string; kind: string } | null>;
+  findById(
+    required: { workspaceId: string; id: string }
+  ): Promise<{ workspaceId: string; kind: string; deletedAt?: string | null } | null>;
 }
 
+/**
+ * Row 63 (web-high fix plan, 2026-09-24): a trashed post/page must refuse a term assign/unassign,
+ * not silently accept one — `assertEntityLive` throws `EntityNotLiveError` the moment `deletedAt`
+ * is set, before this ever returns a resolvable target to `write-service.ts`'s join guards.
+ */
 export function createPostBackedContentLookup(deps: {
   postRepo: ContentRecordLookupPort;
   workspaceId: string;
@@ -43,7 +51,9 @@ export function createPostBackedContentLookup(deps: {
   return {
     async resolve({ contentId }) {
       const post = await deps.postRepo.findById({ workspaceId: deps.workspaceId, id: contentId });
-      return post ? { workspaceId: post.workspaceId, kind: post.kind } : null;
+      if (!post) return null;
+      if (post.deletedAt) assertEntityLive({ entityType: post.kind, entityId: contentId, state: "trashed" });
+      return { workspaceId: post.workspaceId, kind: post.kind };
     },
   };
 }
