@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import {
+  ContentTypeAlreadyExistsError,
   InvalidFieldKindError,
   InvalidFieldNameGrammarError,
   InvalidKeyGrammarError,
   QueryableFieldCapExceededError,
   ReservedContentTypeKeyError,
 } from "../errors.js";
+import { deprecateContentType, tombstoneContentType } from "../lifecycle.js";
+import type { ContentTypeRecord } from "../types.js";
 import { registerContentType } from "../write-service.js";
 
 /**
@@ -213,4 +216,100 @@ test("two fields with the same name are rejected with VALIDATION_ERROR(fields_du
     assert.deepEqual((result.error as { details?: unknown }).details, { reason: "fields_duplicate_name" });
   }
   assert.equal(repo.rows.length, 0);
+});
+
+// ---------------------------------------------------------------------------
+// S9 (web-high fix plan, 2026-09-24) — row 7 (define overwrites/resurrects) + row 15's sibling.
+// `fakeRepo()` above always returns `null` from `findByKey`, so these tests need a stateful repo
+// where a real `save` is visible to a later `findByKey` — same pattern as
+// `write-service.update-fields.test.ts`'s `fakeRepo(seed)` and `lifecycle.test.ts`'s.
+// ---------------------------------------------------------------------------
+
+function statefulFakeRepo() {
+  let stored: ContentTypeRecord | null = null;
+  const revisions: unknown[] = [];
+  return {
+    getStored: () => stored as ContentTypeRecord,
+    revisions,
+    save: async (row: ContentTypeRecord) => {
+      stored = row;
+    },
+    appendRevision: async (rev: unknown) => {
+      revisions.push(rev);
+    },
+    findByKey: async () => stored,
+    transaction: async <T>(fn: () => Promise<T>) => fn(),
+  };
+}
+
+test("S9/row 7: registering the same key twice is rejected with ContentTypeAlreadyExistsError, and the stored fields/version are still the FIRST call's", async () => {
+  const repo = statefulFakeRepo();
+  const deps = { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: fakeIndexProvisioner(), outbox };
+
+  const first = await registerContentType({
+    deps,
+    input: { workspaceId: "ws-1", actorId: "user-1", key: "recipe", label: "Recipe", fields: validFields() },
+  });
+  assert.equal(first.ok, true);
+
+  const second = await registerContentType({
+    deps,
+    input: {
+      workspaceId: "ws-1",
+      actorId: "user-1",
+      key: "recipe",
+      label: "Recipe v2",
+      fields: [{ name: "other", kind: "text", required: false, queryable: false }],
+    },
+  });
+
+  assert.equal(second.ok, false);
+  if (!second.ok) {
+    assert.ok(second.error instanceof ContentTypeAlreadyExistsError);
+    assert.equal(
+      second.error.message,
+      "content type 'recipe' already exists; use collections_content_type_update_fields to change its fields"
+    );
+  }
+  assert.equal(repo.getStored().version, 1);
+  assert.deepEqual(repo.getStored().fields, validFields());
+});
+
+test("S9/row 15's sibling: registering a key that was tombstoned is rejected naming INV-06, and the row's status stays 'tombstone'", async () => {
+  const repo = statefulFakeRepo();
+  const deps = { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: fakeIndexProvisioner(), outbox };
+
+  const registered = await registerContentType({
+    deps,
+    input: { workspaceId: "ws-1", actorId: "user-1", key: "recipe", label: "Recipe", fields: validFields() },
+  });
+  assert.equal(registered.ok, true);
+
+  const deprecated = await deprecateContentType({
+    deps: { repo, clock, authorize: alwaysAllow, outbox },
+    input: { workspaceId: "ws-1", actorId: "user-1", key: "recipe", expectedVersion: 1 },
+  });
+  assert.equal(deprecated.ok, true);
+
+  const tearDownAllIndexesForContentType = async () => undefined;
+  const tombstoned = await tombstoneContentType({
+    deps: { repo, clock, authorize: alwaysAllow, outbox, indexProvisioner: { tearDownAllIndexesForContentType } },
+    input: { workspaceId: "ws-1", actorId: "user-1", key: "recipe", expectedVersion: 2 },
+  });
+  assert.equal(tombstoned.ok, true);
+
+  const reRegistered = await registerContentType({
+    deps,
+    input: { workspaceId: "ws-1", actorId: "user-1", key: "recipe", label: "Recipe again", fields: validFields() },
+  });
+
+  assert.equal(reRegistered.ok, false);
+  if (!reRegistered.ok) {
+    assert.ok(reRegistered.error instanceof ContentTypeAlreadyExistsError);
+    assert.equal(
+      reRegistered.error.message,
+      "content type 'recipe' was permanently deleted; its key can't be reused (INV-06)"
+    );
+  }
+  assert.equal(repo.getStored().status, "tombstone");
 });

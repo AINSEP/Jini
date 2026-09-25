@@ -123,6 +123,29 @@ export class ContentTypeNotFoundError extends Error {
   }
 }
 
+/**
+ * Row 7 (web-high fix plan, 2026-09-24) — `registerContentType` loaded no existing row before
+ * saving, so two concurrent first-widget creates (or a caller retrying an existing key) could
+ * silently overwrite the current fields, and registering a tombstoned key could resurrect it
+ * (INV-06 forbids any transition out of tombstone, including via a fresh register). Thrown when
+ * `deps.repo.findByKey` already returns a row for the key, whether that row is active/deprecated
+ * or tombstoned — `tombstoned` distinguishes the two so a caller/HTTP route can give the right
+ * guidance (retry with update-fields, vs. the key is permanently gone).
+ */
+export class ContentTypeAlreadyExistsError extends Error {
+  readonly tombstoned: boolean;
+
+  constructor(key: string, tombstoned: boolean) {
+    super(
+      tombstoned
+        ? `content type '${key}' was permanently deleted; its key can't be reused (INV-06)`
+        : `content type '${key}' already exists; use collections_content_type_update_fields to change its fields`
+    );
+    this.name = "ContentTypeAlreadyExistsError";
+    this.tombstoned = tombstoned;
+  }
+}
+
 /** A generic validation rejection carrying a stable machine-readable `details.reason`. */
 export class ValidationError extends Error {
   readonly code = "VALIDATION_ERROR" as const;

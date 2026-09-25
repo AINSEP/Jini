@@ -1,5 +1,7 @@
+import { EntityNotLiveError } from "../core/entity-liveness.js";
 import type { ClockPort } from "../core/ports.js";
 import {
+  ContentTypeAlreadyExistsError,
   ContentTypeNotFoundError,
   ForbiddenError,
   InvalidFieldKindError,
@@ -231,6 +233,13 @@ export async function registerContentType(
     return { ok: false, error: new QueryableFieldCapExceededError(`content type '${input.key}' submits more than ${QUERYABLE_FIELD_CAP} queryable fields`) };
   }
 
+  // Row 7 — a pre-check outside the transaction. Not race-safe by itself (that's the in-tx check
+  // below), but it avoids opening a transaction for the overwhelmingly common not-found case.
+  const existingBeforeTx = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.key });
+  if (existingBeforeTx) {
+    return { ok: false, error: new ContentTypeAlreadyExistsError(input.key, existingBeforeTx.status === "tombstone") };
+  }
+
   const now = deps.clock.nowIso();
   const contentType: ContentTypeRecord = {
     workspaceId: input.workspaceId,
@@ -242,22 +251,35 @@ export async function registerContentType(
     tombstonedAt: null,
   };
 
-  await deps.repo.transaction(async () => {
-    await deps.repo.save(contentType);
-    await deps.repo.appendRevision({
-      contentTypeKey: input.key,
-      workspaceId: input.workspaceId,
-      op: "register",
-      stateJson: contentType,
-      actorId: input.actorId,
-      principalKind: input.principalKind ?? null,
-      delegatedByWorkspaceId: input.delegatedByWorkspaceId ?? null,
-      delegatedById: input.delegatedById ?? null,
-      recordedAt: now,
+  try {
+    await deps.repo.transaction(async () => {
+      // The check that actually closes the race: two concurrent first-widget creates both see the
+      // pre-check above return null, but only one of them can win this in-tx re-check before save.
+      const existingInTx = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.key });
+      if (existingInTx) {
+        throw new ContentTypeAlreadyExistsError(input.key, existingInTx.status === "tombstone");
+      }
+      await deps.repo.save(contentType);
+      await deps.repo.appendRevision({
+        contentTypeKey: input.key,
+        workspaceId: input.workspaceId,
+        op: "register",
+        stateJson: contentType,
+        actorId: input.actorId,
+        principalKind: input.principalKind ?? null,
+        delegatedByWorkspaceId: input.delegatedByWorkspaceId ?? null,
+        delegatedById: input.delegatedById ?? null,
+        recordedAt: now,
+      });
+      if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
     });
-    if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
-  });
+  } catch (err) {
+    if (err instanceof ContentTypeAlreadyExistsError) return { ok: false, error: err };
+    throw err;
+  }
 
+  // Index provisioning runs only once the transaction has committed a new row — never on the
+  // already-exists path above.
   await deps.indexProvisioner.provisionIndexesForNewContentType({
     workspaceId: input.workspaceId,
     contentTypeKey: input.key,
@@ -303,6 +325,12 @@ export async function updateContentTypeFields(
   const current = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.key });
   if (!current) {
     return { ok: false, error: new ContentTypeNotFoundError(`content type '${input.key}' was not found in workspace '${input.workspaceId}'`) };
+  }
+  // Row 15's sibling — a tombstoned type is terminal (INV-06); this check runs before the version
+  // check so a stale-version update against a tombstoned row still reports "tombstoned", not
+  // "version conflict" (the tombstone tore down every queryable index, so the schema is moot).
+  if (current.status === "tombstone") {
+    return { ok: false, error: new EntityNotLiveError("content type", input.key, "tombstoned") };
   }
 
   // U-004-B1: expectedVersion checked FIRST — before fields_empty, before any per-field guard.

@@ -60,6 +60,7 @@ export {
   QueryableFieldCapExceededError,
   VersionConflictError,
   ContentTypeNotFoundError,
+  ContentTypeAlreadyExistsError,
   ValidationError,
   ContentTypeLifecycleError,
   CleanupNotEligibleError,
