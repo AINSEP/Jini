@@ -9,6 +9,7 @@
  * inline. Every handler here does the same via the kit's `requireToolPermission`, which is the
  * single evaluation for these tools, located where the real route locates it.
  */
+import { ToolInputError } from "@jini-ai/core";
 import type { AuthorizeFn } from "../core/commands/command.js";
 import type { OutboxPort } from "../core/ports.js";
 import {
@@ -127,6 +128,9 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
     menus_create_menu: async (ctx) => {
       const input = requireInputRecord(ctx.input);
       await requireToolPermission(routeDeps, { principalId: ctx.principal.id, permission: "admin.menus.create", entityType: "menu" });
+      if (input.items !== undefined && !Array.isArray(input.items)) {
+        throw new ToolInputError("'items' must be an array of nav items");
+      }
       return withSchemaOnRejection({ toolId: "menus_create_menu", catalog: CATALOG_BY_ID, isShapeRejection: isMenusShapeRejection }, async () => {
         const { menu } = await createMenu({
           deps: menusDeps(routeDeps),
