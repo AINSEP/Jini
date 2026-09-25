@@ -935,3 +935,44 @@ test("C-007: deleteMenu's trash step enqueues navigation.menu.updated; a purge e
   assert.equal(enqueued[0]!.name, "navigation.menu.deleted");
   assert.deepEqual(enqueued[0]!.payload, { menuId: menu.id, slug: "primary-nav" });
 });
+
+// ---------------------------------------------------------------------------
+// updateMenuTree on a trashed menu (web-high fix plan follow-up, 2026-09-24)
+// ---------------------------------------------------------------------------
+
+test("updateMenuTree refuses a trashed menu with ENTITY_IN_TRASH and leaves it unchanged", async () => {
+  const repo = new InMemoryMenuRepo();
+  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+  const { menu: trashed } = await deleteMenu({
+    deps: { repo, bindingRepo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", id: menu.id },
+  });
+  assert.equal(trashed?.status, "trash");
+
+  await assert.rejects(
+    () =>
+      updateMenuTree({
+        deps: { repo, clock, idGen, outbox },
+        input: { workspaceId: "ws-1", id: menu.id, expectedVersion: trashed!.version, items: [item({ id: "item-1" })] },
+      }),
+    (err: unknown) => {
+      assert.equal(
+        (err as Error).message,
+        `ENTITY_IN_TRASH: menu '${menu.id}' is in the Trash. Restore it from the Trash before changing it.`
+      );
+      return true;
+    }
+  );
+
+  const after = await repo.findById({ workspaceId: "ws-1", id: menu.id });
+  assert.equal(after?.version, trashed!.version);
+  assert.equal(after?.doc.items.length, 0);
+});

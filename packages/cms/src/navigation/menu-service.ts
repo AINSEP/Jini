@@ -22,6 +22,7 @@
  * Feature logic only. No Express/route code, no direct SQL — everything goes
  * through the injected repo ports (`deps`).
  */
+import { assertEntityLive } from "../core/entity-liveness.js";
 import type { ClockPort, DomainEvent, IdGeneratorPort, OutboxPort, UUID } from "../core/ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
@@ -436,6 +437,7 @@ export async function updateMenuTree(
   const { deps, input } = required;
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new MenuNotFoundError(`menu '${input.id}' was not found`);
+  assertEntityLive({ entityType: "menu", entityId: input.id, state: existing.status === "trash" ? "trashed" : "live" });
 
   if (existing.version !== input.expectedVersion) {
     throw new MenuConflictError(
