@@ -313,3 +313,35 @@ test("S9/row 15's sibling: registering a key that was tombstoned is rejected nam
   }
   assert.equal(repo.getStored().status, "tombstone");
 });
+
+test("S9/row 7: the in-transaction re-check closes the race — a row saved between the pre-check and the transaction is refused, with no save and no index provisioning", async () => {
+  // Simulates two concurrent first creates: the pre-check sees nothing, then the winner commits
+  // before this call's transaction opens, so only the in-transaction `findByKey` can see it.
+  const winner = { status: "active" } as ContentTypeRecord;
+  let findByKeyCalls = 0;
+  const saves: ContentTypeRecord[] = [];
+  const repo = {
+    save: async (row: ContentTypeRecord) => { saves.push(row); },
+    appendRevision: async () => undefined,
+    findByKey: async () => (++findByKeyCalls === 1 ? null : winner),
+    transaction: async <T>(fn: () => Promise<T>) => fn(),
+  };
+  const indexProvisioner = fakeIndexProvisioner();
+
+  const result = await registerContentType({
+    deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner, outbox },
+    input: { workspaceId: "ws-1", actorId: "user-1", key: "recipe", label: "Recipe", fields: validFields() },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.ok(result.error instanceof ContentTypeAlreadyExistsError);
+    assert.equal(
+      result.error.message,
+      "content type 'recipe' already exists; use collections_content_type_update_fields to change its fields"
+    );
+  }
+  assert.equal(findByKeyCalls, 2);
+  assert.equal(saves.length, 0, "the loser must not overwrite the winner's row");
+  assert.equal(indexProvisioner.calls.length, 0, "provisioning must not run on refusal");
+});
