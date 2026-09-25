@@ -52,6 +52,7 @@
  */
 import { createHash } from "node:crypto";
 
+import { assertEntityLive } from "../core/entity-liveness.js";
 import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
 import {
   MediaConflictError,
@@ -633,6 +634,7 @@ export async function updateMediaMetadata(
   const { deps, input } = required;
   const existing = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new MediaNotFoundError(`media '${input.id}' was not found`);
+  assertEntityLive({ entityType: "media", entityId: input.id, state: existing.status === "trashed" ? "trashed" : "live" });
 
   if (input.width !== undefined && input.width !== null) assertPositiveIntegerOrThrow(input.width, "width");
   if (input.height !== undefined && input.height !== null) assertPositiveIntegerOrThrow(input.height, "height");

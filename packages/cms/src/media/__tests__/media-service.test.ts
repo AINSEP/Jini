@@ -816,3 +816,38 @@ test("isValidMediaSlugFormat — exported so hosts can decide whether a stored v
     assert.equal(isValidMediaSlugFormat(slug), false, `expected ${JSON.stringify(slug)} to be invalid`);
   }
 });
+
+// ---------------------------------------------------------------------------
+// S8 (web-high fix plan, 2026-09-24) — updateMediaMetadata must refuse a
+// trashed row instead of silently editing it (generic entity-liveness guard).
+// ---------------------------------------------------------------------------
+
+test("updateMediaMetadata rejects a trashed row with ENTITY_IN_TRASH and leaves it unchanged", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({
+    deps,
+    input: {
+      workspaceId: WORKSPACE_ID,
+      bytes: bytesFrom("photo"),
+      filename: "photo.jpg",
+      contentType: "image/jpeg",
+      createdByPrincipal: "user-1",
+    },
+  });
+  const { media: trashed } = await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+
+  await assert.rejects(
+    () => updateMediaMetadata({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id, alt: "x" } }),
+    (err: unknown) => {
+      assert.equal(
+        (err as Error).message,
+        `ENTITY_IN_TRASH: media '${media.id}' is in the Trash. Restore it from the Trash before changing it.`
+      );
+      return true;
+    }
+  );
+
+  const { media: stillTrashed } = await getMediaById({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  assert.equal(stillTrashed.version, trashed.version);
+  assert.equal(stillTrashed.status, "trashed");
+});
