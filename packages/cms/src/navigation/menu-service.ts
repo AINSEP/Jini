@@ -547,6 +547,7 @@ export async function assignLocation(
   const { deps, input } = required;
   const menu = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.menuId });
   if (!menu) throw new MenuNotFoundError(`menu '${input.menuId}' was not found`);
+  assertEntityLive({ entityType: "menu", entityId: input.menuId, state: menu.status === "trash" ? "trashed" : "live" });
 
   const now = deps.clock.nowIso();
 

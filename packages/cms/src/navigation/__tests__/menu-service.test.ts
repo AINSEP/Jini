@@ -641,6 +641,42 @@ test("assignLocation reassigns a location already bound elsewhere (last-writer-w
   assert.equal(allBindings.filter((row) => row.locationKey === "primary").length, 1);
 });
 
+test("assignLocation refuses a trashed menu with ENTITY_IN_TRASH and leaves it unbound", async () => {
+  const repo = new InMemoryMenuRepo();
+  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+  const { menu: trashed } = await deleteMenu({
+    deps: { repo, bindingRepo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", id: menu.id },
+  });
+  assert.equal(trashed?.status, "trash");
+
+  await assert.rejects(
+    () =>
+      assignLocation({
+        deps: { repo, bindingRepo, clock, idGen, outbox },
+        input: { workspaceId: "ws-1", menuId: menu.id, locationKey: "primary" },
+      }),
+    (err: unknown) => {
+      assert.equal(
+        (err as Error).message,
+        `ENTITY_IN_TRASH: menu '${menu.id}' is in the Trash. Restore it from the Trash before changing it.`
+      );
+      return true;
+    }
+  );
+
+  const indexRow = await bindingRepo.findByLocation({ workspaceId: "ws-1", locationKey: "primary" });
+  assert.equal(indexRow, null);
+});
+
 // ---------------------------------------------------------------------------
 // deleteMenu — trash then purge-blocked-while-bound
 // ---------------------------------------------------------------------------
