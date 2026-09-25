@@ -390,8 +390,8 @@ describe('createLocalNodeDaemon', () => {
         runId, toolUseId: 'use-1', toolId: 'page.click', input: {},
       });
 
-      expect(status).toBe(200);
-      expect(json).toMatchObject({ result: { status: 'denied' } });
+      expect(status).toBe(403);
+      expect(json).toMatchObject({ error: { code: 'TOOL_OPERATION_DENIED' } });
     });
 
     it('runs as the anonymous principal when the host supplies no resolver', async () => {
@@ -488,11 +488,12 @@ describe('createLocalNodeDaemon', () => {
       const { status, json } = await callDelegatedTool(daemon.url, {
         runId, toolUseId: 'use-1', toolId: 'terminal.create', input: { cwd: '/tmp' },
       });
-      // 200 + `denied` is the deny-by-default ToolPolicy answering — a different, and correct,
-      // outcome from the disabled case above. The distinction is the whole design: capability
-      // *existence* is a composition decision, capability *use* is a policy decision.
-      expect(status).toBe(200);
-      expect(json).toMatchObject({ result: { status: 'denied' } });
+      // 403 TOOL_OPERATION_DENIED is the deny-by-default ToolPolicy answering — a different, and
+      // correct, outcome from the disabled case above (500 INTERNAL_ERROR for an unregistered
+      // tool). The distinction is the whole design: capability *existence* is a composition
+      // decision, capability *use* is a policy decision.
+      expect(status).toBe(403);
+      expect(json).toMatchObject({ error: { code: 'TOOL_OPERATION_DENIED' } });
     });
 
     it('reports an unknown run rather than executing anything', async () => {

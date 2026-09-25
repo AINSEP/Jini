@@ -4,9 +4,9 @@
  * CLI transport-shell: HTTP-client-mode generic transport/infra ported from
  * OD's `apps/daemon/src/cli.ts` (extraction-plan §3 / §8 task 9). See
  * `source-map.md` for the full classification of what was and wasn't
- * ported. This is a first generic slice, not the full `@jini-ai/cli` package —
- * no pack has registered against `CommandRegistry` yet because no HTTP-
- * client-mode pack exists in this repo to call.
+ * ported. This is a first generic slice, not the full `@jini-ai/cli` package.
+ * This barrel itself registers nothing against `CommandRegistry` — see the
+ * NOTE below for `main.ts`, this package's own bootable entrypoint, which does.
  */
 export * from './flags.js';
 export * from './daemon-url.js';

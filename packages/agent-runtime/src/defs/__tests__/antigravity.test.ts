@@ -1,58 +1,54 @@
-import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
-
-// This whole test file mocks node:os's homedir() to a fake, isolated temp
-// location so `writeAntigravityModelSelection`'s default settingsPath
-// parameter (derived from the real user's homedir) can be exercised safely,
-// without ever touching this dev machine's real
-// ~/.gemini/antigravity-cli/settings.json. Every other test in this file
-// still passes an explicit settingsPath, so this mock only matters for the
-// one "uses the default path" test below.
-const mockState = vi.hoisted(() => ({
-  fakeHome: `/tmp/agent-runtime-antigravity-test-home-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-}));
-
-vi.mock('node:os', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:os')>();
-  return { ...actual, homedir: () => mockState.fakeHome };
-});
-
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import {
-  _resetAntigravityModelLockForTests,
-  acquireAntigravityModelLock,
-  antigravityAgentDef,
-  antigravityModelLock,
-  redactAntigravityAuthUrls,
-  waitForAgyToReadModel,
-  writeAntigravityModelSelection,
-} from '../antigravity.js';
-
-afterAll(() => {
-  rmSync(mockState.fakeHome, { recursive: true, force: true });
-});
+import { describe, expect, it } from 'vitest';
+import { antigravityAgentDef, parseAgyModels, redactAntigravityAuthUrls } from '../antigravity.js';
 
 describe('antigravityAgentDef shape', () => {
   it('declares the expected identity and transport fields', () => {
     expect(antigravityAgentDef.id).toBe('antigravity');
     expect(antigravityAgentDef.bin).toBe('agy');
     expect(antigravityAgentDef.supportsCustomModel).toBe(false);
-    expect(antigravityAgentDef.promptViaStdin).toBe(true);
+    // agy has no stdin prompt path under its default `--input-format text`;
+    // the prompt rides argv as `-p`'s value, so this def must stay
+    // argv-budgeted. If `promptViaStdin` ever comes back, the driver stops
+    // putting the prompt where the CLI actually reads it.
+    expect('promptViaStdin' in antigravityAgentDef).toBe(false);
+    expect(antigravityAgentDef.maxPromptArgBytes).toBe(30_000);
     expect(antigravityAgentDef.streamFormat).toBe('plain');
     expect(antigravityAgentDef.fallbackModels[0]?.id).toBe('default');
   });
 
-  // The three fields that make a generic driver able to run agy at all — see
+  // `agy models` gives this def a live catalog (unlike the old fallback-only
+  // list) — 10s rather than codex's 5s because it does a real network fetch
+  // (its own stdout announces "Fetching available models...").
+  it('declares a live listModels probe backed by parseAgyModels', () => {
+    expect(antigravityAgentDef.listModels).toEqual({
+      args: ['models'],
+      parse: parseAgyModels,
+      timeoutMs: 10_000,
+    });
+  });
+
+  // `agy` passes its own parent process env through to the stdio MCP children it spawns for
+  // servers already sitting in its persistent global registry — verified live (see this def's own
+  // doc). That makes a one-time, out-of-band global registration a real, safe delivery mechanism,
+  // reversing the prior "no safe run-scoped mechanism" verdict this field used to encode as
+  // `undefined`.
+  it('declares the env-passthrough external MCP injection strategy', () => {
+    expect(antigravityAgentDef.externalMcpInjection).toBe('env-passthrough');
+  });
+
+  // The two fields that make a generic driver able to run agy at all — see
   // packages/daemon/src/agent-executor.ts's "Antigravity's two extra needs,
   // met declaratively" section. Pinned here because a driver reads them by
-  // name: silently dropping one degrades to a live-streaming, unlocked,
-  // log-less run that leaks a sign-in URL, with nothing failing loudly.
-  it('opts into a staged log file, buffered+sanitized stdout, and the model lock', () => {
+  // name: silently dropping one degrades to a live-streaming, log-less run
+  // that leaks a sign-in URL, with nothing failing loudly. There is no
+  // `runtimeLock` here any more — `--model` (see the `buildArgs` tests
+  // below) replaced the settings.json-write-then-poll-the-log mechanism the
+  // lock used to serialize.
+  it('opts into a staged log file and buffered+sanitized stdout, and declares no runtimeLock', () => {
     expect(antigravityAgentDef.needsAgentLogFile).toBe(true);
     expect(antigravityAgentDef.stdoutPolicy.buffering).toBe('until-close');
     expect(antigravityAgentDef.stdoutPolicy.sanitize).toBe(redactAntigravityAuthUrls);
-    expect(antigravityAgentDef.runtimeLock).toBe(antigravityModelLock);
+    expect('runtimeLock' in antigravityAgentDef).toBe(false);
   });
 });
 
@@ -105,428 +101,235 @@ describe('redactAntigravityAuthUrls', () => {
   });
 });
 
-describe('antigravityModelLock', () => {
-  afterEach(() => {
-    _resetAntigravityModelLockForTests();
+describe('parseAgyModels', () => {
+  // Real `agy models` stdout as of agy v1.1.24 (captured live, 2026-09-02):
+  // one progress line, then one `<slug>\t<label>` pair per line.
+  const REAL_STDOUT =
+    'Fetching available models...\n' +
+    'gemini-3.8-flash-high\tGemini 3.8 Flash (High)\n' +
+    'gemini-3.8-flash-medium\tGemini 3.8 Flash (Medium)\n' +
+    'gemini-3.8-flash-low\tGemini 3.8 Flash (Low)\n' +
+    'gemini-3.7-flash-high\tGemini 3.7 Flash (High)\n' +
+    'gemini-3.7-flash-medium\tGemini 3.7 Flash (Medium)\n' +
+    'gemini-3.7-flash-low\tGemini 3.7 Flash (Low)\n' +
+    'gemini-3.6-flash-high\tGemini 3.6 Flash (High)\n' +
+    'gemini-3.6-flash-medium\tGemini 3.6 Flash (Medium)\n' +
+    'gemini-3.6-flash-low\tGemini 3.6 Flash (Low)\n' +
+    'gemini-3.1-pro-high\tGemini 3.1 Pro (High)\n' +
+    'gemini-3.1-pro-low\tGemini 3.1 Pro (Low)\n' +
+    'claude-sonnet-4-6\tClaude Sonnet 4.6 (Thinking)\n' +
+    'claude-opus-4-6-thinking\tClaude Opus 4.6 (Thinking)\n' +
+    'gpt-oss-120b-medium\tGPT-OSS 120B (Medium)\n';
+
+  it('drops the leading progress line and parses all 14 real entries', () => {
+    const result = parseAgyModels(REAL_STDOUT);
+    expect(result?.map((m) => m.id)).toEqual([
+      'default',
+      'gemini-3.8-flash-high',
+      'gemini-3.8-flash-medium',
+      'gemini-3.8-flash-low',
+      'gemini-3.7-flash-high',
+      'gemini-3.7-flash-medium',
+      'gemini-3.7-flash-low',
+      'gemini-3.6-flash-high',
+      'gemini-3.6-flash-medium',
+      'gemini-3.6-flash-low',
+      'gemini-3.1-pro-high',
+      'gemini-3.1-pro-low',
+      'claude-sonnet-4-6',
+      'claude-opus-4-6-thinking',
+      'gpt-oss-120b-medium',
+    ]);
   });
 
-  /** An AbortController's signal plus an `abort()` shortcut, standing in for the driver's child-exit signal. */
-  function exitSignal(): { signal: AbortSignal; exit: () => void } {
-    const controller = new AbortController();
-    return { signal: controller.signal, exit: () => controller.abort() };
-  }
-
-  it.each([
-    ['no model was selected', undefined],
-    ["the model is the 'default' sentinel", 'default'],
-  ])('hands back an inert hold, without joining the chain, when %s', async (_label, model) => {
-    // Mirrors buildArgs' own guard: no settings.json write happens for these,
-    // so there is nothing to serialize. Proven by showing a *concurrent*
-    // acquire is not blocked by this hold.
-    const inert = await antigravityModelLock.acquire({ model });
-    expect(inert.waitForHandoff).toBeUndefined();
-
-    let concreteAcquired = false;
-    await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' }).then((hold) => {
-      concreteAcquired = true;
-      hold.release();
+  it('splits id and label on the first tab, matching agy\'s real labels verbatim', () => {
+    const result = parseAgyModels(REAL_STDOUT);
+    expect(result?.find((m) => m.id === 'gemini-3.1-pro-high')).toEqual({
+      id: 'gemini-3.1-pro-high',
+      label: 'Gemini 3.1 Pro (High)',
     });
-    expect(concreteAcquired).toBe(true);
-    // Still callable, and still a no-op — the driver releases without knowing
-    // which kind of hold it got.
-    expect(inert.release()).toBeUndefined();
-  });
-
-  it('serializes two concurrent concrete-model runs: the second acquire waits for the first release', async () => {
-    const first = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
-
-    let secondAcquired = false;
-    const secondPromise = antigravityModelLock.acquire({ model: 'Claude Opus 4.6 (Thinking)' }).then((hold) => {
-      secondAcquired = true;
-      return hold;
+    expect(result?.find((m) => m.id === 'claude-opus-4-6-thinking')).toEqual({
+      id: 'claude-opus-4-6-thinking',
+      label: 'Claude Opus 4.6 (Thinking)',
     });
-
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(secondAcquired).toBe(false);
-
-    first.release();
-    const second = await secondPromise;
-    expect(secondAcquired).toBe(true);
-    second.release();
   });
 
-  it('resolves waitForHandoff as soon as the log file shows agy propagated the model', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-lock-handoff-'));
-    const logPath = path.join(dir, 'agent.log');
-    writeFileSync(logPath, 'Propagating selected model override to backend: label="Gemini 3.1 Pro (High)"', 'utf8');
-    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
-    const { signal } = exitSignal();
-    try {
-      // `model: 'ignored-by-design'` is the point of this assertion, not a
-      // typo: the label matched against the log is the one `acquire` captured,
-      // so a driver cannot accidentally change which model the handoff waits
-      // for by passing a different one post-spawn.
-      await expect(
-        hold.waitForHandoff!({ logFilePath: logPath, model: 'ignored-by-design', processExited: signal }),
-      ).resolves.toBeUndefined();
-    } finally {
-      hold.release();
-      rmSync(dir, { recursive: true, force: true });
-    }
+  it('drops the progress line case-insensitively regardless of surrounding whitespace', () => {
+    const result = parseAgyModels('  Fetching Available Models...  \nfoo\tFoo Label\n');
+    expect(result?.map((m) => m.id)).toEqual(['default', 'foo']);
   });
 
-  it('holds until process exit when there is no log file to watch at all', async () => {
-    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
-    const { signal, exit } = exitSignal();
-    let settled = false;
-    const handoff = hold.waitForHandoff!({ logFilePath: undefined, model: 'Gemini 3.1 Pro (High)', processExited: signal }).then(
-      () => {
-        settled = true;
-      },
-    );
-
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    // No observable propagation signal exists, so resolving early would
-    // release the lock while a cold-starting agy might still read the file.
-    expect(settled).toBe(false);
-
-    exit();
-    await handoff;
-    expect(settled).toBe(true);
-    hold.release();
+  it('splits on the FIRST tab only, so a label containing extra tabs is preserved intact and never bleeds into the id', () => {
+    const result = parseAgyModels('gemini-3.1-pro-high\tGemini 3.1 Pro\t(High)\textra\n');
+    expect(result).toEqual([
+      { id: 'default', label: 'Default (CLI config)' },
+      { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro\t(High)\textra' },
+    ]);
   });
 
-  it('holds until process exit when the watcher gives up without seeing the propagation line', async () => {
-    // A `false` return from waitForAgyToReadModel means "stopped polling",
-    // never "agy did not read the file" — so it must NOT release.
-    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-lock-timeout-'));
-    const logPath = path.join(dir, 'agent.log');
-    writeFileSync(logPath, 'some unrelated log line\n', 'utf8');
-    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
-    const { signal, exit } = exitSignal();
-    let settled = false;
-    const handoff = hold
-      .waitForHandoff!({ logFilePath: logPath, model: 'Gemini 3.1 Pro (High)', processExited: signal })
-      .then(() => {
-        settled = true;
-      });
-
-    // The poller aborts on the same signal, so exiting is what ends both.
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(settled).toBe(false);
-    exit();
-    await handoff;
-    expect(settled).toBe(true);
-    hold.release();
-    rmSync(dir, { recursive: true, force: true });
+  it('trims surrounding whitespace from both id and label without corrupting either', () => {
+    const result = parseAgyModels('  gemini-3.1-pro-high  \t   Gemini 3.1 Pro (High)   \n');
+    expect(result).toEqual([
+      { id: 'default', label: 'Default (CLI config)' },
+      { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' },
+    ]);
   });
 
-  it('resolves waitForHandoff immediately when the process has already exited', async () => {
-    // Covers the already-aborted fast path in `waitUntilAborted` — the driver
-    // can register the watcher after a child that exited instantly.
-    const hold = await antigravityModelLock.acquire({ model: 'Gemini 3.1 Pro (High)' });
-    const { signal, exit } = exitSignal();
-    exit();
-    await expect(
-      hold.waitForHandoff!({ logFilePath: undefined, model: 'Gemini 3.1 Pro (High)', processExited: signal }),
-    ).resolves.toBeUndefined();
-    hold.release();
+  it('skips a line with no tab at all rather than mis-parsing it', () => {
+    const result = parseAgyModels('Fetching available models...\nno-tab-here\ngemini-3.1-pro-high\tGemini 3.1 Pro (High)\n');
+    expect(result?.map((m) => m.id)).toEqual(['default', 'gemini-3.1-pro-high']);
+  });
+
+  it('de-duplicates a repeated id, keeping the first occurrence', () => {
+    const result = parseAgyModels('foo\tFirst\nfoo\tSecond\n');
+    expect(result?.filter((m) => m.id === 'foo')).toHaveLength(1);
+    expect(result?.find((m) => m.id === 'foo')?.label).toBe('First');
+  });
+
+  it('returns null for empty stdout, so detection.ts falls back rather than showing an empty picker', () => {
+    expect(parseAgyModels('')).toBeNull();
+  });
+
+  it('returns null for whitespace-only stdout', () => {
+    expect(parseAgyModels('   \n  \n')).toBeNull();
+  });
+
+  it('returns null when stdout is only the progress line (offline/errored fetch never yielded a real entry)', () => {
+    expect(parseAgyModels('Fetching available models...\n')).toBeNull();
   });
 });
 
-describe('writeAntigravityModelSelection', () => {
-  function tempSettingsPath(): string {
-    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-write-test-'));
-    return path.join(dir, 'nested', 'settings.json');
-  }
-
-  it('creates parent directories and writes {model} when no settings file exists yet', () => {
-    const settingsPath = tempSettingsPath();
-    writeAntigravityModelSelection('Gemini 3.1 Pro (High)', settingsPath);
-    expect(existsSync(settingsPath)).toBe(true);
-    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toEqual({ model: 'Gemini 3.1 Pro (High)' });
+describe('antigravityAgentDef.listModels.parse', () => {
+  it('delegates to parseAgyModels for real output', () => {
+    const result = antigravityAgentDef.listModels!.parse('gemini-3.1-pro-high\tGemini 3.1 Pro (High)\n');
+    expect(result).toEqual([
+      { id: 'default', label: 'Default (CLI config)' },
+      { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' },
+    ]);
   });
 
-  it('merges the model key into existing valid JSON, preserving other keys', () => {
-    const settingsPath = tempSettingsPath();
-    mkdirSync(path.dirname(settingsPath), { recursive: true });
-    writeFileSync(settingsPath, JSON.stringify({ otherSetting: 'keep-me', model: 'Old Model' }), 'utf8');
-
-    writeAntigravityModelSelection('New Model', settingsPath);
-
-    const written = JSON.parse(readFileSync(settingsPath, 'utf8'));
-    expect(written).toEqual({ otherSetting: 'keep-me', model: 'New Model' });
-  });
-
-  it('falls back to a fresh object when the existing file is corrupt JSON', () => {
-    const settingsPath = tempSettingsPath();
-    mkdirSync(path.dirname(settingsPath), { recursive: true });
-    writeFileSync(settingsPath, '{ not valid json', 'utf8');
-
-    writeAntigravityModelSelection('Fresh Model', settingsPath);
-
-    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toEqual({ model: 'Fresh Model' });
-  });
-
-  it('falls back to a fresh object when the existing file parses to a JSON array', () => {
-    const settingsPath = tempSettingsPath();
-    mkdirSync(path.dirname(settingsPath), { recursive: true });
-    writeFileSync(settingsPath, '[1,2,3]', 'utf8');
-
-    writeAntigravityModelSelection('Array Case', settingsPath);
-
-    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toEqual({ model: 'Array Case' });
-  });
-
-  it('falls back to a fresh object when the existing file parses to a non-object primitive', () => {
-    const settingsPath = tempSettingsPath();
-    mkdirSync(path.dirname(settingsPath), { recursive: true });
-    writeFileSync(settingsPath, '"just a string"', 'utf8');
-
-    writeAntigravityModelSelection('Primitive Case', settingsPath);
-
-    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toEqual({ model: 'Primitive Case' });
-  });
-
-  it('uses the default (mocked homedir-derived) settingsPath when none is passed', () => {
-    writeAntigravityModelSelection('Default Path Model');
-    const expectedPath = path.join(mockState.fakeHome, '.gemini', 'antigravity-cli', 'settings.json');
-    expect(existsSync(expectedPath)).toBe(true);
-    expect(JSON.parse(readFileSync(expectedPath, 'utf8'))).toEqual({ model: 'Default Path Model' });
-  });
-});
-
-describe('acquireAntigravityModelLock / _resetAntigravityModelLockForTests', () => {
-  it('lets a fresh acquire proceed immediately when nothing is held', async () => {
-    const release = await acquireAntigravityModelLock();
-    expect(typeof release).toBe('function');
-    release();
-  });
-
-  it('serializes a second acquire behind the first until it is released', async () => {
-    const release1 = await acquireAntigravityModelLock();
-
-    let acquired2 = false;
-    const acquire2Promise = acquireAntigravityModelLock().then((release2) => {
-      acquired2 = true;
-      return release2;
-    });
-
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(acquired2).toBe(false);
-
-    release1();
-    const release2 = await acquire2Promise;
-    expect(acquired2).toBe(true);
-    release2();
-  });
-
-  it('_resetAntigravityModelLockForTests only affects the next fresh acquire, not one already in flight', async () => {
-    const releaseA = await acquireAntigravityModelLock();
-
-    let bAcquired = false;
-    const acquireBPromise = acquireAntigravityModelLock().then((releaseB) => {
-      bAcquired = true;
-      return releaseB;
-    });
-    await Promise.resolve();
-    expect(bAcquired).toBe(false);
-
-    _resetAntigravityModelLockForTests();
-
-    const releaseC = await acquireAntigravityModelLock();
-    expect(bAcquired).toBe(false);
-    releaseC();
-    releaseA();
-    const releaseB = await acquireBPromise;
-    releaseB();
-  });
-});
-
-describe('waitForAgyToReadModel', () => {
-  it('returns false immediately without reading when the abort signal is already aborted', async () => {
-    const controller = new AbortController();
-    controller.abort();
-    const readFile = vi.fn(async () => 'irrelevant');
-    const result = await waitForAgyToReadModel('/fake/log', 'Model X', { abortSignal: controller.signal, readFile });
-    expect(result).toBe(false);
-    expect(readFile).not.toHaveBeenCalled();
-  });
-
-  it('returns true as soon as the log content matches the expected propagation line', async () => {
-    const readFile = vi.fn(async () => 'Propagating selected model override to backend: label="Model X"');
-    const result = await waitForAgyToReadModel('/fake/log', 'Model X', { readFile, pollIntervalMs: 5, timeoutMs: 1000 });
-    expect(result).toBe(true);
-    expect(readFile).toHaveBeenCalledWith('/fake/log');
-  });
-
-  it('escapes regex-special characters in the expected model label before matching', async () => {
-    const readFile = vi.fn(async () => 'Propagating selected model override to backend: label="C++ (v1.2)"');
-    const result = await waitForAgyToReadModel('/fake/log', 'C++ (v1.2)', {
-      readFile,
-      pollIntervalMs: 5,
-      timeoutMs: 1000,
-    });
-    expect(result).toBe(true);
-  });
-
-  it('polls again when the log exists but does not yet match, then succeeds once it does', async () => {
-    let call = 0;
-    const readFile = vi.fn(async () => {
-      call += 1;
-      return call < 2 ? 'some unrelated log line' : 'Propagating selected model override to backend: label="Model X"';
-    });
-    const result = await waitForAgyToReadModel('/fake/log', 'Model X', { readFile, pollIntervalMs: 5, timeoutMs: 1000 });
-    expect(result).toBe(true);
-    expect(call).toBeGreaterThanOrEqual(2);
-  });
-
-  it('does not accumulate one abort listener per poll interval when the timer keeps winning', async () => {
-    // Each loop iteration installs an `abort` listener alongside its sleep timer.
-    // `{ once: true }` only removes it when abort actually fires, so on the timer
-    // path the listener stays attached — one per poll — for the whole run.
-    const controller = new AbortController();
-    let added = 0;
-    let removed = 0;
-    const realAdd = controller.signal.addEventListener.bind(controller.signal);
-    const realRemove = controller.signal.removeEventListener.bind(controller.signal);
-    controller.signal.addEventListener = ((type: string, ...rest: unknown[]) => {
-      if (type === 'abort') added += 1;
-      return (realAdd as (...a: unknown[]) => unknown)(type, ...rest);
-    }) as typeof controller.signal.addEventListener;
-    controller.signal.removeEventListener = ((type: string, ...rest: unknown[]) => {
-      if (type === 'abort') removed += 1;
-      return (realRemove as (...a: unknown[]) => unknown)(type, ...rest);
-    }) as typeof controller.signal.removeEventListener;
-
-    const readFile = vi.fn(async () => 'nothing matching yet');
-    const result = await waitForAgyToReadModel('/fake/log', 'Model X', {
-      readFile,
-      pollIntervalMs: 5,
-      timeoutMs: 80,
-      abortSignal: controller.signal,
-    });
-
-    expect(result).toBe(false);
-    // Several polls must actually have happened, otherwise this asserts nothing.
-    expect(added).toBeGreaterThan(3);
-    // Every listener the timer path installed must have been taken back off.
-    expect(removed).toBe(added);
-  });
-
-  it('keeps polling without throwing when readFile rejects (e.g. log not yet created), and times out to false', async () => {
-    const readFile = vi.fn(async () => {
-      throw new Error('ENOENT: no such file');
-    });
-    const result = await waitForAgyToReadModel('/fake/log', 'Model X', { readFile, pollIntervalMs: 5, timeoutMs: 30 });
-    expect(result).toBe(false);
-  });
-
-  it('breaks out of the loop immediately (skipping the sleep) once the deadline is reached right after a failed read', async () => {
-    // Deterministic `now` sequence targeting the exact internal
-    // `if (now() >= deadline) break;` guard (distinct from the outer
-    // `while (now() < deadline)` loop condition): call 1 computes the
-    // deadline, call 2 is the while-condition check that lets the loop
-    // body run once, call 3 is the post-read deadline recheck that must
-    // return >= deadline to hit the `break` line itself rather than
-    // letting the outer while condition end the loop on the next pass.
-    const nowValues = [0, 0, 10];
-    let idx = 0;
-    const now = () => (idx < nowValues.length ? nowValues[idx++]! : nowValues[nowValues.length - 1]!);
-    const readFile = vi.fn(async () => {
-      throw new Error('not there yet');
-    });
-    const result = await waitForAgyToReadModel('/fake/log', 'Model X', {
-      readFile,
-      pollIntervalMs: 1000,
-      timeoutMs: 10,
-      now,
-    });
-    expect(result).toBe(false);
-    expect(readFile).toHaveBeenCalledTimes(1);
-  });
-
-  it('stops polling and returns false as soon as the abort signal fires mid-wait', async () => {
-    const controller = new AbortController();
-    const readFile = vi.fn(async () => {
-      throw new Error('not yet');
-    });
-    const resultPromise = waitForAgyToReadModel('/fake/log', 'Model X', {
-      readFile,
-      pollIntervalMs: 50,
-      timeoutMs: 5000,
-      abortSignal: controller.signal,
-    });
-    setTimeout(() => controller.abort(), 10);
-    const result = await resultPromise;
-    expect(result).toBe(false);
-  });
-
-  it('uses the real fs readFile and Date.now by default when no readFile/now overrides are passed', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-waitlog-test-'));
-    const logPath = path.join(dir, 'agy.log');
-    writeFileSync(logPath, 'Propagating selected model override to backend: label="Model X"', 'utf8');
-    try {
-      const result = await waitForAgyToReadModel(logPath, 'Model X', { timeoutMs: 2000, pollIntervalMs: 20 });
-      expect(result).toBe(true);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('uses fully-defaulted options (timeoutMs/pollIntervalMs omitted) when the file already matches on the first read', async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-waitlog-defaults-test-'));
-    const logPath = path.join(dir, 'agy.log');
-    writeFileSync(logPath, 'Propagating selected model override to backend: label="Model X"', 'utf8');
-    try {
-      const result = await waitForAgyToReadModel(logPath, 'Model X');
-      expect(result).toBe(true);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+  it('returns null for blank stdout', () => {
+    expect(antigravityAgentDef.listModels!.parse('   ')).toBeNull();
   });
 });
 
 describe('antigravityAgentDef.buildArgs', () => {
-  function tempSettingsPath(): string {
-    const dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-antigravity-buildargs-test-'));
-    return path.join(dir, 'settings.json');
-  }
+  // The regression this whole describe block exists for: `-p` is a Go
+  // flag-package flag whose VALUE is the prompt. The previous argv was
+  // `['-p', '-']` — a literal one-character prompt of `-` — which agy ran
+  // happily (exit 0) while never reading the real prompt, so every turn came
+  // back as a generic "How can I assist you today?" greeting sourced from
+  // agy's own project memory instead of an answer. Asserting the prompt is
+  // present in argv is what makes that failure visible from a unit test.
+  it('passes the prompt as the value of -p', () => {
+    const args = antigravityAgentDef.buildArgs('Reply with PONG', [], [], {}, {});
+    expect(args).toEqual(['-p', 'Reply with PONG']);
+  });
 
-  it('writes the model selection and returns the base print-mode argv when a concrete model is chosen', () => {
-    const settingsPath = tempSettingsPath();
-    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'Gemini 3.1 Pro (High)' }, {
-      antigravitySettingsPath: settingsPath,
+  it('never emits a bare `-` stdin sentinel in place of the prompt', () => {
+    const args = antigravityAgentDef.buildArgs('Reply with PONG', [], [], {}, {
+      agentLogFilePath: '/tmp/agy.log',
     });
-    expect(args).toEqual(['-p', '-']);
-    expect(JSON.parse(readFileSync(settingsPath, 'utf8'))).toEqual({ model: 'Gemini 3.1 Pro (High)' });
+    expect(args).not.toContain('-');
+    expect(args[args.indexOf('-p') + 1]).toBe('Reply with PONG');
   });
 
-  it('does not write a model selection when options.model is the "default" sentinel', () => {
-    const settingsPath = tempSettingsPath();
-    antigravityAgentDef.buildArgs('hi', [], [], { model: 'default' }, { antigravitySettingsPath: settingsPath });
-    expect(existsSync(settingsPath)).toBe(false);
+  it('keeps a multi-line transcript prompt intact as a single argv entry', () => {
+    const transcript = 'user: first\n\nassistant: second\n\nuser: third';
+    const args = antigravityAgentDef.buildArgs(transcript, [], [], {}, {});
+    expect(args).toEqual(['-p', transcript]);
   });
 
-  it('does not write a model selection when options.model is falsy/absent', () => {
-    const settingsPath = tempSettingsPath();
-    antigravityAgentDef.buildArgs('hi', [], [], {}, { antigravitySettingsPath: settingsPath });
-    expect(existsSync(settingsPath)).toBe(false);
+  // The regression this describe block gained when the settings.json/lock mechanism was retired:
+  // a concrete model must reach agy as the value of a real `--model` flag, not as a side-effect
+  // file write. `--model` is a Go flag whose value is the immediately-following argv token — the
+  // same shape as `-p` and `--log-file` above — so it must precede `-p` (always last).
+  it('emits --model <id> before -p when a concrete model is chosen', () => {
+    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'gemini-3.1-pro-high' }, {});
+    expect(args).toEqual(['--model', 'gemini-3.1-pro-high', '-p', 'hi']);
   });
 
-  it('prepends --log-file <path> before -p - when agentLogFilePath is set', () => {
+  it('omits --model when options.model is the "default" sentinel', () => {
+    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'default' }, {});
+    expect(args).toEqual(['-p', 'hi']);
+  });
+
+  it('omits --model when options.model is falsy/absent', () => {
+    const args = antigravityAgentDef.buildArgs('hi', [], [], {}, {});
+    expect(args).toEqual(['-p', 'hi']);
+  });
+
+  // Order matters for real: everything after `-p` is consumed as its value,
+  // so `--log-file` has to come first or the log path becomes part of the
+  // prompt and the diagnostic log is never written.
+  it('prepends --log-file <path> before -p when agentLogFilePath is set', () => {
     const args = antigravityAgentDef.buildArgs('hi', [], [], {}, { agentLogFilePath: '/tmp/agy.log' });
-    expect(args).toEqual(['--log-file', '/tmp/agy.log', '-p', '-']);
+    expect(args).toEqual(['--log-file', '/tmp/agy.log', '-p', 'hi']);
   });
 
   it('omits --log-file entirely when agentLogFilePath is absent', () => {
     const args = antigravityAgentDef.buildArgs('hi', [], [], {}, {});
-    expect(args).toEqual(['-p', '-']);
+    expect(args).toEqual(['-p', 'hi']);
+  });
+
+  // Both extra flags precede -p together, in the order buildArgs itself pushes them
+  // (--model, then --log-file) — pinned so a future edit that reorders the pushes has to
+  // consciously re-decide this, not silently flip it.
+  it('emits --model then --log-file, both before -p, when both are present', () => {
+    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'claude-opus-4-6-thinking' }, {
+      agentLogFilePath: '/tmp/agy.log',
+    });
+    expect(args).toEqual(['--model', 'claude-opus-4-6-thinking', '--log-file', '/tmp/agy.log', '-p', 'hi']);
+  });
+
+  // agy resumes a prior conversation only when explicitly asked
+  // (`-c`/`--continue`, or `--conversation <id>`). Never emitting either is
+  // what keeps each Runner-initiated turn a genuinely fresh conversation.
+  it('never asks agy to continue or resume a conversation', () => {
+    const args = antigravityAgentDef.buildArgs('hi', [], [], { model: 'gemini-3.1-pro-high' }, {
+      agentLogFilePath: '/tmp/agy.log',
+    });
+    for (const resumeFlag of ['-c', '--continue', '--conversation']) {
+      expect(args).not.toContain(resumeFlag);
+    }
   });
 
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
     expect(() => antigravityAgentDef.buildArgs('hi', [])).not.toThrow();
+  });
+});
+
+describe('antigravityAgentDef reasoning-effort declaration', () => {
+  // agy has NO effort flag: `agy --help` exposes `--model` and nothing that
+  // takes a reasoning level. Effort is encoded as a trailing `-<level>` on the
+  // model slug itself (`gemini-3.1-pro-high`), so this def declares the
+  // suffix VOCABULARY and lets the picker derive which levels each base model
+  // actually has from the live `agy models` list. Declaring a flat
+  // `reasoningOptions` here instead would be a lie: it would offer
+  // `gemini-3.1-pro-medium`, which does not exist and which `agy --model`
+  // rejects outright.
+  it('declares reasoning-in-model-id with exactly the three recognized suffixes', () => {
+    expect(antigravityAgentDef.reasoningInModelId?.levels).toEqual([
+      { id: 'high', label: 'High' },
+      { id: 'medium', label: 'Medium' },
+      { id: 'low', label: 'Low' },
+    ]);
+  });
+
+  // Mutually exclusive with `reasoningOptions` on purpose — a def carrying
+  // both would render two effort controls that disagree about where the
+  // choice goes.
+  it('declares no flat reasoningOptions, because the effort rides in the model id', () => {
+    expect('reasoningOptions' in antigravityAgentDef).toBe(false);
+  });
+
+  it('emits no extra argv for a reasoning selection — the effort is already inside --model', () => {
+    const args = antigravityAgentDef.buildArgs('hi', [], [], {
+      model: 'gemini-3.1-pro-high',
+      reasoning: 'high',
+    });
+    expect(args).toEqual(['--model', 'gemini-3.1-pro-high', '-p', 'hi']);
+    expect(args.join(' ')).not.toContain('--effort');
+    expect(args.join(' ')).not.toContain('reasoning');
   });
 });

@@ -4,6 +4,7 @@ import { A2uiLab } from './A2uiLab.js';
 import { AgentLab } from './AgentLab.js';
 import { App } from './App.js';
 import { McpUiLab } from './McpUiLab.js';
+import { McpUiOfficialSwapLab } from './McpUiOfficialSwapLab.js';
 import { WebMcpLab } from './WebMcpLab.js';
 import './remixicon.css';
 import './styles.css';
@@ -32,6 +33,7 @@ function Playground() {
   if (route === 'a2ui-lab') return <A2uiLab />;
   if (route === 'webmcp-lab') return <WebMcpLab />;
   if (route === 'mcpui-lab') return <McpUiLab />;
+  if (route === 'mcpui-official-swap-lab') return <McpUiOfficialSwapLab />;
   return <App />;
 }
 

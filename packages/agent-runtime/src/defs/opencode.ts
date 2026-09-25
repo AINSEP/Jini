@@ -29,12 +29,17 @@ export const opencodeAgentDef = {
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
       {
-        id: 'anthropic/claude-sonnet-4-5',
-        label: 'anthropic/claude-sonnet-4-5',
+        id: 'anthropic/claude-sonnet-5',
+        label: 'anthropic/claude-sonnet-5',
       },
       { id: 'openai/gpt-5', label: 'openai/gpt-5' },
       { id: 'google/gemini-2.5-pro', label: 'google/gemini-2.5-pro' },
     ],
+    // Checked against `packages/ui/src/features/execution/constants.ts`'s current OpenAI preset —
+    // `gpt-5` is a distinct, still-current generation from the newer gpt-5.6 sol/terra/luna tier
+    // names, so it is not stale. See `RuntimeAgentDef.fallbackModelsAssertedAt` and
+    // `scripts/check-model-fallback-freshness.ts`.
+    fallbackModelsAssertedAt: '2026-09-16',
     // OpenCode's CLI help currently exposes model selection and session
     // controls, but not an explicit per-run reasoning / effort flag. Keep
     // `reasoningOptions` undefined and do not synthesize argv for
@@ -93,4 +98,23 @@ export const opencodeAgentDef = {
     // invocation without polluting the user's saved config files. See
     // <https://opencode.ai/docs/config> and issue #2142.
     externalMcpInjection: 'opencode-env-content',
+    // `instructions` (an array of file paths or remote URLs — confirmed live an inline string is
+    // silently ignored, never honored) is OpenCode's real, native system-prompt-append mechanism.
+    // Live-verified against an installed `opencode-cli` (1.17.10), not inferred from docs alone —
+    // see `@jini-ai/daemon`'s `mergeEnvContentInstructions` for the full transcript summary:
+    //   1. The field is honored — a run configured with it visibly followed the instruction file's
+    //      directive; an identical run without it did not.
+    //   2. It appends, never replaces: the same run that followed the custom instruction ALSO still
+    //      answered correctly from OpenCode's own baked-in environment-context system prompt (asked
+    //      for its cwd — nothing about cwd anywhere in the custom file).
+    //   3. It coexists cleanly with the `mcp` key `externalMcpInjection: 'opencode-env-content'`
+    //      writes into the SAME `OPENCODE_CONFIG_CONTENT` document — one combined run still both
+    //      attempted the MCP connection and honored the custom instruction.
+    //   4. It's re-read fresh from the env on every spawn, including a `-s <id>`-resumed turn — so
+    //      this mechanism is redelivered every turn, never subject to the prompt-prefix fallback's
+    //      create-only limitation for other still-fallback-only resume-capable defs.
+    // `mimo` shares this def's exact `eventParser: 'opencode'` and MCP schema, but whether it also
+    // honors `instructions` the same way is NOT independently verified — it stays on the fallback
+    // deliberately; do not assume it behaves identically without checking live.
+    systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'OPENCODE_CONFIG_CONTENT' },
 } satisfies RuntimeAgentDef;

@@ -130,8 +130,23 @@ export interface OutboxPort {
   claimPending(batchSize: number, nowIso: ISODateTime): Promise<OutboxRecord[]>;
   /** Mark a row as delivered. */
   markDelivered(id: UUID): Promise<void>;
-  /** Mark a row as failed and set next retry time. */
-  markFailed(id: UUID, error: string, nextAttemptAt: ISODateTime): Promise<void>;
+  /**
+   * Mark a row as failed and set its next retry time.
+   *
+   * `nextStatus` is decided by the CALLER (the retry-policy owner, e.g. a worker that tracks an
+   * attempt cap) — an implementation must persist exactly what it is told, not re-derive the
+   * decision from the row's own stored `attempts` (2026-09-06: this parameter replaced that
+   * adapter-side re-derivation, mirroring `WebhookDeliveryRepoPort.markFailed`'s `nextStatus`
+   * shape in the host). `"pending"` re-enters the retry queue at `nextAttemptAt`; `"failed"`
+   * is terminal — `claimPending` only ever selects `"pending"` rows, so a `"failed"` row is
+   * permanently excluded from retry regardless of `nextAttemptAt`.
+   */
+  markFailed(
+    id: UUID,
+    error: string,
+    nextAttemptAt: ISODateTime,
+    nextStatus: Extract<OutboxRecord["status"], "pending" | "failed">
+  ): Promise<void>;
 }
 
 /** Clock abstraction to make time deterministic in tests. */

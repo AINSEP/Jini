@@ -465,9 +465,9 @@ describe('registerMemoryEventStream', () => {
   it('sends a connected event immediately on open', () => {
     const app = makeApp();
     const deps = makeDeps();
-    registerMemoryEventStream(app as any, deps);
+    registerMemoryEventStream(app as any, deps, adapter);
     const res = makeSseRes();
-    app.handlers['GET /api/memory/events']!({}, res);
+    app.handlers['GET /api/memory/events']!({ headers: { host: '127.0.0.1:7456' } }, res);
     expect(res.write.mock.calls[0]![0]).toContain('event: connected');
   });
 
@@ -475,9 +475,9 @@ describe('registerMemoryEventStream', () => {
     const app = makeApp();
     const notes = makeNoteStore();
     const deps = makeDeps({ notes });
-    registerMemoryEventStream(app as any, deps);
+    registerMemoryEventStream(app as any, deps, adapter);
     const res = makeSseRes();
-    app.handlers['GET /api/memory/events']!({}, res);
+    app.handlers['GET /api/memory/events']!({ headers: { host: '127.0.0.1:7456' } }, res);
     res.write.mockClear();
     (notes.events as EventEmitter).emit('change', { kind: 'upsert', id: 'x', at: 1 });
     expect(res.write.mock.calls[0]![0]).toContain('event: change');
@@ -488,9 +488,9 @@ describe('registerMemoryEventStream', () => {
     const app = makeApp();
     const extractions = makeExtractionLog();
     const deps = makeDeps({ extractions });
-    registerMemoryEventStream(app as any, deps);
+    registerMemoryEventStream(app as any, deps, adapter);
     const res = makeSseRes();
-    app.handlers['GET /api/memory/events']!({}, res);
+    app.handlers['GET /api/memory/events']!({ headers: { host: '127.0.0.1:7456' } }, res);
     res.write.mockClear();
     (extractions.events as EventEmitter).emit('attempt', { id: 'ext-2', phase: 'success' });
     expect(res.write.mock.calls[0]![0]).toContain('event: extraction');
@@ -500,9 +500,9 @@ describe('registerMemoryEventStream', () => {
     const app = makeApp();
     const verifications = makeVerifyLog();
     const deps = makeDeps({ verifications });
-    registerMemoryEventStream(app as any, deps);
+    registerMemoryEventStream(app as any, deps, adapter);
     const res = makeSseRes();
-    app.handlers['GET /api/memory/events']!({}, res);
+    app.handlers['GET /api/memory/events']!({ headers: { host: '127.0.0.1:7456' } }, res);
     res.write.mockClear();
     (verifications.events as EventEmitter).emit('verify', { id: 'ver-2', status: 'fail' });
     expect(res.write.mock.calls[0]![0]).toContain('event: verify');
@@ -514,9 +514,9 @@ describe('registerMemoryEventStream', () => {
     const extractions = makeExtractionLog();
     const verifications = makeVerifyLog();
     const deps = makeDeps({ notes, extractions, verifications });
-    registerMemoryEventStream(app as any, deps);
+    registerMemoryEventStream(app as any, deps, adapter);
     const res = makeSseRes();
-    app.handlers['GET /api/memory/events']!({}, res);
+    app.handlers['GET /api/memory/events']!({ headers: { host: '127.0.0.1:7456' } }, res);
     expect((notes.events as EventEmitter).listenerCount('change')).toBe(1);
     expect((extractions.events as EventEmitter).listenerCount('attempt')).toBe(1);
     expect((verifications.events as EventEmitter).listenerCount('verify')).toBe(1);
@@ -657,7 +657,7 @@ describe('registerMemoryRoutes / registerMemoryEventStream — real Express serv
     const base = await listen(makeDeps({ notes }));
 
     const created = await send(base, 'POST', '/api/memory', { name: 'n', type: 'user' });
-    expect(created.status).toBe(200);
+    expect(created.status).toBe(201);
     expect(notes.upsertEntry).toHaveBeenCalledWith('/data', { name: 'n', type: 'user' });
 
     expect(await send(base, 'GET', `/api/memory/${entry.id}`)).toEqual({ status: 200, body: { entry } });
@@ -741,5 +741,18 @@ describe('registerMemoryRoutes / registerMemoryEventStream — real Express serv
     expect(typeof firstEvent.data.at).toBe('number');
 
     controller.abort();
+  });
+
+  it('rejects a cross-origin request to /api/memory/events before opening the SSE stream', async () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const base = await listen(makeDeps());
+    const response = await fetch(`${base}/api/memory/events`, {
+      headers: { origin: 'http://evil.example.com' },
+    });
+    expect(response.status).toBe(403);
+    expect(response.headers.get('content-type')).not.toContain('text/event-stream');
+    expect(await response.json()).toEqual({
+      error: expect.objectContaining({ code: 'FORBIDDEN' }),
+    });
   });
 });

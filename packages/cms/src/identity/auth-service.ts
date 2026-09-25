@@ -16,6 +16,13 @@ import { normalizeUsername } from "./username.js";
  * tokens (INV-05: the raw token is never persisted). Password verification is
  * argon2id (`hasher.ts`), never a raw comparison.
  *
+ * `createSessionForPrincipal` (2026-09-06) is the one session minter; `login()` calls it after
+ * verifying credentials, and a host that identifies a principal by some other means (e.g. a
+ * loopback-only single-use boot token, which has nothing to verify a password against) calls it
+ * directly instead of re-implementing session construction. Before this export existed, a
+ * downstream host had duplicated this file's private `hashToken` byte-for-byte because
+ * `login()` was the only minter and hard-requires a password — this closes that fork.
+ *
  * Architectural role:
  * Ordinary core functions (like `updatePost`/`membersWriteService`), not a
  * port — session/credential logic has one implementation.
@@ -45,13 +52,46 @@ function isoPlusMs(nowIso: ISODateTime, ms: number): ISODateTime {
 }
 
 /**
+ * Mint and persist a session for a principal the caller has ALREADY identified by some means
+ * other than this function (password verification in `login()` below, or a caller-specific proof
+ * such as a loopback-only single-use boot token). Factored out of `login()`'s former inline
+ * session-construction block (2026-09-06) so both paths share one minter — a host with no
+ * password to verify no longer has to hand-roll its own token hashing (and risk drifting from
+ * this file's private `hashToken`) just to mint a session for a principal it has already proven
+ * by other means.
+ *
+ * @complexity O(1) — one session write.
+ * @overallScore 100
+ */
+export async function createSessionForPrincipal(required: {
+  deps: AuthServiceDeps;
+  input: { workspaceId: UUID; principalId: UUID; ip?: string | undefined; userAgent?: string | undefined };
+}): Promise<{ session: SessionRecord; rawToken: string }> {
+  const { deps, input } = required;
+  const nowIso = deps.clock.nowIso();
+  const rawToken = newRawToken();
+  const session: SessionRecord = {
+    id: deps.idGen.newId(),
+    workspaceId: input.workspaceId,
+    principalId: input.principalId,
+    tokenHash: hashToken(rawToken),
+    createdAt: nowIso,
+    expiresAt: isoPlusMs(nowIso, SESSION_TTL_MS),
+    ip: input.ip,
+    userAgent: input.userAgent,
+  };
+  await deps.repos.sessions.save(session);
+  return { session, rawToken };
+}
+
+/**
  * Verify `username`+`password` for an `active` principal and mint a session
  * (AC-02, REQ-06). Constant-shaped failure: a nonexistent username, a
  * disabled principal, and a wrong password are all `AuthInvalidCredentialsError`
  * with the same message — no user-enumeration signal.
  *
  * @complexity O(1) — one username lookup, one principal lookup, one hash
- * verify, one session write, one `lastLoginAt` write.
+ * verify, one session write (via `createSessionForPrincipal`), one `lastLoginAt` write.
  * @overallScore 100
  */
 export async function login(required: {
@@ -83,20 +123,13 @@ export async function login(required: {
     throw new AuthInvalidCredentialsError("invalid username or password");
   }
 
-  const nowIso = deps.clock.nowIso();
-  const rawToken = newRawToken();
-  const session: SessionRecord = {
-    id: deps.idGen.newId(),
-    workspaceId: input.workspaceId,
-    principalId: principal.id,
-    tokenHash: hashToken(rawToken),
-    createdAt: nowIso,
-    expiresAt: isoPlusMs(nowIso, SESSION_TTL_MS),
-    ip: input.ip,
-    userAgent: input.userAgent,
-  };
-  await deps.repos.sessions.save(session);
-  await deps.repos.users.save({ ...userRow, lastLoginAt: nowIso });
+  const { session, rawToken } = await createSessionForPrincipal({
+    deps,
+    input: { workspaceId: input.workspaceId, principalId: principal.id, ip: input.ip, userAgent: input.userAgent },
+  });
+  // Reuses the session's own `createdAt` rather than a second `clock.nowIso()` call — both are
+  // meant to be the same instant, and reading one avoids two clock reads ever disagreeing.
+  await deps.repos.users.save({ ...userRow, lastLoginAt: session.createdAt });
 
   return { principal, session, rawToken };
 }

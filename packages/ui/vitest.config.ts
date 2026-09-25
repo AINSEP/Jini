@@ -137,6 +137,10 @@ export default defineConfig({
         // file-dropzone/types.ts is likewise pure `type`/`interface`
         // declarations, zero runtime statements (same grep check).
         'src/features/file-dropzone/types.ts',
+        // folder-path-drop/{types,ports}.ts are likewise pure `interface`
+        // declarations plus `import type`, zero runtime statements.
+        'src/features/folder-path-drop/types.ts',
+        'src/features/folder-path-drop/ports.ts',
         // Zero emitted executable statements — `export interface`/type-only
         // declarations that fully erase at compile time (verified via
         // `grep -nE '^(export )?(const|function|class|let|var) '` finding

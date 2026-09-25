@@ -34,12 +34,23 @@
  * content-types pass-through-`ToolPolicy` reasoning, not an oversight.
  *
  * Architectural role:
- * `media` domain declaration. Imports only the constants its own domain already enforces
- * (`DEFAULT_MAX_UPLOAD_BYTES`/`DEFAULT_ALLOWED_MIME_TYPES` from `media-service.ts`), so the
- * published JSON Schemas cannot drift from the validators.
+ * `media` domain declaration. Imports only the constant its own domain already enforces
+ * (`DEFAULT_ALLOWED_MIME_TYPES` from `media-service.ts`), so the published JSON Schema's allowed
+ * content types cannot drift from the validator.
+ *
+ * `media_upload_asset`'s size-cap wording (2026-09-21): this catalog is a module-load-time constant
+ * shared by every host (see this file's own module doc above), but a host can now override
+ * `uploadMedia`'s cap per-call via `MediaToolDeps.maxUploadBytes` (`tool-registrations.ts`). Stating
+ * `DEFAULT_MAX_UPLOAD_BYTES` (10 MiB) here would be an outright lie for a host that raised its own
+ * cap (e.g. Tovu's 50 MiB) — the model would be told a wrong, lower number than what the tool
+ * actually accepts. The description and schema below therefore describe the cap generically instead
+ * of stating a figure; the size-rejection error itself (`uploadMedia`'s `MediaValidationError`,
+ * `media-service.ts`) states the ACTUAL configured limit in MB, which is the one place that can be
+ * host-accurate.
  */
 
-import { DEFAULT_ALLOWED_MIME_TYPES, DEFAULT_MAX_UPLOAD_BYTES } from "./media-service.js";
+import { MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES } from "./html-attributes.js";
+import { DEFAULT_ALLOWED_MIME_TYPES } from "./media-service.js";
 
 export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
@@ -75,7 +86,7 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "media_list_assets",
     description:
-      "Lists every media asset in the workspace (all statuses — active and trashed), with id, title, alt, caption, credit, sha256, and status. Read-only. Call this to find a mediaId before updating or trashing an asset.",
+      "Lists every media asset in the workspace (all statuses — active and trashed), with id, slug, title, alt, caption, credit, sha256, and status. Read-only. Call this to find a mediaId before updating or trashing an asset.",
     sideEffects: "none",
     authorization: { permission: "media.read" },
     inputSchema: {
@@ -90,8 +101,9 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
     description:
       `Uploads a new media asset from base64-encoded bytes. Rejects a content type outside the allowed set ` +
       `(${[...DEFAULT_ALLOWED_MIME_TYPES].join(", ")} — SVG is never accepted, even here: it requires a sanitizer ` +
-      `this build does not have) or a file over ${DEFAULT_MAX_UPLOAD_BYTES} bytes. Uploading the same bytes twice ` +
-      `always creates two separate library entries (the underlying blob is deduplicated, but each upload is its own asset).`,
+      `this build does not have) or a file over this host's configured size cap (a rejected upload's error ` +
+      `states the exact limit, in MB). Uploading the same bytes twice always creates two separate library ` +
+      `entries (the underlying blob is deduplicated, but each upload is its own asset).`,
     sideEffects: "mutates-durable-state",
     authorization: { permission: "media.upload" },
     inputSchema: {
@@ -108,7 +120,7 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
         dataBase64: {
           type: "string",
           minLength: 1,
-          description: `The file's bytes, base64-encoded. Decoded size must be over 0 and at most ${DEFAULT_MAX_UPLOAD_BYTES} bytes.`,
+          description: "The file's bytes, base64-encoded. Decoded size must be over 0 bytes and within this host's configured upload size cap (a too-large upload's error states the exact limit, in MB).",
         },
         alt: { type: "string", description: "Optional accessibility alt text." },
         caption: { type: "string", description: "Optional display caption." },
@@ -119,8 +131,11 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "media_update_metadata",
     description:
-      "Updates a media asset's editorial metadata (title/alt/caption/credit only). The asset's underlying bytes " +
-      "(sha256) are write-once and cannot be changed by this or any tool — to replace the file itself, upload a new asset.",
+      "Updates a media asset's metadata: title, alt, caption, credit, and its asset-wide presentation (cssClass, " +
+      "htmlAttributes). Omit a field to leave it unchanged. htmlAttributes/cssClass apply EVERYWHERE this asset " +
+      "renders; to change one placement on one page only, put the attribute on that page's data-embed-config " +
+      "marker element instead (pages_write_region). The bytes (sha256) are write-once and cannot be changed by " +
+      "this or any tool — to replace the file itself, upload a new asset.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "media.update" },
     inputSchema: {
@@ -133,6 +148,29 @@ export const mediaAgentToolCatalog: AgentToolDefinition[] = [
         alt: { type: "string", description: "New alt text. Omit to leave unchanged." },
         caption: { type: "string", description: "New caption. Omit to leave unchanged." },
         credit: { type: "string", description: "New credit line. Omit to leave unchanged." },
+        slug: {
+          type: "string",
+          description:
+            "New slug: lowercase letters, numbers and dashes, not UUID-shaped, unique in the workspace (a slug " +
+            "another asset uses is refused and nothing is written). Changing it breaks any page marker that " +
+            "references the OLD slug.",
+        },
+        cssClass: {
+          type: "string",
+          description:
+            "Space-separated class names added to the rendered <img>/<video> tag everywhere this asset renders. " +
+            "Replaces the stored value; empty string clears it.",
+        },
+        htmlAttributes: {
+          type: "string",
+          description:
+            "Extra attributes for the rendered <img>/<video> tag, written as HTML attribute text, e.g. " +
+            '`autoplay muted loop playsinline` or `loading="eager" data-motion="fade"`. REPLACES the whole ' +
+            "stored value: read the current value first and keep what should stay. Empty string clears it. " +
+            `Allowed names only: ${MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES.join(", ")}, plus any data-* or aria-*. ` +
+            "Anything else (on* handlers, javascript: values, style, class) is rejected and NOTHING is written. " +
+            "Browsers autoplay only video that is also muted (and playsinline on iPhone).",
+        },
       },
     },
   },

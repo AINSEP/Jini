@@ -33,6 +33,7 @@ import { createHash } from "node:crypto";
 import type { ClockPort, IdGeneratorPort, UUID } from "../core/ports.js";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, TransformDefinitionRepoPort } from "./ports.js";
 import type { AssetRenditionRecord } from "./types.js";
+import { findMediaByIdOrSlug } from "./media-service.js";
 import { mimeForTransformFormat } from "./transform-types.js";
 import { isLatestTransformVersion, isReferencedByPublishedContent } from "./transform-registry.js";
 import { withRenditionLock } from "./transform-lock.js";
@@ -51,7 +52,13 @@ export interface ResolveMediaRenditionDeps {
 
 export interface ResolveMediaRenditionInput {
   workspaceId: UUID;
-  assetId: UUID;
+  /** The `{assetId}` path segment, verbatim — despite the name, this may be either the asset's real
+   *  `id` (a UUID) OR its `slug` (2026-09-07: `resolveMediaRendition` now resolves either via
+   *  `findMediaByIdOrSlug`, so a hand-authored `<img src="/m/{slug}/...">` resolves the same asset a
+   *  UUID-based one always has). Every rendition-table operation inside this function uses the
+   *  RESOLVED record's own `media.id`, never this raw field, once the lookup succeeds — see that
+   *  local rebinding's own comment for why that distinction matters. */
+  assetId: string;
   /** The `{transformName}` path segment — cosmetic slug/ext are stripped by the caller (route). */
   transformName: string;
   /** The `{version}` parsed out of the `.v{version}` path segment. */
@@ -104,9 +111,14 @@ export async function resolveMediaRendition(
 ): Promise<ResolveMediaRenditionResult> {
   const { deps, input } = required;
 
-  const media = await deps.mediaRepo.findById({ workspaceId: input.workspaceId, id: input.assetId });
+  const media = await findMediaByIdOrSlug({ deps: { mediaRepo: deps.mediaRepo }, input: { workspaceId: input.workspaceId, idOrSlug: input.assetId } });
   if (!media) return { outcome: "not-found" };
   if (media.status === "trashed") return { outcome: "gone" };
+  // From here on, every `asset_renditions`/blob operation keys on the RESOLVED record's own `id` —
+  // never the raw `input.assetId`, which may have been a slug. `asset_renditions.assetId` is a FK to
+  // `media.id`; keying it on the slug text instead would both miss every rendition already stored
+  // under the real id and, on the generation path below, write a second, slug-keyed row alongside it.
+  const assetId = media.id;
 
   const definition = await deps.transformRepo.findByNameVersion({
     workspaceId: input.workspaceId,
@@ -117,7 +129,7 @@ export async function resolveMediaRendition(
 
   const existing = await deps.renditionRepo.findOne({
     workspaceId: input.workspaceId,
-    assetId: input.assetId,
+    assetId,
     transformName: input.transformName,
     version: input.version,
   });
@@ -150,7 +162,7 @@ export async function resolveMediaRendition(
     // `imageTransformer.transform` a second time.
     const racedExisting = await deps.renditionRepo.findOne({
       workspaceId: input.workspaceId,
-      assetId: input.assetId,
+      assetId,
       transformName: input.transformName,
       version: input.version,
     });
@@ -171,7 +183,7 @@ export async function resolveMediaRendition(
     const row: AssetRenditionRecord = {
       id: deps.idGen.newId(),
       workspaceId: input.workspaceId,
-      assetId: input.assetId,
+      assetId,
       transformName: input.transformName,
       version: input.version,
       storageKey,

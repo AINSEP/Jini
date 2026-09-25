@@ -8,7 +8,7 @@ import { DeployError } from './types.js';
  * Authorization header at whatever `Location` the response named. Under normal operation neither
  * origin redirects these endpoints, but a redirect is exactly the mechanism a compromised edge,
  * misconfigured origin, or MITM would use to exfiltrate the token to an attacker-controlled host —
- * flagged 2026-08-15 (Tovu deploy-publishing dispatch) and fixed here, in the adapter itself,
+ * flagged 2026-08-15 (a downstream product's deploy-publishing dispatch) and fixed here, in the adapter itself,
  * rather than only papering over it from a caller.
  *
  * `redirectGuardInit` is the one place every call site adds `redirect: 'manual'`.

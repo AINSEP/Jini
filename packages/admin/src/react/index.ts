@@ -17,7 +17,7 @@
  * appear only where a value must be measured at runtime — portal coordinates in `Sidebar`'s rail
  * tooltip and `RowMenu`'s popup. `InteractiveHtmlEditor` is the exception: it (transitively, via
  * `@jini-ai/ui/html-editor`, which this file's own `InteractiveHtmlEditor` composes with a
- * Tovu-specific embed-protection predicate) imports GrapesJS's own vendor stylesheet, because it
+ * consuming-product-specific embed-protection predicate) imports GrapesJS's own vendor stylesheet, because it
  * wraps a third-party editor whose chrome does not render without it — see that primitive's file
  * header for why this isn't authored styling the exception undoes.
  *
@@ -45,6 +45,14 @@ export type { ConfirmDialogProps } from './components/ConfirmDialog/ConfirmDialo
 // The `useDialog` seam's contract. Exported so a consumer substituting its own dialog hook can
 // declare against the interface rather than reverse-engineering the default hook's return shape.
 export type { ConfirmDialogController, UseConfirmDialog } from './components/ConfirmDialog/ConfirmDialog.hooks.js';
+
+// Host-wide `ConfirmDialog` defaults (today just a translated `cancelLabel`), set once at an app
+// root rather than passed at every call site — see `ConfirmDialogDefaultsProvider`'s doc comment.
+export { ConfirmDialogDefaultsProvider } from './components/ConfirmDialog/ConfirmDialog.hooks.js';
+export type {
+  ConfirmDialogDefaults,
+  ConfirmDialogDefaultsProviderProps,
+} from './components/ConfirmDialog/ConfirmDialog.hooks.js';
 
 // The list table. Deliberately has no sorting, pagination or row selection — see its file header
 // for the corpus evidence behind each omission.

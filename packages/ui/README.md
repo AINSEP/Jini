@@ -24,10 +24,12 @@ but its reusable tabbed-dialog *shell* and 6 of its small, clean, generic
 tabs (`appearance`, `notifications`, `language`, `instructions`,
 `integrations`, `privacy`) shipped as `src/features/settings-dialog/`; see
 `packages/ui/source-map.md`.
-Also not here: chat/artifact UI — that's `@jini-ai/chat-core` (already built),
-`@jini-ai/chat-react`, and `@jini-ai/renderers-react` (separate packages, kept
-separate deliberately — see the chat-core/chat-react split discussion in
-`ADS-memory/reports/jini-port/` session notes).
+Also not here: chat/artifact UI — that's `@jini-ai/chat`'s `./core` and `./react` subpaths (the
+former standalone `@jini-ai/chat-core` package was retired into `./core` on 2026-08-03), and this
+package's own `./renderers` subpath (the artifact-renderer registry, once planned as a separate
+`renderers-react` package) — kept as separate subpaths deliberately, not folded into this
+package's own React layer. See the chat-core/chat-react split discussion in
+`ADS-memory/reports/jini-port/` session notes.
 
 ## Internal structure
 
@@ -330,6 +332,12 @@ Real content has landed in several parallel passes — see
   See `packages/ui/source-map.md` for the consolidation evidence, a real
   infinite-render-loop bug found and fixed during this port, and full
   test/coverage numbers.
+- `src/features/folder-path-drop/` (2026-09-14) — dropping a folder onto a
+  host with native file access (e.g. an Electron preload exposing
+  `webUtils.getPathForFile` as a `FolderPathDropPort`) inserts the folder's
+  absolute path as text instead of uploading its contents. The
+  framework-free rules are also on `./core`; `useFolderPathDropCapture`
+  returns a stable `onDropCapture` handler. See `packages/ui/source-map.md`.
 - `src/utils/scroll-tabs-with-wheel.ts` and `src/utils/color-math.ts`
   (2026-07-18) — two flat bucket-A atoms from
   `ADS-memory/reports/jini-port/god-components-extraction-plan.md`'s Consolidation map §C:

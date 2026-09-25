@@ -3,9 +3,11 @@ import { test } from "vitest";
 
 import type { DomainEvent, OutboxPort } from "../../core/ports.js";
 import {
+  ALLOWED_HREF_SHAPES_DESCRIPTION,
   assignLocation,
   createMenu,
   deleteMenu,
+  isAllowedHref,
   MenuConflictError,
   MenuLocationBoundError,
   MenuNotFoundError,
@@ -294,6 +296,281 @@ test("updateMenuTree rejects a javascript: url target", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// url target href write-time allowlist — the write-time twin of the host's
+// render-time `safeHref` (`apps/website/.../http/site/render.ts` and its
+// `features/theme/static-render.ts` duplicate). Replaces a `startsWith`
+// scheme DENYLIST that failed open against control characters and
+// protocol-relative shapes a real WHATWG `URL` parser resolves off-origin.
+// ---------------------------------------------------------------------------
+
+/**
+ * Every row here is a real bypass of the OLD `URL_SCHEME_DENYLIST` (a
+ * lowercase `.trim()` + `startsWith` check) that Node's actual `URL` parser
+ * still resolves to a dangerous scheme or an off-origin target — probed
+ * directly against Node's `URL` before this fix landed. The allowlist below
+ * must reject every one of them. This is also the adversarial table the
+ * cross-repo behavioral-equivalence gate
+ * (`apps/website/development/scripts/check-menu-href-allowlist-sync.ts`) feeds
+ * through this function's `@jini-ai/cms/navigation` export and both of
+ * the host's `safeHref` copies — kept independently maintained here (Jini
+ * cannot import the host's dev-scripts, and vice versa) rather than a single
+ * shared file, so verify the two lists match when editing either.
+ */
+const DISALLOWED_URL_TARGET_HREFS: readonly string[] = [
+  "javascript:alert(1)",
+  "java\tscript:alert(1)", // TAB — WHATWG `URL` strips it from anywhere in the input; `.trim()` does not
+  "java\nscript:alert(1)", // LF — same class
+  "java\rscript:alert(1)", // CR — same class
+  " javascript:alert(1)", // leading space, not caught by the old denylist's un-trimmed compare order
+  "JaVaScRiPt:alert(1)", // mixed case — irrelevant to an ALLOWLIST, but the old denylist lowercased first
+  "\u0001javascript:alert(1)", // leading C0 control (not just whitespace) ahead of the scheme
+  "\u0000javascript:alert(1)", // leading NUL byte, same class
+  "file:///etc/passwd",
+  "blob:https://evil.example/x",
+  "about:blank",
+  "data:text/html,<script>alert(1)</script>",
+  "//evil.example", // protocol-relative — resolves off-origin against the current page's own scheme
+  "/\\evil.example", // a browser folds a leading backslash to '/', landing on the same off-origin shape
+  "/\t/evil.example", // TAB between the leading '/' and the rest reconstitutes '//evil.example'
+];
+
+/** Direct, isolated unit coverage of the exported predicate itself (not just through the
+ *  `updateMenuTree` integration path above) — this is the function the cross-repo sync gate imports. */
+test("isAllowedHref: rejects every denylist-bypass shape, accepts every legitimate shape", () => {
+  for (const href of DISALLOWED_URL_TARGET_HREFS) {
+    assert.equal(isAllowedHref(href), false, `expected isAllowedHref(${JSON.stringify(href)}) to be false`);
+  }
+  for (const href of ["/quickstart", "#posts", "https://ok.example/x", "mailto:a@b.example"]) {
+    assert.equal(isAllowedHref(href), true, `expected isAllowedHref(${JSON.stringify(href)}) to be true`);
+  }
+});
+
+for (const href of DISALLOWED_URL_TARGET_HREFS) {
+  test(`updateMenuTree rejects a url target href that bypassed the old denylist but fails the allowlist: ${JSON.stringify(href)}`, async () => {
+    const repo = new InMemoryMenuRepo();
+    const clock = fakeClock();
+    const idGen = fakeIdGen();
+    const { outbox } = fakeOutbox();
+
+    const { menu } = await createMenu({
+      deps: { repo, clock, idGen, outbox },
+      input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+    });
+
+    await assert.rejects(
+      () =>
+        updateMenuTree({
+          deps: { repo, clock, idGen, outbox },
+          input: {
+            workspaceId: "ws-1",
+            id: menu.id,
+            expectedVersion: menu.version,
+            items: [item({ id: "item-1", target: { kind: "url", href } })],
+          },
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof MenuValidationError, `expected MenuValidationError, got ${String(error)}`);
+        assert.equal(
+          (error as Error).message,
+          `url target href is not allowed: '${href}'. Accepted shapes: ${ALLOWED_HREF_SHAPES_DESCRIPTION}.`
+        );
+        return true;
+      }
+    );
+  });
+}
+
+/** Legitimate shapes the allowlist must keep accepting — matches the host's render-time `safeHref` table. */
+const ALLOWED_URL_TARGET_HREFS: readonly string[] = [
+  "/quickstart",
+  "#posts",
+  "https://ok.example/x",
+  "mailto:a@b.example",
+];
+
+for (const href of ALLOWED_URL_TARGET_HREFS) {
+  test(`updateMenuTree accepts a legitimate url target href: ${href}`, async () => {
+    const repo = new InMemoryMenuRepo();
+    const clock = fakeClock();
+    const idGen = fakeIdGen();
+    const { outbox } = fakeOutbox();
+
+    const { menu } = await createMenu({
+      deps: { repo, clock, idGen, outbox },
+      input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+    });
+
+    const { menu: updated } = await updateMenuTree({
+      deps: { repo, clock, idGen, outbox },
+      input: {
+        workspaceId: "ws-1",
+        id: menu.id,
+        expectedVersion: menu.version,
+        items: [item({ id: "item-1", target: { kind: "url", href } })],
+      },
+    });
+
+    assert.equal((updated.doc.items[0]?.target as { href?: string }).href, href);
+  });
+}
+
+test("createMenu accepts the three non-url target kinds (entryRef, termRef, route) with no href field, unaffected by the url allowlist", async () => {
+  const repo = new InMemoryMenuRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen("menu");
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: {
+      workspaceId: "ws-1",
+      title: "Primary Nav",
+      slug: "primary-nav",
+      items: [
+        item({ id: "item-1", target: { kind: "entryRef", entryId: "entry-1" } }),
+        item({ id: "item-2", target: { kind: "termRef", termId: "term-1", taxonomy: "category" } }),
+        item({ id: "item-3", target: { kind: "route", route: "home" } }),
+      ],
+    },
+  });
+
+  assert.equal(menu.doc.items.length, 3);
+  assert.equal(menu.doc.items[0]?.target.kind, "entryRef");
+  assert.equal(menu.doc.items[1]?.target.kind, "termRef");
+  assert.equal(menu.doc.items[2]?.target.kind, "route");
+});
+
+test("updateMenuTree rejects a menu item with a missing target as 400 validation, not an uncaught crash", async () => {
+  const repo = new InMemoryMenuRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+
+  await assert.rejects(
+    () =>
+      updateMenuTree({
+        deps: { repo, clock, idGen, outbox },
+        input: {
+          workspaceId: "ws-1",
+          id: menu.id,
+          expectedVersion: menu.version,
+          items: [
+            // Untrusted request body shape: `target` absent entirely (not merely
+            // an unrecognized kind). Previously threw `TypeError: Cannot read
+            // properties of undefined (reading 'kind')` — an uncaught crash the
+            // host's route handler had no case for, surfacing as a 500.
+            { id: "item-1", label: "Home" } as unknown as NavItemNode,
+          ],
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof MenuValidationError, `expected MenuValidationError, got ${String(error)}`);
+      assert.equal((error as Error).message, "every menu item requires a target");
+      return true;
+    }
+  );
+});
+
+test("updateMenuTree rejects a menu item with a null target as 400 validation, not an uncaught crash", async () => {
+  const repo = new InMemoryMenuRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+
+  await assert.rejects(
+    () =>
+      updateMenuTree({
+        deps: { repo, clock, idGen, outbox },
+        input: {
+          workspaceId: "ws-1",
+          id: menu.id,
+          expectedVersion: menu.version,
+          items: [item({ id: "item-1", target: null as unknown as NavItemNode["target"] })],
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof MenuValidationError, `expected MenuValidationError, got ${String(error)}`);
+      assert.equal((error as Error).message, "every menu item requires a target");
+      return true;
+    }
+  );
+});
+
+test("updateMenuTree rejects a url target with a missing href as 400 validation, not an uncaught crash", async () => {
+  const repo = new InMemoryMenuRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+
+  await assert.rejects(
+    () =>
+      updateMenuTree({
+        deps: { repo, clock, idGen, outbox },
+        input: {
+          workspaceId: "ws-1",
+          id: menu.id,
+          expectedVersion: menu.version,
+          items: [
+            // `href` is the second field this sink reads unguarded — previously
+            // threw `TypeError: Cannot read properties of undefined (reading 'trim')`.
+            item({ id: "item-1", target: { kind: "url" } as unknown as NavItemNode["target"] }),
+          ],
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof MenuValidationError, `expected MenuValidationError, got ${String(error)}`);
+      assert.equal((error as Error).message, "url target requires a non-empty href");
+      return true;
+    }
+  );
+});
+
+test("updateMenuTree rejects a null entry inside the item tree as 400 validation, not an uncaught crash", async () => {
+  const repo = new InMemoryMenuRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+
+  await assert.rejects(
+    () =>
+      updateMenuTree({
+        deps: { repo, clock, idGen, outbox },
+        input: {
+          workspaceId: "ws-1",
+          id: menu.id,
+          expectedVersion: menu.version,
+          items: [null as unknown as NavItemNode],
+        },
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof MenuValidationError, `expected MenuValidationError, got ${String(error)}`);
+      assert.equal((error as Error).message, "every menu item must be an object");
+      return true;
+    }
+  );
+});
+
+// ---------------------------------------------------------------------------
 // assignLocation
 // ---------------------------------------------------------------------------
 
@@ -362,6 +639,42 @@ test("assignLocation reassigns a location already bound elsewhere (last-writer-w
   // Only one binding row exists for this location — the uniqueness invariant.
   const allBindings = await bindingRepo.listByWorkspace({ workspaceId: "ws-1" });
   assert.equal(allBindings.filter((row) => row.locationKey === "primary").length, 1);
+});
+
+test("assignLocation refuses a trashed menu with ENTITY_IN_TRASH and leaves it unbound", async () => {
+  const repo = new InMemoryMenuRepo();
+  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+  const { menu: trashed } = await deleteMenu({
+    deps: { repo, bindingRepo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", id: menu.id },
+  });
+  assert.equal(trashed?.status, "trash");
+
+  await assert.rejects(
+    () =>
+      assignLocation({
+        deps: { repo, bindingRepo, clock, idGen, outbox },
+        input: { workspaceId: "ws-1", menuId: menu.id, locationKey: "primary" },
+      }),
+    (err: unknown) => {
+      assert.equal(
+        (err as Error).message,
+        `ENTITY_IN_TRASH: menu '${menu.id}' is in the Trash. Restore it from the Trash before changing it.`
+      );
+      return true;
+    }
+  );
+
+  const indexRow = await bindingRepo.findByLocation({ workspaceId: "ws-1", locationKey: "primary" });
+  assert.equal(indexRow, null);
 });
 
 // ---------------------------------------------------------------------------
@@ -657,4 +970,45 @@ test("C-007: deleteMenu's trash step enqueues navigation.menu.updated; a purge e
   assert.equal(enqueued.length, 1);
   assert.equal(enqueued[0]!.name, "navigation.menu.deleted");
   assert.deepEqual(enqueued[0]!.payload, { menuId: menu.id, slug: "primary-nav" });
+});
+
+// ---------------------------------------------------------------------------
+// updateMenuTree on a trashed menu (web-high fix plan follow-up, 2026-09-24)
+// ---------------------------------------------------------------------------
+
+test("updateMenuTree refuses a trashed menu with ENTITY_IN_TRASH and leaves it unchanged", async () => {
+  const repo = new InMemoryMenuRepo();
+  const bindingRepo = new InMemoryNavLocationBindingRepo();
+  const clock = fakeClock();
+  const idGen = fakeIdGen();
+  const { outbox } = fakeOutbox();
+
+  const { menu } = await createMenu({
+    deps: { repo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", title: "Primary Nav", slug: "primary-nav" },
+  });
+  const { menu: trashed } = await deleteMenu({
+    deps: { repo, bindingRepo, clock, idGen, outbox },
+    input: { workspaceId: "ws-1", id: menu.id },
+  });
+  assert.equal(trashed?.status, "trash");
+
+  await assert.rejects(
+    () =>
+      updateMenuTree({
+        deps: { repo, clock, idGen, outbox },
+        input: { workspaceId: "ws-1", id: menu.id, expectedVersion: trashed!.version, items: [item({ id: "item-1" })] },
+      }),
+    (err: unknown) => {
+      assert.equal(
+        (err as Error).message,
+        `ENTITY_IN_TRASH: menu '${menu.id}' is in the Trash. Restore it from the Trash before changing it.`
+      );
+      return true;
+    }
+  );
+
+  const after = await repo.findById({ workspaceId: "ws-1", id: menu.id });
+  assert.equal(after?.version, trashed!.version);
+  assert.equal(after?.doc.items.length, 0);
 });

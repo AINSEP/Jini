@@ -78,7 +78,10 @@ describe('exportViaHttp', () => {
     const result = await exportViaHttp('/custom/export', 'diag');
 
     expect(result.filename).toBe('from-header.zip');
-    expect(fetchMock).toHaveBeenCalledWith('/custom/export', { credentials: 'same-origin' });
+    expect(fetchMock).toHaveBeenCalledWith('/custom/export', {
+      credentials: 'same-origin',
+      signal: expect.any(AbortSignal),
+    });
     expect(createObjectURL).toHaveBeenCalledWith(blob);
     expect(clickSpy).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock');
@@ -276,7 +279,10 @@ describe('ExportDiagnosticsButton', () => {
     await user.click(screen.getByRole('button'));
     await waitFor(() => expect(screen.getByRole('status')).toBeTruthy());
     expect(screen.getByRole('status').textContent).toBe('Exported to diag-123.zip');
-    expect(globalThis.fetch).toHaveBeenCalledWith('/custom/export', { credentials: 'same-origin' });
+    expect(globalThis.fetch).toHaveBeenCalledWith('/custom/export', {
+      credentials: 'same-origin',
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it('reports the HTTP status text on a failed export request', async () => {

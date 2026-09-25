@@ -22,6 +22,7 @@ import * as settingsAbout from '../features/about/index.js';
 import * as settingsMediaProviders from '../features/media-providers/index.js';
 import * as memory from '../features/memory/index.js';
 import * as resourceDashboard from '../features/resource-dashboard/index.js';
+import * as folderPathDrop from '../features/folder-path-drop/index.js';
 import * as sketchEditor from '../features/sketch-editor/index.js';
 import * as lexicalRichTextEditor from '../features/lexical-rich-text-editor/index.js';
 
@@ -55,6 +56,7 @@ const featureModules: Record<string, object> = {
   'features/media-providers': settingsMediaProviders,
   'features/memory': memory,
   'features/resource-dashboard': resourceDashboard,
+  'features/folder-path-drop': folderPathDrop,
 };
 
 describe('package barrel (src/index.ts)', () => {

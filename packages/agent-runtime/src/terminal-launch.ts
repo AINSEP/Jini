@@ -8,7 +8,7 @@
  * inside the host app makes that a one-click action instead of a "go open
  * Terminal yourself" task.
  *
- * Ported from OD's `apps/daemon/src/runtimes/launch/terminal-launch.ts`
+ * Ported from OD's `apps/daemon/src/runtimes/terminal-launch.ts`
  * with one de-branding change: the Windows path opened a `cmd.exe` window
  * titled literally with the product's own name (see `source-map.md` for
  * the exact original string). `launchAgentInSystemTerminal` now takes an

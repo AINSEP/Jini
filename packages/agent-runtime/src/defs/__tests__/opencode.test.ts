@@ -121,6 +121,11 @@ describe('opencodeAgentDef shape', () => {
     expect(opencodeAgentDef.bin).toBe('opencode-cli');
     expect(opencodeAgentDef.fallbackBins).toEqual(['opencode']);
     expect(opencodeAgentDef.fallbackModels).toContainEqual(DEFAULT_MODEL_OPTION);
+    // Pins the Claude entry to the current generation (see `claude.ts`'s
+    // `CLAUDE_FALLBACK_MODELS`, the source of truth for which Anthropic id is
+    // current) so this fallback doesn't silently go stale the way
+    // `claude-sonnet-4-5` did.
+    expect(opencodeAgentDef.fallbackModels.map((m) => m.id)).toContain('anthropic/claude-sonnet-5');
     expect(opencodeAgentDef.listModels?.parse).toBe(parseLineSeparatedModels);
     expect(opencodeAgentDef.promptViaStdin).toBe(true);
     expect(opencodeAgentDef.resumesSessionViaCli).toBe(true);

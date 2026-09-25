@@ -1,0 +1,82 @@
+openapi: 3.0.3
+info:
+  title: Jini daemon tool-catalog routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for `tool-catalog.ts`'s two routes in `@jini-ai/http-kit`
+    — the discovery half of the staged `search_tools`/`describe_tool` verbs
+    (v0 scope: no principal scoping, no versioning, no schema narrowing).
+    `@jini-ai/mcp`'s `search_tools`/`describe_tool` tool defs proxy these two
+    routes directly. Deliberately NOT routed through `ToolExecutor`: this is a
+    read over a snapshot table with no side effect and no authorization
+    decision — "discovery is not permission," and finding a tool id here
+    grants nothing. The actual execution gate remains `ToolExecutor`, reached
+    only via `execute_delegated_tool` (see `delegated-tools.yaml`). Search
+    returns ranked candidates only, never schemas; the full descriptor
+    (including `inputSchema`) is paid for only once a candidate survives
+    search and is fetched by id.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/tools/search:
+    get:
+      operationId: search_tool_catalog
+      summary: Search the tool catalog by free-text query
+      x-jini-require-same-origin: true
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1 }, description: Free-text search query. }
+        - { name: limit, in: query, required: false, schema: { type: string, pattern: '^[0-9]+$' }, description: 'Positive integer as a query string; silently clamped to 25 (`MAX_SEARCH_LIMIT`). Defaults to 10 when omitted.' }
+      responses:
+        '200': { description: Ranked search hits — id, description, source, and score only; no schema., content: { application/json: { schema: { $ref: '#/components/schemas/ToolCatalogSearchResponse' } } } }
+        '400': { description: '`q` is missing/empty, or `limit` is supplied but is not a single positive-integer string.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/tools/{id}:
+    get:
+      operationId: get_tool_catalog_entry
+      summary: Fetch a tool's full catalog descriptor, including its input schema
+      description: 'An unknown `id` is `404 NOT_FOUND`, not `400` — a well-formed request naming a catalog entry that does not exist is a missing resource, not a malformed request. (This route answered `400` until 2026-07-29, inconsistently with `memory.ts`/`routines.ts`/`media.ts`''s equivalent "referenced thing isn''t there" cases, which all already used 404 — fixed to match.)'
+      x-jini-require-same-origin: true
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Full catalog entry, schema included., content: { application/json: { schema: { $ref: '#/components/schemas/ToolCatalogEntry' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: No catalog entry for the given tool id., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  securitySchemes:
+    optionalBearer:
+      type: http
+      scheme: bearer
+      description: When the host enables `JINI_API_TOKEN`, the global `/api` middleware requires this token except for health/ready/version probes and permitted direct loopback peers.
+  responses:
+    Forbidden: { description: Same-origin guard rejected the request., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; adapter-generated errors include a correlation requestId in error.details., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    ToolCatalogSearchHit:
+      type: object
+      required: [id, description, source, score]
+      properties:
+        id: { type: string }
+        description: { type: string }
+        source: { type: string }
+        score: { type: number }
+    ToolCatalogSearchResponse:
+      type: object
+      required: [hits]
+      properties: { hits: { type: array, items: { $ref: '#/components/schemas/ToolCatalogSearchHit' } } }
+    ToolCatalogEntry:
+      type: object
+      required: [id, description, source]
+      properties:
+        id: { type: string }
+        description: { type: string }
+        inputSchema: { description: JSON Schema for the tool's input, when known. Omitted from search hits; present here. }
+        source: { type: string }

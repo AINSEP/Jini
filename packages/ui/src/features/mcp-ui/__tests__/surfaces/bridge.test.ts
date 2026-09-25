@@ -158,6 +158,19 @@ describe('renderBridgeScript', () => {
     await expect(pending).rejects.toThrow('Row is locked');
   });
 
+  it('carries the Host error’s data onto the rejection, so a surface can tell why it failed', async () => {
+    const bridge = runBridge();
+    await bridge.handshake();
+    const pending = bridge.api.callTool('boom');
+    const call = bridge.posted.find((message) => message.method === 'tools/call');
+    bridge.deliver({
+      jsonrpc: '2.0',
+      id: call?.id,
+      error: { code: -32603, message: 'gone', data: { code: 'SURFACE_NOT_PENDING' } },
+    });
+    await expect(pending).rejects.toMatchObject({ message: 'gone', code: -32603, data: { code: 'SURFACE_NOT_PENDING' } });
+  });
+
   it('rejects with a generic message when the Host’s error carries no string message', async () => {
     const bridge = runBridge();
     await bridge.handshake();

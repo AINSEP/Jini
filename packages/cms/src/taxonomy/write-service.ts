@@ -95,10 +95,19 @@ export interface ContentLookupPort {
   resolve(params: { contentType: string; contentId: string }): Promise<{ workspaceId: string; kind: string } | null>;
 }
 
+/** ADR-044: the content_types registry's per-type taxonomy allow-list for Collections entries
+ *  (parallel to, never folded into, TAXONOMY_ALLOWED_CONTENT_TYPES — see the decision note).
+ *  `null` = not a live registry type (not applicable). */
+export interface ContentTypeTaxonomyPolicyPort {
+  taxonomiesFor(params: { contentType: string }): Promise<"all" | ReadonlySet<string> | null>;
+}
+
 /** The hardcoded post/page taxonomy allow-list (permanent, see
  * `docs/decisions/taxonomy-content-type-allow-list.md`) — every taxonomy is applicable to
- * `post`/`page` content; no other content type is eligible for term assignment until this is
- * deliberately extended. */
+ * `post`/`page` content. This set is never grown to admit a Collection's content-type key; a
+ * Collection entry instead becomes eligible through {@link ContentTypeTaxonomyPolicyPort} above,
+ * an intentionally parallel (not layered) per-content-type policy carried by a host's own
+ * `content_types` registry. */
 export const TAXONOMY_ALLOWED_CONTENT_TYPES: ReadonlySet<string> = new Set(["post", "page"]);
 
 export function isContentTypeOnAllowList(contentType: string): boolean {
@@ -145,6 +154,10 @@ export interface WriteServiceDeps {
   /** Resolves a `(contentType, contentId)` pair's real workspace/kind for `assignTerms`'s
    * content-join validation (Finding 1 fix). */
   contentLookup: ContentLookupPort;
+  /** Per-content-type taxonomy allow-list for Collections entries (A1, taxonomy plan). Optional so
+   * other hosts (and every existing test double) don't break — a host that omits it simply never
+   * makes a non-post/page `contentType` resolvable, matching today's behavior exactly. */
+  contentTypeTaxonomyPolicy?: ContentTypeTaxonomyPolicyPort;
 }
 
 export class TaxonomyRecordNotFoundError extends Error {
@@ -349,16 +362,36 @@ export interface AssignTermsRequired {
  * partial assignment. Content is resolved once per call (not once per term) since every term in
  * one call shares the same `(contentType, contentId)` target.
  */
-export async function assignTerms(
-  required: AssignTermsRequired,
-  _optional: Record<string, never> = {}
+/**
+ * A1 (taxonomy plan) — shared by `assignTerms` and `unassignTerms`: resolves whether
+ * `(contentType, contentId)` is a real, eligible target and validates every `termId` against it,
+ * BEFORE either caller writes anything. Extracted from `assignTerms` verbatim (same order, same
+ * errors) so `unassignTerms` inherits the exact same content-join guarantees rather than a
+ * re-derived copy that could drift.
+ *
+ * `post`/`page` keep today's behavior exactly: `isPostOrPage` short-circuits before
+ * `contentTypeTaxonomyPolicy` is ever consulted (AC-08). A non-post/page `contentType` is
+ * resolvable only when a policy is wired AND that policy doesn't return `null` (not applicable) —
+ * an unknown `contentType` (no policy, or a policy returning `null`) stays unresolvable, so it
+ * still fails at `validateContentJoin`'s allow-list check (`TaxonomyNotApplicableError`), not a
+ * `ContentRecordNotFoundError` — this is what keeps `"product"` a 400, not a 404.
+ */
+async function validateAssignmentTarget(
+  deps: WriteServiceDeps,
+  contentType: string,
+  contentId: string,
+  termIds: string[]
 ): Promise<void> {
-  const { deps, principalId, contentType, contentId, termIds } = required;
-  await authorizeTaxonomyManage(deps, principalId);
+  const isPostOrPage = isContentTypeOnAllowList(contentType);
+  const policy = isPostOrPage
+    ? null
+    : deps.contentTypeTaxonomyPolicy
+      ? await deps.contentTypeTaxonomyPolicy.taxonomiesFor({ contentType })
+      : null;
+  const isResolvable = isPostOrPage || policy !== null;
 
-  const isOnAllowList = isContentTypeOnAllowList(contentType);
-  const content = isOnAllowList ? await deps.contentLookup.resolve({ contentType, contentId }) : null;
-  if (isOnAllowList && !content) {
+  const content = isResolvable ? await deps.contentLookup.resolve({ contentType, contentId }) : null;
+  if (isResolvable && !content) {
     throw new ContentRecordNotFoundError(`content '${contentType}:${contentId}' was not found`);
   }
 
@@ -367,6 +400,7 @@ export async function assignTerms(
     if (!term) {
       throw new TermRecordNotFoundError(`term '${termId}' was not found`);
     }
+    const isOnAllowList = isPostOrPage || policy === "all" || (policy instanceof Set && policy.has(term.taxonomyId));
     validateContentJoin({
       taxonomyId: term.taxonomyId,
       isOnAllowList,
@@ -380,6 +414,16 @@ export async function assignTerms(
       resolvedContentKind: content?.kind ?? contentType,
     });
   }
+}
+
+export async function assignTerms(
+  required: AssignTermsRequired,
+  _optional: Record<string, never> = {}
+): Promise<void> {
+  const { deps, principalId, contentType, contentId, termIds } = required;
+  await authorizeTaxonomyManage(deps, principalId);
+
+  await validateAssignmentTarget(deps, contentType, contentId, termIds);
 
   const now = deps.clock.nowIso();
   for (const termId of termIds) {
@@ -389,6 +433,54 @@ export async function assignTerms(
   deps.stampWatermark();
   await deps.outbox.enqueue({
     name: "taxonomy.terms_assigned",
+    contentType,
+    contentId,
+    termIds,
+    actorId: principalId,
+    occurredAt: now,
+  });
+}
+
+/** A2 (taxonomy plan) — the removal half of `assignTerms`. `remove()` lives on an additive port
+ * (`UnassignableEntryTermRepoPort`) rather than widening the certified `EntryTermRepoPort`, the
+ * same precedent `AssignmentCountEntryTermRepoPort` already set for `deleteTerm`/`deleteTaxonomy`. */
+export interface UnassignableEntryTermRepoPort {
+  remove(row: { contentType: string; contentId: string; termId: string }): Promise<number>;
+}
+
+export interface UnassignTermsRequired {
+  deps: Omit<WriteServiceDeps, "entryTerms"> & { entryTerms: EntryTermRepoPort & UnassignableEntryTermRepoPort };
+  principalId: string;
+  contentType: string;
+  contentId: string;
+  termIds: string[];
+}
+
+/** SPEC-018 REQ-07/REQ-13/REQ-14/REQ-17/REQ-22 — spec debt this codebase never built (the spec
+ * always named "assign/unassign tools"; only `assignTerms` shipped). Same
+ * authorize -> validateAssignmentTarget -> write -> stamp -> outbox chokepoint as `assignTerms`,
+ * and — like `assignTerms` — never produces a `taxonomy_revisions` row (REQ-13/INV-05's disclosed
+ * narrowing applies equally to removal). Idempotent: unassigning a row that isn't there is a no-op,
+ * not an error (`remove()`'s 0-vs-1 return is intentionally not surfaced to the caller). Chosen over
+ * a "set terms" replace call — see the taxonomy plan's "What the docs settle" #3 for why replace
+ * risks silently erasing a concurrent assignment. */
+export async function unassignTerms(
+  required: UnassignTermsRequired,
+  _optional: Record<string, never> = {}
+): Promise<void> {
+  const { deps, principalId, contentType, contentId, termIds } = required;
+  await authorizeTaxonomyManage(deps, principalId);
+
+  await validateAssignmentTarget(deps, contentType, contentId, termIds);
+
+  for (const termId of termIds) {
+    await deps.entryTerms.remove({ contentType, contentId, termId });
+  }
+
+  const now = deps.clock.nowIso();
+  deps.stampWatermark();
+  await deps.outbox.enqueue({
+    name: "taxonomy.terms_unassigned",
     contentType,
     contentId,
     termIds,

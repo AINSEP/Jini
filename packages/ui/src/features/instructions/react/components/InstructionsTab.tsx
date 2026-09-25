@@ -1,3 +1,4 @@
+import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 
 export interface InstructionsTabProps {
@@ -16,6 +17,8 @@ export interface InstructionsTabProps {
   placeholder?: string;
   rows?: number;
   maxLength?: number;
+  /** This tab's own agent handle — see other tabs' `agentHandle` doc for the split. */
+  agentHandle?: string;
 }
 
 /**
@@ -32,6 +35,7 @@ export function InstructionsTab({
   placeholder,
   rows = 5,
   maxLength = 5000,
+  agentHandle,
 }: InstructionsTabProps) {
   const t = useT();
   const resolvedTitle = title ?? t('Custom instructions');
@@ -56,6 +60,7 @@ export function InstructionsTab({
           aria-label={resolvedTitle}
           value={value}
           onChange={(event) => onChange(event.target.value || undefined)}
+          {...agentHandleProps(agentHandle, { role: 'field', label: resolvedTitle })}
         />
       </div>
     </section>

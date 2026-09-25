@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "verbatimModuleSyntax": false,
+    "outDir": "dist/cjs"
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/**/__tests__/**",
+    "src/**/*.test.ts"
+  ]
+}

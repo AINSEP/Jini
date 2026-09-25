@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/devops",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -39,7 +39,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",

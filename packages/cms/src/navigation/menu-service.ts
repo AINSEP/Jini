@@ -22,6 +22,7 @@
  * Feature logic only. No Express/route code, no direct SQL — everything goes
  * through the injected repo ports (`deps`).
  */
+import { assertEntityLive } from "../core/entity-liveness.js";
 import type { ClockPort, DomainEvent, IdGeneratorPort, OutboxPort, UUID } from "../core/ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
@@ -104,7 +105,81 @@ export const DEFAULT_MAX_ITEM_COUNT = 500;
 const VALID_TARGET_KINDS = new Set<string>(["entryRef", "termRef", "url", "route"]);
 /** Named deferred seams — recognized, rejected until their resolver ships. */
 const RESERVED_TARGET_KINDS = new Set<string>(["dynamicQuery", "content"]);
-const URL_SCHEME_DENYLIST = ["javascript:", "data:", "vbscript:"];
+
+/**
+ * Fixed placeholder origin {@link isAllowedHref} resolves a claimed same-origin-relative href
+ * against, to compare the RESOLVED origin rather than the raw string shape. Mirrors
+ * `apps/website/src/server/inbound/public-http/http/site/render.ts`'s identically-named constant
+ * byte-for-byte — see that file's own header for why a fixed placeholder origin is sufficient (only
+ * the relationship between the resolved URL's origin and this one is ever inspected, never the
+ * placeholder value itself).
+ */
+const SAFE_HREF_RESOLUTION_BASE = "http://tovu-safehref.invalid/";
+const SAFE_HREF_RESOLUTION_ORIGIN = new URL(SAFE_HREF_RESOLUTION_BASE).origin;
+
+/**
+ * The CANONICAL href allowlist for an author-authored link — same accepted shapes (`#…`, same-origin
+ * `/…`, `http(s)://`, `mailto:`) as the host's render-time `safeHref` in `render.ts` and its
+ * `features/theme/static-render.ts` duplicate. **This is now the single source of truth**: exported
+ * from this package's public surface (`navigation/index.ts` -> `@jini-ai/cms/navigation`) so the
+ * dependency runs the direction that is actually legal — the host already depends on `@jini-ai/cms`, not
+ * the reverse — rather than each consumer hand-copying the predicate.
+ *
+ * The two host-side copies (`render.ts:252`, `features/theme/static-render.ts:210`, both a coercing
+ * `value => passes ? value : "#"` wrapper around the identical predicate below) have **not yet been
+ * retired to import this** — that edit is intentionally out of this change's scope (a
+ * `check:boundaries` no-deep-import concern is NOT what blocks it: `render.ts` already imports
+ * `@jini-ai/cms/core` today, and `features/theme` already imports `@jini-ai/cms/core` too, so both
+ * call sites may legally import `@jini-ai/cms/navigation` directly — verified by grep, not assumed).
+ * Until that follow-up lands, `apps/website/development/scripts/check-menu-href-allowlist-sync.ts`
+ * behaviorally gates the three copies against the same adversarial table so a divergence fails CI
+ * instead of drifting silently.
+ *
+ * Replaced (this change) a `URL_SCHEME_DENYLIST` (`startsWith` on a lowercased, `.trim()`ed string)
+ * that failed open: the WHATWG `URL` parser strips TAB/LF/CR from ANYWHERE in the input and folds a
+ * leading backslash to `/` for `http(s)`, so `"java\tscript:alert(1)"`, `" javascript:alert(1)"`,
+ * `"file:///etc/passwd"`, `"blob:…"`, `"about:blank"`, `"//evil.example"` (protocol-relative), and
+ * `"/\evil.example"` all resolved to a dangerous or off-origin target while never matching any
+ * `startsWith` prefix in the old list. An allowlist closes the whole bypass class at once (case,
+ * embedded control characters, and scheme are all irrelevant to an allowlist the same way) rather
+ * than needing a new prefix bolted on per newly-discovered shape.
+ *
+ * `validateTarget`'s caller REJECTS on a `false` result (`MenuValidationError`, surfaced as HTTP 400)
+ * rather than silently coercing the way `safeHref`'s render-time callers degrade to `"#"` — a
+ * write-time author-facing path should say so, not quietly rewrite the input. Verified against the
+ * workspace's stored menu data (`content.db`, `content.seed.db`) before this change: every existing
+ * `url`-kind href already starts with `#` or `/`, so this tightening rejects nothing that exists
+ * today — it governs `createMenu` too, so it also reaches the Jini MCP agent-tool path, not just
+ * hrefs written through the host's admin editor.
+ *
+ * @param rawHref - The href to check, already confirmed non-empty by `validateTarget`. Any string is
+ *   otherwise a valid input — this function performs no other precondition checks.
+ * @returns `true` when `rawHref` passes the allowlist, `false` otherwise.
+ * @complexity O(1) — a handful of string checks plus one `URL` construction on the `/…` branch.
+ */
+export function isAllowedHref(rawHref: string): boolean {
+  const href = rawHref.trim();
+  if (href.startsWith("#")) return true;
+  if (/^https?:\/\//i.test(href) || /^mailto:/i.test(href)) return true;
+  if (href.startsWith("/")) {
+    try {
+      return new URL(href, SAFE_HREF_RESOLUTION_BASE).origin === SAFE_HREF_RESOLUTION_ORIGIN;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+/**
+ * Human-readable description of {@link isAllowedHref}'s accepted shapes — the single source of truth
+ * for both `validateTarget`'s rejection message below and `agent-tools.ts`'s published JSON Schema
+ * `href` description, so an author-facing 400 and an LLM-facing tool description can never drift out
+ * of sync with each other the way three independent copies of the URL-checking LOGIC itself did
+ * before this change.
+ */
+export const ALLOWED_HREF_SHAPES_DESCRIPTION =
+  "an in-page anchor ('#...'), a same-origin relative path ('/...'), an 'http://' or 'https://' URL, or a 'mailto:' address";
 
 export interface TreeValidationLimits {
   maxDepth?: number | undefined;
@@ -115,15 +190,22 @@ export interface TreeValidationLimits {
  * Validates a candidate item tree and returns a defensively-cloned copy.
  *
  * Checks (total/bounded validation + target integrity):
+ * - `items` (and every `children` array) is actually an array, and every node
+ *   in it is a non-null object — untrusted JSON bodies can carry `null`
+ *   entries or a non-array `items`/`children`, which must reject as a
+ *   `MenuValidationError`, not throw an uncaught `TypeError`;
  * - every node has a non-empty `id`, unique across the whole tree (id
  *   stability is a caller responsibility — see `updateMenuTree` doc for the
  *   simplification this build accepts);
  * - nesting depth stays within `maxDepth`;
  * - total item count stays within `maxItemCount`;
- * - every target's `kind` is one of the four v1 kinds — reserved kinds
- *   (`dynamicQuery`, `content`) are rejected with a clear "not yet" error
- *   rather than silently accepted;
- * - `url` targets reject a scheme denylist (`javascript:`, `data:`, `vbscript:`).
+ * - every node has a `target` object (a missing/`null` `target` rejects
+ *   rather than crashing) whose `kind` is one of the four v1 kinds — reserved
+ *   kinds (`dynamicQuery`, `content`) are rejected with a clear "not yet"
+ *   error rather than silently accepted;
+ * - `url` targets require a non-empty string `href` and pass an origin/scheme
+ *   ALLOWLIST (`#…`, same-origin `/…`, `http(s)://`, `mailto:` — see
+ *   {@link isAllowedHref}), not a scheme denylist.
  *
  * @complexity O(n) over total node count for one full walk; no per-node
  * backtracking. Space is O(n) for the cloned tree plus O(n) for the id set.
@@ -139,6 +221,9 @@ export function validateAndCloneTree(
   let count = 0;
 
   function walk(nodes: readonly NavItemNode[], depth: number): NavItemNode[] {
+    if (!Array.isArray(nodes)) {
+      throw new MenuValidationError("menu items must be an array");
+    }
     if (depth > maxDepth) {
       throw new MenuValidationError(`menu tree exceeds max nesting depth of ${maxDepth}`);
     }
@@ -146,6 +231,9 @@ export function validateAndCloneTree(
       count += 1;
       if (count > maxItemCount) {
         throw new MenuValidationError(`menu tree exceeds max item count of ${maxItemCount}`);
+      }
+      if (!node || typeof node !== "object") {
+        throw new MenuValidationError("every menu item must be an object");
       }
       if (!node.id || !node.id.trim()) {
         throw new MenuValidationError("every menu item requires a non-empty id");
@@ -164,7 +252,16 @@ export function validateAndCloneTree(
   return walk(items, 1);
 }
 
+/**
+ * Guards every field this function reads off an untrusted `target` before reading it — a `target`
+ * arriving `null`/`undefined` (missing from the request body) or a `url` target missing `href`
+ * previously threw an uncaught `TypeError` here, which the host's route handler had no case for and
+ * surfaced as a 500 instead of the intended 400 `MenuValidationError` path.
+ */
 function validateTarget(target: NavTarget): void {
+  if (!target || typeof target !== "object") {
+    throw new MenuValidationError("every menu item requires a target");
+  }
   const kind = target.kind;
   if (RESERVED_TARGET_KINDS.has(kind)) {
     throw new MenuValidationError(
@@ -175,10 +272,13 @@ function validateTarget(target: NavTarget): void {
     throw new MenuValidationError(`unknown target kind '${kind}'`);
   }
   if (kind === "url") {
-    const href = (target as NavUrlTarget).href.trim().toLowerCase();
-    if (URL_SCHEME_DENYLIST.some((scheme) => href.startsWith(scheme))) {
+    const rawHref = (target as NavUrlTarget).href;
+    if (typeof rawHref !== "string" || !rawHref.trim()) {
+      throw new MenuValidationError("url target requires a non-empty href");
+    }
+    if (!isAllowedHref(rawHref)) {
       throw new MenuValidationError(
-        `url target uses a disallowed scheme: '${(target as NavUrlTarget).href}'`
+        `url target href is not allowed: '${rawHref}'. Accepted shapes: ${ALLOWED_HREF_SHAPES_DESCRIPTION}.`
       );
     }
   }
@@ -337,6 +437,7 @@ export async function updateMenuTree(
   const { deps, input } = required;
   const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
   if (!existing) throw new MenuNotFoundError(`menu '${input.id}' was not found`);
+  assertEntityLive({ entityType: "menu", entityId: input.id, state: existing.status === "trash" ? "trashed" : "live" });
 
   if (existing.version !== input.expectedVersion) {
     throw new MenuConflictError(
@@ -446,6 +547,7 @@ export async function assignLocation(
   const { deps, input } = required;
   const menu = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.menuId });
   if (!menu) throw new MenuNotFoundError(`menu '${input.menuId}' was not found`);
+  assertEntityLive({ entityType: "menu", entityId: input.menuId, state: menu.status === "trash" ? "trashed" : "live" });
 
   const now = deps.clock.nowIso();
 

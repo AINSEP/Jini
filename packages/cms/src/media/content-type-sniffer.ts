@@ -37,6 +37,7 @@ export type SniffedContentType =
   | "image/jpeg"
   | "image/gif"
   | "image/webp"
+  | "image/avif"
   | "video/mp4"
   | "video/webm"
   | "text/html"
@@ -88,10 +89,55 @@ function isWebp(bytes: Uint8Array): boolean {
   return asciiEqualAt(bytes, 0, "RIFF") && asciiEqualAt(bytes, 8, "WEBP");
 }
 
-/** ISO-BMFF (MP4 and its siblings): a leading box whose 4-byte type tag at offset 4 is `ftyp`. The
- * box's own size field (offset 0-3) is deliberately not checked — it varies by file. */
-function isIsoBmffMp4(bytes: Uint8Array): boolean {
+/** ISO-BMFF: a leading box whose 4-byte type tag at offset 4 is `ftyp`. The box's own size field
+ * (offset 0-3) is deliberately not checked here — it varies by file. This says only "some member
+ * of the ISO-BMFF family", NOT "MP4": AVIF, HEIC and MP4 all match it, which is why
+ * {@link isAvif} must run first and why {@link sniffContentType} treats this as the family's
+ * last-resort fallback rather than a positive MP4 identification. */
+function isIsoBmffFtyp(bytes: Uint8Array): boolean {
   return asciiEqualAt(bytes, 4, "ftyp");
+}
+
+/** ISO-BMFF brands that identify AVIF: a still image (`avif`) or an image sequence (`avis`). */
+const AVIF_BRANDS = ["avif", "avis"] as const;
+
+const FTYP_MAJOR_BRAND_OFFSET = 8;
+/** Compatible brands follow the major brand (offset 8) and 4-byte minor version (offset 12). */
+const FTYP_COMPATIBLE_BRANDS_OFFSET = 16;
+/** Bound on the compatible-brand list scan — real `ftyp` boxes carry a handful, never dozens. */
+const MAX_SCANNED_COMPATIBLE_BRANDS = 16;
+
+/** The `ftyp` box's declared end offset (big-endian size at bytes 0-3), clamped to the bytes
+ * actually present so a truncated or size-inflating file can never push the brand scan past the
+ * buffer or into unrelated trailing boxes. */
+function ftypBoxEnd(bytes: Uint8Array): number {
+  if (bytes.length < FTYP_MAJOR_BRAND_OFFSET) return 0;
+  const declared = ((bytes[0]! << 24) | (bytes[1]! << 16) | (bytes[2]! << 8) | bytes[3]!) >>> 0;
+  return Math.min(declared, bytes.length);
+}
+
+function hasAvifBrandAt(bytes: Uint8Array, offset: number): boolean {
+  return AVIF_BRANDS.some((brand) => asciiEqualAt(bytes, offset, brand));
+}
+
+/**
+ * AVIF, distinguished from its ISO-BMFF siblings by brand rather than by the shared `ftyp` tag.
+ * The major brand alone is not sufficient: a great many real AVIF files declare the generic
+ * `mif1` (HEIF image) major brand and name `avif` only in the compatible-brand list, so both are
+ * checked. HEIC declares neither and is therefore never matched here — deliberate, since the
+ * installed libvips decodes AVIF but not HEIC.
+ */
+function isAvif(bytes: Uint8Array): boolean {
+  if (!isIsoBmffFtyp(bytes)) return false;
+  if (hasAvifBrandAt(bytes, FTYP_MAJOR_BRAND_OFFSET)) return true;
+
+  const boxEnd = ftypBoxEnd(bytes);
+  for (let index = 0; index < MAX_SCANNED_COMPATIBLE_BRANDS; index++) {
+    const offset = FTYP_COMPATIBLE_BRANDS_OFFSET + index * 4;
+    if (offset + 4 > boxEnd) return false;
+    if (hasAvifBrandAt(bytes, offset)) return true;
+  }
+  return false;
 }
 
 function isWebm(bytes: Uint8Array): boolean {
@@ -150,7 +196,10 @@ export function sniffContentType(bytes: Uint8Array): SniffedContentType {
   if (isJpeg(bytes)) return "image/jpeg";
   if (isGif(bytes)) return "image/gif";
   if (isWebp(bytes)) return "image/webp";
-  if (isIsoBmffMp4(bytes)) return "video/mp4";
+  // MUST precede the MP4 check: AVIF is ISO-BMFF too, so the brand-blind `ftyp` test below would
+  // otherwise claim every AVIF as video/mp4 (the 2026-09-06 regression).
+  if (isAvif(bytes)) return "image/avif";
+  if (isIsoBmffFtyp(bytes)) return "video/mp4";
   if (isWebm(bytes)) return "video/webm";
 
   const text = leadingText(bytes);

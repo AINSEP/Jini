@@ -9,7 +9,7 @@
  * `@jini-ai/renderers-react`), not this framework-free package. See
  * source-map.md.
  */
-import type { ToolResultEvent, ToolUseEvent } from './events.js';
+import type { ToolResultEvent, ToolResultMediaBlock, ToolUseEvent } from './events.js';
 
 export { dedupeToolUsesById } from './tool-events.js';
 
@@ -24,6 +24,8 @@ export interface ToolRenderProps {
   result: string | undefined;
   /** Mirrors `tool_result.isError`. Terminal failures without a `tool_result` surface via `status: 'error'` instead. */
   isError: boolean;
+  /** Mirrors `tool_result.media`. `undefined` for the overwhelming majority of tool results, which carry none. */
+  media: readonly ToolResultMediaBlock[] | undefined;
 }
 
 /**
@@ -70,5 +72,6 @@ export function toRenderProps(
     args: use.input,
     result: result?.content,
     isError: result?.isError ?? false,
+    media: result?.media,
   };
 }

@@ -62,7 +62,7 @@ export interface TabbedDialogProps<T extends TabbedDialogTab = TabbedDialogTab> 
  * supplies `tabs`, each with its own `panel` (any `ReactNode`).
  *
  * Extracted (2026-08-13) out of `SettingsDialogShell` (`../../settings/dialog/`), which
- * had accreted five non-Settings hosts in Tovu (`AgentPlugins.tsx`, `AiAssistant.tsx`,
+ * had accreted five non-Settings hosts in a downstream consumer (`AgentPlugins.tsx`, `AiAssistant.tsx`,
  * `Authentication.tsx`, `PlaceholderTabs.tsx`, plus the original `SettingsUi.tsx`) while
  * still being named — and CSS-classed — after only one of them. `SettingsDialogShell` is
  * now a thin wrapper that renders this component with its own settings-flavoured label
@@ -215,11 +215,11 @@ export function TabbedDialog<T extends TabbedDialogTab>({
                   onClick={() => shell.setActiveTabId(tab.id)}
                   /*
                    * `settings-dialog-nav-${tab.id}`, not `tabbed-dialog-nav-${tab.id}`: this
-                   * testid predates this component's extraction and several Tovu Playwright
-                   * e2e specs (development/e2e/byok-*.spec.ts,
+                   * testid predates this component's extraction and several of a downstream
+                   * consumer's Playwright e2e specs (development/e2e/byok-*.spec.ts,
                    * placeholder-tabs-card-parity.spec.ts) hard-code the old prefix. Renaming
                    * it here would silently break those specs with no local way to catch it —
-                   * this package's own test suite can't see Tovu's e2e tree. Left unchanged
+                   * this package's own test suite can't see that consumer's e2e tree. Left unchanged
                    * on purpose; see the extraction handoff for the full consumer list.
                    */
                   data-testid={`settings-dialog-nav-${tab.id}`}
@@ -276,7 +276,7 @@ export function TabbedDialog<T extends TabbedDialogTab>({
       className="jini-tabbed-dialog-backdrop"
       onClick={onClose}
       // `settings-dialog-backdrop`, not `tabbed-dialog-backdrop` — same reasoning as the
-      // nav-item testid above: kept unchanged so Tovu's existing Playwright specs and unit
+      // nav-item testid above: kept unchanged so a downstream consumer's existing Playwright specs and unit
       // tests keep matching it.
       data-testid="settings-dialog-backdrop"
     >

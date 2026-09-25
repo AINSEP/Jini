@@ -7,7 +7,7 @@
  * project-config-discovery, which would otherwise walk up from cwd and run
  * an install step that can corrupt a pnpm workspace it's spawned inside).
  *
- * Heavily de-branded from OD's `apps/daemon/src/runtimes/env/env.ts`. The
+ * Heavily de-branded from OD's `apps/daemon/src/runtimes/env.ts`. The
  * origin file was far more coupled than r1b's "supporting generic file"
  * classification anticipated — it read OD's own app-config subsystem, OD's
  * sandbox-mode subsystem, and vela/AMR-specific env forwarding including a

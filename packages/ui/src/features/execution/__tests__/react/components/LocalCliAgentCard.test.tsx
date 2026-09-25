@@ -382,3 +382,174 @@ describe('LocalCliAgentCard — executable path repair', () => {
     expect(screen.queryByTestId('jini-agent-path-repair-use-codex')).not.toBeInTheDocument();
   });
 });
+
+/**
+ * The second reasoning shape: a runtime whose effort rides INSIDE the model id
+ * (`DetectedAgent.reasoningInModelId`; antigravity is the only declarer today).
+ *
+ * The card must branch on that DECLARATION, never on the agent's id — and the effort options it
+ * offers must come from the agent's own model list, because the levels are not uniform across base
+ * models. The fixture below is `agy models`' real output; `gemini-3.1-pro` genuinely has no
+ * `-medium` variant, and `agy --model gemini-3.1-pro-medium` is rejected outright.
+ */
+describe('LocalCliAgentCard — effort encoded in the model id', () => {
+  const AGY_MODELS = [
+    { id: 'default', label: 'Default (CLI config)' },
+    { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
+    { id: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)' },
+    { id: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' },
+    { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' },
+    { id: 'gemini-3.1-pro-low', label: 'Gemini 3.1 Pro (Low)' },
+    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Thinking)' },
+    { id: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B (Medium)' },
+  ];
+  const REASONING_IN_MODEL_ID = {
+    levels: [
+      { id: 'high', label: 'High' },
+      { id: 'medium', label: 'Medium' },
+      { id: 'low', label: 'Low' },
+    ],
+  };
+
+  function agyAgent(overrides: Partial<DetectedAgent> = {}): DetectedAgent {
+    return {
+      id: 'antigravity',
+      label: 'Antigravity',
+      installed: true,
+      supportsCustomModel: false,
+      models: AGY_MODELS,
+      modelsSource: 'live',
+      reasoningInModelId: REASONING_IN_MODEL_ID,
+      ...overrides,
+    };
+  }
+
+  function renderAgy(config: LocalCliConfig, onModelChange = vi.fn()) {
+    renderCard({ agent: agyAgent(), config, onModelChange });
+    return onModelChange;
+  }
+
+  /** The effort control is a plain `<select>` (same element the flat reasoning picker uses), so its
+   *  options are readable without opening anything. */
+  function effortOptionValues() {
+    return within(screen.getByTestId('jini-agent-reasoning-antigravity'))
+      .getAllByRole('option')
+      .map((option) => (option as HTMLOptionElement).value);
+  }
+
+  /** The model control is a `CustomSelect`, whose options exist only while its portal menu is
+   *  open — so reading them means opening it first, exactly as the model-picker tests above do. */
+  async function openModelMenu(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(within(screen.getByTestId('jini-agent-model-antigravity')).getByRole('combobox'));
+    // Scoped to the portal menu's own listbox: the effort control is a native `<select>`, whose
+    // own `<option>`s would otherwise be swept up by a document-wide `getAllByRole('option')`.
+    return within(screen.getByRole('listbox'))
+      .getAllByRole('option')
+      .map((option) => option.textContent?.trim() ?? '');
+  }
+
+  it('offers one entry per BASE model, with the effort qualifier stripped from the label', async () => {
+    const user = userEvent.setup();
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.1-pro-high' } });
+    const labels = await openModelMenu(user);
+    expect(labels).toEqual([
+      'Default (CLI config)',
+      'Gemini 3.8 Flash',
+      'Gemini 3.1 Pro',
+      'Claude Sonnet 4.6 (Thinking)',
+      'GPT-OSS 120B',
+    ]);
+    expect(labels).not.toContain('Gemini 3.1 Pro (High)');
+  });
+
+  // THE regression this whole feature exists to prevent.
+  it('offers gemini-3.1-pro exactly High and Low — never a Medium that does not exist', () => {
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.1-pro-high' } });
+    expect(effortOptionValues()).toEqual(['high', 'low']);
+    expect(effortOptionValues()).not.toContain('medium');
+  });
+
+  it('offers all three levels for a base that really has all three', () => {
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.8-flash-medium' } });
+    expect(effortOptionValues()).toEqual(['high', 'medium', 'low']);
+  });
+
+  it('renders no effort control at all for a base model with no variants', () => {
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'claude-sonnet-4-6' } });
+    expect(screen.queryByTestId('jini-agent-reasoning-antigravity')).not.toBeInTheDocument();
+  });
+
+  // The state the card opens in before any per-agent model has been saved: `selectedAgentModel`
+  // falls back to `models[0].id`, which for antigravity IS the "Default (CLI config)" sentinel
+  // (`DEFAULT_MODEL_OPTION`, first entry in both `fallbackModels` and a live `agy models` list).
+  // That sentinel groups like any other base with zero suffixed variants (nothing named
+  // `default-high`/`default-medium`/`default-low` exists), so it is hidden by the SAME rule that
+  // hides `claude-sonnet-4-6` above — not a separate gap in the null-check on `activeGroup`.
+  it('renders no effort control in the model-unsaved state the card opens in, same as any other zero-variant base', () => {
+    renderAgy({ agentId: 'antigravity' });
+    expect(screen.queryByTestId('jini-agent-reasoning-antigravity')).not.toBeInTheDocument();
+  });
+
+  it('renders the single level a one-variant base has, disabled, rather than inventing siblings', () => {
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'gpt-oss-120b-medium' } });
+    expect(effortOptionValues()).toEqual(['medium']);
+    expect(screen.getByTestId('jini-agent-reasoning-antigravity')).toBeDisabled();
+  });
+
+  it('picking an effort level rewrites the MODEL id, not a separate reasoning value', async () => {
+    const user = userEvent.setup();
+    const onModelChange = vi.fn();
+    const onReasoningChange = vi.fn();
+    renderCard({
+      agent: agyAgent(),
+      config: { agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.1-pro-high' } },
+      onModelChange,
+      onReasoningChange,
+    });
+    await user.selectOptions(screen.getByTestId('jini-agent-reasoning-antigravity'), 'low');
+    expect(onModelChange).toHaveBeenCalledWith('antigravity', 'gemini-3.1-pro-low');
+    expect(onReasoningChange).not.toHaveBeenCalled();
+  });
+
+  // Carrying `medium` over from gemini-3.8-flash must not compose `gemini-3.1-pro-medium`.
+  it('switching to a base without the current level lands on one that base really has', async () => {
+    const user = userEvent.setup();
+    const onModelChange = vi.fn();
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.8-flash-medium' } }, onModelChange);
+    await openModelMenu(user);
+    await user.click(screen.getByText('Gemini 3.1 Pro'));
+    expect(onModelChange).toHaveBeenCalledWith('antigravity', 'gemini-3.1-pro-high');
+    expect(onModelChange).not.toHaveBeenCalledWith('antigravity', 'gemini-3.1-pro-medium');
+  });
+
+  it('switching to a base keeps the current level when that base really has it', async () => {
+    const user = userEvent.setup();
+    const onModelChange = vi.fn();
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.1-pro-low' } }, onModelChange);
+    await openModelMenu(user);
+    await user.click(screen.getByText('Gemini 3.8 Flash'));
+    expect(onModelChange).toHaveBeenCalledWith('antigravity', 'gemini-3.8-flash-low');
+  });
+
+  it('shows the saved slug as its base + level, so a reload renders the operator\'s own pick', () => {
+    renderAgy({ agentId: 'antigravity', modelByAgentId: { antigravity: 'gemini-3.1-pro-low' } });
+    // `CustomSelect` puts the selected label in the trigger's own accessible name.
+    expect(
+      within(screen.getByTestId('jini-agent-model-antigravity')).getByRole('combobox'),
+    ).toHaveAccessibleName('Model: Gemini 3.1 Pro');
+    expect(screen.getByTestId('jini-agent-reasoning-antigravity')).toHaveValue('low');
+  });
+
+  // The card must not grow an `if (agent.id === 'antigravity')`: a flag-based runtime keeps the
+  // flat control, and a model-suffix runtime gets the derived one, purely from the declaration.
+  it('keeps the flat reasoning control for a runtime that declares reasoningOptions instead', () => {
+    renderCard({
+      agent: agent({ reasoningOptions: [{ id: 'default', label: 'Default' }, { id: 'high', label: 'High' }] }),
+    });
+    const select = screen.getByTestId('jini-agent-reasoning-claude');
+    expect(within(select).getAllByRole('option').map((option) => (option as HTMLOptionElement).value)).toEqual([
+      'default',
+      'high',
+    ]);
+  });
+});

@@ -91,11 +91,13 @@
  */
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
 import { promises as fsPromises } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { redactSecrets } from '@jini-ai/core';
 import type { Principal, RunRef } from '@jini-ai/core';
 import type { JournalEntry, RunAgentPayload, RunErrorPayload } from '@jini-ai/protocol';
 import {
+  agentCapabilities,
   applyAgentLaunchEnv,
   createClaudeStreamHandler,
   createCopilotStreamHandler,
@@ -136,6 +138,7 @@ import { resolveContinuationTransport } from './continuation/continuation-transp
 import type { RunByteJournal } from './continuation/journal.js';
 import { resultContent } from './delegated-tool-bridge.js';
 import { applyImagePromptDelivery, type ImagePromptDelivery } from './image-prompt-delivery.js';
+import { extractResultMedia, type ToolResultMediaBlock } from './tool-result-media.js';
 import type { RunRetrySideEffectState } from './run/core/index.js';
 import type { ToolExecutor } from './tool-executor.js';
 import type { RunLifecycle } from './run-lifecycle.js';
@@ -599,6 +602,33 @@ export interface AgentExecutorRunInput {
    * architecture decision C8 (`ADS-memory/reports/jini-port/extraction-plan.md`).
    */
   readonly env?: NodeJS.ProcessEnv;
+  /**
+   * Stored session id for this (conversation, agent) pair from a prior run's
+   * `RunEndPayload.sessionRef` (see `@jini-ai/protocol`'s doc on that field) — set when the host
+   * wants this run to continue that CLI session instead of starting cold. Forwarded verbatim into
+   * `RuntimeContext.resumeSessionId`; a `resumesSessionViaCli` def (see
+   * `@jini-ai/agent-runtime`'s `types.ts`) reads it to pass its CLI's own resume flag, in which case
+   * the host should send only the latest user turn as `prompt`, not the full transcript. `null` and
+   * omitted are equivalent: no resume target for this run.
+   */
+  readonly resumeSessionId?: string | null;
+  /**
+   * A fresh id the host mints and persists when starting a session it wants resumable on a later
+   * turn (i.e. no `resumeSessionId` is available yet). Forwarded verbatim into
+   * `RuntimeContext.newSessionId`; a `resumesSessionViaCli` def passes it to its CLI's own
+   * "start with this id" flag so a later turn's `resumeSessionId` can continue the same underlying
+   * CLI session. Ignored by defs that don't declare `resumesSessionViaCli`.
+   */
+  readonly newSessionId?: string;
+  /**
+   * Forwarded verbatim to `RuntimeBuildOptions.disallowedTools` (see `@jini-ai/agent-runtime`'s
+   * `types.ts`) — Finding 2 of SEC-assistant-env-isolation-2026-09-07. A mechanism only: this
+   * package bakes in no opinion about which tools to name; the host decides. `undefined`/empty
+   * means no restriction, byte-identical to today's behavior.
+   */
+  readonly disallowedTools?: readonly string[];
+  /** Same mechanism as {@link disallowedTools}, forwarded to `RuntimeBuildOptions.allowedTools`. */
+  readonly allowedTools?: readonly string[];
 }
 
 export interface AgentExecutor {
@@ -921,11 +951,11 @@ export interface ContinuationOptions {
  * (`@jini-ai/mcp`'s `../server/tools/delegated-tool.ts`) only does anything useful once the spawned
  * CLI's own client actually launches `jini-mcp` as its MCP server subprocess.
  *
- * **All four declared strategies are wired.** These options describe *one* bridge server
+ * **All six declared strategies are wired.** These options describe *one* bridge server
  * (`command`/`args`/`daemonUrl`/`credential`); which transport carries it to a given child is that
- * def's own `externalMcpInjection` declaration, and each of the four has exactly one
+ * def's own `externalMcpInjection` declaration, and each of the six has exactly one
  * implementation here — see {@link buildMcpBridgeDelivery}, which is the single dispatch point.
- * The interface name predates the other three mechanisms and is kept for API compatibility with
+ * The interface name predates the other five mechanisms and is kept for API compatibility with
  * `@jini-ai/server`'s `agentExecutor` passthrough; it is no longer `.mcp.json`-specific.
  *
  * **Host-resolved, not this package's to know.** `command`/`daemonUrl` have no default the way
@@ -976,6 +1006,28 @@ export interface McpJsonInjectionOptions {
    * @default `fs.promises.rm(path, { force: true })` — already-gone is success, not an error.
    */
   readonly removeFile?: (path: string) => Promise<void>;
+  /**
+   * `'codex-toml'` only. Creates a fresh, randomly-named directory `prepareCodexHomeForRun` stages
+   * as a run's scratch `CODEX_HOME`. **Must be non-deterministic (a real `mkdtemp`, not a
+   * caller-computed path)** — unlike `mcpJsonPathForRun`'s deterministic path inside the run's own
+   * `cwd`, this directory holds a copy of the operator's real Codex login credential, and
+   * `os.tmpdir()` is a shared location on a multi-user host: a guessable name there is a real
+   * pre-plant/symlink target for another local user. `fs.mkdtemp`'s random suffix plus its `0700`
+   * directory mode is the actual confidentiality control, matching the same reasoning
+   * `@jini-ai/agent-runtime`'s `log-file.ts`/`prompt-file.ts` already apply to their own staged temp
+   * dirs.
+   * @param prefix - A caller-composed, run-id-derived prefix (already sanitized) for the mkdtemp
+   * template; the real suffix mkdtemp appends is what makes the path unpredictable.
+   * @default `fs.mkdtemp(path.join(os.tmpdir(), prefix))`
+   */
+  readonly mkdtemp?: (prefix: string) => Promise<string>;
+  /**
+   * `'codex-toml'` only. Recursively removes the scratch `CODEX_HOME` directory `mkdtemp` above
+   * created — the directory-level analogue of `removeFile`, needed because this mechanism stages a
+   * whole directory (`config.toml` plus a copied `auth.json`), not one file.
+   * @default `fs.rm(path, { recursive: true, force: true })` — already-gone is success, not an error.
+   */
+  readonly removeDir?: (path: string) => Promise<void>;
 }
 
 const JINI_MCP_SERVER_KEY = 'jini';
@@ -1048,9 +1100,9 @@ export function mergeMcpJsonContent(existingRaw: string | undefined, serverEntry
 }
 
 /**
- * Mechanism 2 of 4 — `'acp-merge'`. Re-shapes the same bridge entry into the `mcpServers` element
- * an ACP `session/new` call carries, for the 8 ACP-native defs (devin, hermes, kilo, kimi, kiro,
- * reasonix, trae-cli, vibe). Pure.
+ * Mechanism 2 of 5 — `'acp-merge'`. Re-shapes the same bridge entry into the `mcpServers` element
+ * an ACP `session/new` call carries, for the 9 ACP-native defs declaring this strategy (amr, devin,
+ * hermes, kilo, kimi, kiro, reasonix, trae-cli, vibe). Pure.
  *
  * `env` is emitted as a plain object on purpose: `@jini-ai/agent-runtime`'s
  * `buildAcpSessionNewParams` already normalises a plain-object `env` into either the
@@ -1081,7 +1133,7 @@ export function buildAcpMcpBridgeServers(entry: McpJsonServerEntry): AcpMcpServe
 }
 
 /**
- * Mechanism 3+4 of 4 — the spawn-env-content strategies. One map, not two code paths: OpenCode and
+ * Mechanism 3+4 of 5 — the spawn-env-content strategies. One map, not two code paths: OpenCode and
  * MiMo consume byte-identical JSON (MiMo's def doc: "the same JSON schema as OpenCode's `mcp`
  * config ... following the same structure as `OPENCODE_CONFIG_CONTENT`"), and differ only in which
  * env var carries it. Adding a third such CLI is a row here, not a new serializer.
@@ -1142,6 +1194,262 @@ export function mergeEnvContentMcpConfig(existingRaw: string | undefined, entry:
 }
 
 /**
+ * Merges a staged system-prompt overlay file's path into the `instructions` array of the same
+ * OpenCode-schema config document {@link mergeEnvContentMcpConfig} writes `mcp` into — for a
+ * `systemPromptDelivery: { strategy: 'config-instructions-file' }` def (`opencode` today).
+ *
+ * Confirmed live (2026-09-01, opencode-cli 1.17.10), not inferred from docs alone:
+ *   1. `instructions` is honored — a run configured with it visibly followed the file's directive
+ *      (a required exact-token prefix), while an identical run without it did not.
+ *   2. It appends, never replaces: the same run that followed the custom instruction ALSO still
+ *      answered correctly using opencode's own baked-in environment-context system prompt (asked
+ *      for its cwd, with nothing about cwd anywhere in the custom instructions file) — proof
+ *      opencode's own defaults survive alongside a custom `instructions` entry, not just proof the
+ *      file was read at all.
+ *   3. Adding this key alongside `mcp` in the same `OPENCODE_CONFIG_CONTENT` document disturbs
+ *      neither: in one combined run, the MCP bridge still got its connection attempt (logged
+ *      `key=jini type=local`) AND the custom instruction was still followed — same as running each
+ *      key alone.
+ *   4. `instructions` is re-read fresh from the env on every spawn, including a `-s <id>`-resumed
+ *      turn (proved by swapping in a second instructions file between two turns of one resumed
+ *      session and seeing the second turn immediately reflect it while still recalling
+ *      conversation memory from turn one) — so this mechanism is safe to redeliver every turn like
+ *      `'append-flag'`/`'env-var'`, exempt from the prompt-prefix fallback's create-only gating
+ *      (see {@link resolveSystemPromptOverlayDelivery}'s doc): nothing here is ever baked into
+ *      opencode's own persisted session state the way re-injecting fallback prompt text would be.
+ *
+ * @param existingRaw - Whatever the spawn env already held for this variable (already possibly
+ * carrying `mcp`, if `mergeEnvContentMcpConfig` ran first on the same value — order between the two
+ * doesn't matter, each only touches its own top-level key), or `undefined`.
+ * @param instructionsFilePath - The staged overlay file's absolute path (see
+ * {@link prepareSystemPromptOverlayFileIfNeeded}).
+ * @returns The full JSON string to set as the env var's value. Appends to, never clobbers, any
+ * `instructions` entries already present — the same "merge, never clobber" discipline
+ * {@link mergeEnvContentMcpConfig} applies to `mcp`, in case a host is already using this same
+ * config-content variable to carry the operator's own instruction files.
+ * @complexity O(1) plus `JSON.parse`/`JSON.stringify` over a small config document.
+ * @overallScore 100/100
+ */
+export function mergeEnvContentInstructions(existingRaw: string | undefined, instructionsFilePath: string): string {
+  let doc: Record<string, unknown> = {};
+  if (existingRaw !== undefined && existingRaw.length > 0) {
+    try {
+      const parsed: unknown = JSON.parse(existingRaw);
+      if (isRecord(parsed)) doc = parsed;
+    } catch {
+      doc = {};
+    }
+  }
+  const existingInstructions = Array.isArray(doc.instructions)
+    ? doc.instructions.filter((entry): entry is string => typeof entry === 'string')
+    : [];
+  return JSON.stringify({ ...doc, instructions: [...existingInstructions, instructionsFilePath] });
+}
+
+/**
+ * TOML basic-string escaping for the narrow value shapes {@link buildCodexMcpServerToml} emits (a
+ * command name, an argv token, an env var value — never multi-line or control-character-heavy
+ * text). Escapes exactly what TOML's basic-string grammar requires: backslash first (so it is not
+ * re-escaped by a later replacement), then the quote delimiter, then the three whitespace control
+ * characters a real command/argv/env value could plausibly contain.
+ *
+ * A hand-rolled minimal escaper rather than a TOML dependency — this mechanism never needs to
+ * *parse* TOML (the real install's existing `config.toml` is appended after, never rewritten — see
+ * {@link buildCodexHomeConfigToml}), so pulling in a full TOML library for one serialization shape
+ * would be substantially more surface than the problem needs. Checked against the repo's existing
+ * dependency graph first — no package here already depends on a TOML library.
+ * @param value - The raw string to embed inside TOML `"..."` delimiters.
+ * @returns The escaped text, WITHOUT the surrounding quotes — {@link tomlString} adds those.
+ * @complexity O(n) in the string's length.
+ */
+function escapeTomlBasicString(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\n/g, '\\n')
+    .replace(/\r/g, '\\r')
+    .replace(/\t/g, '\\t');
+}
+
+/** Wraps {@link escapeTomlBasicString}'s output in the TOML basic-string delimiters. */
+function tomlString(value: string): string {
+  return `"${escapeTomlBasicString(value)}"`;
+}
+
+/**
+ * Codex's per-tool deadline for the Jini bridge, in seconds: `@jini-ai/mcp`'s
+ * `DEFAULT_DELEGATED_TOOL_TIMEOUT_MS` (6 min, mirrored because this package does not depend on
+ * that one) plus 40 s. Codex's own default (60 s) is shorter than a delegated call parked on a
+ * human dialog, and when Codex abandons a call the dialog stayed answerable, so a late click ran
+ * an action the model had been told failed. Outlasting the bridge's deadline means the bridge
+ * times out first, drops its daemon request, and the daemon expires the dialog. Codex does not
+ * pass the parent env through to MCP servers, so the bridge under Codex always runs at its default.
+ */
+const CODEX_TOOL_TIMEOUT_SEC = 6 * 60 + 40;
+
+/**
+ * Mechanism 5 of 5 — `'codex-toml'`'s serialization step. Builds the `[mcp_servers.jini]` TOML
+ * table (plus, when the entry carries any env vars, a separate `[mcp_servers.jini.env]` table)
+ * Codex's own config schema expects.
+ *
+ * Confirmed against a real installed Codex CLI (0.151.0), not assumed from docs: round-tripping
+ * `codex mcp add <name> --env K=V -- <cmd> <args>` against a scratch `CODEX_HOME` and reading back
+ * `config.toml` produced exactly this shape (`command`/`args` as TOML strings/array in the main
+ * table, env vars in a nested `.env` table) — see `source-map.md` for the transcript.
+ * @param entry - The shared bridge entry from {@link buildMcpJsonServerEntry}.
+ * @returns A TOML fragment with no leading/trailing blank-line padding — {@link buildCodexHomeConfigToml} owns spacing when combining it with existing content.
+ * @complexity O(n) in the number of argv/env entries.
+ * @overallScore 100/100
+ */
+export function buildCodexMcpServerToml(entry: McpJsonServerEntry): string {
+  const argsLiteral = entry.args.map(tomlString).join(', ');
+  const serverTable =
+    `[mcp_servers.${JINI_MCP_SERVER_KEY}]\ncommand = ${tomlString(entry.command)}\nargs = [${argsLiteral}]\n` +
+    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n`;
+  const envLines = Object.entries(entry.env)
+    .filter((pair): pair is [string, string] => typeof pair[1] === 'string')
+    .map(([key, value]) => `${key} = ${tomlString(value)}`);
+  if (envLines.length === 0) return serverTable;
+  return `${serverTable}\n[mcp_servers.${JINI_MCP_SERVER_KEY}.env]\n${envLines.join('\n')}\n`;
+}
+
+/**
+ * Splits a TOML table header's dotted key into its individual segments, honoring quoted parts
+ * (`"basic"` or `'literal'`) that may themselves contain a literal `.` — a bare `.` only
+ * separates segments outside of quotes. Each segment is trimmed and, if quoted, unwrapped.
+ *
+ * Not a full TOML parser: it does not resolve escape sequences (`\"`, `\u...`) inside basic
+ * strings. That is deliberately out of scope — see {@link stripExistingJiniMcpServerTable}'s doc
+ * for why it is safe to skip for this specific comparison.
+ * @param rawKey - The raw text between a table header's `[` and `]`.
+ * @returns The dotted key's segments, dequoted and trimmed.
+ * @complexity O(n) in the length of `rawKey`.
+ */
+function splitTomlDottedKey(rawKey: string): string[] {
+  const segments: string[] = [];
+  let current = '';
+  let quote: '"' | "'" | null = null;
+  for (const ch of rawKey) {
+    if (quote) {
+      if (ch === quote) quote = null;
+      else current += ch;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      quote = ch;
+      continue;
+    }
+    if (ch === '.') {
+      segments.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  segments.push(current.trim());
+  return segments;
+}
+
+/**
+ * Removes any pre-existing `[mcp_servers.{@link JINI_MCP_SERVER_KEY}]` table — and its
+ * `[mcp_servers.{@link JINI_MCP_SERVER_KEY}.*]` subtables (e.g. `.env`) — from a real Codex
+ * `config.toml`'s raw text, so {@link buildCodexHomeConfigToml} can append this run's own table
+ * without producing the duplicate TOML key Codex's parser rejects at startup.
+ *
+ * Line-oriented, not a real TOML parser (matching {@link buildCodexMcpServerToml}'s own
+ * no-TOML-dependency constraint), but wide enough to survive a hand-edited config, which is the
+ * scenario this whole function exists for. A table header line is recognized when, after
+ * trimming, it is `[<key>]` optionally followed only by a `# comment` (TOML's own grammar allows
+ * nothing else there) — so it tolerates leading indentation, whitespace inside the brackets, a
+ * trailing line comment, and a dotted key written with quoted segments (`["mcp_servers"."jini"]`),
+ * via {@link splitTomlDottedKey}. Once such a header's key matches the jini table or one of its
+ * subtables, every following line is dropped until the next table header (of any name) or EOF.
+ * Every other table, key, comment-only, and blank line is passed through untouched.
+ *
+ * Deliberately unhandled, and why it is safe to leave that way:
+ * - **Escape sequences inside quoted key segments** (e.g. a segment containing `\"`) — neither
+ *   `mcp_servers` nor {@link JINI_MCP_SERVER_KEY} ever needs escaping, and this driver's own
+ *   writer ({@link buildCodexMcpServerToml}) never emits a quoted form at all, so no real
+ *   `config.toml` this driver produced can exercise this gap; a hand-edit that goes out of its
+ *   way to escape a character inside a key that is supposed to spell "jini" would fail to match
+ *   and fall back to today's pre-fix behavior (append a duplicate) rather than silently doing
+ *   something worse.
+ * - **`[[array-of-tables]]` syntax** — Codex's schema has no array-of-tables shape for
+ *   `mcp_servers`, and the header regex's `[^[\]]+` capture cannot match a line starting with a
+ *   second `[`, so `[[mcp_servers.jini]]` is not recognized as a header before or after this fix
+ *   — unchanged, not a new gap.
+ * - **A single quoted segment that happens to spell the same characters with the dot included**
+ *   (e.g. `["mcp_servers.jini"]`, which in real TOML names one key literally containing a `.`,
+ *   not two nested tables) — this collapses to the same joined string as the real nested-table
+ *   spelling and is therefore treated as a match. This is a false positive in the conservative
+ *   direction the reported bug calls for: a missed detection duplicates a key and crashes Codex,
+ *   so on this axis over-matching a spelling nobody would plausibly hand-write for an MCP server
+ *   table is preferable to under-matching the real one.
+ * @param existingRaw - The real Codex home's `config.toml` content, already known to be defined
+ * (callers pass `''` for a missing file).
+ * @returns `existingRaw` with any jini table/subtable removed.
+ * @complexity O(n) in the number of lines.
+ */
+function stripExistingJiniMcpServerTable(existingRaw: string): string {
+  const jiniTableKey = `mcp_servers.${JINI_MCP_SERVER_KEY}`;
+  const kept: string[] = [];
+  let skipping = false;
+  for (const line of existingRaw.split('\n')) {
+    const header = /^\s*\[([^[\]]+)\]\s*(#.*)?$/.exec(line);
+    if (header) {
+      const key = splitTomlDottedKey(header[1] ?? '').join('.');
+      skipping = key === jiniTableKey || key.startsWith(`${jiniTableKey}.`);
+      if (skipping) continue;
+    }
+    if (!skipping) kept.push(line);
+  }
+  return kept.join('\n');
+}
+
+/**
+ * Builds the full `config.toml` a run's scratch `CODEX_HOME` gets: the real Codex home's own
+ * config, with any pre-existing `[mcp_servers.jini]` table removed (see
+ * {@link stripExistingJiniMcpServerTable}), then this run's own table appended.
+ *
+ * **Append-only by design, not a parse-and-merge, for everything but the jini table itself.**
+ * `mergeMcpJsonContent`/`mergeEnvContentMcpConfig` above can safely parse-merge-reserialize because
+ * their formats have a JS-native parser (`JSON.parse`); this driver has no general TOML parser in
+ * its dependency graph (see `buildCodexMcpServerToml`'s doc), and every other setting a real Codex
+ * install carries — model choice, sandbox policy, the trusted-project list, the operator's own
+ * other MCP servers — must survive a spawn byte-for-byte. Only the one table this driver itself
+ * owns (`jini` is this integration's own reserved server name — see {@link JINI_MCP_SERVER_KEY}) is
+ * ever removed, via the narrow line-oriented scan above, never a full TOML parse.
+ * @param existingRaw - The real Codex home's `config.toml` content, or `undefined` when it does not
+ * exist (a fresh Codex install — degrades to "start from just this run's block", matching
+ * {@link mergeMcpJsonContent}'s own "missing file" handling).
+ * @param entry - The shared bridge entry.
+ * @returns The full text to write to the scratch `CODEX_HOME`'s `config.toml`.
+ * @complexity O(n) in the existing config's length.
+ */
+export function buildCodexHomeConfigToml(existingRaw: string | undefined, entry: McpJsonServerEntry): string {
+  const base = stripExistingJiniMcpServerTable(existingRaw ?? '');
+  const separator = base.length === 0 ? '' : base.endsWith('\n') ? '\n' : '\n\n';
+  return `${base}${separator}${buildCodexMcpServerToml(entry)}`;
+}
+
+/**
+ * Where `'codex-toml'` reads the operator's REAL Codex config from, to seed a run's scratch copy —
+ * never where it writes. Resolved against the daemon HOST process's own environment (`hostEnv`,
+ * `process.env` at the real call site), not a run's sandboxed spawn env: `CODEX_HOME` is not in
+ * `BASELINE_AGENT_ENV_KEYS`, so a spawned child never inherits it anyway, and the whole point here
+ * is finding wherever the *operator's actual* Codex install lives, which is a host-machine fact.
+ * @param hostEnv - The daemon process's own environment.
+ * @returns `hostEnv.CODEX_HOME` when set to a non-blank value (matching Codex's own resolution
+ * order), else the CLI's documented default, `~/.codex`.
+ * @complexity O(1).
+ * @overallScore 100/100
+ */
+export function resolveSourceCodexHomeDir(hostEnv: NodeJS.ProcessEnv): string {
+  const override = hostEnv.CODEX_HOME;
+  return override !== undefined && override.trim().length > 0 ? override : join(homedir(), '.codex');
+}
+
+/**
  * What one run's MCP bridge turns into, discriminated by the delivery mechanism its def declared.
  * Exactly one variant is produced per run, and each variant carries only what its own consumer
  * needs — so a consumer cannot accidentally read another mechanism's payload.
@@ -1149,10 +1457,26 @@ export function mergeEnvContentMcpConfig(existingRaw: string | undefined, entry:
 export type McpBridgeDelivery =
   /** `'claude-mcp-json'` (claude, codebuddy): a `.mcp.json` staged into the run cwd, whose path the def's `buildArgs` passes as `--mcp-config`. */
   | { readonly kind: 'claude-mcp-json'; readonly mcpJsonPath: string; readonly serverEntry: McpJsonServerEntry }
-  /** `'acp-merge'` (the 8 ACP-native defs): `mcpServers` entries for the ACP `session/new` params. */
+  /** `'acp-merge'` (the 9 ACP-native defs): `mcpServers` entries for the ACP `session/new` params. */
   | { readonly kind: 'acp-merge'; readonly mcpServers: readonly AcpMcpServerInput[] }
   /** `'opencode-env-content'` / `'mimo-env-content'` (opencode, mimo): one spawn-env variable carrying the serialised config. */
-  | { readonly kind: 'env-content'; readonly envVarName: string; readonly serverEntry: McpJsonServerEntry };
+  | { readonly kind: 'env-content'; readonly envVarName: string; readonly serverEntry: McpJsonServerEntry }
+  /**
+   * `'codex-toml'` (codex): no path yet — unlike `'claude-mcp-json'`'s `mcpJsonPath`, the scratch
+   * `CODEX_HOME` directory is created with `fs.mkdtemp` (a real, non-deterministic filesystem
+   * effect — see `McpJsonInjectionOptions.mkdtemp`'s own doc for why), so it cannot be computed by
+   * this delivery's pure, synchronous dispatch. `prepareCodexHomeIfNeeded` stages it separately and
+   * reports the resulting path back into `childEnv.CODEX_HOME` directly, never through this type.
+   */
+  | { readonly kind: 'codex-toml'; readonly serverEntry: McpJsonServerEntry }
+  /**
+   * `'env-passthrough'` (antigravity): the bridge entry's `env` triple (`JINI_RUN_ID`/
+   * `JINI_DAEMON_URL`/`JINI_DAEMON_TOKEN`) is set directly on the spawned CLI's own OS
+   * environment — no config document, no file, no CLI-specific schema. Correct only because this
+   * strategy's CLI already inherits its own env down to the stdio MCP child it launches for a
+   * server registered once, globally, out of band (see `types.ts`'s own doc on this strategy).
+   */
+  | { readonly kind: 'env-passthrough'; readonly serverEntry: McpJsonServerEntry };
 
 /**
  * **The single dispatch point from an `externalMcpInjection` strategy to its delivery mechanism.**
@@ -1161,7 +1485,7 @@ export type McpBridgeDelivery =
  * the environment, or a keystore.
  *
  * Keyed off the declared *strategy*, never off `def.id`: a def gets a working bridge by declaring a
- * mechanism, not by being named in this file. That is what makes the 8 `'acp-merge'` defs work
+ * mechanism, not by being named in this file. That is what makes the 9 `'acp-merge'` defs work
  * without any of their own files being touched.
  *
  * @param input.cwd - The run's working directory; only `'claude-mcp-json'` uses it, to place this
@@ -1193,6 +1517,10 @@ export function buildMcpBridgeDelivery(input: {
     case 'opencode-env-content':
     case 'mimo-env-content':
       return { kind: 'env-content', envVarName: ENV_CONTENT_VAR_BY_STRATEGY[strategy], serverEntry };
+    case 'codex-toml':
+      return { kind: 'codex-toml', serverEntry };
+    case 'env-passthrough':
+      return { kind: 'env-passthrough', serverEntry };
   }
 }
 
@@ -1277,6 +1605,272 @@ async function writeMcpJsonForRun(
     existingRaw = undefined;
   }
   await writeFileFn(delivery.mcpJsonPath, mergeMcpJsonContent(existingRaw, delivery.serverEntry));
+}
+
+/** A staged, run-scoped Codex `CODEX_HOME` — the directory-holding analogue of {@link PreparedPromptFile}/{@link PreparedAgentLogFile} from `@jini-ai/agent-runtime`. */
+export type PreparedCodexHome = {
+  /** Absolute path to hand to the spawned child as its `CODEX_HOME` env var. */
+  readonly path: string;
+  /** Recursively removes the staged directory — the live `auth.json` copy it may hold makes this a confidentiality cleanup, not just tidiness. Safe to call more than once. */
+  readonly cleanup: () => Promise<void>;
+};
+
+function defaultMkdtempCodexHome(prefix: string): Promise<string> {
+  return fsPromises.mkdtemp(join(tmpdir(), prefix));
+}
+
+function defaultRemoveCodexHomeDir(path: string): Promise<void> {
+  return fsPromises.rm(path, { recursive: true, force: true });
+}
+
+/** The `'codex-toml'` mechanism's injectable filesystem seams, real by default — see {@link McpJsonInjectionOptions}'s `mkdtemp`/`removeDir`/`readFile`/`writeFile` docs. */
+interface CodexHomeSeams {
+  readonly mkdtemp: (prefix: string) => Promise<string>;
+  readonly readFile: (path: string) => Promise<string>;
+  readonly writeFile: (path: string, content: string) => Promise<void>;
+  readonly removeDir: (path: string) => Promise<void>;
+}
+
+function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams {
+  return {
+    mkdtemp: options.mkdtemp ?? defaultMkdtempCodexHome,
+    readFile: options.readFile ?? defaultReadMcpJsonFile,
+    writeFile: options.writeFile ?? defaultWriteMcpJsonFile,
+    removeDir: options.removeDir ?? defaultRemoveCodexHomeDir,
+  };
+}
+
+/**
+ * Mechanism 5 of 5 — `'codex-toml'`'s one effect. Stages a fresh, randomly-named `CODEX_HOME`
+ * directory (see {@link McpJsonInjectionOptions.mkdtemp}'s doc for why non-deterministic naming is
+ * load-bearing here, not cosmetic) carrying:
+ *   - `config.toml`: the real Codex home's own config (read best-effort — see
+ *     {@link buildCodexHomeConfigToml}'s "missing file" handling) with this run's
+ *     `[mcp_servers.jini]` table appended.
+ *   - `auth.json`: a best-effort copy of the real Codex home's stored login, so the spawned CLI is
+ *     still authenticated. Best-effort is safe here, not merely convenient: a real headless spawn
+ *     against a `CODEX_HOME` with no `auth.json` at all was confirmed (against installed Codex CLI
+ *     0.151.0) to fail fast with a structured `401 Unauthorized` stream event, never an interactive
+ *     login prompt or a hang — see `defs/codex.ts`'s module doc for the full transcript summary.
+ *
+ * **Never touches the real `CODEX_HOME`.** `sourceCodexHomeDir` is read-only throughout; nothing is
+ * ever written back to it.
+ *
+ * A failure after the directory is created (a rejecting `writeFile`, most plausibly) does not leak
+ * it: the directory may already hold a partial `config.toml` or a copied credential, so the
+ * `catch` below best-effort-removes it before rethrowing, exactly the "partial-failure state leak"
+ * class of bug this package's own adversarial-test-design guidance calls out.
+ * @param runId - Embedded in the temp-dir prefix for traceability, sanitized the same way
+ * `@jini-ai/agent-runtime`'s `prepareAgentLogFile`'s `label` is.
+ * @param entry - The shared bridge entry.
+ * @param sourceCodexHomeDir - Where to read the real install's `config.toml`/`auth.json` from — see {@link resolveSourceCodexHomeDir}.
+ * @param seams - Injectable mkdtemp/readFile/writeFile/removeDir, real filesystem by default.
+ * @throws Whatever `mkdtemp`/`writeFile` rejects with — the caller ({@link prepareCodexHomeIfNeeded}) turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure, matching {@link writeMcpJsonForRun}'s own contract.
+ * @complexity O(1) plus one directory creation and up to two best-effort file read/write round trips.
+ * @overallScore 100/100
+ */
+async function prepareCodexHomeForRun(
+  runId: string,
+  entry: McpJsonServerEntry,
+  sourceCodexHomeDir: string,
+  seams: CodexHomeSeams,
+): Promise<PreparedCodexHome> {
+  // Stricter than `@jini-ai/agent-runtime`'s `prepareAgentLogFile`/`preparePromptFileForAgent`
+  // labels (which keep dots): this prefix stages a directory that ends up holding a copied Codex
+  // login credential, so it gets `mcpJsonPathForRun`'s tighter discipline instead — dots stripped
+  // too, not just path separators, so a run id like `../../etc/evil` cannot leave even a cosmetic
+  // `..` substring in the mkdtemp prefix.
+  const safeRunId = runId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80) || 'run';
+  const dir = await seams.mkdtemp(`jini-codex-home-${safeRunId}-`);
+  try {
+    let existingConfigRaw: string | undefined;
+    try {
+      existingConfigRaw = await seams.readFile(join(sourceCodexHomeDir, 'config.toml'));
+    } catch {
+      // No config yet (fresh Codex install) or unreadable — start from just this run's block,
+      // matching writeMcpJsonForRun's identical "missing file" handling.
+      existingConfigRaw = undefined;
+    }
+    await seams.writeFile(join(dir, 'config.toml'), buildCodexHomeConfigToml(existingConfigRaw, entry));
+    try {
+      const authRaw = await seams.readFile(join(sourceCodexHomeDir, 'auth.json'));
+      await seams.writeFile(join(dir, 'auth.json'), authRaw);
+    } catch {
+      // No stored login (or unreadable) — the spawned CLI runs unauthenticated. Confirmed above:
+      // this fails the run fast and observably, never as a hang.
+    }
+  } catch (err) {
+    await seams.removeDir(dir).catch(() => {
+      // Best-effort only — the original error below is what the caller must see either way.
+    });
+    throw err;
+  }
+  return {
+    path: dir,
+    cleanup: async () => {
+      await seams.removeDir(dir);
+    },
+  };
+}
+
+/**
+ * Finding 1 of SEC-assistant-env-isolation-2026-09-07 — a staged, run-scoped `claude` CLI config
+ * directory, the `CLAUDE_CONFIG_DIR`-isolation analogue of {@link PreparedCodexHome} above.
+ *
+ * **The bug this closes:** `BASELINE_AGENT_ENV_KEYS` forwards `HOME` verbatim and neither this
+ * package nor `@jini-ai/agent-runtime` ever set `CLAUDE_CONFIG_DIR`, so a spawned `claude` child
+ * resolved its config (skills, plugins, agents, memory-path index, settings) from the OPERATOR's
+ * own real `$HOME/.claude` — a personal grant (including `Task`/`Edit`/`Write`/`Cron*`/worktree
+ * tools on this host) the host process never intended to hand the model.
+ */
+export type PreparedClaudeConfigDir = {
+  /** Absolute path to hand to the spawned child as its `CLAUDE_CONFIG_DIR` env var. */
+  readonly path: string;
+  /** Recursively removes the staged directory — it may hold a copied login credential (see {@link prepareClaudeConfigDirForRun}'s doc), the same confidentiality-cleanup duty as {@link PreparedCodexHome.cleanup}. Safe to call more than once. */
+  readonly cleanup: () => Promise<void>;
+};
+
+function defaultMkdtempClaudeConfigDir(prefix: string): Promise<string> {
+  return fsPromises.mkdtemp(join(tmpdir(), prefix));
+}
+
+function defaultRemoveClaudeConfigDir(path: string): Promise<void> {
+  return fsPromises.rm(path, { recursive: true, force: true });
+}
+
+/** The Claude-config-dir mechanism's injectable filesystem seams, real by default — the directory-staging analogue of {@link CodexHomeSeams}, kept as its own small options bag (see {@link CreateAgentExecutorOptions.claudeConfigDirIsolation}) rather than folded into {@link McpJsonInjectionOptions}: isolating the operator's personal config is an env-hygiene concern independent of whether this host configured MCP federation at all, and must not be gated on that unrelated flag. */
+export interface ClaudeConfigDirSeams {
+  readonly mkdtemp: (prefix: string) => Promise<string>;
+  readonly readFile: (path: string) => Promise<string>;
+  readonly writeFile: (path: string, content: string) => Promise<void>;
+  readonly removeDir: (path: string) => Promise<void>;
+}
+
+/**
+ * `CreateAgentExecutorOptions.claudeConfigDirIsolation` — every field optional and real-filesystem
+ * by default, matching this file's standing "no real disk I/O by default in tests" convention (see
+ * `preparePromptFileForAgent`/`prepareAgentLogFile`'s identical shape). Unlike
+ * {@link McpJsonInjectionOptions}, this bag is never itself a gate: {@link
+ * prepareClaudeConfigDirIfNeeded} stages a scratch directory for every `claude`-def run regardless
+ * of whether a host supplies overrides here — this options bag only lets a test observe/replace the
+ * filesystem calls, the same way `preparePromptFileForAgent`'s own default does.
+ */
+export interface ClaudeConfigDirIsolationOptions {
+  /** @default the real `fs.promises.mkdtemp(path.join(os.tmpdir(), prefix))` */
+  readonly mkdtemp?: (prefix: string) => Promise<string>;
+  /** Reads the operator's real `.credentials.json`, if any — see {@link prepareClaudeConfigDirForRun}'s own doc. @default the real `fs.promises.readFile` (utf8) */
+  readonly readFile?: (path: string) => Promise<string>;
+  /** Writes the copied `.credentials.json` into the scratch directory. @default the real `fs.promises.writeFile` (utf8) */
+  readonly writeFile?: (path: string, content: string) => Promise<void>;
+  /** @default `fs.promises.rm(path, { recursive: true, force: true })` — already-gone is success, not an error. */
+  readonly removeDir?: (path: string) => Promise<void>;
+}
+
+function resolveClaudeConfigDirSeams(options: ClaudeConfigDirIsolationOptions | undefined): ClaudeConfigDirSeams {
+  return {
+    mkdtemp: options?.mkdtemp ?? defaultMkdtempClaudeConfigDir,
+    readFile: options?.readFile ?? defaultReadMcpJsonFile,
+    writeFile: options?.writeFile ?? defaultWriteMcpJsonFile,
+    removeDir: options?.removeDir ?? defaultRemoveClaudeConfigDir,
+  };
+}
+
+/**
+ * Where `claude`'s own config resolution reads the operator's REAL config from, to seed a run's
+ * scratch copy — never where it writes. Mirrors {@link resolveSourceCodexHomeDir}'s exact reasoning
+ * and resolution order: `CLAUDE_CONFIG_DIR` is not in `BASELINE_AGENT_ENV_KEYS`, so a spawned child
+ * never inherits it anyway — the whole point is finding wherever the *operator's actual* Claude Code
+ * install lives, a host-machine fact resolved against the daemon HOST process's own environment.
+ * @param hostEnv - The daemon process's own environment.
+ * @returns `hostEnv.CLAUDE_CONFIG_DIR` when set to a non-blank value (matching Claude Code's own
+ * resolution order, confirmed against installed Claude Code 2.1.263), else the CLI's documented
+ * default, `~/.claude`.
+ * @complexity O(1).
+ */
+export function resolveSourceClaudeConfigDir(hostEnv: NodeJS.ProcessEnv): string {
+  const override = hostEnv.CLAUDE_CONFIG_DIR;
+  return override !== undefined && override.trim().length > 0 ? override : join(homedir(), '.claude');
+}
+
+/**
+ * Stages a fresh, randomly-named `CLAUDE_CONFIG_DIR` directory (same non-determinism requirement as
+ * {@link McpJsonInjectionOptions.mkdtemp}'s own doc — `os.tmpdir()` is a shared location on a
+ * multi-user host, so a guessable name is a real pre-plant/symlink target).
+ *
+ * **Deliberately empty by default** — unlike {@link prepareCodexHomeForRun}, which copies the real
+ * `config.toml` wholesale (Codex has no personal-data problem in that file), this directory gets
+ * NOTHING written into it beyond a best-effort copy of `.credentials.json` (see below). That is the
+ * fix: the operator's real `skills`/`plugins`/`agents`/`memory-path index`/`settings.json` must NOT
+ * carry over implicitly. `claude` runs correctly against a config directory holding nothing at all —
+ * it falls back to its own built-in defaults, not an error.
+ *
+ * **Login preservation, verified rather than assumed** (per this task's own instruction — "prove
+ * login still resolves; do not assume"): confirmed live (2026-09-07, installed Claude Code 2.1.263,
+ * macOS) that `claude auth status` reports `loggedIn: false` against ANY `CLAUDE_CONFIG_DIR` other
+ * than the operator's real one — including the real `HOME` with only `CLAUDE_CONFIG_DIR` swapped —
+ * and confirmed against Claude Code's own docs (code.claude.com/docs/en/authentication) why: "If
+ * you've set the CLAUDE_CONFIG_DIR environment variable, Claude Code keeps the .credentials.json
+ * file under that directory instead, including the file the macOS fallback writes, and keys the
+ * macOS Keychain entry to that directory too, so a session with a different CLAUDE_CONFIG_DIR reads
+ * a different entry." So a scratch directory is never logged in by default on ANY platform, not just
+ * the ones with no Keychain at all. This function only closes the *portable* case: when the source
+ * directory holds a file-based `.credentials.json` (Linux, Windows, or a Keychain-locked macOS
+ * fallback — none of which this function can distinguish, and does not need to), it is copied
+ * best-effort into the scratch directory, exactly `prepareCodexHomeForRun`'s `auth.json` copy. When
+ * it does not (a normal macOS Keychain-only install, confirmed the common case on this codebase's
+ * own dev machine), this function does NOT attempt to read the macOS Keychain itself — that would
+ * mean this daemon process extracting a live OAuth secret out of an OS-managed credential store into
+ * a plaintext file, a materially different and larger security surface than forwarding an
+ * already-resolved credential the host handed it (which `credentialEnv`/`ANTHROPIC_API_KEY` already
+ * does, safely, today — see `AgentExecutorRunInput.credentialEnv`'s own doc). In that case this
+ * mirrors `prepareCodexHomeForRun`'s own accepted outcome for a missing credential file verbatim:
+ * "the spawned CLI runs unauthenticated" is documented, existing, precedented behavior in this file,
+ * not a new failure mode invented here. A host that needs the isolated child to stay logged in on
+ * such an install must supply a credential explicitly via `AgentExecutorRunInput.credentialEnv`
+ * (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` — both outrank Keychain-based subscription login
+ * in Claude Code's own auth precedence, so the isolated child authenticates without ever needing the
+ * operator's personal Keychain entry at all) — see this fix's own handoff report for the operational
+ * consequence on a host with no such credential configured yet.
+ *
+ * **Never touches the real config directory.** `sourceConfigDir` is read-only throughout.
+ * @param runId - Embedded in the temp-dir prefix for traceability, same sanitization discipline as {@link prepareCodexHomeForRun}'s `safeRunId`.
+ * @param sourceConfigDir - Where to read a possible real `.credentials.json` from — see {@link resolveSourceClaudeConfigDir}.
+ * @param seams - Injectable mkdtemp/readFile/writeFile/removeDir, real filesystem by default.
+ * @throws Whatever `mkdtemp` rejects with — the caller ({@link prepareClaudeConfigDirIfNeeded}) turns that into a pre-spawn `AGENT_SPAWN_FAILED` failure, matching {@link prepareCodexHomeForRun}'s own contract.
+ * @complexity O(1) plus one directory creation and up to one best-effort file read/write round trip.
+ */
+async function prepareClaudeConfigDirForRun(
+  runId: string,
+  sourceConfigDir: string,
+  seams: ClaudeConfigDirSeams,
+): Promise<PreparedClaudeConfigDir> {
+  const safeRunId = runId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80) || 'run';
+  const dir = await seams.mkdtemp(`jini-claude-config-${safeRunId}-`);
+  try {
+    const credentialsPath = join(sourceConfigDir, '.credentials.json');
+    let credentialsRaw: string | undefined;
+    try {
+      credentialsRaw = await seams.readFile(credentialsPath);
+    } catch {
+      // No file-based credential to copy (the common macOS-Keychain-only case) — see this
+      // function's own doc for why that is an accepted, documented outcome, not a failure here.
+      credentialsRaw = undefined;
+    }
+    if (credentialsRaw !== undefined) {
+      await seams.writeFile(join(dir, '.credentials.json'), credentialsRaw);
+    }
+  } catch (err) {
+    await seams.removeDir(dir).catch(() => {
+      // Best-effort only — the original error below is what the caller must see either way.
+    });
+    throw err;
+  }
+  return {
+    path: dir,
+    cleanup: async () => {
+      await seams.removeDir(dir);
+    },
+  };
 }
 
 /**
@@ -1530,17 +2124,39 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       const run: RunRef = { id: runId };
       let content: string;
       let isError: boolean;
+      // Same extraction `delegated-tool-bridge.ts`'s `execute()` runs, kept consistent per
+      // `resultContent`'s own doc ("both callers share one mapping"). This path never ran
+      // `splitToolResultSurfaces` (it has no `mcp-ui` withhold-from-model concept — the flattened
+      // `content` below already carries the whole raw output, a pre-existing, unrelated gap), so
+      // there is no `remainder` to thread back in — only the extracted blocks are used here.
+      let media: readonly ToolResultMediaBlock[] = [];
+      // Suspend the slow-run watchdog for the duration of this daemon-awaited execution: the daemon
+      // knows exactly why the run is quiet here (it dispatched the tool itself and is waiting on it),
+      // so a legitimately long tool (an install, a build, a repo-wide scan) must not be mistaken for
+      // the CPU-starved-and-silent condition the watchdog exists to catch. Resumed in `finally` so a
+      // genuinely stalled stretch *after* this tool settles is still caught — see
+      // `RunLifecycle.suspendSlowRunNotice`'s own doc.
+      lifecycle.suspendSlowRunNotice(runId);
       try {
         const result = await continuation.toolExecutor.execute(continuation.principal, run, toolUse.name, toolUse.input);
         content = resultContent(result);
         isError = result.status !== 'completed';
+        media = extractResultMedia(result.output).media;
       } catch (error) {
         content = errorMessage(error);
         isError = true;
+      } finally {
+        lifecycle.resumeSlowRunNotice(runId);
       }
       await lifecycle.emit(runId, {
         event: 'agent',
-        data: { type: 'tool_result', toolUseId: toolUse.id, content, ...(isError ? { isError: true } : {}) },
+        data: {
+          type: 'tool_result',
+          toolUseId: toolUse.id,
+          content,
+          ...(isError ? { isError: true } : {}),
+          ...(media.length > 0 ? { media } : {}),
+        },
       });
       injectToolResultLine(toolUse.id, content, isError);
     });
@@ -2158,6 +2774,39 @@ export interface CreateAgentExecutorOptions {
    */
   readonly mcpJsonInjection?: McpJsonInjectionOptions;
   /**
+   * Finding 1 of SEC-assistant-env-isolation-2026-09-07's injectable filesystem seams — see
+   * {@link ClaudeConfigDirIsolationOptions}'s own doc. This bag itself is still NOT a gate (supplying
+   * it only lets a test observe/replace the real filesystem calls); whether staging happens AT ALL is
+   * now {@link claudeConfigDirIsolationEnabled}'s job — see that field's doc for why the two were
+   * split apart instead of overloading this one's presence as the switch.
+   * @default the real `fs.promises.mkdtemp`/`readFile`/`rm` — no real disk I/O for every def other
+   * than `claude`, matching this factory's "no real filesystem by default in tests" convention.
+   */
+  readonly claudeConfigDirIsolation?: ClaudeConfigDirIsolationOptions;
+  /**
+   * The actual on/off switch for Finding 1's `CLAUDE_CONFIG_DIR` isolation (see
+   * {@link prepareClaudeConfigDirIfNeeded}'s doc for the staging behavior this gates). Split out as
+   * its own boolean rather than reusing {@link claudeConfigDirIsolation}'s presence, because that bag
+   * is a test-seam-injection convention shared with every other `*IsolationOptions`/`*Seams` field in
+   * this file (see `mcpJsonInjection`'s own "NOT a gate" precedent) — overloading it here would mean a
+   * host that only wants to override `mkdtemp` for a test silently also flips production behavior.
+   *
+   * @default `false`. This DEFAULTS OFF, which reopens the leak Finding 1 closed (the spawned
+   * `claude` child again reads the operator's real `~/.claude` — skills, plugins, memory index, and
+   * whatever tool grant that directory carries) — **not a regression discovered later, a deliberate
+   * rollback landed the same day as the isolation fix itself.** Reason: on macOS the Keychain login
+   * `claude auth status` reports is keyed to `CLAUDE_CONFIG_DIR` (see {@link
+   * prepareClaudeConfigDirForRun}'s doc), and no caller of this factory was passing a credential of
+   * its own (`AgentExecutorRunInput.credentialEnv`) when Finding 1 landed unconditionally — so every
+   * isolated child ran unauthenticated and the assistant reported "Not logged in" on its default
+   * runtime. A host that provisions a real `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN` via
+   * `credentialEnv` (both outrank Keychain login in Claude Code's own auth precedence, so an isolated,
+   * still-logged-in child needs no access to the operator's personal Keychain entry at all) should
+   * flip this back on — the mechanism itself is unchanged and was already proven live
+   * (2026-09-07); only the default changed.
+   */
+  readonly claudeConfigDirIsolationEnabled?: boolean;
+  /**
    * Ceiling on how many bytes of a `'until-close'` def's stdout this driver will hold in memory
    * before it stops accumulating and reports the shortfall — see
    * {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES} for the threat this closes and why 8 MiB.
@@ -2414,25 +3063,98 @@ export async function resolveMcpBridgeForRun(
 }
 
 /**
- * Phase 6a: the subprocess environment mechanism 3+4 (`'opencode-env-content'`/`'mimo-env-content'`)
- * rides in — merged into whatever the host already set there, never a CLI argument (the config embeds
- * `JINI_DAEMON_TOKEN`, and process arguments are readable by any other local user through `ps`). Pure.
+ * Phase 6a/10c: the subprocess environment every env-riding mechanism uses — mechanism 3+4
+ * (`'opencode-env-content'`/`'mimo-env-content'`, merged into whatever the host already set there,
+ * never a CLI argument: the config embeds `JINI_DAEMON_TOKEN`, and process arguments are readable
+ * by any other local user through `ps`), mechanism 5 (`'codex-toml'`, `CODEX_HOME` relocation),
+ * mechanism 6 (`'env-passthrough'`, the bridge entry's flat env vars set directly with no carrier
+ * document — see {@link McpBridgeDelivery}'s own doc), a
+ * `systemPromptDelivery: 'env-var'` def's overlay (`reasonix`'s `REASONIX_ACP_SYSTEM_APPEND` today
+ * — see `resolveSystemPromptOverlayDelivery`'s own doc), and a `'config-instructions-file'` def's
+ * staged overlay file (`opencode` today — see {@link mergeEnvContentInstructions}'s own doc). Pure
+ * — `codexHomeDir` and `stagedInstructionsFile` arrive already staged by
+ * {@link prepareCodexHomeIfNeeded} and {@link prepareSystemPromptOverlayFileIfNeeded} respectively,
+ * the only parts of this mechanism that are NOT pure (real `mkdtemp`/`writeFile` calls).
+ * @param spawnEnv - The env every other spawn-time step (launch-path resolution, `applyAgentLaunchEnv`) already computed.
+ * @param mcpBridge - This run's resolved bridge delivery, or `null` for an unconfigured host / no-strategy def.
+ * @param codexHomeDir - The staged scratch `CODEX_HOME` path for a `'codex-toml'` def, or `undefined` for every other run (including a `'codex-toml'` def when `mcpJsonInjection` was never configured — see `prepareCodexHomeIfNeeded`'s own gate).
+ * @param systemPromptEnvOverrides - `resolveSystemPromptOverlayDelivery`'s `envOverrides` — `{}` (default) for every def but an `'env-var'`-strategy one with an overlay present, in which case it carries that one var. Applied after `codexHomeDir`, so it can never be shadowed by it — the two never share a key (`CODEX_HOME` vs. e.g. `REASONIX_ACP_SYSTEM_APPEND`), so the ordering is a documentation choice, not a correctness one.
+ * @param stagedInstructionsFile - `varName` (from the def's own `systemPromptDelivery` declaration) and the staged overlay file's `path`, or `undefined` for every def but a `'config-instructions-file'` one with an overlay present. Merged into `varName`'s value AFTER the `mcp` merge above (reading `envContentApplied`, not the original `spawnEnv`, for that same key) so both a `mcp` entry and an `instructions` entry from the two mechanisms survive together in one document — confirmed live this coexistence is safe (see {@link mergeEnvContentInstructions}'s doc).
+ * @complexity O(1) plus `mergeEnvContentMcpConfig`'s and `mergeEnvContentInstructions`'s own `JSON.parse`/`JSON.stringify` cost.
+ * @overallScore 100/100
  */
-export function computeChildEnv(spawnEnv: NodeJS.ProcessEnv, mcpBridge: McpBridgeDelivery | null): NodeJS.ProcessEnv {
-  if (mcpBridge?.kind !== 'env-content') return spawnEnv;
-  return {
-    ...spawnEnv,
-    [mcpBridge.envVarName]: mergeEnvContentMcpConfig(spawnEnv[mcpBridge.envVarName], mcpBridge.serverEntry),
-  };
+export function computeChildEnv(
+  spawnEnv: NodeJS.ProcessEnv,
+  mcpBridge: McpBridgeDelivery | null,
+  codexHomeDir?: string,
+  systemPromptEnvOverrides?: Readonly<Record<string, string>>,
+  stagedInstructionsFile?: { readonly varName: string; readonly path: string },
+  claudeConfigDir?: string,
+): NodeJS.ProcessEnv {
+  const envContentApplied =
+    mcpBridge?.kind === 'env-content'
+      ? {
+          ...spawnEnv,
+          [mcpBridge.envVarName]: mergeEnvContentMcpConfig(spawnEnv[mcpBridge.envVarName], mcpBridge.serverEntry),
+        }
+      : spawnEnv;
+  // `'env-passthrough'` (antigravity): no document, no named carrier variable — the bridge
+  // entry's own `env` keys (`JINI_RUN_ID`/`JINI_DAEMON_URL`/`JINI_DAEMON_TOKEN`) are set directly
+  // on the child's environment, for the spawned CLI to inherit down to its own globally
+  // pre-registered MCP child in turn. See `McpBridgeDelivery`'s own doc for why this def has no
+  // config document to merge into at all.
+  const envPassthroughApplied =
+    mcpBridge?.kind === 'env-passthrough' ? { ...envContentApplied, ...mcpBridge.serverEntry.env } : envContentApplied;
+  const instructionsApplied =
+    stagedInstructionsFile === undefined
+      ? envPassthroughApplied
+      : {
+          ...envPassthroughApplied,
+          [stagedInstructionsFile.varName]: mergeEnvContentInstructions(
+            envPassthroughApplied[stagedInstructionsFile.varName],
+            stagedInstructionsFile.path,
+          ),
+        };
+  const codexHomeApplied = codexHomeDir === undefined ? instructionsApplied : { ...instructionsApplied, CODEX_HOME: codexHomeDir };
+  // Finding 1 of SEC-assistant-env-isolation-2026-09-07: same "only set when staged" shape as
+  // codexHomeApplied above — mutually exclusive with it in practice (codexHomeDir is only ever set
+  // for a 'codex-toml' bridge, claudeConfigDir only ever for a `claude`-id run), so both existing
+  // side by side here is a documentation convenience, not a real collision risk.
+  const claudeConfigDirApplied =
+    claudeConfigDir === undefined ? codexHomeApplied : { ...codexHomeApplied, CLAUDE_CONFIG_DIR: claudeConfigDir };
+  return systemPromptEnvOverrides === undefined ? claudeConfigDirApplied : { ...claudeConfigDirApplied, ...systemPromptEnvOverrides };
 }
 
-/** Phase 6b: the `RuntimeContext` `buildArgs` receives — `undefined` unless a file or bridge path was staged. Pure. */
+/**
+ * Phase 6b: the `RuntimeContext` `buildArgs` receives — `undefined` unless a file, bridge path, or
+ * session id was staged. Pure.
+ *
+ * `resumeSessionId`/`newSessionId` round-trip a prior run's `RunEndPayload.sessionRef` (see
+ * `@jini-ai/protocol`'s doc on that field) back into this run's `RuntimeContext`, letting a
+ * `resumesSessionViaCli` def (e.g. claude) continue its own CLI session across turns instead of
+ * spawning cold every time. Either one alone must still produce a context — a run supplying ONLY a
+ * session id, with no prompt/log file staged and no claude-mcp-json bridge, is exactly the common
+ * case for a resumed turn.
+ */
 export function computeRuntimeContext(
   preparedPromptFile: PreparedPromptFile | null,
   preparedLogFile: PreparedAgentLogFile | null,
   mcpBridge: McpBridgeDelivery | null,
+  resumeSessionId?: string | null,
+  newSessionId?: string,
 ): RuntimeContext | undefined {
-  if (!preparedPromptFile && !preparedLogFile && mcpBridge?.kind !== 'claude-mcp-json') {
+  // Matches claude.ts buildArgs' own `typeof x === 'string' && x` truthiness check, so an empty
+  // string or explicit `null` (no resume target yet) is treated as absent here too, rather than
+  // manufacturing a context that carries a session field the def would ignore anyway.
+  const hasResumeSessionId = typeof resumeSessionId === 'string' && resumeSessionId.length > 0;
+  const hasNewSessionId = typeof newSessionId === 'string' && newSessionId.length > 0;
+  if (
+    !preparedPromptFile
+    && !preparedLogFile
+    && mcpBridge?.kind !== 'claude-mcp-json'
+    && !hasResumeSessionId
+    && !hasNewSessionId
+  ) {
     return undefined;
   }
   return {
@@ -2441,6 +3163,8 @@ export function computeRuntimeContext(
     // Safe to pass before the file exists: `writeMcpJsonForRun` runs after buildArgs but still
     // before spawn, so the path is real by the time the child process starts.
     ...(mcpBridge?.kind === 'claude-mcp-json' ? { mcpJsonPath: mcpBridge.mcpJsonPath } : {}),
+    ...(hasResumeSessionId ? { resumeSessionId } : {}),
+    ...(hasNewSessionId ? { newSessionId } : {}),
   };
 }
 
@@ -2468,24 +3192,197 @@ function computeSystemPromptOverlay(
   });
 }
 
-/** Phase 9a: the def's `buildArgs` 4th argument — `undefined` when the run selects no model/reasoning/permissionMode/overlay at all (byte-identical to omitting the argument). Pure. */
+/** Phase 9a: the def's `buildArgs` 4th argument — `undefined` when the run selects no model/reasoning/permissionMode/overlay/tool-restriction at all (byte-identical to omitting the argument). Pure. */
 export function buildAgentBuildArgsOptions(
-  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode'>,
+  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools'>,
   systemPromptOverlay: string | null | undefined,
 ): RuntimeBuildOptions | undefined {
   const hasOverlay = systemPromptOverlay !== undefined && systemPromptOverlay !== null;
-  if (input.model === undefined && input.reasoning === undefined && input.permissionMode === undefined && !hasOverlay) {
+  if (
+    input.model === undefined
+    && input.reasoning === undefined
+    && input.permissionMode === undefined
+    && input.disallowedTools === undefined
+    && input.allowedTools === undefined
+    && !hasOverlay
+  ) {
     return undefined;
   }
   return {
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
     ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
+    ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
+    ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
     ...(hasOverlay ? { systemPromptOverlay } : {}),
   };
 }
 
-/** Phase 9b: calls the def's `buildArgs`, releasing staged resources and failing the run on a throw. */
+/**
+ * {@link resolveSystemPromptOverlayDelivery}'s decision, threaded out of that one resolver to every
+ * channel that can actually carry the overlay to the CLI.
+ *
+ * **Why `promptPrefix` exists alongside `prompt`.** `prompt` is the composed prompt with the
+ * fallback prefix already applied, and is what `buildArgs`, the staged prompt file, and a
+ * `promptViaStdin` def's stdin all receive. But the two RPC transports (`runAcpDispatch`,
+ * `runPiRpcDispatch`) deliberately send `run()`'s *raw* `input.prompt`, not the image-delivery
+ * rewrite this resolver was handed — those defs deliver images through their own native protocol
+ * and must never also get `'prompt-path'`'s appended paths (see `resolveImageDeliveryAndArgvBudget`'s
+ * call site in `run()` for that hazard). Handing them `prompt` would silently couple them to the
+ * image rewrite; handing them `promptPrefix + input.prompt` applies exactly this resolver's overlay
+ * decision to exactly the prompt text they were already sending.
+ *
+ * **The no-double-delivery invariant.** `promptPrefix` is a non-empty string on exactly one path —
+ * the universal fallback, the only strategy that carries the overlay *in the prompt text*. Every
+ * declared strategy (`'append-flag'`, `'env-var'`, `'config-instructions-file'`) and every
+ * suppressed case (no overlay, continuing a session) returns `''`, so a def that receives the
+ * overlay through argv, an env var, or a staged config file never also receives it inline. A
+ * transport therefore does not need to know which strategy applies: applying `promptPrefix`
+ * unconditionally is correct precisely because the resolver already zeroed it where it must not
+ * apply.
+ */
+export interface SystemPromptOverlayDelivery {
+  /**
+   * The text to prepend to whatever prompt a transport is about to send — `''` for every def whose
+   * overlay rides another channel, so it is always safe to apply unconditionally. See this
+   * interface's own doc for why callers with their own prompt text use this rather than `prompt`.
+   */
+  readonly promptPrefix: string;
+  /** `promptPrefix` already applied to the prompt this resolver was handed. */
+  readonly prompt: string;
+  /** Extra argv to append to `buildArgs`' own result — non-empty only for `'append-flag'`. */
+  readonly extraArgs: readonly string[];
+  /** Env vars to merge into the spawn env — non-empty only for `'env-var'`. */
+  readonly envOverrides: Readonly<Record<string, string>>;
+}
+
+/**
+ * **The single dispatch point from a computed system-prompt overlay to its delivery mechanism** —
+ * see `RuntimeAgentDef.systemPromptDelivery`'s own doc for the declared shape. Pure and
+ * synchronous, mirroring {@link buildMcpBridgeDelivery}'s "keyed off the declared strategy, never
+ * off the def's id" contract: a def earns overlay delivery by declaring a strategy, not by being
+ * named in this file. That is what makes every def with no declaration work via the fallback
+ * without any of their own files being touched.
+ *
+ * The fallback (no declared strategy — every def but `claude` today) prefixes the overlay directly
+ * onto the composed prompt text, clearly delimited from the user's own request. It is gated on
+ * session state, not merely on whether an overlay exists: a def that carries its own conversation
+ * memory across spawns (`resumesSessionViaCli` / `resumesSessionViaAcpLoad`) persists whatever its
+ * session-creating turn sends it — see `RuntimeContext.resumeSessionId`'s own doc: its presence on
+ * a run means "continue a prior session", not "start one". Prefixing on every later turn of that
+ * same session would therefore bake the overlay into the CLI's own stored history again and again,
+ * compounding without bound turn over turn. So the fallback prefixes only when there is no resume
+ * target yet (the session's own first turn, or a def with no session memory at all, which never
+ * replays anything back at the CLI and so gets it on every turn).
+ *
+ * `'append-flag'` and `'env-var'` defs are the opposite case: the flag/env var is a fresh,
+ * un-stored per-spawn directive — never part of what a resumed session replays — so it is set on
+ * every turn unconditionally, exactly `claude`'s pre-existing (now-centralized) behavior before
+ * this function existed.
+ *
+ * @param input.defId - Looks up this def's probed capabilities for an `'append-flag'` strategy's
+ * `capabilityKey`. Otherwise unused — the dispatch itself is keyed off `systemPromptDelivery`, per
+ * this function's own doc above, never off the id.
+ * @param input.systemPromptDelivery - The def's declared strategy, or `undefined` for the fallback.
+ * @param input.resumesSessionViaCli - The def's own flag (see `RuntimeAgentDef`'s doc).
+ * @param input.resumesSessionViaAcpLoad - The def's own flag (see `RuntimeAgentDef`'s doc).
+ * @param input.overlay - The computed `PromptAugmenter.systemOverlay()` result. `null`/`undefined`/
+ * empty short-circuits to "no delivery" — byte-identical to no `PromptAugmenter` configured at all.
+ * @param input.prompt - The composed prompt `buildArgs` would otherwise receive verbatim.
+ * @param input.resumeSessionId - This run's `RuntimeContext.resumeSessionId`; presence means an
+ * existing session is being continued, not created.
+ * @returns A {@link SystemPromptOverlayDelivery}: the prefix this run's prompt text must carry
+ * (`''` unless the fallback applies), that prefix already applied to `input.prompt`, any extra argv
+ * to append to whatever `buildArgs` itself returns, and any env var overrides to merge into the
+ * spawn env (`{}` for every strategy but `'env-var'`). Every one of `run()`'s four prompt
+ * transports consumes this same result — see the interface's own no-double-delivery note.
+ * @complexity O(n) in the overlay/prompt lengths — string concatenation only, no I/O.
+ * @overallScore 100/100
+ */
+export function resolveSystemPromptOverlayDelivery(input: {
+  readonly defId: string;
+  readonly systemPromptDelivery: RuntimeAgentDef['systemPromptDelivery'];
+  readonly resumesSessionViaCli: boolean | undefined;
+  readonly resumesSessionViaAcpLoad: boolean | undefined;
+  readonly overlay: string | null | undefined;
+  readonly prompt: string;
+  readonly resumeSessionId: string | null | undefined;
+}): SystemPromptOverlayDelivery {
+  const { defId, systemPromptDelivery, resumesSessionViaCli, resumesSessionViaAcpLoad, overlay, prompt, resumeSessionId } = input;
+  if (typeof overlay !== 'string' || overlay.length === 0) {
+    return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
+  }
+
+  if (systemPromptDelivery?.strategy === 'append-flag') {
+    const capabilityKey = systemPromptDelivery.capabilityKey;
+    // `!== false`, not a truthiness check: mirrors `claude.ts`'s own pre-existing
+    // `agentCapabilities.get('claude') || {}` gate exactly (moved here, not changed) — an
+    // undetected/never-probed capability defaults to allowed, and only an EXPLICIT `false` (the
+    // `--help` probe ran and did not find the flag) withholds it. `capabilityKey === undefined`
+    // (e.g. `pi`'s existing `--append-system-prompt`, trusted unconditionally) always passes, same
+    // as an absent key.
+    const capabilityOk = capabilityKey === undefined || agentCapabilities.get(defId)?.[capabilityKey] !== false;
+    return { promptPrefix: '', prompt, extraArgs: capabilityOk ? [systemPromptDelivery.flag, overlay] : [], envOverrides: {} };
+  }
+
+  if (systemPromptDelivery?.strategy === 'env-var') {
+    // No capability gate, unlike `'append-flag'`: an unrecognized env var is inert to a CLI (it
+    // simply never reads it), never a fatal "unknown option" exit — there is no equivalent hazard
+    // to probe-gate against here. Set verbatim, not merged with any existing value — a dedicated
+    // single-purpose var, not a shared config channel (see this field's own `types.ts` doc).
+    return { promptPrefix: '', prompt, extraArgs: [], envOverrides: { [systemPromptDelivery.varName]: overlay } };
+  }
+
+  if (systemPromptDelivery?.strategy === 'config-instructions-file') {
+    // Delivered elsewhere, not here: unlike `'append-flag'`/`'env-var'`, this mechanism needs real
+    // filesystem I/O (staging the overlay to a temp file — `opencode`'s `instructions` array only
+    // accepts a file path or URL, confirmed live, never inline text), which this function's "pure
+    // and synchronous" contract cannot perform. `prepareSystemPromptOverlayFileIfNeeded` (a separate
+    // async phase in `run()`, gated on this same strategy check) stages the file, and
+    // `computeChildEnv` merges its path into the config document via `mergeEnvContentInstructions`.
+    // This branch's only job is to make sure the universal prefix fallback below does NOT ALSO run
+    // for a def that already has this strategy declared — the same "no double delivery" concern
+    // `imageDelivery`'s doc calls out for its own native-vs-fallback split.
+    return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
+  }
+
+  const isContinuingExistingSession =
+    (resumesSessionViaCli === true || resumesSessionViaAcpLoad === true) &&
+    typeof resumeSessionId === 'string' &&
+    resumeSessionId.length > 0;
+  if (isContinuingExistingSession) {
+    return { promptPrefix: '', prompt, extraArgs: [], envOverrides: {} };
+  }
+
+  // KNOWN TRADE-OFF, deliberate: for a resume-capable def with no `'append-flag'`/`'env-var'`
+  // mechanism yet (`codex`, `codebuddy`, `opencode`, `amr` — all four presently on this fallback),
+  // the overlay is therefore only injected on the SESSION-CREATING turn, not every turn. A host
+  // whose `PromptAugmenter.systemOverlay()` result can change mid-conversation (e.g. a host that
+  // lets an operator edit its own stored instructions and re-reads them before every run — see
+  // `prompt-augmenter.ts`'s own doc for the seam) will see NO effect from such an edit until a NEW
+  // session starts for one of these four defs specifically — a real, silent limitation, not a
+  // theoretical one. This is the correct
+  // trade against the alternative (re-injecting every turn would bake the overlay into that def's
+  // own CLI-persisted session history again and again, compounding without bound) — do not change
+  // this gating to "fix" the staleness. The actual fix is giving each of the four its own
+  // `'append-flag'`-equivalent `systemPromptDelivery` (an argv flag or an env var, neither of which
+  // is part of what a resumed session replays), which removes this limitation entirely for that
+  // def. See `reasonix.ts`'s and `opencode.ts`'s module docs for the two already-identified,
+  // not-yet-wired native mechanisms.
+  const promptPrefix = `${overlay}\n\n---\n\n`;
+  return { promptPrefix, prompt: `${promptPrefix}${prompt}`, extraArgs: [], envOverrides: {} };
+}
+
+/**
+ * Phase 9b: calls the def's `buildArgs`, releasing staged resources and failing the run on a throw.
+ *
+ * @param input.overlayDelivery - This run's already-resolved overlay decision, computed once in
+ * `run()` rather than here. It is resolved upstream because `buildArgs` is only ONE of the four
+ * channels that can carry the prompt: the staged prompt file is written *before* this function
+ * runs, and stdin/ACP/pi-rpc send theirs *after* spawn. A decision made inside this function could
+ * therefore only ever reach the 7 defs whose `buildArgs` reads its first argument at all — the
+ * other 17 declare it `_prompt` and discard it, which is exactly how the overlay used to go missing.
+ */
 export async function buildRunArgs(
   input: {
     readonly runId: string;
@@ -2494,18 +3391,28 @@ export async function buildRunArgs(
     readonly imagePaths: readonly string[] | undefined;
     readonly runInput: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode'>;
     readonly systemPromptOverlay: string | null | undefined;
+    readonly overlayDelivery: SystemPromptOverlayDelivery;
     readonly runtimeContext: RuntimeContext | undefined;
   },
   deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
-): Promise<string[]> {
+): Promise<{ readonly args: string[]; readonly envOverrides: Readonly<Record<string, string>> }> {
   try {
-    return input.def.buildArgs(
-      input.imageDelivery.prompt,
+    const delivery = input.overlayDelivery;
+    const args = input.def.buildArgs(
+      delivery.prompt,
       [...(input.imagePaths ?? [])],
       input.imageDelivery.extraAllowedDirs === undefined ? undefined : [...input.imageDelivery.extraAllowedDirs],
       buildAgentBuildArgsOptions(input.runInput, input.systemPromptOverlay),
       input.runtimeContext,
     );
+    // `'append-flag'` delivery's extra argv (empty for every other def/strategy) is appended after
+    // whatever the def's own `buildArgs` returned — safe because it is only ever non-empty for a
+    // `promptViaStdin` def with no trailing positional argv (`claude`/`pi` today; see
+    // `resolveSystemPromptOverlayDelivery`'s doc for why a future 'append-flag' def must keep that
+    // property too). `envOverrides` (non-empty only for `'env-var'` — `reasonix` today) is handed
+    // back rather than applied here, since the spawn env isn't finalized until `computeChildEnv`
+    // runs, later in `run()`.
+    return { args: [...args, ...delivery.extraArgs], envOverrides: delivery.envOverrides };
   } catch (err) {
     await deps.releaseStagedResources();
     return deps.failBeforeSpawn(
@@ -2516,7 +3423,7 @@ export async function buildRunArgs(
   }
 }
 
-/** Phase 10: mechanism 1 of 4's one effect — stages this run's own `.mcp.json`, returning the path `cleanupStagedFiles` should later remove (`undefined` for every other mechanism / unconfigured host). */
+/** Phase 10: mechanism 1 of 5's one effect — stages this run's own `.mcp.json`, returning the path `cleanupStagedFiles` should later remove (`undefined` for every other mechanism / unconfigured host). */
 export async function writeMcpJsonIfNeeded(
   input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null },
   deps: {
@@ -2537,6 +3444,155 @@ export async function writeMcpJsonIfNeeded(
       input.runId,
       'AGENT_SPAWN_FAILED',
       `AgentExecutor: could not write .mcp.json for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/** {@link prepareSystemPromptOverlayFileIfNeeded}'s result. */
+export type PreparedSystemPromptOverlayFile = {
+  /** Absolute path to the staged file, ready to merge into a `config-instructions-file` def's `instructions` array. */
+  readonly path: string;
+  /** Recursively removes the staged directory. Safe to call more than once. */
+  readonly cleanup: () => Promise<void>;
+};
+
+/**
+ * Phase 10b1: `systemPromptDelivery: { strategy: 'config-instructions-file' }`'s one effect —
+ * stages the computed overlay to a fresh, run-scoped temp file, so `computeChildEnv` has a real
+ * path to merge into that def's `instructions` config array (see
+ * {@link mergeEnvContentInstructions}'s own doc for the live verification this mechanism rests on).
+ * `null` for every other strategy, an unset `systemPromptDelivery`, or no overlay present at all —
+ * byte-identical to before this mechanism existed, matching {@link writeMcpJsonIfNeeded}'s and
+ * {@link prepareCodexHomeIfNeeded}'s identical no-op-when-inapplicable gate.
+ *
+ * `opencode`'s `instructions` field only accepts a file path or a remote URL — confirmed live
+ * (2026-09-01): a literal instruction string in the array is silently ignored (no error, just never
+ * honored), so an inline-text shortcut is not available and this staging step is load-bearing, not
+ * a defensive extra.
+ * @param input.def - Only used for its `id`, in the failure message, and its `systemPromptDelivery` declaration.
+ * @param input.overlay - The computed `PromptAugmenter.systemOverlay()` result for this run.
+ * @complexity O(1) plus one directory creation and one file write.
+ * @overallScore 100/100
+ */
+export async function prepareSystemPromptOverlayFileIfNeeded(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly overlay: string | null | undefined },
+  deps: { readonly releaseStagedResources: () => Promise<void>; readonly failBeforeSpawn: FailBeforeSpawn },
+): Promise<PreparedSystemPromptOverlayFile | null> {
+  if (
+    input.def.systemPromptDelivery?.strategy !== 'config-instructions-file' ||
+    typeof input.overlay !== 'string' ||
+    input.overlay.length === 0
+  ) {
+    return null;
+  }
+  try {
+    const safeRunId = input.runId.replace(/[^A-Za-z0-9_-]/g, '-').slice(0, 80) || 'run';
+    const dir = await fsPromises.mkdtemp(join(tmpdir(), `jini-system-prompt-overlay-${safeRunId}-`));
+    const filePath = join(dir, 'overlay.md');
+    await fsPromises.writeFile(filePath, input.overlay, { encoding: 'utf8', mode: 0o600 });
+    return {
+      path: filePath,
+      cleanup: async () => {
+        await fsPromises.rm(dir, { recursive: true, force: true });
+      },
+    };
+  } catch (err) {
+    await deps.releaseStagedResources();
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not stage a system-prompt overlay file for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/**
+ * Phase 10b: mechanism 5 of 5's one effect — stages this run's scratch `CODEX_HOME` directory,
+ * returning the prepared handle `cleanupStagedFiles` should later release (`null` for every other
+ * mechanism, or for an unconfigured host — matching {@link writeMcpJsonIfNeeded}'s identical gate).
+ * @param input.def - Only used for its `id`, in the failure message.
+ * @param input.mcpBridge - This run's resolved bridge delivery — a no-op unless its `kind` is `'codex-toml'`.
+ * @param deps.hostEnv - The daemon's own environment, threaded through to {@link resolveSourceCodexHomeDir} rather than read from a module-level `process.env` so this phase stays testable with an injected env.
+ * @complexity O(1) plus {@link prepareCodexHomeForRun}'s own cost.
+ * @overallScore 100/100
+ */
+export async function prepareCodexHomeIfNeeded(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null },
+  deps: {
+    readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
+    readonly hostEnv: NodeJS.ProcessEnv;
+    readonly releaseStagedResources: () => Promise<void>;
+    readonly failBeforeSpawn: FailBeforeSpawn;
+  },
+): Promise<PreparedCodexHome | null> {
+  if (input.mcpBridge?.kind !== 'codex-toml' || deps.mcpJsonInjection === undefined) {
+    return null;
+  }
+  try {
+    return await prepareCodexHomeForRun(
+      input.runId,
+      input.mcpBridge.serverEntry,
+      resolveSourceCodexHomeDir(deps.hostEnv),
+      resolveCodexHomeSeams(deps.mcpJsonInjection),
+    );
+  } catch (err) {
+    await deps.releaseStagedResources();
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not stage a CODEX_HOME for agent "${input.def.id}": ${errorMessage(err)}`,
+    );
+  }
+}
+
+/**
+ * Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stages this run's scratch
+ * `CLAUDE_CONFIG_DIR` directory, returning the prepared handle `cleanupStagedFiles` should later
+ * release (`null` for every def other than `claude` — see {@link prepareClaudeConfigDirForRun}'s
+ * own doc for why this is unconditional for `claude` runs, unlike {@link prepareCodexHomeIfNeeded}'s
+ * gate on a host-configured MCP bridge strategy).
+ *
+ * Gated on `def.id === 'claude'` directly rather than on `externalMcpInjection === 'claude-mcp-json'`
+ * (which `codebuddy` also declares): isolating the operator's personal `~/.claude` is specific to
+ * the real `claude` CLI's own config resolution, not to every def that happens to share its `.mcp.
+ * json` delivery shape. Matches the existing `USER`-for-claude-login special case already singled
+ * out by id in `BASELINE_AGENT_ENV_KEYS`'s own doc, a few hundred lines above.
+ *
+ * ALSO gated on `deps.enabled` (`CreateAgentExecutorOptions.claudeConfigDirIsolationEnabled`, default
+ * `false`) since this task's own fix — see that field's doc for why it defaults off (Keychain login
+ * is `CLAUDE_CONFIG_DIR`-keyed and no caller was supplying a credential when this was unconditional).
+ * `def.id === 'claude'` is still checked first and independently: a host that flips this flag on
+ * should not suddenly stage a directory for `codebuddy` or any other def.
+ * @param input.def - Used for both the `id` gate and the failure message.
+ * @param deps.enabled - The isolation on/off switch — see this function's own doc above.
+ * @param deps.hostEnv - The daemon's own environment, threaded through to {@link resolveSourceClaudeConfigDir} rather than read from a module-level `process.env`, matching {@link prepareCodexHomeIfNeeded}'s identical testability reasoning.
+ * @complexity O(1) plus {@link prepareClaudeConfigDirForRun}'s own cost.
+ */
+export async function prepareClaudeConfigDirIfNeeded(
+  input: { readonly runId: string; readonly def: RuntimeAgentDef },
+  deps: {
+    readonly enabled: boolean;
+    readonly claudeConfigDirIsolation: ClaudeConfigDirIsolationOptions | undefined;
+    readonly hostEnv: NodeJS.ProcessEnv;
+    readonly releaseStagedResources: () => Promise<void>;
+    readonly failBeforeSpawn: FailBeforeSpawn;
+  },
+): Promise<PreparedClaudeConfigDir | null> {
+  if (input.def.id !== 'claude' || !deps.enabled) {
+    return null;
+  }
+  try {
+    return await prepareClaudeConfigDirForRun(
+      input.runId,
+      resolveSourceClaudeConfigDir(deps.hostEnv),
+      resolveClaudeConfigDirSeams(deps.claudeConfigDirIsolation),
+    );
+  } catch (err) {
+    await deps.releaseStagedResources();
+    return deps.failBeforeSpawn(
+      input.runId,
+      'AGENT_SPAWN_FAILED',
+      `AgentExecutor: could not stage a CLAUDE_CONFIG_DIR for agent "${input.def.id}": ${errorMessage(err)}`,
     );
   }
 }
@@ -2671,7 +3727,7 @@ export async function runAcpDispatch(input: RunAcpDispatchInput, deps: RunAcpDis
       model: input.model,
       imagePaths: input.imagePaths,
       envFormat: input.envFormat,
-      // Mechanism 2 of 4 — see `WireAcpLifecycleContext.mcpServers`. `undefined` for any def that
+      // Mechanism 2 of 5 — see `WireAcpLifecycleContext.mcpServers`. `undefined` for any def that
       // did not declare `'acp-merge'` and for an unconfigured host.
       mcpServers: input.mcpBridge?.kind === 'acp-merge' ? input.mcpBridge.mcpServers : undefined,
       onPermissionRequest: deps.onPermissionRequest,
@@ -2790,6 +3846,8 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
   const continuation = options.continuation;
   const classifyFailure = options.classifyFailure;
   const mcpJsonInjection = options.mcpJsonInjection;
+  const claudeConfigDirIsolation = options.claudeConfigDirIsolation;
+  const claudeConfigDirIsolationEnabled = options.claudeConfigDirIsolationEnabled ?? false;
   const promptAugmenter = options.promptAugmenter;
 
   /**
@@ -2841,6 +3899,36 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       { failBeforeSpawn },
     );
 
+    // Phase 8, hoisted deliberately above EVERY step that writes or sends the prompt. Four
+    // different channels carry a prompt in this driver, and they do not all run at the same point:
+    // the `promptViaFile` staging below writes its file BEFORE `buildArgs`, `buildArgs` itself runs
+    // mid-`run()`, and stdin/ACP/pi-rpc all send theirs AFTER spawn. Resolving the overlay once,
+    // here, is what lets all four consume the same decision; resolving it later (as this used to,
+    // inside `buildRunArgs`) could only ever reach `buildArgs`, so the 17 defs that discard that
+    // argument, plus grok-build's staged file, silently received no overlay at all.
+    //
+    // `computeSystemPromptOverlay`'s third argument is the pre-staging `RuntimeContext`: it reads
+    // only `hasPriorAssistantTurn`, which `computeRuntimeContext` never populates from any of the
+    // staged-file/MCP inputs added to the fuller context built further down, so nothing between
+    // here and there can change the overlay this returns. Passing the narrower context makes that
+    // independence explicit rather than relying on the ordering staying lucky.
+    //
+    // `turnIndex` is a coarse 0/1 proxy (no exact turn counter exists on this driver) — sufficient
+    // because every `PromptAugmenter.systemOverlay()` implementation this seam has today wants the
+    // same overlay on every turn, not a first-turn-only one; a caller that needs finer-grained turn
+    // numbering can track it itself and ignore this arg.
+    const preStagingRuntimeContext = computeRuntimeContext(null, null, null, input.resumeSessionId, input.newSessionId);
+    const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id, preStagingRuntimeContext);
+    const overlayDelivery = resolveSystemPromptOverlayDelivery({
+      defId: def.id,
+      systemPromptDelivery: def.systemPromptDelivery,
+      resumesSessionViaCli: def.resumesSessionViaCli,
+      resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
+      overlay: systemPromptOverlay,
+      prompt: imageDelivery.prompt,
+      resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
+    });
+
     const resolvedEnv = resolveRunEnv(input, process.env);
     const launch = await resolveLaunch(
       { runId: input.runId, def, resolvedEnv },
@@ -2852,8 +3940,12 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // Stage a promptViaFile def's (grok-build) prompt to a temp file before buildArgs runs — its
     // buildArgs throws without runtimeContext.promptFilePath. A no-op (returns null) for every
     // def without promptViaFile: true (preparePromptFileForAgent's own guard).
+    //
+    // `overlayDelivery.prompt`, not `imageDelivery.prompt`: for a `promptViaFile` def this file IS
+    // the prompt transport — its `buildArgs` declares `_prompt` and passes only the path — so the
+    // overlay has to be in the bytes written here or the CLI never sees it at all.
     const preparedPromptFile = await stagePromptFile(
-      { runId: input.runId, def, prompt: imageDelivery.prompt },
+      { runId: input.runId, def, prompt: overlayDelivery.prompt },
       { preparePromptFileForAgent: preparePromptFileForAgentFn, failBeforeSpawn },
     );
     // Stage a needsAgentLogFile def's (antigravity) diagnostic-log path, on the same terms and at
@@ -2880,6 +3972,28 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
      */
     let writtenMcpJsonPath: string | undefined;
     const removeMcpJsonFileFn = mcpJsonInjection?.removeFile ?? defaultRemoveMcpJsonFile;
+    /**
+     * Set once `prepareCodexHomeIfNeeded` has actually staged this run's scratch `CODEX_HOME`, so
+     * `cleanupStagedFiles` knows there is a directory holding a copied login credential to remove.
+     * Cleared as it is consumed, matching `writtenMcpJsonPath`'s identical single-removal discipline.
+     * Only the `'codex-toml'` mechanism stages a directory at all.
+     */
+    let preparedCodexHome: PreparedCodexHome | null = null;
+    /**
+     * Set once `prepareClaudeConfigDirIfNeeded` has actually staged this run's scratch
+     * `CLAUDE_CONFIG_DIR`, so `cleanupStagedFiles` knows there is a directory (possibly holding a
+     * copied login credential) to remove. Cleared as it is consumed, matching `preparedCodexHome`'s
+     * identical single-removal discipline. Only a `claude`-id run stages a directory this way.
+     */
+    let preparedClaudeConfigDir: PreparedClaudeConfigDir | null = null;
+    /**
+     * Set once `prepareSystemPromptOverlayFileIfNeeded` has actually staged this run's overlay file
+     * for a `'config-instructions-file'` def, so `cleanupStagedFiles` knows there is a temp
+     * directory to remove. Cleared as it is consumed, matching `preparedCodexHome`'s identical
+     * single-removal discipline. Only that one strategy stages a file this way — `null` for every
+     * other def/strategy/no-overlay run.
+     */
+    let preparedSystemPromptOverlayFile: PreparedSystemPromptOverlayFile | null = null;
     const cleanupStagedFiles: () => Promise<void> = async () => {
       if (preparedPromptFile) await preparedPromptFile.cleanup();
       if (preparedLogFile) await preparedLogFile.cleanup();
@@ -2888,19 +4002,39 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
         writtenMcpJsonPath = undefined;
         await removeMcpJsonFileFn(mcpJsonFileToRemove);
       }
+      if (preparedCodexHome) {
+        const codexHomeToRemove = preparedCodexHome;
+        preparedCodexHome = null;
+        await codexHomeToRemove.cleanup();
+      }
+      if (preparedClaudeConfigDir) {
+        const claudeConfigDirToRemove = preparedClaudeConfigDir;
+        preparedClaudeConfigDir = null;
+        await claudeConfigDirToRemove.cleanup();
+      }
+      if (preparedSystemPromptOverlayFile) {
+        const overlayFileToRemove = preparedSystemPromptOverlayFile;
+        preparedSystemPromptOverlayFile = null;
+        await overlayFileToRemove.cleanup();
+      }
     };
     // Resolve this run's MCP bridge delivery once, before buildArgs — the `'claude-mcp-json'`
     // variant's path has to be in `runtimeContext` for that def's own `--mcp-config` argv, and
     // resolving here means the per-run bearer credential is minted exactly once no matter which of
-    // the four mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
+    // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
     const mcpBridge = await resolveMcpBridgeForRun(
       { runId: input.runId, cwd: input.cwd, def },
       { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn },
     );
 
-    const childEnv = computeChildEnv(spawnEnv, mcpBridge);
-    const runtimeContext = computeRuntimeContext(preparedPromptFile, preparedLogFile, mcpBridge);
+    const runtimeContext = computeRuntimeContext(
+      preparedPromptFile,
+      preparedLogFile,
+      mcpBridge,
+      input.resumeSessionId,
+      input.newSessionId,
+    );
 
     // A `runtimeLock` def's buildArgs mutates process-global state its own CLI reads back at
     // startup, so the mutex must be held from before buildArgs until the spawned child has
@@ -2926,13 +4060,6 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       await cleanupStagedFiles();
     };
 
-    // Computed once per `run()`, not per-token/per-event: a system-prompt overlay is a spawn-time
-    // CLI arg, not something that varies mid-run. `turnIndex` is a coarse 0/1 proxy (no exact turn
-    // counter exists on this driver) — sufficient because every `PromptAugmenter.systemOverlay()`
-    // implementation this seam has today wants the same overlay on every turn, not a first-turn-only
-    // one; a caller that needs finer-grained turn numbering can track it itself and ignore this arg.
-    const systemPromptOverlay = computeSystemPromptOverlay(promptAugmenter, def.id, runtimeContext);
-
     // Guarded, like every other step between staging and spawn: a `runtimeLock` def's `buildArgs` is
     // guarded precisely *because* it performs real filesystem writes (antigravity writes its model
     // choice into a shared settings file), so EACCES on a read-only home, ENOSPC, or a malformed
@@ -2940,19 +4067,70 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     // `Error` — breaking this driver's "never a bare throw, always an `AgentExecutorError`" contract
     // — and left the run `'running'` forever while still holding the process-global mutex and both
     // staged files, so no later run of that def could ever acquire the lock either.
-    const args = await buildRunArgs(
-      { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, runtimeContext },
+    const { args, envOverrides: systemPromptEnvOverrides } = await buildRunArgs(
+      { runId: input.runId, def, imageDelivery, imagePaths: input.imagePaths, runInput: input, systemPromptOverlay, overlayDelivery, runtimeContext },
       { releaseStagedResources, failBeforeSpawn },
     );
 
-    // Mechanism 1 of 4's one effect — stage this run's own MCP config file (run-scoped, see
+    // Mechanism 1 of 5's one effect — stage this run's own MCP config file (run-scoped, see
     // `mcpJsonPathForRun`) before spawn so the `--mcp-config <path>` argv buildArgs just produced
-    // points at a real file. Skipped entirely for the other three mechanisms and whenever no bridge
+    // points at a real file. Skipped entirely for the other four mechanisms and whenever no bridge
     // was resolved at all. `writtenMcpJsonPath` is set only once the write actually happens, so
     // `cleanupStagedFiles` knows there is a live-token file to remove afterward.
     writtenMcpJsonPath = await writeMcpJsonIfNeeded(
       { runId: input.runId, cwd: input.cwd, def, mcpBridge },
       { mcpJsonInjection, releaseStagedResources, failBeforeSpawn },
+    );
+
+    // Mechanism 5 of 5's one effect — stage this run's scratch `CODEX_HOME` directory. Skipped
+    // entirely for the other four mechanisms and whenever no bridge was resolved at all.
+    // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
+    // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
+    // constraint of its own; it is placed here only to keep the two staging steps adjacent.
+    preparedCodexHome = await prepareCodexHomeIfNeeded(
+      { runId: input.runId, def, mcpBridge },
+      { mcpJsonInjection, hostEnv: process.env, releaseStagedResources, failBeforeSpawn },
+    );
+    // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
+    // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
+    // this does not depend on `mcpJsonInjection` being configured at all — see
+    // `prepareClaudeConfigDirIfNeeded`'s own doc for why). Placed here only to stay adjacent to the
+    // other pre-`computeChildEnv` staging steps; `claude.ts`'s `buildArgs` needs no argv change for
+    // this (CLAUDE_CONFIG_DIR is an env var, not a flag), same as CODEX_HOME.
+    preparedClaudeConfigDir = await prepareClaudeConfigDirIfNeeded(
+      { runId: input.runId, def },
+      {
+        enabled: claudeConfigDirIsolationEnabled,
+        claudeConfigDirIsolation,
+        hostEnv: process.env,
+        releaseStagedResources,
+        failBeforeSpawn,
+      },
+    );
+    // `'config-instructions-file'`'s one effect — stage the overlay to a temp file so
+    // `computeChildEnv` below has a real path to merge into that def's `instructions` array. A
+    // no-op (`null`) for every other def/strategy or a run with no overlay at all. Independent of
+    // `mcpBridge`/`preparedCodexHome` above (a different strategy field entirely), so placed here
+    // only to stay adjacent to the other pre-`computeChildEnv` staging steps, not for any ordering
+    // requirement between them.
+    preparedSystemPromptOverlayFile = await prepareSystemPromptOverlayFileIfNeeded(
+      { runId: input.runId, def, overlay: systemPromptOverlay },
+      { releaseStagedResources, failBeforeSpawn },
+    );
+    // Computed only now, not right after `mcpBridge` resolution: mechanism 5's directory path is
+    // not known until the staging step directly above actually runs `mkdtemp` (see
+    // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
+    // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
+    // here ever read `childEnv`, so moving the call cost nothing.
+    const childEnv = computeChildEnv(
+      spawnEnv,
+      mcpBridge,
+      preparedCodexHome?.path,
+      systemPromptEnvOverrides,
+      preparedSystemPromptOverlayFile && def.systemPromptDelivery?.strategy === 'config-instructions-file'
+        ? { varName: def.systemPromptDelivery.varName, path: preparedSystemPromptOverlayFile.path }
+        : undefined,
+      preparedClaudeConfigDir?.path,
     );
 
     // Post-buildArgs guard for argv-bound defs whose resolved binary is a
@@ -3026,7 +4204,14 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           runId: input.runId,
           agentId: def.id,
           child,
-          prompt: input.prompt,
+      // `overlayDelivery.promptPrefix` applied to `input.prompt`, NOT `overlayDelivery.prompt`:
+      // this call site deliberately sends the raw input prompt rather than the image-delivery
+      // rewrite (see `resolveImageDeliveryAndArgvBudget`'s call site above — an ACP def delivers
+      // images natively and must never also get `'prompt-path'`'s appended paths), and the prefix
+      // is the part of the overlay decision that applies to whatever prompt text a transport was
+      // already sending. `''` for `reasonix` (env-var) and any resumed ACP session, so those keep
+      // sending byte-identical text and never receive the overlay twice.
+          prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           model: input.model,
           imagePaths: input.imagePaths ?? [],
@@ -3057,7 +4242,10 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           runId: input.runId,
           agentId: def.id,
           child,
-          prompt: input.prompt,
+          // Same reasoning as the ACP call site above. `pi` declares an `'append-flag'` strategy,
+          // so its prefix is `''` and this stays byte-identical to the raw prompt — the overlay
+          // rides `--append-system-prompt` instead, exactly once.
+          prompt: `${overlayDelivery.promptPrefix}${input.prompt}`,
           cwd: input.cwd,
           model: input.model,
           imagePaths: input.imagePaths ?? [],
@@ -3080,7 +4268,17 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       return;
     }
 
-    writePromptToStdin(def, child, imageDelivery.prompt, stdinHandle!);
+    // The overlay reaches stdin only for a def that declares stdin as its prompt transport. The
+    // four `plain`-format defs that do not (`aider`/`antigravity`/`deepseek` put the prompt in
+    // argv, `grok-build` in a staged file) are still written to and closed here exactly as before,
+    // because this driver always spawns with `stdio: ['pipe','pipe','pipe']` and their CLIs need
+    // the EOF — but their prompt already carried the overlay through argv or the staged file, so
+    // sending the overlaid text here too would deliver it twice. This is the one place the
+    // resolver's own `''`-prefix rule is not sufficient on its own: those four defs are on the
+    // fallback strategy, so their prefix is genuinely non-empty; what makes stdin the wrong
+    // channel for them is the def's declared transport, not the strategy.
+    const stdinPrompt = def.promptViaStdin === true ? overlayDelivery.prompt : imageDelivery.prompt;
+    writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
   }
 
   return { run };

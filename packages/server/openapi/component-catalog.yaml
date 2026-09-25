@@ -1,0 +1,107 @@
+openapi: 3.0.3
+info:
+  title: Jini component catalogue route pack
+  version: 0.0.0
+  description: |
+    Code-first fragment for `GET /api/components/search` / `GET /api/components/:id` in
+    `@jini-ai/http-kit`'s `component-catalog.ts` — the discovery half of an agent's
+    interactive-UI loop, shaped exactly like `tool-catalog.ts`'s `search_tools`/
+    `describe_tool` pair: ranked, schema-free hits from search; the full descriptor
+    (including `propsSchema`) only from describe. `@jini-ai/mcp`'s `search_components`/
+    `describe_component` tool defs proxy these two routes over HTTP — confirmed by reading
+    `packages/mcp/src/server/tools/component-catalog-tools.ts` directly, which calls
+    `getDaemonJson(ctx.baseUrl, '/api/components/search?...')` etc.
+
+    **Never mounted anywhere in this repo.** `registerComponentCatalogRoutes` needs a
+    `catalog: ComponentCatalogQuery` implementation the module's own doc says a caller wires
+    from `@jini-ai/ui/interactive-ui/manifests`'s `ALL_MANIFESTS`, converting each
+    manifest's zod `propsSchema` to JSON Schema at that wiring point. No such wiring exists
+    in `packages/server/src/builtin-features.ts` (unlike `connectors.ts`, mounted
+    zero-config there) or in `examples/reference-web` (unlike `attachments.ts`, wired
+    there). A grep across the repo for `registerComponentCatalogRoutes` finds only the
+    export itself and its own unit tests. Concretely: the MCP tool defs that "proxy" these
+    routes have nothing to proxy to on any daemon built from this repo today — a call
+    against a real daemon 404s unless a downstream host (outside this repo) does the
+    missing wiring. Flagged as a notable gap, not fixed here (docs-only pass).
+
+    **Both routes require same-origin, despite being `GET`s** — `requireSameOrigin: true`
+    is set on `componentCatalogSearchRoute` and `componentCatalogDescribeRoute` alike. This
+    is the only read-only pair in the groups audited so far gated this way: `http-kit-core`'s
+    read routes (`list_runs`, `get_run`, `list_agents`, ...) and `connectors.ts`'s five
+    provider `GET`s (`storage/:key`, `payments/:id`, `db/:collection[/:id]`) all omit the
+    guard.
+
+    **Decided 2026-08-23 (owner sign-off): keep the guard, do not loosen it.** Resolution:
+    the stricter behavior is not a bug — removing `requireSameOrigin` to match the looser
+    "GETs are open" pattern elsewhere would be a regression, not a fix. This pair is closer
+    to `db-ops.ts`'s "even `inspect` alone discloses information" reasoning than to a generic
+    content-read `GET`: it discloses the installed interactive-UI component/capability
+    inventory this daemon can mount, which a cross-origin caller has no legitimate need to
+    enumerate. Documented in code at both route definitions in `component-catalog.ts`. No
+    behavior change; existing tests in `component-catalog.test.ts` were re-run unmodified to
+    confirm.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/components/search:
+    get:
+      operationId: search_components
+      summary: Search the registered interactive-UI component catalog
+      x-jini-require-same-origin: true
+      description: Ranked candidates only — no `propsSchema` — so this stays cheap to call broadly. `limit` is clamped to `[1, 25]`, defaulting to 10.
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1 }, description: 'Free-text query. A missing or blank value is a 400, not an empty result set.' }
+        - { name: limit, in: query, required: false, schema: { type: string, pattern: '^[0-9]+$' }, description: 'Single positive-integer string. Values above 25 are silently clamped, not rejected; non-numeric or repeated values are a 400.' }
+      responses:
+        '200': { description: Ranked hits, content: { application/json: { schema: { $ref: '#/components/schemas/ComponentCatalogSearchResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/components/{id}:
+    get:
+      operationId: describe_component
+      summary: Get one component's full descriptor, including propsSchema
+      x-jini-require-same-origin: true
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Full descriptor, content: { application/json: { schema: { $ref: '#/components/schemas/ComponentCatalogEntry' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin guard rejected the request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    NotFound: { description: No catalog entry for the given id, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    ComponentCatalogSearchHit:
+      type: object
+      required: [id, provider, capabilities, score]
+      properties:
+        id: { type: string }
+        provider: { type: string }
+        capabilities: { type: array, items: { type: string } }
+        description: { type: string }
+        score: { type: number }
+    ComponentCatalogSearchResponse:
+      type: object
+      required: [hits]
+      properties: { hits: { type: array, items: { $ref: '#/components/schemas/ComponentCatalogSearchHit' } } }
+    ComponentCatalogEntry:
+      type: object
+      required: [id, provider, capabilities, propsSchema]
+      properties:
+        id: { type: string }
+        provider: { type: string }
+        capabilities: { type: array, items: { type: string } }
+        propsSchema: { description: 'JSON Schema converted from the manifest''s zod `propsSchema` at the wiring point — never a live zod object over the wire.' }
+        description: { type: string }

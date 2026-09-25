@@ -48,6 +48,33 @@ describe('MessageList', () => {
     expect(onScrolled).not.toHaveBeenCalled();
   });
 
+  it('does not yank the view back down when a new scrollIntent event (e.g. a streaming tool-call chunk) arrives while the user has scrolled up to read history', () => {
+    // Reproduces the owner-reported bug: "whenever it's on and the chat's going, and I'm scrolling
+    // up to try to find messages, whenever a new line comes in — like 'searching tools' — it forces
+    // me to the bottom." Every streaming event re-fires `useConversation`'s `applyRunToAssistantMessage`,
+    // which sets `scrollIntent: true` unconditionally — this component must still refuse to move the
+    // scroll position unless the user was actually pinned to the bottom when that event arrived.
+    const onScrolled = vi.fn();
+    const { container, rerender } = render(<MessageList messages={messages} scrollIntent={false} onScrolled={onScrolled} />);
+    const el = container.querySelector('.jini-message-list') as HTMLDivElement;
+
+    // A genuinely overflowing container (clientHeight < scrollHeight), so "scrolled to 0" is
+    // distinguishable from "at the bottom".
+    Object.defineProperty(el, 'scrollHeight', { value: 300, configurable: true });
+    Object.defineProperty(el, 'clientHeight', { value: 100, configurable: true });
+
+    // The user scrolls up to read earlier history.
+    el.scrollTop = 0;
+    el.dispatchEvent(new Event('scroll'));
+
+    // A new streaming chunk lands: `messages` changes identity and `scrollIntent` flips true again,
+    // exactly like a live tool-call status update reconciling onto the streaming assistant message.
+    const streamedMessages: ChatMessage[] = [...messages, { id: '3', role: 'assistant', content: 'searching tools…', runStatus: 'running' }];
+    rerender(<MessageList messages={streamedMessages} scrollIntent onScrolled={onScrolled} />);
+
+    expect(el.scrollTop).toBe(0);
+  });
+
   describe('re-sticking to the bottom when a message ROW grows after mount', () => {
     // Reproduces the MCP-UI clipping bug: a confirmation surface mounts small (its
     // `preferredFrameSize`/`DEFAULT_INITIAL_HEIGHT` guess), the one-shot `scrollIntent` effect scrolls
@@ -170,5 +197,40 @@ describe('MessageList', () => {
     const withAttachment: ChatMessage[] = [{ id: 'u1', role: 'user', content: 'see attached', attachments: [{ path: '/a.png', name: 'a.png', kind: 'image' }] }];
     render(<MessageList messages={withAttachment} renderAttachment={(a) => <span data-testid="custom-chip">{a.name.toUpperCase()}</span>} />);
     expect(screen.getByTestId('custom-chip')).toHaveTextContent('A.PNG');
+  });
+
+  describe('pendingPrompt', () => {
+    // Regression coverage for the queued-turn strip's move from a banner bolted above the
+    // composer (ChatPane's old `ChatPaneQueuedPrompt`) into the transcript itself, as the newest
+    // entry — matching Claude Code/ChatGPT's own pending-turn UX.
+    it('renders nothing when nothing is queued', () => {
+      render(<MessageList messages={messages} pendingPrompt={null} />);
+      expect(screen.queryByTestId('chat-pane-queued')).not.toBeInTheDocument();
+    });
+
+    it('renders the queued text as the newest transcript entry, after every real message', () => {
+      const { container } = render(<MessageList messages={messages} pendingPrompt={{ text: 'third turn', onCancel: () => {} }} />);
+      const el = container.querySelector('.jini-message-list') as HTMLDivElement;
+      expect(el.lastElementChild).toHaveAttribute('data-testid', 'chat-pane-queued');
+      expect(screen.getByText('third turn')).toBeInTheDocument();
+    });
+
+    it('invokes onCancel from the transcript entry\'s own cancel affordance', async () => {
+      const onCancel = vi.fn();
+      render(<MessageList messages={messages} pendingPrompt={{ text: 'third turn', onCancel }} />);
+      await userEvent.click(screen.getByTitle('Cancel queued message'));
+      expect(onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('never mints a message id or writes the pending turn into the messages array it was given', () => {
+      // `pendingPrompt` is pane-local queue state, not a `ChatMessage` — asserting there is no
+      // `data-message-id` on the queued row (unlike every real MessageRow) is what actually proves
+      // it never got treated as one; a fabricated id here could collide with a real persisted
+      // message once the turn is actually sent.
+      const { container } = render(<MessageList messages={messages} pendingPrompt={{ text: 'third turn', onCancel: () => {} }} />);
+      const queuedEl = screen.getByTestId('chat-pane-queued');
+      expect(queuedEl).not.toHaveAttribute('data-message-id');
+      expect(container.querySelectorAll('[data-message-id]')).toHaveLength(messages.length);
+    });
   });
 });

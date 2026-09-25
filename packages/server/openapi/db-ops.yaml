@@ -1,0 +1,105 @@
+openapi: 3.0.3
+info:
+  title: Jini daemon DB-ops routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for `db-ops.ts`'s three daemon-database routes in
+    `@jini-ai/http-kit`. Unlike most read routes in this API, all three —
+    including the read-only inspect — require a same-origin request: `inspect`
+    and `verify` disclose internal schema/row-count/file-size information and
+    `vacuum` rewrites the database file in place, so none of the three has a
+    "mostly harmless" GET the way `/api/daemon/status` or `/api/agents` does.
+    None of the three routes calls its `DaemonDbOperations` collaborator
+    directly — each executes through `ToolExecutor.execute` against a
+    deny-by-default `ToolPolicy` (`denyAllDaemonDbPolicy`), so a host must
+    explicitly opt in with its own policy before any of these three do
+    anything. A policy `deny` or a confirmation denial both surface as the
+    same `403 TOOL_OPERATION_DENIED` as a same-origin rejection; a `failed`,
+    `timed-out`, or `cancelled` tool execution is folded into the generic
+    `500 INTERNAL_ERROR` (SEC-005 — the real SQLite error, file path, or
+    schema name is only logged server-side, never returned to the caller).
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/daemon/db:
+    get:
+      operationId: get_daemon_db
+      summary: Inspect the daemon SQLite database
+      description: Schema version, table list, row counts, on-disk size. Executes through `ToolExecutor` against tool id `daemon.db.inspect`; denied by default (`denyAllDaemonDbPolicy`) until a host supplies its own policy.
+      x-jini-require-same-origin: true
+      x-jini-tool-id: daemon.db.inspect
+      responses:
+        '200': { description: Database inventory, content: { application/json: { schema: { $ref: '#/components/schemas/DaemonDbStatusReport' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/daemon/db/verify:
+    post:
+      operationId: verify_daemon_db
+      summary: Run a SQLite integrity/foreign-key check
+      description: '`PRAGMA integrity_check`/`quick_check` plus `foreign_key_check`. Executes through `ToolExecutor` against tool id `daemon.db.verify`; denied by default until a host supplies its own policy.'
+      x-jini-require-same-origin: true
+      x-jini-tool-id: daemon.db.verify
+      parameters:
+        - { name: quick, in: query, required: false, description: 'Any of the literal strings `1`/`true` (case-insensitive) selects `quick_check`; anything else, or omission, selects the full `integrity_check`.', schema: { type: string } }
+      responses:
+        '200': { description: Integrity report, content: { application/json: { schema: { $ref: '#/components/schemas/DbIntegrityReport' } } } }
+        '400': { description: '`quick` was supplied more than once (not a single string value).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/daemon/db/vacuum:
+    post:
+      operationId: vacuum_daemon_db
+      summary: Run VACUUM against the daemon database
+      description: Reports bytes reclaimed. Executes through `ToolExecutor` against tool id `daemon.db.vacuum`; denied by default until a host supplies its own policy. Rewrites the database file in place.
+      x-jini-require-same-origin: true
+      x-jini-tool-id: daemon.db.vacuum
+      responses:
+        '200': { description: Vacuum result, content: { application/json: { schema: { $ref: '#/components/schemas/DaemonDbVacuumResult' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  securitySchemes:
+    optionalBearer:
+      type: http
+      scheme: bearer
+      description: When the host enables `JINI_API_TOKEN`, the global `/api` middleware requires this token except for health/ready/version probes and permitted direct loopback peers.
+  responses:
+    Forbidden: { description: 'Same-origin guard rejected the request, OR the injected `ToolPolicy` denied the call (default `denyAllDaemonDbPolicy` denies every call unconditionally) — both map to `403 TOOL_OPERATION_DENIED`/`FORBIDDEN` and are indistinguishable from the response alone.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: 'Internal error; covers both an adapter-caught exception and a `failed`/`timed-out`/`cancelled` tool-execution status. Adapter-generated errors include a correlation requestId in error.details.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    DaemonDbTableInfo: { type: object, required: [name, rowCount], properties: { name: { type: string }, rowCount: { type: integer } } }
+    DaemonDbStatusReport:
+      type: object
+      required: [kind, location, sizeBytes, schemaVersion, tables, generatedAt]
+      properties:
+        kind: { type: string, enum: [sqlite, postgres] }
+        location: { type: string }
+        sizeBytes: { type: integer }
+        schemaVersion: { type: integer, nullable: true }
+        tables: { type: array, items: { $ref: '#/components/schemas/DaemonDbTableInfo' } }
+        generatedAt: { type: number, description: Epoch milliseconds. }
+    DbIntegrityIssue: { type: object, required: [kind, message], properties: { kind: { type: string, enum: [integrity, foreign_key] }, message: { type: string } } }
+    DbIntegrityReport:
+      type: object
+      required: [ok, mode, issues, elapsedMs, generatedAt]
+      properties:
+        ok: { type: boolean }
+        mode: { type: string, enum: [integrity_check, quick_check] }
+        issues: { type: array, items: { $ref: '#/components/schemas/DbIntegrityIssue' } }
+        elapsedMs: { type: number }
+        generatedAt: { type: number, description: Epoch milliseconds. }
+    DaemonDbVacuumResult:
+      type: object
+      required: [ok, beforeBytes, afterBytes, reclaimedBytes, elapsedMs]
+      properties:
+        ok: { type: boolean, enum: [true] }
+        beforeBytes: { type: integer }
+        afterBytes: { type: integer }
+        reclaimedBytes: { type: integer }
+        elapsedMs: { type: number }

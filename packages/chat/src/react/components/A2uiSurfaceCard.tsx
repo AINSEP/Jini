@@ -11,11 +11,15 @@
  * approach: degrade sanely — a visible, inert placeholder, never a crash — for a missing child id
  * or a circular reference), generalized to consume a growing `events` array instead of a live SSE
  * callback. `@jini-ai/agentic/a2ui`'s catalog validates all 18 of the real basic catalog's
- * components, but this component (like the lab's) still only has React cases for 4 — `Text`/
- * `Column`/`Row`/`Button`; see `packages/agentic/source-map.md`'s "Folded from `@jini-ai/a2ui`"
- * section for the renderer-coverage gap against the catalog. A catalog type the interpreter
- * accepts but this switch has no case for degrades to the same visible placeholder as a genuinely
- * unrenderable one — see the `default` branch's own comment.
+ * components; this renderer has React cases for 5 of them — `Text`/`Column`/`Row`/`Card`/`Button`
+ * — plus, since the catalog this card builds is the lab catalog MERGED with
+ * `DEFAULT_INTERACTIVE_UI_REGISTRY` (`buildA2uiCatalogFromRegistry`, `@jini-ai/ui/a2ui`), any
+ * registry-sourced component (`shadcn.*`, `recharts.*`) resolves through that registry the same
+ * way `@jini-ai/ui`'s own `A2uiSurfaceRenderer` does — see this file's `default` case. The
+ * remaining basic types (Image/Icon/Video/AudioPlayer/List/Tabs/Modal/Divider and the input
+ * family) still have no case here; a catalog type the interpreter accepts but this switch has no
+ * case for, and that the registry does not resolve either, degrades to the same visible
+ * placeholder as a genuinely unrenderable one — see the `default` branch's own comment.
  *
  * **Known gap, by design, not oversight:** a `Button`'s click only completes the round trip when
  * `interpreter.buildAction` resolves it as a `local` (client-side) function call. A `message`-shaped
@@ -29,6 +33,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { buildA2uiCatalogFromRegistry } from '@jini-ai/ui/a2ui';
+import { DEFAULT_INTERACTIVE_UI_REGISTRY } from '@jini-ai/ui/interactive-ui';
 import type { ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 
@@ -121,6 +127,15 @@ function RenderComponent({
           {renderChildList(component.props.children)}
         </div>
       );
+    case 'Card':
+      // A single-child wrapper — needed to usefully contain one registry component (see the
+      // `default` case below) inside a `Column`/`Row`, the same reasoning `@jini-ai/ui`'s
+      // `A2uiSurfaceRenderer` documents for its own identical case.
+      return (
+        <div className="a2ui-card" data-a2ui-component-id={componentId}>
+          <RenderComponent {...childProps} componentId={String(component.props.child)} />
+        </div>
+      );
     case 'Button':
       return (
         <button
@@ -134,15 +149,28 @@ function RenderComponent({
           <RenderComponent {...childProps} componentId={String(component.props.child)} />
         </button>
       );
-    default:
+    default: {
       // A component type the active catalog rejects never reaches the component map
-      // (`interpreter.applyAgentMessage`'s own guard) — this only fires for a catalog type this
-      // renderer simply hasn't grown a case for yet (see module doc's catalog-coverage note).
-      return (
-        <span className="a2ui-placeholder" data-a2ui-status="unrenderable-type">
-          ⚠ no renderer yet for component type “{component.component}”
-        </span>
-      );
+      // (`interpreter.applyAgentMessage`'s own guard) — everything that DOES reach here is either
+      // one of the 13 basic types this switch has no case for, or a registry-sourced component
+      // (`shadcn.*`/`recharts.*`) merged into the catalog by `A2uiSurfaceCard`'s own
+      // `buildA2uiCatalogFromRegistry` call below. Resolved against the SAME registry
+      // `@jini-ai/ui`'s own `A2uiSurfaceRenderer` uses, so a type addable to the catalog and
+      // renderable there is addable and renderable here too.
+      const entry = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveById(component.component);
+      if (!entry) {
+        return (
+          <span className="a2ui-placeholder" data-a2ui-status="unrenderable-type">
+            ⚠ no renderer yet for component type “{component.component}”
+          </span>
+        );
+      }
+      const RegistryComponent = entry.Component;
+      // `onRowClick`: the one registry component that exists today (`native.data-table`/
+      // `shadcn.data-table`) reads this, not a generic per-type feedback convention — same
+      // documented simplification `A2uiSurfaceRenderer`'s own identical line carries.
+      return <RegistryComponent {...component.props} onRowClick={() => onAction(componentId)} />;
+    }
   }
 }
 
@@ -194,7 +222,14 @@ export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
 /** Registered against `ext-event-renderer-registry.ts`'s `'a2ui'` name — see module doc. */
 export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCardProps) {
   const t = useT();
-  const catalog = useMemo(() => createLabCatalog(), []);
+  // Merges `DEFAULT_INTERACTIVE_UI_REGISTRY` (shadcn/recharts) into the lab catalog, keyed under
+  // the SAME `catalogId` the lab catalog already uses — so a tool built against
+  // `createLabCatalog().catalogId` (e.g. `demo-a2ui-tool.ts`) still validates unchanged, and now
+  // ALSO gains every registry component as a real, addable/removable catalog entry.
+  const catalog = useMemo(() => {
+    const base = createLabCatalog();
+    return buildA2uiCatalogFromRegistry(DEFAULT_INTERACTIVE_UI_REGISTRY, base.catalogId, { base });
+  }, []);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
   if (!interpreterRef.current) interpreterRef.current = createA2uiInterpreter(catalog);
   const interpreter = interpreterRef.current;
@@ -222,15 +257,34 @@ export function A2uiSurfaceCard({ events, runId, onAgentAction }: A2uiSurfaceCar
       if (result.unattributedViolation) {
         setRefusalNotice(result.unattributedViolation);
       } else {
-        // A catalog-validation refusal (e.g. an unrecognized component type) surfaces as an
-        // `error`-shaped entry in `rendererMessages`, not `unattributedViolation` — a real renderer
-        // would relay these back to the agent; this component just needs the first one to show a
-        // visible, honest refusal instead of leaving the surface silently stuck at "waiting".
+        // A catalog-validation refusal (e.g. an unrecognized component type, or a known type with a
+        // missing/invalid required prop) surfaces as an `error`-shaped entry in `rendererMessages`,
+        // not `unattributedViolation`. Shown locally AND relayed through the exact same
+        // `onAgentAction` pipe a button click already uses: `errorMessage` is a real
+        // `RendererToAgentMessage` carrying `error.surfaceId`, which is all `onAgentAction`'s host
+        // implementation needs to address it — no second callback prop, no new wire shape. Without
+        // this relay a tool call that opened the surface has no way to learn its render was REFUSED
+        // and returns success anyway, which is worse than the silent-"waiting" bug this comment used
+        // to describe: it actively tells the agent (and, downstream, the human) that a chart is on
+        // screen when it never rendered at all.
         const errorMessage = result.rendererMessages.find((m): m is Extract<typeof m, { error: unknown }> => 'error' in m);
-        if (errorMessage) setRefusalNotice(errorMessage.error.message);
+        if (errorMessage) {
+          setRefusalNotice(errorMessage.error.message);
+          void onAgentAction?.(runId, errorMessage);
+        } else {
+          // A message that applies cleanly clears any earlier refusal. `refusalNotice` describes
+          // whether the CURRENT surface is broken, not a permanent scar from an earlier mistake this
+          // same conversation already recovered from — e.g. a retry that fixed a missing prop, or an
+          // unrelated later `updateDataModel`. Without this, a stale "Action refused" banner from an
+          // early failed attempt sits underneath a chart that went on to render successfully.
+          setRefusalNotice(null);
+        }
       }
     }
-  }, [events, interpreter]);
+    // `onAgentAction`/`runId` included: the loop above now calls `onAgentAction` directly (relaying
+    // a validation error), not just on a later user click — the effect must see a fresh reference,
+    // the same way `handleAction`'s own (non-effect) call site already gets one on every render.
+  }, [events, interpreter, onAgentAction, runId]);
 
   const surfaceId = surfaceIdRef.current;
   const root = surfaceId ? interpreter.getRoot(surfaceId) : undefined;

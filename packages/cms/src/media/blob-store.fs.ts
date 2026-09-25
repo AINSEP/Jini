@@ -41,16 +41,52 @@ export class LocalFsBlobStore implements BlobStorePort {
     return { storageKey };
   }
 
+  /**
+   * `"wx"` (`O_CREAT | O_EXCL`) makes the create-only guarantee a kernel-enforced atomic op, not
+   * this method's own logic: of any two concurrent `open()`s racing for the same path, exactly one
+   * succeeds and the other gets `EEXIST` — there is no window between "check" and "write" for a
+   * concurrent writer to land in. This also means a writer that has only just started (already
+   * created/truncated the file via a plain `"w"` `writeFile`, but not yet finished writing bytes)
+   * blocks a same-key `putIfAbsent` just as effectively as a fully-written file would: the path
+   * exists from the first internal write syscall, well before that writer's promise resolves.
+   *
+   * @complexity O(1) syscalls beyond the write itself (one `mkdir`, one `writeFile`).
+   */
+  async putIfAbsent(input: PutBlobInput): Promise<{ storageKey: string; written: boolean }> {
+    const storageKey = computeBlobStorageKey(input);
+    const path = this.resolvePath(storageKey);
+    await mkdir(dirname(path), { recursive: true });
+    try {
+      await writeFile(path, input.bytes, { flag: "wx" });
+      return { storageKey, written: true };
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+        return { storageKey, written: false };
+      }
+      throw err;
+    }
+  }
+
   async get(input: { storageKey: string }): Promise<Uint8Array> {
     return readFile(this.resolvePath(input.storageKey));
   }
 
+  /**
+   * `ENOENT` (the path genuinely does not exist) resolves to `false`. Any other `stat()` failure
+   * (`EACCES` permission denied, `ENOTDIR`, `EIO`, ...) is rethrown raw — same "catch the one
+   * known code, rethrow everything else" shape {@link putIfAbsent}'s `EEXIST` handling above
+   * already uses — instead of collapsing into `false`: a caller branching on `exists()` must not
+   * mistake "this stat failed" for "the object was deleted".
+   */
   async exists(input: { storageKey: string }): Promise<boolean> {
     try {
       await stat(this.resolvePath(input.storageKey));
       return true;
-    } catch {
-      return false;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return false;
+      }
+      throw err;
     }
   }
 

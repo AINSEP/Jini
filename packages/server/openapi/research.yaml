@@ -1,0 +1,94 @@
+openapi: 3.0.3
+info:
+  title: Jini daemon research route
+  version: 0.0.0
+  description: |
+    Code-first fragment for `research.ts`'s single route in `@jini-ai/http-kit`
+    — a thin wrapper over Tavily's real Search API. Ported from, and verified
+    live against, a sibling reference daemon ("OD") the source's own comments
+    call out by name; several deliberate behavioral divergences from that
+    reference were kept and are documented inline below since they are the
+    kind of thing a consumer coming from the old wire contract would trip on.
+
+    **Deliberate divergences from the reference implementation, not oversights:**
+    - Missing `TAVILY_API_KEY` is a clean `503 NOT_CONFIGURED`, not the
+      reference's `400 TAVILY_API_KEY_MISSING` — no exception exists to hide,
+      so SEC-005 never applies; this is just an honest "not configured".
+    - Zero Tavily results is `404 NOT_FOUND` (`no sources found`), not `200`
+      with an empty array — a Tavily call that succeeds but resolves nothing
+      usable is treated as this route's own failure, matching the reference's
+      `NO_RESEARCH_SOURCES` semantics but through this package's generic error
+      code instead of a research-specific one.
+    - Every other genuine failure (bad upstream response, network error,
+      timeout) is SEC-005-redacted to a generic `500 INTERNAL_ERROR` with a
+      correlation id — the raw Tavily error text (which can echo request
+      details) never reaches the caller, and the bearer token is stripped from
+      any upstream error text before it is even logged.
+    - A 30s timeout covers the full request *and* response-body read (not just
+      until headers arrive) — added after an external audit flagged a bare
+      `fetch` has no default timeout and an earlier fix only bounded the
+      headers phase.
+    - `maxSources` is floored before clamping to `[1, 20]` (`Math.max(1,
+      Math.min(Math.floor(v), 20))`) — an earlier version clamped without
+      flooring, letting a fractional value reach Tavily's wire `max_results`
+      unrounded.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/research/search:
+    post:
+      operationId: search_research
+      summary: Search via Tavily and return assembled findings
+      x-jini-require-same-origin: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/ResearchSearchRequest' } } }
+      responses:
+        '200': { description: Assembled research findings — at least one source is guaranteed present., content: { application/json: { schema: { $ref: '#/components/schemas/ResearchSearchResponse' } } } }
+        '400': { description: '`query` missing/empty, `maxSources` not a positive number, or `providers[0]` names an unsupported provider (only `tavily` is supported).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: 'Tavily returned zero usable sources — a failure, not an empty success (see fragment description).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { description: '`TAVILY_API_KEY` (or the injected `resolveCredentials`) has no key configured. A clean, expected state — never an internal error.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+components:
+  securitySchemes:
+    optionalBearer:
+      type: http
+      scheme: bearer
+      description: When the host enables `JINI_API_TOKEN`, the global `/api` middleware requires this token except for health/ready/version probes and permitted direct loopback peers.
+  responses:
+    Forbidden: { description: Same-origin guard rejected the request., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: 'A genuine Tavily request/response failure. Adapter-generated errors include a correlation requestId in error.details; the raw upstream error text and bearer token are never sent to the caller (SEC-005).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    ResearchSearchRequest:
+      type: object
+      required: [query]
+      properties:
+        query: { type: string, minLength: 1, description: Trimmed and capped to 1000 characters server-side before being sent to Tavily. }
+        maxSources: { type: number, exclusiveMinimum: 0, description: 'Positive number; floored then clamped to [1, 20] server-side. Defaults to 5.' }
+        providers: { type: array, items: { type: string }, description: 'Only `providers[0]` is inspected; a first element other than "tavily" is rejected. A non-array value is treated as absent, not rejected.' }
+    ResearchSource:
+      type: object
+      required: [title, url, snippet, provider]
+      properties:
+        title: { type: string }
+        url: { type: string }
+        snippet: { type: string, description: Capped to 800 characters. }
+        publishedAt: { type: string }
+        provider: { type: string, enum: [tavily] }
+    ResearchSearchResponse:
+      type: object
+      required: [query, summary, sources, provider, depth, fetchedAt]
+      properties:
+        query: { type: string }
+        summary: { type: string, description: "Tavily's own answer text, or a synthesized fallback built from the top 5 source snippets when Tavily returns none." }
+        sources: { type: array, items: { $ref: '#/components/schemas/ResearchSource' } }
+        provider: { type: string, enum: [tavily] }
+        depth: { type: string, enum: [shallow], description: Hardcoded — no depth-selection request field exists yet. }
+        fetchedAt: { type: number, description: Epoch milliseconds. }

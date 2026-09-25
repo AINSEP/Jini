@@ -109,3 +109,67 @@ test("sniffContentType: inputs shorter than a signature never throw, and are tre
   assert.equal(sniffContentType(bytesOf([0x89, 0x50])), "application/octet-stream");
   assert.equal(sniffContentType(bytesOf([0xff, 0xd8])), "application/octet-stream");
 });
+
+/**
+ * Builds an ISO-BMFF `ftyp` box: a 4-byte big-endian box size, the literal `ftyp` tag, a 4-byte
+ * major brand, a 4-byte minor version, then one 4-byte entry per compatible brand. The declared
+ * size is computed from the actual content so the box is self-consistent — the sniffer bounds its
+ * compatible-brand scan by that field, so a fixture that lied about its size would not exercise
+ * the real scan.
+ */
+function ftypBytes(majorBrand: string, compatibleBrands: readonly string[]): Uint8Array {
+  const boxLength = 16 + compatibleBrands.length * 4;
+  const bytes = new Uint8Array(boxLength + 8); // + trailing non-ftyp payload, as a real file has
+  bytes.set([(boxLength >> 24) & 0xff, (boxLength >> 16) & 0xff, (boxLength >> 8) & 0xff, boxLength & 0xff], 0);
+  bytes.set(textBytes("ftyp"), 4);
+  bytes.set(textBytes(majorBrand), 8);
+  compatibleBrands.forEach((brand, index) => bytes.set(textBytes(brand), 16 + index * 4));
+  return bytes;
+}
+
+/**
+ * Regression (2026-09-06): AVIF is an ISO-BMFF container, so its leading `ftyp` box matched the
+ * MP4 check — which tests ONLY for the `ftyp` tag and never reads the brand — and every real
+ * `.avif` upload was sniffed as `video/mp4`. Because the sniffed type is persisted as the
+ * image-vs-video source of truth (the host's `routes/media/upload.ts` writes it to
+ * `mediaContentTypeStore`), that mislabel made an AVIF render as an unplayable `<video>` on a
+ * public page. These bytes are the real leading box of a genuine AVIF file.
+ */
+test("sniffContentType: a real AVIF ftyp box is image/avif, NOT video/mp4", () => {
+  const bytes = new Uint8Array([
+    0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76, 0x69, 0x66, 0x00, 0x00, 0x00, 0x00,
+    0x6d, 0x69, 0x66, 0x31, 0x6d, 0x69, 0x61, 0x66, 0x00, 0x00, 0x01, 0x68, 0x6d, 0x65, 0x74, 0x61,
+  ]);
+  assert.equal(sniffContentType(bytes), "image/avif");
+});
+
+test("sniffContentType: an AVIF whose MAJOR brand is mif1 is still image/avif via its compatible brands", () => {
+  assert.equal(sniffContentType(ftypBytes("mif1", ["mif1", "avif"])), "image/avif");
+});
+
+test("sniffContentType: an AVIF image sequence (avis brand) is image/avif", () => {
+  assert.equal(sniffContentType(ftypBytes("avis", ["avis", "avif"])), "image/avif");
+});
+
+test("sniffContentType: a real MP4 is still video/mp4 — the AVIF check must not swallow ISO-BMFF video", () => {
+  assert.equal(sniffContentType(ftypBytes("isom", ["isom", "mp41"])), "video/mp4");
+  assert.equal(sniffContentType(ftypBytes("mp42", [])), "video/mp4");
+});
+
+/**
+ * HEIC is also ISO-BMFF but declares no AVIF brand, so it must NOT be claimed as `image/avif`:
+ * the installed `sharp`/libvips build decodes AVIF but not HEIC, so labelling a HEIC as an image
+ * would route it into a transform pipeline that cannot decode it. It therefore keeps falling
+ * through to the brand-blind MP4 check and is still reported as `video/mp4` — a KNOWN, pre-existing
+ * misclassification this change deliberately does not fix (see the handoff's format audit). Pinned
+ * exactly rather than loosely so a future HEIC fix has to update this line consciously.
+ */
+test("sniffContentType: HEIC is not claimed as AVIF (its own mislabel as video/mp4 is a pinned, pre-existing gap)", () => {
+  const heic = ftypBytes("heic", ["mif1", "heic"]);
+  assert.notEqual(sniffContentType(heic), "image/avif");
+  assert.equal(sniffContentType(heic), "video/mp4");
+});
+
+test("sniffContentType: an ftyp box truncated mid-brand never throws and stays video/mp4", () => {
+  assert.equal(sniffContentType(bytesOf([0, 0, 0, 0x18, 0x66, 0x74, 0x79, 0x70, 0x61, 0x76])), "video/mp4");
+});

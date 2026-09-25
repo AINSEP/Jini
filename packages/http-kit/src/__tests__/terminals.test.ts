@@ -52,10 +52,11 @@ function makeRes() {
 
 /** Minimal fake of the raw Express req/res surface `registerTerminalEventStream` uses directly (no Adapter in between) — mirrors `runs.test.ts`'s `makeSseReq`/`makeSseRes`. */
 function makeSseReq(overrides: { id?: string; headers?: Record<string, string>; query?: Record<string, unknown> } = {}) {
-  const headers = overrides.headers ?? {};
+  const headers: Record<string, string> = { host: '127.0.0.1:7456', ...overrides.headers };
   return {
     params: { id: overrides.id ?? 'term-1' },
     query: overrides.query ?? {},
+    headers,
     get: (name: string) => headers[name.toLowerCase()],
   };
 }
@@ -624,9 +625,22 @@ describe('createDeferredEndGate', () => {
 describe('registerTerminalEventStream', () => {
   function mount(deps: TerminalsHttpDeps) {
     const app = makeApp();
-    registerTerminalEventStream(app as any, deps);
+    registerTerminalEventStream(app as any, deps, adapter);
     return app.handlers['GET /api/terminals/:id/stream']!;
   }
+
+  it('rejects a cross-origin request before touching the manager or opening the stream', () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    const { deps, manager } = makeDeps();
+    const attachSpy = vi.spyOn(manager, 'attach');
+    const handler = mount(deps);
+    const res = makeSseRes();
+    handler(makeSseReq({ id: 'term-1', headers: { origin: 'http://evil.example' } }), res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({ error: expect.objectContaining({ code: 'FORBIDDEN' }) });
+    expect(attachSpy).not.toHaveBeenCalled();
+    expect(res.setHeader).not.toHaveBeenCalled();
+  });
 
   it('responds 400 without touching the manager when id is missing', () => {
     const { deps, manager } = makeDeps();

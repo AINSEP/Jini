@@ -1,0 +1,18 @@
+# Graphify scope: only production packages and repository scripts.
+/*
+!/.graphifyignore
+!/packages/
+!/packages/**
+!/scripts/
+!/scripts/**
+
+# Exclude nested dependencies, tests, and generated output.
+**/node_modules/
+**/__tests__/
+**/test/
+**/tests/
+**/*.test.*
+**/*.spec.*
+**/dist/
+**/coverage/
+**/test-results/

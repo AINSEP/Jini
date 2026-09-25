@@ -533,7 +533,7 @@ WebFetch this session, not recalled from memory):
   "throw immediately on missing token" convention rather than silently
   downgrading behavior.
 
-**Tests:** `src/__tests__/github-client.test.ts` (37 tests), `fetch` mocked
+**Tests:** `src/__tests__/github-client.test.ts` (41 tests), `fetch` mocked
 at the HTTP-client boundary via `vi.stubGlobal('fetch', ...)` — the exact
 pattern `@jini/deploy`'s `netlify.test.ts` established (no real network call
 anywhere in this file) — covering every guard/error path in both methods

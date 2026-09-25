@@ -15,6 +15,7 @@ interface Row {
 const text = (t: string): AgentEvent => ({ kind: 'text', text: t });
 const toolUse = (id: string, name = 'tool'): AgentEvent => ({ kind: 'tool_use', id, name, input: {} });
 const toolResult = (toolUseId: string): AgentEvent => ({ kind: 'tool_result', toolUseId, content: 'ok', isError: false });
+const ext = (name: string, data: unknown = {}): AgentEvent => ({ kind: 'ext', name, data });
 
 /** `content` as `useConversation` builds it: every text event concatenated, nothing else. */
 function contentOf(events: readonly AgentEvent[]): string {
@@ -115,6 +116,55 @@ describe('interleaveMessageBlocks', () => {
     expect(interleaveMessageBlocks(undefined, 'text', [{ id: 't1' }])).toBeNull();
     expect(interleaveMessageBlocks([], '', [{ id: 't1' }])).toBeNull();
     expect(interleaveMessageBlocks([text('just prose')], 'just prose', [])).toBeNull();
+  });
+
+  // --- ext (MCP-UI / A2UI) surfaces ------------------------------------------
+
+  it('places an ext surface where it occurred, with later text landing after it in its own block', () => {
+    const events = [text('Opening the form. '), toolUse('t1'), ext('mcp-ui', { uri: 'ui://x' }), text('You picked: pro.')];
+    const rows: Row[] = [{ id: 't1' }];
+
+    const blocks = interleaveMessageBlocks(events, contentOf(events), rows)!;
+
+    expect(blocks.map((b) => b.kind)).toEqual(['text', 'tools', 'ext', 'text']);
+    expect(blocks[2]).toMatchObject({ kind: 'ext', name: 'mcp-ui' });
+    expect(blocks[3]).toMatchObject({ kind: 'text', text: 'You picked: pro.' });
+  });
+
+  it('regression: narration answering a submitted MCP-UI form lands AFTER the form, not before it', () => {
+    // The exact live shape: tool_use opens the form, its `ext` event carries the rendered surface,
+    // `tool_result` resolves once the human submits, and the model's narration only exists BECAUSE
+    // of that submission — it must render below the card, not above it.
+    const events = [
+      text("I'll open the form."),
+      toolUse('demo', 'assistant_demo_choices'),
+      ext('mcp-ui', { uri: 'ui://tovu/demo-choices' }),
+      toolResult('demo'),
+      text('You picked: Pro + Analytics.'),
+    ];
+    const rows: Row[] = [{ id: 'demo' }];
+
+    const blocks = interleaveMessageBlocks(events, contentOf(events), rows)!;
+
+    expect(blocks.map((b) => b.kind)).toEqual(['text', 'tools', 'ext', 'text']);
+    expect(blocks[3]).toMatchObject({ text: 'You picked: Pro + Analytics.' });
+  });
+
+  it('folds every ext event sharing a name into ONE block at its first occurrence', () => {
+    // Mirrors A2UI's own createSurface -> updateComponents -> ... sequence: later events for the
+    // same name must not create a second block or split the surrounding text.
+    const events = [ext('a2ui'), text('working'), ext('a2ui'), text(' more'), ext('a2ui')];
+
+    const blocks = interleaveMessageBlocks(events, contentOf(events), [])!;
+
+    expect(blocks.map((b) => b.kind)).toEqual(['ext', 'text']);
+    expect(blocks[1]).toMatchObject({ text: 'working more' });
+  });
+
+  it('does not refuse purely for having no tool rows, when an ext event exists to interleave', () => {
+    const events = [text('a'), ext('mcp-ui'), text('b')];
+
+    expect(interleaveMessageBlocks(events, contentOf(events), [])).not.toBeNull();
   });
 
   it('ignores non-text, non-tool events when reconstructing', () => {

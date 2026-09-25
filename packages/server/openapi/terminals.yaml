@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: Jini terminals HTTP routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for the interactive-terminal registrar in
+    `@jini-ai/http-kit` (`terminals.ts`), generalizing OD's
+    `apps/daemon/src/routes/terminal.ts` (`/api/projects/:id/terminals` +
+    `.../:tid/{stream,stdin,resize,kill}`) under `/api/terminals`. This package
+    is deliberately thin: no PTY spawning, no session registry, no ownership
+    logic lives here — that is `@jini-ai/daemon`'s `TerminalSessionManager`
+    (`deps.manager`), injected.
+
+    AUTH MODEL: every route acts as `deps.principal` — a single, fixed,
+    host-supplied `Principal` value, not derived per-request. This transport
+    has no session/identity subsystem of its own (same shape as
+    `db-ops.ts`'s `DaemonDbHttpDeps.principal`). `GET /api/terminals`'s
+    "sessions the calling principal owns" is therefore scoped to that one
+    fixed principal for the whole daemon process, not to an individual browser
+    tab or user.
+
+    GATING: only `POST /api/terminals` (session creation) is routed through
+    `ToolExecutor.execute(..., 'terminal.create', ...)` — the one call
+    `@jini-ai/daemon`'s module gates by policy (confirmation, timeout,
+    cancellation, audit), matching `db-ops.ts`'s tool-execution-boundary
+    precedent. `stdin`/`resize`/`kill`/`stream` go straight to `deps.manager`'s
+    lighter, session-ownership-checked methods — deliberately NOT re-gated
+    through `ToolExecutor`, because a full authorize/confirm round-trip per
+    keystroke would make a terminal unusable.
+
+    STREAMING NOTE: `GET /api/terminals/{id}/stream` is Server-Sent Events,
+    built on this package's shared `sse.ts` `createSseChannel` primitive (same
+    one `memory.ts`/`model-proxy.ts` use). That primitive's `data:` SSE field
+    is the JSON-stringified *entire* wrapped frame — `{opaqueCursor, kind,
+    data}` — not just the payload; `opaqueCursor`/`kind` are also duplicated
+    verbatim into the frame's own `id:`/`event:` SSE fields. See `SseFrame`
+    below. Unlike `memory.ts`'s and `frontend-sessions.ts`'s streams, this one
+    DOES support `Last-Event-ID`/`afterCursor` reconnect replay (same
+    `requestedAfterCursor` helper `runs.ts` uses) — the underlying
+    `TerminalSessionManager.attach` accepts a `lastEventId` and can replay
+    backlog. The stream auto-closes when a frame's `kind` is `exit`.
+
+    SECURITY: `GET /api/terminals/{id}/stream` is registered directly via
+    `app.get` (bypassing `mountJsonRoute`), so it does not get
+    `requireSameOrigin` for free the way every JSON route in this fragment
+    does. Fixed 2026-08-23: the same `guardSameOrigin` check `mountJsonRoute`
+    applies is now called directly at the top of the handler, before the SSE
+    channel opens or `deps.manager.attach` is ever called — a cross-origin
+    request gets a `403` JSON error and never reaches session-ownership
+    checks. See `packages/http-kit/src/__tests__/terminals.test.ts` for the
+    same-origin/cross-origin regression coverage.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/terminals:
+    get:
+      operationId: list_terminals
+      summary: List terminal sessions the calling principal owns
+      description: Never gated through ToolExecutor — a read scoped to the caller's own sessions, matching runs.ts's list route precedent.
+      parameters:
+        - { name: resourceRef, in: query, required: false, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Session list, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalListResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: create_terminal
+      summary: Resolve a resourceRef to a working directory and spawn a terminal session
+      x-jini-require-same-origin: true
+      description: |
+        Resolves `resourceRef` to a spawn `cwd` via the host's injected
+        `resolveRoot` (defaults to denying every request — see
+        `workspace-root.ts`), then authorizes and spawns through
+        `ToolExecutor.execute(principal, freshRun(), 'terminal.create',
+        {resourceRef, cwd, cols?, rows?, shell?})`. `NOT_FOUND` is returned when
+        the workspace-root resolver denies the `resourceRef` (no guessed path
+        is ever used); `TOOL_OPERATION_DENIED` when policy denies the tool call
+        or its confirmation step; a generic `INTERNAL_ERROR` (with a
+        correlation id logged server-side, per SEC-005 — the real spawn
+        failure, e.g. a missing native addon, can embed executable paths and is
+        never disclosed to the caller) for timed-out/cancelled/failed outcomes.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/TerminalCreateRequest' } } }
+      responses:
+        '201': { description: Session created, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalSessionInfo' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { description: Same-origin rejection, or policy denied the terminal.create tool call (TOOL_OPERATION_DENIED), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: 'resourceRef could not be resolved to a workspace root', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/terminals/{id}/stdin:
+    post:
+      operationId: write_terminal_stdin
+      summary: Write data to a terminal session's pty
+      x-jini-require-same-origin: true
+      description: Ownership-checked directly by deps.manager.write, not re-gated through ToolExecutor.
+      parameters: [ { $ref: '#/components/parameters/TerminalId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [data], properties: { data: { type: string } } } } }
+      responses:
+        '200': { description: Write outcome, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalActionResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/terminals/{id}/resize:
+    post:
+      operationId: resize_terminal
+      summary: Resize a terminal session's pty
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/TerminalId' } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cols, rows]
+              description: 'cols/rows are coerced with Number(...) server-side; a non-finite result (e.g. a non-numeric string) is rejected as BAD_REQUEST.'
+              properties: { cols: { type: number }, rows: { type: number } }
+      responses:
+        '200': { description: Resize outcome, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalActionResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/terminals/{id}/kill:
+    post:
+      operationId: kill_terminal
+      summary: Send SIGTERM to a terminal session's pty
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/TerminalId' } ]
+      responses:
+        '200': { description: Kill outcome, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalActionResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/terminals/{id}:
+    delete:
+      operationId: delete_terminal
+      summary: Alias for kill (sends SIGTERM), matching OD's dual POST .../kill / DELETE routes
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/TerminalId' } ]
+      responses:
+        '200': { description: Kill outcome, content: { application/json: { schema: { $ref: '#/components/schemas/TerminalActionResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/terminals/{id}/stream:
+    get:
+      operationId: stream_terminal
+      summary: Stream a terminal session's pty output as SSE, with reconnect replay
+      x-jini-require-same-origin: true
+      description: |
+        STREAMING (Server-Sent Events) with Last-Event-ID/afterCursor reconnect
+        replay — see the module-level streaming note for the exact `data:`
+        frame shape. The stream auto-closes when a frame's `kind` is `exit`.
+        Attach failure (`deps.manager.attach` returns `not-found`) is reported
+        as a normal `404` JSON error rather than an SSE frame, because the
+        channel is abandoned (`channel.abandon()`) before ever being opened —
+        contrast `frontend-sessions.ts`'s stream, whose analogous validation
+        failure has already committed SSE headers and must report the error as
+        an in-stream frame instead.
+      parameters:
+        - { $ref: '#/components/parameters/TerminalId' }
+        - { name: Last-Event-ID, in: header, required: false, schema: { type: string }, description: Replay cursor. }
+        - { name: afterCursor, in: query, required: false, schema: { type: string }, description: Replay cursor when no header is supplied. }
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects; kind 'exit' ends the stream.
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/SseFrame' }
+        '400': { description: Missing/empty id path parameter, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+components:
+  parameters:
+    TerminalId: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin policy rejected the request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    NotFound: { description: 'terminal "{id}" was not found (unknown id, or a race where the session was killed concurrently)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; adapter-generated errors include a correlation requestId in error.details, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    SseFrame:
+      type: object
+      description: |
+        The JSON body of the `data:` SSE field for this stream, as written by
+        the shared `createSseChannel` primitive: the whole wrapped frame, not
+        just the payload. `opaqueCursor` and `kind` are also duplicated
+        verbatim into the frame's own `id:`/`event:` SSE fields.
+      required: [opaqueCursor, kind]
+      properties:
+        opaqueCursor: { type: string, description: "The event id from @jini-ai/platform's TerminalService, as a string; also sent as the frame's id: field." }
+        kind: { type: string, description: "The underlying event name (e.g. output/exit — owned by @jini-ai/platform's TerminalService, not enumerated by this package); also sent as the frame's event: field. 'exit' auto-closes the stream." }
+        data: { description: Opaque per-event payload; shape owned by @jini-ai/platform's TerminalService. }
+    TerminalCreateRequest:
+      type: object
+      required: [resourceRef]
+      properties:
+        resourceRef: { type: string, minLength: 1 }
+        detail: { type: string, minLength: 1 }
+        cols: { type: number }
+        rows: { type: number }
+        shell: { type: string, minLength: 1 }
+    TerminalSessionInfo:
+      type: object
+      description: TerminalSessionInfo from @jini-ai/daemon; exact fields are owned by that package and not redefined here.
+      additionalProperties: true
+    TerminalListResponse:
+      type: object
+      required: [terminals]
+      properties: { terminals: { type: array, items: { $ref: '#/components/schemas/TerminalSessionInfo' } } }
+    TerminalActionResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+        terminal: { $ref: '#/components/schemas/TerminalSessionInfo' }

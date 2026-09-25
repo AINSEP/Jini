@@ -5,6 +5,7 @@ import { authorizeToolInvocation } from '../internal.js';
 import type { Principal } from '../principal.js';
 import {
   createToolRegistry,
+  isReadOnlyTool,
   type ToolAuthorizationContext,
   type ToolRegistration,
   type ToolRegistry,
@@ -153,5 +154,40 @@ describe('@jini-ai/core — tool-registry', () => {
     expect(a.has('only-in-a')).toBe(true);
     expect(b.has('only-in-a')).toBe(false);
     expect(await authorizeToolInvocation(b, 'only-in-a', principal, run, {})).toBeUndefined();
+  });
+});
+
+/**
+ * The single read-only determination. Everything that gates on "may this call run through a
+ * read-only surface" asks this one function, so the rule can be changed in exactly one place.
+ */
+describe('isReadOnlyTool', () => {
+  it('is true only when the registration declares readOnly: true', () => {
+    expect(isReadOnlyTool({ id: 't', readOnly: true })).toBe(true);
+  });
+
+  it('DENIES BY DEFAULT: a descriptor that says nothing about read-only-ness is not read-only', () => {
+    // An undeclared tool is the overwhelming majority today. Treating silence as "safe" is the one
+    // failure mode a read-only gate must never have — it would launder every unclassified write.
+    expect(isReadOnlyTool({ id: 't' })).toBe(false);
+  });
+
+  it('is false for an explicit readOnly: false and for an unresolved (unregistered) descriptor', () => {
+    expect(isReadOnlyTool({ id: 't', readOnly: false })).toBe(false);
+    expect(isReadOnlyTool(undefined)).toBe(false);
+  });
+
+  it('is exported from the public barrel, so a transport can gate without reaching into internals', () => {
+    expect(publicBarrel.isReadOnlyTool).toBe(isReadOnlyTool);
+  });
+
+  it('survives a round trip through a real registry', () => {
+    const registry = createToolRegistry();
+    registry.register({ descriptor: { id: 'reader', readOnly: true }, handler: async () => 'ok', policy: { authorize: () => 'allow' } });
+    registry.register({ descriptor: { id: 'writer' }, handler: async () => 'ok', policy: { authorize: () => 'allow' } });
+    expect(registry.list().map((d) => [d.id, isReadOnlyTool(d)])).toEqual([
+      ['reader', true],
+      ['writer', false],
+    ]);
   });
 });

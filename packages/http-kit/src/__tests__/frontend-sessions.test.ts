@@ -103,6 +103,24 @@ describe('registerFrontendSessionRoutes', () => {
     controller.abort();
   });
 
+  it('rejects a cross-origin stream request before opening the SSE connection', async () => {
+    const registry = createFrontendSessionRegistry();
+    const attachSpy = vi.spyOn(registry, 'attach');
+    const base = await listen(makeDeps(registry));
+
+    const response = await fetch(
+      `${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`,
+      { headers: { origin: 'http://evil.example' } },
+    );
+
+    expect(response.status).toBe(403);
+    expect(response.headers.get('content-type')).not.toBe('text/event-stream');
+    expect(await response.json()).toEqual({
+      error: expect.objectContaining({ code: 'FORBIDDEN' }),
+    });
+    expect(attachSpy).not.toHaveBeenCalled();
+  });
+
   it('reports a stream failure through the host sink without leaking it out of the handler', async () => {
     const registry = createFrontendSessionRegistry();
     vi.spyOn(registry, 'attach').mockImplementation(() => {
@@ -129,7 +147,8 @@ describe('registerFrontendSessionRoutes', () => {
       get: (_path: string, handler: (req: Request, res: Response) => void) => { getHandler = handler; },
       post: () => undefined,
     };
-    registerFrontendSessionRoutes(fakeApp as never, makeDeps(registry, { onInternalError }), adapter as never);
+    const fixedPortAdapter = { resolvedPortRef: { current: 4310 } };
+    registerFrontendSessionRoutes(fakeApp as never, makeDeps(registry, { onInternalError }), fixedPortAdapter as never);
 
     const status = vi.fn().mockReturnThis();
     const json = vi.fn();
@@ -142,7 +161,7 @@ describe('registerFrontendSessionRoutes', () => {
       status,
       json,
     };
-    getHandler!(Object.assign(new EventEmitter(), { query: {} }) as never, res as never);
+    getHandler!(Object.assign(new EventEmitter(), { query: {}, headers: { host: '127.0.0.1:4310' } }) as never, res as never);
 
     expect(onInternalError).toHaveBeenCalledWith({ source: 'stream', error: expect.any(Error) });
     expect(status).toHaveBeenCalledWith(500);
@@ -159,11 +178,12 @@ describe('registerFrontendSessionRoutes', () => {
       get: (_path: string, handler: (req: Request, res: Response) => void) => { getHandler = handler; },
       post: () => undefined,
     };
-    registerFrontendSessionRoutes(fakeApp as never, makeDeps(registry, { onInternalError: vi.fn() }), adapter as never);
+    const fixedPortAdapter = { resolvedPortRef: { current: 4310 } };
+    registerFrontendSessionRoutes(fakeApp as never, makeDeps(registry, { onInternalError: vi.fn() }), fixedPortAdapter as never);
 
     const end = vi.fn();
     const res = Object.assign(new EventEmitter(), { headersSent: true, writableEnded: false, writeHead: vi.fn(), write: vi.fn().mockReturnValue(true), end, status: vi.fn(), json: vi.fn() });
-    getHandler!(Object.assign(new EventEmitter(), { query: { capability: 'page.click' } }) as never, res as never);
+    getHandler!(Object.assign(new EventEmitter(), { query: { capability: 'page.click' }, headers: { host: '127.0.0.1:4310' } }) as never, res as never);
 
     expect(end).toHaveBeenCalled();
   });

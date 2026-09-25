@@ -4,7 +4,11 @@ const hoisted = vi.hoisted(() => ({ postDaemonJson: vi.fn() }));
 const { postDaemonJson } = hoisted;
 vi.mock('../../daemon-client.js', () => hoisted);
 
-import { createExecuteDelegatedToolTool, DEFAULT_DELEGATED_TOOL_TIMEOUT_MS } from '../delegated-tool.js';
+import {
+  createExecuteDelegatedToolTool,
+  createExecuteReadonlyDelegatedToolTool,
+  DEFAULT_DELEGATED_TOOL_TIMEOUT_MS,
+} from '../delegated-tool.js';
 import type { McpToolContext } from '../../tool-protocol.js';
 
 const ctx: McpToolContext = { baseUrl: 'http://d.example', fetchImpl: fetch };
@@ -60,6 +64,15 @@ describe('createExecuteDelegatedToolTool', () => {
     expect(options.timeoutMs).toBeGreaterThan(15_000);
   });
 
+  it('forwards the MCP request cancel signal, so an abandoned call drops the daemon request and expires its dialog', async () => {
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const signal = new AbortController().signal;
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+    await tool.handler({ toolId: 't1' }, { ...ctx, signal });
+    const options = (postDaemonJson.mock.calls[0] as unknown[])[3] as { signal?: AbortSignal };
+    expect(options.signal).toBe(signal);
+  });
+
   it('generates a fresh toolUseId per call via the default randomUUID generator when none is injected', async () => {
     postDaemonJson.mockResolvedValue({ result: { executionId: 'e1', status: 'completed' } });
     const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
@@ -99,6 +112,53 @@ describe('createExecuteDelegatedToolTool', () => {
     const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
     const result = await tool.handler({ toolId: 't1' }, ctx);
     expect(result).toEqual({ executionId: 'e1', status: 'denied' });
+  });
+
+  describe('unwrapping an MCP content envelope (typed-media bridge fix)', () => {
+    // Regression: `@jini-ai/daemon`'s `delegated-tool-bridge.ts` keeps an `image` block in a
+    // completed call's `output` (it is model-safe — see that package's `tool-result-surfaces.ts`).
+    // Left wrapped inside `{executionId, status, output}`, `../tool-protocol.js`'s `okResult()` would
+    // still JSON.stringify the whole thing into inert text, because the wrapper has no top-level
+    // `content` field. This tool must unwrap down to `output` so `okResult()`'s own envelope
+    // passthrough can find it.
+    it('unwraps a completed result whose output is itself an MCP content envelope, down to just that envelope', async () => {
+      postDaemonJson.mockResolvedValueOnce({
+        result: {
+          executionId: 'e1',
+          status: 'completed',
+          output: {
+            content: [
+              { type: 'text', text: 'Generated a swatch.' },
+              { type: 'image', mimeType: 'image/png', data: 'AAAA' },
+            ],
+          },
+        },
+      });
+      const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+      const result = await tool.handler({ toolId: 'assistant_demo_image' }, ctx);
+      expect(result).toEqual({
+        content: [
+          { type: 'text', text: 'Generated a swatch.' },
+          { type: 'image', mimeType: 'image/png', data: 'AAAA' },
+        ],
+      });
+    });
+
+    it('does NOT unwrap when output is plain JSON (not a content envelope) — preserves the existing envelope contract', async () => {
+      postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed', output: { posts: [{ id: 'p1' }] } } });
+      const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+      const result = await tool.handler({ toolId: 't1' }, ctx);
+      expect(result).toEqual({ executionId: 'e1', status: 'completed', output: { posts: [{ id: 'p1' }] } });
+    });
+
+    it('does NOT unwrap a non-completed status even if it happens to carry an output-shaped content field', async () => {
+      postDaemonJson.mockResolvedValueOnce({
+        result: { executionId: 'e1', status: 'failed', output: { content: [{ type: 'text', text: 'partial' }] } },
+      });
+      const tool = createExecuteDelegatedToolTool({ runId: 'run-1' });
+      const result = await tool.handler({ toolId: 't1' }, ctx);
+      expect(result).toEqual({ executionId: 'e1', status: 'failed', output: { content: [{ type: 'text', text: 'partial' }] } });
+    });
   });
 });
 
@@ -155,3 +215,61 @@ describe('delegatedToolTimeoutMs (REF-002: the deadline is host policy, not engi
 // already scans every file under packages/**, and it flagged this exact file until the comment was
 // rewritten. Restating it as a unit test would mean writing the forbidden strings into this file to
 // match against, which trips that same repo-wide rule. The gate is `pnpm guard`.
+
+describe('createExecuteReadonlyDelegatedToolTool', () => {
+  it('declares the execute_readonly_delegated_tool name and a READ-ONLY annotation, which is the whole reason it exists', () => {
+    const tool = createExecuteReadonlyDelegatedToolTool({ runId: 'run-1' });
+    expect(tool.name).toBe('execute_readonly_delegated_tool');
+    // A runtime that auto-denies any MCP tool lacking `readOnlyHint: true` (headless `codex exec`,
+    // observed) killed every delegated call before it left the process — reads included. This
+    // annotation is what makes the read half reachable at all.
+    expect(tool.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true, destructiveHint: false });
+  });
+
+  it('posts the same body as execute_delegated_tool plus requireReadOnly:true, to the same route with the same options', async () => {
+    postDaemonJson.mockResolvedValue({ result: { executionId: 'e1', status: 'completed', output: 'ok' } });
+    const write = createExecuteDelegatedToolTool({ runId: 'run-1', generateToolUseId: () => 'tu-1' });
+    const read = createExecuteReadonlyDelegatedToolTool({ runId: 'run-1', generateToolUseId: () => 'tu-1' });
+
+    await write.handler({ toolId: 'weather.get', input: { city: 'nyc' } }, ctx);
+    await read.handler({ toolId: 'weather.get', input: { city: 'nyc' } }, ctx);
+
+    const [writeUrl, writePath, writeBody, writeOptions] = postDaemonJson.mock.calls[0] as unknown[];
+    const [readUrl, readPath, readBody, readOptions] = postDaemonJson.mock.calls[1] as unknown[];
+    expect(readUrl).toEqual(writeUrl);
+    expect(readPath).toEqual(writePath);
+    expect(readOptions).toEqual(writeOptions);
+    expect(readBody).toEqual({ ...(writeBody as Record<string, unknown>), requireReadOnly: true });
+  });
+
+  it('never sends requireReadOnly from the write gateway, so the existing tool is unchanged on the wire', async () => {
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    const tool = createExecuteDelegatedToolTool({ runId: 'run-1', generateToolUseId: () => 'tu-1' });
+    await tool.handler({ toolId: 't1' }, ctx);
+    const body = (postDaemonJson.mock.calls[0] as unknown[])[2] as Record<string, unknown>;
+    expect(body).not.toHaveProperty('requireReadOnly');
+  });
+
+  it('requires toolId and honors the same timeout override as the write gateway', async () => {
+    const tool = createExecuteReadonlyDelegatedToolTool({ runId: 'run-1', delegatedToolTimeoutMs: 1234 });
+    await expect(tool.handler({}, ctx)).rejects.toThrow('toolId is required (string).');
+    postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
+    await tool.handler({ toolId: 't1' }, ctx);
+    const options = (postDaemonJson.mock.calls[0] as unknown[])[3] as { timeoutMs?: number };
+    expect(options.timeoutMs).toBe(1234);
+  });
+
+  it('unwraps a completed MCP content envelope exactly as the write gateway does', async () => {
+    postDaemonJson.mockResolvedValueOnce({
+      result: { executionId: 'e1', status: 'completed', output: { content: [{ type: 'text', text: 'hi' }] } },
+    });
+    const tool = createExecuteReadonlyDelegatedToolTool({ runId: 'run-1' });
+    const result = await tool.handler({ toolId: 't1' }, ctx);
+    expect(result).toEqual({ content: [{ type: 'text', text: 'hi' }] });
+  });
+
+  it('tells the model in its own description to fall back to execute_delegated_tool for a write', () => {
+    const tool = createExecuteReadonlyDelegatedToolTool({ runId: 'run-1' });
+    expect(tool.description).toContain('execute_delegated_tool');
+  });
+});

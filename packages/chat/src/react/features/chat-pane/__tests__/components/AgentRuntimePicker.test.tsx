@@ -158,8 +158,16 @@ describe('AgentRuntimePicker', () => {
     expect(screen.getByText('Code agent')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: /Claude Code/ })).toBeInTheDocument();
     expect(screen.queryByRole('radio', { name: /Missing Agent/ })).not.toBeInTheDocument();
-    expect(document.querySelector('img[src="/agent-icons/codex.svg"]')).toBeInTheDocument();
-    expect(document.querySelector('img[src="/agent-icons/claude.svg"]')).toBeInTheDocument();
+    // Each rendered agent's own icon is @jini-ai/ui's bundled data URI (see AgentIcon.tsx's
+    // BUNDLED_ICON_URLS doc) rather than a `/agent-icons/<id>.svg` host path — scoped per-radio
+    // rather than a document-wide selector so this still proves each specific agent got an icon,
+    // not just that some data-URI <img> exists somewhere on the page.
+    expect(
+      screen.getByRole('radio', { name: /Codex CLI/ }).querySelector('img[src^="data:image/svg+xml;base64,"]'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: /Claude Code/ }).querySelector('img[src^="data:image/svg+xml;base64,"]'),
+    ).toBeInTheDocument();
     expect(screen.getByLabelText('Model')).toHaveValue('gpt-5.6-terra');
     expect(screen.getByLabelText('Reasoning')).toHaveValue('medium');
   });
@@ -272,7 +280,9 @@ describe('AgentRuntimePicker', () => {
     it('shows the provider brand mark on the trigger when byokRuntime supplies an iconId', async () => {
       renderApi({ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite', iconId: 'gemini' });
       const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
-      expect(trigger.querySelector('img[src="/agent-icons/gemini.svg"]')).toBeInTheDocument();
+      // @jini-ai/ui's bundled data URI, not a `/agent-icons/<id>.svg` host path — see the comment
+      // on the reference-structure test above.
+      expect(trigger.querySelector('img[src^="data:image/svg+xml;base64,"]')).toBeInTheDocument();
     });
 
     it('falls back to a generic link glyph when byokRuntime has no iconId', async () => {
@@ -553,6 +563,38 @@ describe('AgentRuntimePicker', () => {
     expect(lastControl).toHaveFocus();
     await user.keyboard('{Home}');
     expect(firstControl).toHaveFocus();
+  });
+
+  /**
+   * The defect: a runtime with no MCP-injection mechanism (aider, antigravity, pi — see
+   * `@jini-ai/agent-runtime`'s `runtimeSupportsExternalTools` doc) silently ran with zero tools,
+   * with nothing in the picker telling the operator why. `ChatPaneAgent.supportsTools` is the host's
+   * per-agent projection of that def-level fact; this only asserts the picker's own reaction to it,
+   * not the derivation itself (covered by `registry.test.ts`).
+   */
+  it('badges a runtime that cannot receive tools, and leaves tool-capable ones unbadged', async () => {
+    const mixedAgents: ChatPaneAgent[] = [
+      { id: 'claude', name: 'Claude Code', available: true, supportsTools: true },
+      { id: 'pi', name: 'Pi', available: true, supportsTools: false },
+      // No `supportsTools` at all (older host payload) must not be treated as tool-less.
+      { id: 'zed', name: 'Zed Agent', available: true },
+    ];
+    render(
+      <AgentRuntimePicker agents={mixedAgents} value={{ agentId: 'claude' }} onChange={() => {}} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
+
+    const piRow = screen.getByRole('radio', { name: /Pi/ });
+    expect(within(piRow).getByText('No tools')).toBeInTheDocument();
+    expect(within(piRow).getByText('No tools')).toHaveAttribute(
+      'title',
+      "This CLI has no MCP support, so it cannot use this app's tools.",
+    );
+
+    const claudeRow = screen.getByRole('radio', { name: /Claude Code/ });
+    expect(within(claudeRow).queryByText('No tools')).not.toBeInTheDocument();
+    const zedRow = screen.getByRole('radio', { name: /Zed Agent/ });
+    expect(within(zedRow).queryByText('No tools')).not.toBeInTheDocument();
   });
 
   it('safely no-ops Tab navigation when the popover has no focusable control at all', async () => {

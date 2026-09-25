@@ -20,6 +20,7 @@
     "@jini-ai/mcp": "workspace:*",
     "@jini-ai/integrations": "workspace:*",
     "@jini-ai/memory": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "@jini-ai/server": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
     "@jini-ai/ui": "workspace:*",

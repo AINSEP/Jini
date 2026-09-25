@@ -32,6 +32,7 @@ describe('statusForError', () => {
     expect(statusForError({ code: 'FORBIDDEN', message: 'x' })).toBe(403);
     expect(statusForError({ code: 'TOOL_TOKEN_MISSING', message: 'x' })).toBe(401);
     expect(statusForError({ code: 'TOOL_NOT_AVAILABLE', message: 'x' })).toBe(503);
+    expect(statusForError({ code: 'OAUTH_FLOW_IN_PROGRESS', message: 'x' })).toBe(409);
   });
 
   it('falls back to 500 for a code with no explicit mapping (e.g. a pack-defined code)', () => {

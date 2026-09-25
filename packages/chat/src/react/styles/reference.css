@@ -296,3 +296,18 @@
   display: flex;
   flex-direction: column;
 }
+
+/*
+ * NOTE: the queued-prompt bubble's rules (.jini-chat-pane__queued and its children) used to live
+ * here, but were removed once they moved into CHAT_PANE_STYLES (features/chat-pane/styles.ts).
+ * They never belonged in this file to begin with: this file's own header says "No colors, fonts,
+ * borders, or spacing/gap values" and every other rule here honors that, but the queued rules
+ * carry a border, a background, padding, and an opacity — a decorative default this file exists
+ * specifically to NOT set. They were also dead weight for this file's actual audience (a host
+ * composing Composer/MessageList/etc. directly, per this file's own header): the pending row is
+ * rendered by MessageList.tsx (its `pendingPrompt` prop, wired up only by ChatPane.tsx), so a host
+ * that never uses <ChatPane> can never trigger it at all, and every host that DOES use <ChatPane>
+ * already gets CHAT_PANE_STYLES injected automatically with zero wiring. Kept as one rule here (not
+ * deleted silently) so a future reader who remembers seeing "queued" in this file finds the pointer
+ * instead of concluding the removal was accidental.
+ */

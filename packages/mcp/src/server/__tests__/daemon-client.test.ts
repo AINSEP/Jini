@@ -126,6 +126,14 @@ describe('getDaemonJson / postDaemonJson', () => {
     );
   });
 
+  it('exposes the HTTP status on the thrown error, so a tool can tell "route not served" from other failures', async () => {
+    const fetchImpl = vi.fn(async () => streamResponse(404, [new TextEncoder().encode('{}')]));
+    await expect(getDaemonJson('http://d.example', '/api/active', { fetchImpl })).rejects.toMatchObject({
+      status: 404,
+      message: 'daemon 404 on http://d.example/api/active: HTTP 404',
+    });
+  });
+
   it('falls back to a bare HTTP status when the non-2xx body has no structured message', async () => {
     const fetchImpl = vi.fn(async () => streamResponse(500, [new TextEncoder().encode('{}')]));
     await expect(getDaemonJson('http://d.example', '/api/x', { fetchImpl })).rejects.toThrow(

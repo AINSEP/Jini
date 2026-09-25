@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/sqlite",
-  "version": "0.1.2",
-  "description": "better-sqlite3-backed persistence adapters for @jini-ai/daemon’s ports: durable event log, backend selection, schema migration, and database inspection.",
+  "version": "0.3.0",
+  "description": "better-sqlite3-backed persistence adapters for @jini-ai/daemon\u2019s ports: durable event log, backend selection, schema migration, and database inspection.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -30,7 +30,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",
@@ -45,7 +46,7 @@
   "dependencies": {
     "@jini-ai/chat": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^13.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",

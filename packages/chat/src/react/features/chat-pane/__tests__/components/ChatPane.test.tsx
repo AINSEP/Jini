@@ -1,12 +1,14 @@
+import { createRef } from 'react';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ChatMessage } from '@jini-ai/chat/core';
+import type { ChatMessage } from '@jini-ai/chat';
 import { FILE_SYSTEM_READ_ERROR_MESSAGE } from '@jini-ai/ui';
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
 import { ChatPane } from '../../components/ChatPane.js';
-import type { ChatPaneActivity, ChatPaneAgent } from '../../types.js';
+import { CHAT_PANE_STYLES } from '../../styles.js';
+import type { ChatPaneActivity, ChatPaneAgent, ChatPaneComposerHandle } from '../../types.js';
 
 const agents: ChatPaneAgent[] = [{
   id: 'codex',
@@ -75,6 +77,22 @@ describe('ChatPane', () => {
     });
     expect(await screen.findByText('Done.')).toBeInTheDocument();
     await waitFor(() => expect(activities).toContain('ready'));
+  });
+
+  it('resolves placeholders to a single composer placeholder, taking over from placeholder', () => {
+    // Wiring only — `useChatPaneComposerPlaceholder.test.tsx` owns the rotation/reduced-motion
+    // behavior itself. This just proves `ChatPane` actually threads `placeholders` through.
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        agents={agents}
+        placeholder="Ask Jini…"
+        placeholders={['Summarize this repo', 'Fix the failing test']}
+      />,
+    );
+    expect(screen.getByPlaceholderText('Summarize this repo')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('Ask Jini…')).toBeNull();
   });
 
   it('supports controlled selection, static context, cancellation, reset, and host slots', async () => {
@@ -416,6 +434,30 @@ describe('ChatPane', () => {
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 
+  /**
+   * Regression coverage for the gap `useChatPaneAgentControl.hooks.ts`'s own `webmcp` option
+   * already documented but `ChatPane` never actually wired: `agentControl.webmcp` used to be
+   * dropped on the floor here (only `enabled`/`bridgeAccess` were forwarded), so no host could ever
+   * reach the hook's WebMCP branch through the public component, regardless of what it passed.
+   */
+  it('registers this pane\'s own tools with document.modelContext when agentControl.webmcp is true', () => {
+    const registerTool = vi.fn();
+    Object.defineProperty(globalThis.document, 'modelContext', {
+      configurable: true,
+      writable: true,
+      value: { registerTool, unregisterTool: vi.fn() },
+    });
+    try {
+      const transport = createFakeChatTransport();
+      render(
+        <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
+      );
+      expect(registerTool).toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(globalThis.document as unknown as Record<string, unknown>, 'modelContext');
+    }
+  });
+
   it('delegates an explicit rescan to runtimeAccess and reflects the refreshed inventory', async () => {
     const transport = createFakeChatTransport();
     const rescanAgents = vi.fn(async () => [
@@ -480,6 +522,126 @@ describe('ChatPane', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
     await userEvent.click(screen.getByRole('button', { name: 'Use API · BYOK' }));
     expect(onExecutionModeChange).toHaveBeenCalledWith('api');
+  });
+
+  it('lets a configured BYOK turn use the composer with zero agent CLIs available', async () => {
+    // Reproduces the owner-reported bug: `unavailable` gated purely on CLI selection, so a
+    // correctly-configured BYOK setup (which calls the provider directly over HTTP, no CLI
+    // involved) could never be used on a host with zero agent CLIs on PATH, e.g. a Docker
+    // container.
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        agents={[]}
+        executionMode="api"
+        apiModeAvailable
+        byokRuntime={{ providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' }}
+      />,
+    );
+
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Send a message…')).not.toBeDisabled();
+
+    await userEvent.type(screen.getByPlaceholderText('Send a message…'), 'Hello from BYOK');
+    expect(screen.getByRole('button', { name: 'Send' })).not.toBeDisabled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+  });
+
+  it('still fails closed in local-CLI mode with zero agents on PATH — no regression', () => {
+    const transport = createFakeChatTransport();
+    render(<ChatPane transport={transport} agents={[]} />);
+
+    expect(screen.getByText('No usable CLI is selected.')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Send a message…')).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+  });
+
+  it('turns the unavailable banner into a working BYOK switch when the host wired onExecutionModeChange', async () => {
+    // Owner-reported bug: a host with zero agent CLIs (e.g. a hosted container image) showed the
+    // same dead-end "No usable CLI is selected." with no way forward, even though BYOK was a real,
+    // configured way out. The banner must both say so AND actually flip the mode when a host has
+    // wired the callback that makes that true.
+    const transport = createFakeChatTransport();
+    const onExecutionModeChange = vi.fn();
+    render(
+      <ChatPane
+        transport={transport}
+        agents={[]}
+        executionMode="local"
+        apiModeAvailable
+        onExecutionModeChange={onExecutionModeChange}
+      />,
+    );
+
+    expect(screen.getByText('No usable CLI is selected.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Switch to BYOK' }));
+    expect(onExecutionModeChange).toHaveBeenCalledWith('api');
+  });
+
+  it('falls back to copy-only BYOK pointer when apiModeAvailable but no onExecutionModeChange is wired', () => {
+    // A host may report `apiModeAvailable` without wiring the callback that would make a button
+    // meaningful. The pane must still point at BYOK as prose, never inventing an affordance it
+    // cannot actually perform.
+    const transport = createFakeChatTransport();
+    render(<ChatPane transport={transport} agents={[]} executionMode="local" apiModeAvailable />);
+
+    expect(
+      screen.getByText('No usable CLI is selected — switch to BYOK to use your own API key.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Switch to BYOK' })).not.toBeInTheDocument();
+  });
+
+  it('does not offer to switch to BYOK when it is not actually available — the honest case', () => {
+    // `apiModeAvailable` false means BYOK genuinely is not a way forward here (e.g. no key saved
+    // anywhere). Telling the operator to "try BYOK" would be a lie, so the original message stands
+    // alone with no pointer and no button.
+    const transport = createFakeChatTransport();
+    render(<ChatPane transport={transport} agents={[]} executionMode="local" apiModeAvailable={false} />);
+
+    expect(screen.getByText('No usable CLI is selected.')).toBeInTheDocument();
+    expect(
+      screen.queryByText('No usable CLI is selected — switch to BYOK to use your own API key.'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Switch to BYOK' })).not.toBeInTheDocument();
+  });
+
+  describe('composerHandle', () => {
+    it('publishes insertText once mounted, appends onto an existing draft, and clears on unmount', () => {
+      const composerHandle = createRef<ChatPaneComposerHandle | null>();
+      const { unmount } = render(
+        <ChatPane transport={createFakeChatTransport()} agents={agents} composerHandle={composerHandle} />,
+      );
+
+      // Populated by ChatPane's own mount effect — a host has no other way to learn the pane exists.
+      expect(composerHandle.current).not.toBeNull();
+
+      act(() => {
+        composerHandle.current?.insertText('/Users/op/dropped-folder');
+      });
+      expect(screen.getByRole('textbox')).toHaveValue('/Users/op/dropped-folder');
+
+      // A second insertion APPENDS onto whatever the operator already typed in between — it must
+      // never clobber their own words, which is the whole reason `insertText` exists (a host that
+      // wanted to replace the draft outright already has that: `workingDirectory`-style controlled
+      // props, or just `pane.composer.setDraft` if it were public).
+      fireEvent.change(screen.getByRole('textbox'), { target: { value: 'look at' } });
+      act(() => {
+        composerHandle.current?.insertText('/Users/op/dropped-folder');
+      });
+      expect(screen.getByRole('textbox')).toHaveValue('look at /Users/op/dropped-folder');
+
+      unmount();
+      expect(composerHandle.current).toBeNull();
+    });
+
+    it('does nothing when composerHandle is omitted — no crash, no phantom ref writes', () => {
+      // The prop is optional; every other test in this file renders ChatPane without it. This test
+      // exists only to make that omission an asserted case rather than an accident of coverage.
+      expect(() => render(<ChatPane transport={createFakeChatTransport()} agents={agents} />)).not.toThrow();
+    });
   });
 
   // These assert what the pane actually PUTS ON SCREEN, which line coverage cannot speak to: every
@@ -569,7 +731,7 @@ describe('ChatPane', () => {
       expect(screen.getByTestId('working-dir-trigger')).not.toHaveTextContent('Select working directory');
     });
 
-    it('shows the plain working directory, without a picker, when no access is supplied', () => {
+    it('shows the composer\'s folder-icon working-directory trigger, not the native picker, when no access is supplied', () => {
       render(
         <ChatPane
           transport={createFakeChatTransport()}
@@ -578,9 +740,163 @@ describe('ChatPane', () => {
         />,
       );
 
-      expect(screen.getByText('Working directory')).toBeInTheDocument();
-      expect(screen.getByText('/Users/test/current')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Select working directory')).not.toBeInTheDocument();
+      expect(screen.getByTestId('composer-workdir-trigger')).toHaveAccessibleName(
+        'Working directory: /Users/test/current',
+      );
+      expect(screen.queryByTestId('working-dir-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByText('Working directory')).not.toBeInTheDocument();
+    });
+
+    it('changes the working directory through the composer\'s lightweight popover when no native access is supplied', async () => {
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          initialWorkingDirectory="/Users/test/current"
+        />,
+      );
+
+      await userEvent.click(screen.getByTestId('composer-workdir-trigger'));
+      const input = screen.getByTestId('composer-workdir-input');
+      await userEvent.clear(input);
+      await userEvent.type(input, '/Users/test/new{Enter}');
+
+      expect(screen.getByTestId('composer-workdir-trigger')).toHaveAccessibleName(
+        'Working directory: /Users/test/new',
+      );
+    });
+
+    // Regression: a host with a native `workingDirectoryAccess` that opts into
+    // `workingDirectoryControlPlacement="composer"` must get the composer's folder-icon trigger
+    // wired to the NATIVE dialog — not the below-composer `WorkingDirPicker` this used to render
+    // unconditionally whenever `workingDirectoryAccess` was supplied (the regression the owner
+    // reported: the control appeared below the composer instead of next to "+").
+    it('places the trigger in the composer, not below it, when access is supplied with placement="composer"', () => {
+      const access = {
+        pickWorkingDirectory: vi.fn(async () => '/Users/test/selected'),
+        recentDirectories: vi.fn(async () => []),
+        directoryExists: vi.fn(async () => true),
+      };
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          initialWorkingDirectory="/Users/test/current"
+          workingDirectoryAccess={access}
+          workingDirectoryControlPlacement="composer"
+        />,
+      );
+
+      expect(screen.getByTestId('composer-workdir-trigger')).toHaveAccessibleName(
+        'Working directory: /Users/test/current',
+      );
+      expect(screen.queryByTestId('working-dir-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByText('Select working directory')).not.toBeInTheDocument();
+    });
+
+    it('clicking the composer trigger in placement="composer" calls the native picker directly, with no popover', async () => {
+      const access = {
+        pickWorkingDirectory: vi.fn(async () => '/Users/test/selected'),
+        recentDirectories: vi.fn(async () => []),
+        directoryExists: vi.fn(async () => true),
+      };
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          initialWorkingDirectory="/Users/test/current"
+          workingDirectoryAccess={access}
+          workingDirectoryControlPlacement="composer"
+        />,
+      );
+
+      await userEvent.click(screen.getByTestId('composer-workdir-trigger'));
+
+      expect(access.pickWorkingDirectory).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId('composer-workdir-panel')).not.toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId('composer-workdir-trigger')).toHaveAccessibleName(
+          'Working directory: /Users/test/selected',
+        );
+      });
+    });
+
+    // Regression: `workingDirectoryControlPlacement="none"` must suppress every
+    // working-directory control, including the composer's own lightweight popover trigger that
+    // `resolveComposerWorkingDirectory` otherwise supplies whenever `workingDirectoryAccess` is
+    // absent, regardless of placement. A host with no real filesystem path to offer (e.g. a
+    // browser context) needs a way to render nothing rather than a non-functional control.
+    it('renders no composer folder-icon trigger when placement="none", even without native access', () => {
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          initialWorkingDirectory="/Users/test/current"
+          workingDirectoryControlPlacement="none"
+        />,
+      );
+
+      expect(screen.queryByTestId('composer-workdir-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('working-dir-trigger')).not.toBeInTheDocument();
+    });
+
+    it('renders neither the composer trigger nor the below-composer picker when placement="none" with native access supplied', () => {
+      const access = {
+        pickWorkingDirectory: vi.fn(async () => '/Users/test/selected'),
+        recentDirectories: vi.fn(async () => []),
+        directoryExists: vi.fn(async () => true),
+      };
+      render(
+        <ChatPane
+          transport={createFakeChatTransport()}
+          agents={agents}
+          initialWorkingDirectory="/Users/test/current"
+          workingDirectoryAccess={access}
+          workingDirectoryControlPlacement="none"
+        />,
+      );
+
+      expect(screen.queryByTestId('composer-workdir-trigger')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('working-dir-trigger')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('injected default styles', () => {
+    // Regression test: the queued-prompt strip's rules used to live ONLY in reference.css, an
+    // opt-in stylesheet no host actually imports (the published 0.3.2 tarball does not even ship
+    // the file) — CHAT_PANE_STYLES, injected automatically into every host by ChatPane.tsx, had
+    // zero '.jini-chat-pane__queued*' rules. Every host rendered the strip unstyled, which in one
+    // host meant `<button>` fell through to that host's own global button styling and painted as
+    // a large primary-colored pill overlapping the transcript. Asserts the rules now live in the
+    // sheet every host actually gets, not just the opt-in one most hosts never import.
+    // Updated when the strip moved from a composer-area banner into the transcript itself
+    // (MessageList.tsx's pendingPrompt row): it now copies .jini-message-user .jini-message-content's
+    // bubble geometry (asserted separately below isn't needed — the shared max-width/border-radius
+    // values live in that class, not duplicated here) and is right-aligned like a real user message,
+    // with a dashed border and reduced opacity standing in for the old boxed-strip-plus-label
+    // treatment as the "not yet sent" signal — a sent bubble has neither.
+    it('marks the queued bubble as pending — right-aligned like a real message, with a dashed border and reduced opacity a sent bubble never carries', () => {
+      const rowRule = CHAT_PANE_STYLES.match(/\.jini-chat-pane__queued \{([^}]*)\}/)?.[1] ?? '';
+      expect(rowRule).toMatch(/align-items:\s*flex-end/);
+
+      const textRule = CHAT_PANE_STYLES.match(/\.jini-chat-pane__queued-text \{([^}]*)\}/)?.[1] ?? '';
+      expect(textRule).toMatch(/border:\s*1px dashed/);
+      expect(textRule).toMatch(/background:\s*var\(--jini-chat-subtle\)/);
+      expect(textRule).toMatch(/opacity:\s*\.\d+/);
+    });
+
+    // The specific failure an operator hit live: without an explicit reset, a host's own global
+    // `button` styling (background/border/padding/border-radius/bold text) turns this plain-text
+    // cancel affordance into a full pill-shaped button. Asserting the reset directly (not just
+    // that some rule exists) is what stops that exact regression from recurring silently.
+    it('resets the queued-cancel button so a host global `button` style cannot repaint it as a pill', () => {
+      const cancelRule = CHAT_PANE_STYLES.match(/\.jini-chat-pane__queued-cancel \{([^}]*)\}/)?.[1] ?? '';
+      expect(cancelRule).toMatch(/background:\s*none/);
+      expect(cancelRule).toMatch(/border:\s*0/);
+      expect(cancelRule).toMatch(/padding:\s*\S+/);
+      expect(cancelRule).toMatch(/border-radius:\s*\S+/);
+      expect(cancelRule).toMatch(/font-size:\s*\S+/);
+      expect(cancelRule).toMatch(/font-weight:\s*\S+/);
     });
   });
 });

@@ -25,6 +25,15 @@
  * `index.ts` rather than narrowing scope — see ADS-memory/reports/refactor/2026-08-05-ref-001-steps-bcd-proposal.md
  * §9 for the reasoning on each.
  *
+ * `checkModelFallbackFreshness` (R13, added 2026-09-05) is a seventh check, and the only one whose
+ * subject is DATA rather than structure: a runtime def's hardcoded `fallbackModels` list is what a
+ * model picker renders when no live source answers, and such a list has no other way to fail when it
+ * drifts from the vendor's own. It went undetected for months that `defs/claude.ts` listed no Fable
+ * model at all. Two of its three rules need no credential and no network; the third consults a
+ * locally installed CLI when there is one and SKIPS VISIBLY (naming the def and the reason on
+ * stdout) when there is not, so it never fails for the absence of a tool and never passes silently.
+ * See its own module doc for the MF1/MF2/MF3 rules and exactly what it does unauthenticated.
+ *
  * `checkExtensionlessImports` (R11, added 2026-08-05) is a fifth check, shipped ENFORCING
  * immediately, not disabled-first like R10 — R10's disabled period existed because a concurrent
  * agent was mid-restructuring the exact tree it checks; no such concurrent-edit risk applies here.
@@ -48,6 +57,7 @@ import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkDriverIsolation } from './check-driver-isolation.js';
 import { checkEngineBoundaries } from './check-engine-boundaries.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
+import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
 import { runGuardSelfTest } from './lib/self-test.js';
 
@@ -70,10 +80,15 @@ async function main() {
   const results = [
     await checkEngineBoundaries(),
     await checkProtocolPurity(),
-    await checkAgenticDomPurity(),
+    // domSubdir override: the DOM-bearing tree moved from src/dom to src/core/dom (see
+    // packages/agentic/source-map.md's "The DOM split") when the ./core export subpath was added;
+    // the check's own default stays src/dom for scripts/lib/self-test.ts's fixtures — see
+    // CheckAgenticDomPurityOptions.domSubdir's doc in check-agentic-dom-purity.ts.
+    await checkAgenticDomPurity({ domSubdir: 'src/core/dom' }),
     await checkChatPanePublicSurface(),
     await checkExtensionlessImports(),
     await checkDriverIsolation(),
+    await checkModelFallbackFreshness(),
     // TODO: vocabulary-firewall check (foundry/automation/** must not import engine domain types) —
     // genuinely unimplemented, not covered by either check above (both are scoped to packages/).
     // TODO: residual-JS allowlist — genuinely unimplemented; scope not yet specified precisely

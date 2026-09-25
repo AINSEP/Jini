@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
-import { useRef, useState } from 'react';
+import { memo, useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
+import { ConfirmDialogDefaultsProvider } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 import type { UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 
 function renderDialog(props: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) {
@@ -22,6 +24,14 @@ function renderDialog(props: Partial<Parameters<typeof ConfirmDialog>[0]> = {}) 
 }
 
 const dialog = () => document.querySelector('dialog') as HTMLDialogElement;
+
+/** Every published handle in `root`, in document order — same helper `RowMenu.test.tsx` uses for
+ *  the identical assertion shape. */
+function handlesIn(root: ParentNode): string[] {
+  return Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`)).map(
+    (element) => element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '',
+  );
+}
 
 describe('ConfirmDialog content', () => {
   it('renders title and body, and labels itself by the title', () => {
@@ -63,6 +73,94 @@ describe('ConfirmDialog content', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Keep it' })).toBeInTheDocument();
+  });
+});
+
+describe('ConfirmDialog defaults context', () => {
+  it("uses the enclosing provider's cancelLabel when no explicit prop is passed", () => {
+    render(
+      <ConfirmDialogDefaultsProvider cancelLabel="Abbrechen">
+        <ConfirmDialog
+          open
+          title="Delete post?"
+          body="This cannot be undone."
+          confirmLabel="Delete"
+          onConfirm={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ConfirmDialogDefaultsProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Abbrechen' })).toBeInTheDocument();
+  });
+
+  it('lets an explicit cancelLabel prop win over the provider default', () => {
+    render(
+      <ConfirmDialogDefaultsProvider cancelLabel="Abbrechen">
+        <ConfirmDialog
+          open
+          title="Delete post?"
+          body=""
+          confirmLabel="Delete"
+          cancelLabel="Keep it"
+          onConfirm={vi.fn()}
+          onCancel={vi.fn()}
+        />
+      </ConfirmDialogDefaultsProvider>,
+    );
+    expect(screen.getByRole('button', { name: 'Keep it' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Abbrechen' })).not.toBeInTheDocument();
+  });
+
+  it('falls back to the component\'s built-in "Cancel" with no enclosing provider at all', () => {
+    renderDialog();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+  });
+
+  it('does not re-render a dialog under a memoized parent when the provider re-renders with the same cancelLabel', () => {
+    // The injected `useDialog` runs once per `ConfirmDialog` render, so its call count is the
+    // dialog's render count. `memo` makes the parent bail out on the provider's re-render, so the
+    // only way the dialog can re-render is a new context value.
+    const renderCount = vi.fn();
+    const countingDialog: UseConfirmDialog = () => {
+      renderCount();
+      return {
+        titleId: 't',
+        dialogRef: { current: null },
+        cancelRef: { current: null },
+        handleNativeCancel: () => {},
+        handleBackdropClick: () => {},
+      };
+    };
+    const MemoizedParent = memo(function MemoizedParent() {
+      return (
+        <ConfirmDialog
+          open
+          title="Delete post?"
+          body=""
+          confirmLabel="Delete"
+          onConfirm={() => {}}
+          onCancel={() => {}}
+          useDialog={countingDialog}
+        />
+      );
+    });
+    const tree = (label: string) => (
+      <ConfirmDialogDefaultsProvider cancelLabel={label}>
+        <MemoizedParent />
+      </ConfirmDialogDefaultsProvider>
+    );
+
+    const { rerender } = render(tree('Abbrechen'));
+    expect(renderCount).toHaveBeenCalledTimes(1);
+
+    rerender(tree('Abbrechen'));
+    expect(renderCount).toHaveBeenCalledTimes(1);
+
+    rerender(tree('Annuler'));
+    expect(renderCount).toHaveBeenCalledTimes(2);
+    // `hidden`: the fake controller never opens the `<dialog>`, so its contents sit outside the
+    // accessibility tree.
+    expect(screen.getByRole('button', { name: 'Annuler', hidden: true })).toBeInTheDocument();
   });
 });
 
@@ -248,5 +346,86 @@ describe('ConfirmDialog dialog-hook injection', () => {
     );
     fireEvent.click(dialog());
     expect(handleBackdropClick).toHaveBeenCalledOnce();
+  });
+});
+
+describe('ConfirmDialog agent handles', () => {
+  it('emits no data-agent-* markup at all when agentHandle is omitted', () => {
+    renderDialog();
+    expect(handlesIn(document.body)).toEqual([]);
+  });
+
+  it('publishes the confirm action by default, with role button', () => {
+    renderDialog({ agentHandle: 'delete-role' });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'delete-role-confirm');
+    expect(confirm).toHaveAttribute('data-agent-role', 'button');
+    expect(handlesIn(document.body)).toEqual(['delete-role-cancel', 'delete-role-confirm']);
+  });
+
+  it('still publishes the cancel action under its own sub-handle, with role button', () => {
+    renderDialog({ agentHandle: 'delete-role' });
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'delete-role-cancel');
+    expect(cancel).toHaveAttribute('data-agent-role', 'button');
+  });
+
+  it('omits the confirm action only when the caller opts out with agentMayConfirm: false', () => {
+    // The page driver clicks any published element. Most dialogs want the assistant able to
+    // confirm — permanently destructive actions are gated in-chat at the tool level instead — but
+    // a dialog guarding a secret can opt out explicitly.
+    renderDialog({ agentHandle: 'delete-role', agentMayConfirm: false });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).not.toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE);
+    expect(confirm).not.toHaveAttribute('data-agent-role');
+    expect(confirm).not.toHaveAttribute('data-agent-label');
+    expect(handlesIn(document.body)).toEqual(['delete-role-cancel']);
+  });
+
+  it('emits no markup for agentMayConfirm alone, without an agentHandle', () => {
+    renderDialog({ agentMayConfirm: false });
+    expect(handlesIn(document.body)).toEqual([]);
+  });
+
+  it('publishes both handles even while the dialog is closed — it stays mounted, never conditionally rendered', () => {
+    renderDialog({ agentHandle: 'delete-role', open: false });
+    expect(handlesIn(document.body)).toEqual(['delete-role-cancel', 'delete-role-confirm']);
+  });
+
+  it('states the confirm action and its target in the label, with no consequence phrase at the default tone', () => {
+    renderDialog({ agentHandle: 'delete-role' });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).toHaveAttribute('data-agent-label', 'Delete — Delete post?');
+  });
+
+  it('appends the danger tier\'s irreversibility to the confirm label', () => {
+    renderDialog({ agentHandle: 'delete-role', tone: 'danger' });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).toHaveAttribute('data-agent-label', 'Delete — Delete post?; cannot be undone');
+  });
+
+  it('appends the warning tier\'s reversible-but-access-affecting phrase to the confirm label', () => {
+    renderDialog({ agentHandle: 'delete-role', tone: 'warning', confirmLabel: 'Disable' });
+    const confirm = screen.getByRole('button', { name: 'Disable' });
+    expect(confirm).toHaveAttribute('data-agent-label', 'Disable — Delete post?; changes access, but is reversible');
+  });
+
+  it('maps the deprecated destructive boolean onto the same danger consequence phrase as tone', () => {
+    renderDialog({ agentHandle: 'delete-role', destructive: true });
+    const confirm = screen.getByRole('button', { name: 'Delete' });
+    expect(confirm).toHaveAttribute('data-agent-label', 'Delete — Delete post?; cannot be undone');
+  });
+
+  it('states that cancelling takes no action, regardless of the confirm tone', () => {
+    renderDialog({ agentHandle: 'delete-role', tone: 'danger' });
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveAttribute('data-agent-label', 'Cancel — leaves "Delete post?" unconfirmed; no action taken');
+  });
+
+  it('reflects a cancelLabel override in both the accessible name and the agent label', () => {
+    renderDialog({ agentHandle: 'delete-role', cancelLabel: 'Keep it' });
+    const cancel = screen.getByRole('button', { name: 'Keep it' });
+    expect(cancel).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'delete-role-cancel');
+    expect(cancel).toHaveAttribute('data-agent-label', 'Keep it — leaves "Delete post?" unconfirmed; no action taken');
   });
 });

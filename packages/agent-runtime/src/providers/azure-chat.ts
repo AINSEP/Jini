@@ -71,7 +71,7 @@
  * the tool call it answers. See that module's doc for the full rationale; it is not repeated here
  * beyond this pointer to avoid the two copies drifting.
  */
-import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { runOpenAiCompatibleRequest, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -162,6 +162,10 @@ export interface AzureTurnOptions {
   readonly signal?: AbortSignal;
   /** Caller-supplied extra headers — see `anthropic-messages.ts#AnthropicTurnOptions.extraHeaders`'s doc for why this exists and what it fixes. */
   readonly extraHeaders?: Record<string, string>;
+  /** Injectable HTTP transport, defaulting to `connection-guard.ts`'s `pinnedFetch` (SSRF-guarded, DNS-pinned). See `anthropic-messages.ts#AnthropicTurnOptions.fetchImpl`'s doc for the seam this exists for and why production wiring must never override it. Forwarded to `openai-chat.ts#runOpenAiCompatibleRequest` — this provider delegates its actual request to that shared reducer (see module doc). */
+  readonly fetchImpl?: PinnedFetch;
+  /** Injectable DNS resolver for `validateBaseUrlResolved`'s DNS-pinning check, defaulting to `defaultDnsLookup`. Same test-only override rationale as `fetchImpl`. */
+  readonly dnsLookup?: DnsLookupFn;
 }
 
 export interface AzureTurnResult {
@@ -215,7 +219,7 @@ async function runSingleAzureRequest(
   emitEnd: (reason: AzureTurnEndReason) => void,
   hasEnded: () => boolean,
 ): Promise<OpenAiCompatibleRequestOutcome> {
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl, defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl, options.dnsLookup ?? defaultDnsLookup);
   if (baseUrlCheck.error) {
     options.onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
@@ -234,6 +238,7 @@ async function runSingleAzureRequest(
         : null,
     ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     redactSecretsList: [options.apiKey],
     guardMessageId: 'azure-turn',
     providerLabel: 'Azure OpenAI',

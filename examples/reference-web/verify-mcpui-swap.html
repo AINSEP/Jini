@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; frame-src 'self'; connect-src 'self' ws://127.0.0.1:4173 ws://localhost:4173"
+    />
+    <title>MCP-UI official swap — verification</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      A standalone entry (bypassing main.tsx's routing, which eagerly imports every lab page —
+      several of which need packages this fresh worktree may not have built) so this session's
+      real-browser verification of the @mcp-ui/client swap does not depend on the rest of the
+      playground being buildable. Scratch/verification-only; not part of the app's normal routing.
+    -->
+    <script type="module" src="/src/verify-mcpui-swap.tsx"></script>
+  </body>
+</html>

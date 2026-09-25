@@ -44,6 +44,7 @@ export type {
   ChatPaneAgentToolInputSchema,
   ChatPaneAgentToolRisk,
   ChatPaneAttachmentUploadOptions,
+  ChatPaneComposerHandle,
   ChatPaneProps,
   ChatPaneRunContext,
   ChatPaneRunContextInput,

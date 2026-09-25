@@ -1,0 +1,127 @@
+openapi: 3.0.3
+info:
+  title: Jini attachments route pack
+  version: 0.0.0
+  description: |
+    Code-first fragment for `POST`/`DELETE /api/attachments` in `@jini-ai/http-kit`'s
+    `attachments.ts` — user file/image uploads staged for one agent run over a disk-backed
+    `AttachmentStore`. `POST` streams the raw request body straight to disk (never a
+    JSON-parsed body); `DELETE` reads a normal JSON body and abandons still-unclaimed
+    uploads. The wire-visible `path` on every `StoredAttachment` is an opaque
+    `attachment:<uuid>` capability id, never a filesystem path — `claim()` (not an HTTP
+    route; called server-side by a host's own run-start hook) is what exchanges those ids
+    for real paths.
+
+    **Not wired into `@jini-ai/server`'s default mount set.** Unlike `connectors.ts`
+    (mounted zero-config in `packages/server/src/builtin-features.ts`), this route pack
+    needs a concrete `store` (an `uploadDirectory`), so nothing in this repo mounts it by
+    default — `registerConnectorsRoutes(app, {}, ...)` has a zero-config default,
+    `registerAttachmentRoutes` structurally cannot. The only real wiring found in this repo
+    is `examples/reference-web/src/daemon.ts`, which also performs the `claim()`/
+    `cleanupRun()` calls this module's own doc comment shows as the required host
+    integration. A product host that wants uploads must replicate that wiring itself;
+    `/api/attachments` does not exist on a daemon that does not opt in.
+
+    **Same-origin default, not a fixed route property.** `requireSameOrigin` is one
+    `AttachmentsHttpDeps` field shared by both routes (`registerAttachmentRoutes` takes a
+    single `deps` object), defaulting to `true` when omitted — documented here as the
+    default a zero-config host gets, not a compile-time guarantee.
+
+    **A specific rejection reason does not always mean a specific HTTP message.**
+    `AttachmentRejectionReason`s are split at the source into two response shapes by their
+    own status-code table (`REJECTION_STATUS`): a reason mapped to 400/413/429 keeps its
+    real, actionable message over the wire (e.g. "you can attach at most 10 files to one
+    message"). A reason mapped to 500 — `attachment-body-consumed` and
+    `attachment-integrity` — is deliberately redacted to the generic, correlation-id-bearing
+    `INTERNAL_ERROR` shape instead, even though the source constructs a specific message for
+    each (the module doc's own example: "mount this route pack before any global body
+    parser..."). That message only ever reaches the operator-owned `onInternalError` sink,
+    never the HTTP caller. This is intentional per `REJECTION_STATUS`'s own comment ("The
+    remaining reasons describe a broken or hostile server-side state... never given a real
+    message over HTTP"), not a bug — flagged here only because it means integrating against
+    this endpoint's 500 body will never surface the specific misconfiguration hint the
+    source code goes out of its way to write.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/attachments:
+    post:
+      operationId: upload_attachment
+      summary: Stream one attachment upload to disk and register it
+      x-jini-require-same-origin: true
+      description: |
+        Reads the raw request body directly (no JSON parsing) up to `maxAttachmentBytes`
+        (default 20 MB), sniffs `kind` (`image`/`file`) from the leading bytes, and
+        registers the file under `batch`'s upload quota. `batch` is effectively required:
+        an omitted value is treated as an empty string, which fails the store's batch-id
+        pattern and surfaces as `400 invalid-batch`. `name` is sanitized to a display-only
+        basename over a conservative allowlist and is never used as the stored filename
+        (a fresh UUID is). Must be mounted ahead of any global JSON body parser — a request
+        whose stream is already drained is rejected up front, though (see this fragment's
+        top-level description) with a generic `500`, not a message naming the cause.
+      parameters:
+        - { name: batch, in: query, required: true, schema: { type: string, minLength: 8, maxLength: 80, pattern: '^[a-zA-Z0-9-]{8,80}$' }, description: 'Upload batch id (one composer turn). Missing/malformed surfaces as 400 invalid-batch, not a dedicated missing-parameter error.' }
+        - { name: name, in: query, required: false, schema: { type: string }, description: 'Client-supplied display filename. Reduced server-side to a basename over `[a-zA-Z0-9._ -]`; never trusted as the stored filename.' }
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: { type: string, format: binary }
+      responses:
+        '201': { description: Attachment registered, content: { application/json: { schema: { $ref: '#/components/schemas/AttachmentUploadResponse' } } } }
+        '400': { description: 'Empty upload, or an invalid/missing batch id.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '413': { description: 'One attachment exceeded its byte cap, or a batch/store quota (count or bytes) was exceeded.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '429': { description: More concurrent uploads than `maxConcurrentUploads` (default 4)., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { description: 'An already-consumed request stream (host body-parser ordering bug), a failed integrity check, or any unexpected error — always the generic redacted body; see this fragment''s top-level description.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    delete:
+      operationId: cleanup_attachments
+      summary: Delete still-unclaimed uploads from one batch
+      x-jini-require-same-origin: true
+      description: |
+        Only attachments no run has claimed can be removed this way; a claimed attachment
+        silently survives a cleanup request naming it (no error, no partial-failure detail —
+        the store treats "not eligible" the same as "already gone"). Succeeds with `204`
+        even when some or all named paths were not found. Also opportunistically removes
+        the batch directory once it is empty.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AttachmentCleanupRequest' }
+      responses:
+        '204': { description: Cleanup applied (idempotent; unknown/already-claimed paths are silently skipped). }
+        '400': { description: 'Malformed body (`batchId`/`paths` shape), or an invalid batch id.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  responses:
+    Forbidden: { description: Same-origin guard rejected the request (default-on for both routes)., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; the response body is always the generic redacted shape, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    StoredAttachment:
+      type: object
+      description: Field-for-field mirror of `@jini-ai/chat-core`'s `ChatAttachment`, kept in sync by a compile-time assignability test rather than a dependency edge.
+      required: [path, name, kind]
+      properties:
+        path: { type: string, description: 'Opaque `attachment:<uuid>` capability id over the wire — never a filesystem path.' }
+        name: { type: string, description: Sanitized display name; not the stored filename. }
+        kind: { type: string, enum: [image, file], description: Sniffed from the leading bytes, never from a client-supplied MIME type or extension. }
+        size: { type: integer, minimum: 0 }
+        order: { type: number, description: Present for structural parity with `ChatAttachment`; this store never sets it. }
+    AttachmentUploadResponse:
+      type: object
+      required: [attachment]
+      properties: { attachment: { $ref: '#/components/schemas/StoredAttachment' } }
+    AttachmentCleanupRequest:
+      type: object
+      required: [batchId, paths]
+      properties:
+        batchId: { type: string, minLength: 1 }
+        paths: { type: array, items: { type: string }, maxItems: 10, description: 'Capability ids to abandon. Longer than `maxCleanupPaths` (default 10) is a 400, not a truncation.' }

@@ -38,6 +38,12 @@ import { dirname, join, relative, resolve } from 'node:path';
 import type { Violation } from './check-engine-boundaries.js';
 import { REPO_ROOT } from './lib/walk-imports.js';
 
+/**
+ * Default DOM-subtree path for the self-test's synthetic fixtures (`scripts/lib/self-test.ts`),
+ * which model the split with a plain `src/dom` layout independent of any real package. The real
+ * `@jini-ai/agentic` package passes its own current path via `CheckAgenticDomPurityOptions.domSubdir`
+ * — see that option's doc for why it no longer defaults to this constant for the real repo.
+ */
 const DOM_SUBDIR = 'src/dom';
 
 interface RawTsconfig {
@@ -93,6 +99,19 @@ export interface CheckAgenticDomPurityOptions {
   readonly repoRoot?: string;
   /** Treat this directory as `@jini-ai/agentic`'s package root. Defaults to `<repoRoot>/packages/agentic`. */
   readonly agenticDir?: string;
+  /**
+   * The package-relative path the DOM-only entry point (`tsconfig.dom.json`) must be scoped to,
+   * and the root entry point (`tsconfig.json`) must exclude. Defaults to `DOM_SUBDIR` (`src/dom`),
+   * which matches the self-test's synthetic fixtures but no longer matches the real package:
+   * `packages/agentic/source-map.md` §"The DOM split" records that the 2026-08 addition of the
+   * `./core` export subpath relocated the DOM-bearing tree from `src/dom` to `src/core/dom` (a
+   * verbatim `git mv`, contents and provenance unchanged) — both real tsconfigs were updated to
+   * `src/core/dom` at the time, but this check's hardcoded default was not, so it had been
+   * comparing the real repo's correct configuration against a path that stopped existing. `guard.ts`
+   * passes `domSubdir: 'src/core/dom'` for the real check; the self-test intentionally leaves this
+   * unset so its fixtures keep validating the check's logic against a stable, repo-independent path.
+   */
+  readonly domSubdir?: string;
 }
 
 /**
@@ -103,6 +122,7 @@ export interface CheckAgenticDomPurityOptions {
 export async function checkAgenticDomPurity(options: CheckAgenticDomPurityOptions = {}): Promise<Violation[]> {
   const root = options.repoRoot ?? REPO_ROOT;
   const agenticDir = options.agenticDir ?? join(root, 'packages', 'agentic');
+  const domSubdir = options.domSubdir ?? DOM_SUBDIR;
   const violations: Violation[] = [];
 
   const rootConfigAbs = join(agenticDir, 'tsconfig.json');
@@ -136,23 +156,23 @@ export async function checkAgenticDomPurity(options: CheckAgenticDomPurityOption
   }
 
   const rootExclude = (rootRaw.exclude ?? []).map(normalizeGlob);
-  if (!rootExclude.includes(DOM_SUBDIR)) {
+  if (!rootExclude.includes(domSubdir)) {
     violations.push({
       rule: 'R9-dom-purity',
       file: rootFile,
-      reason: `"exclude" (${JSON.stringify(rootRaw.exclude ?? [])}) no longer excludes "${DOM_SUBDIR}" — the DOM-bearing code could be pulled into the DOM-free compile`,
+      reason: `"exclude" (${JSON.stringify(rootRaw.exclude ?? [])}) no longer excludes "${domSubdir}" — the DOM-bearing code could be pulled into the DOM-free compile`,
     });
   }
 
   const domInclude = (domRaw.include ?? []).map(normalizeGlob);
   const coversOnlyDom =
     domInclude.length > 0 &&
-    domInclude.every((entry) => entry === DOM_SUBDIR || entry.startsWith(`${DOM_SUBDIR}/`));
+    domInclude.every((entry) => entry === domSubdir || entry.startsWith(`${domSubdir}/`));
   if (!coversOnlyDom) {
     violations.push({
       rule: 'R9-dom-purity',
       file: domFile,
-      reason: `"include" (${JSON.stringify(domRaw.include ?? [])}) covers more than "${DOM_SUBDIR}" — the DOM-bearing config must not compile universal code with a DOM lib in scope`,
+      reason: `"include" (${JSON.stringify(domRaw.include ?? [])}) covers more than "${domSubdir}" — the DOM-bearing config must not compile universal code with a DOM lib in scope`,
     });
   }
 

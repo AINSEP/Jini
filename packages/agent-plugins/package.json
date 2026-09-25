@@ -1,0 +1,55 @@
+{
+  "name": "@jini-ai/agent-plugins",
+  "version": "0.3.0",
+  "description": "Support for Agent Plugins, the open, vendor-neutral spec (v1.0.0, published 2026-08-06, Technical Steering Committee with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel) for bundling Agent Skills and MCP servers into one portable directory: PluginManifest/McpManifest types + structural validators on the package root, plus the bundled plugins themselves, each on a subpath named for itself (./ui-ux-design, ./create-tovu-theme). Extracted 2026-08-18 from @jini-ai/plugins, which now only reserves the unrelated, unimplemented ./host format.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/agent-plugins"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      ".": "universal",
+      "./ui-ux-design/*": "universal",
+      "./create-tovu-theme/*": "universal"
+    }
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./ui-ux-design/*": "./ui-ux-design/*",
+    "./create-tovu-theme/*": "./create-tovu-theme/*"
+  },
+  "files": [
+    "dist",
+    "ui-ux-design",
+    "create-tovu-theme",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/*.test.js.map",
+    "!dist/**/*.test.d.ts.map",
+    "!dist/**/__tests__/**"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^2.1.9"
+  }
+}

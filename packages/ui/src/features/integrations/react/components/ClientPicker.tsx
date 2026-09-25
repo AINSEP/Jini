@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useDismissOnOutsideOrEscape } from '../../../../browser/useDismissOnOutsideOrEscape.js';
@@ -23,17 +24,23 @@ export interface ClientPickerProps {
    * original's blank-until-loaded gate.
    */
   methodLabels?: Readonly<Partial<Record<McpClientId, string>>> | undefined;
+  /** This picker's own agent handle. The trigger button and each dropdown option get their own
+   *  derived sub-handle — see `IntegrationsTab`'s `agentHandle` doc. */
+  agentHandle?: string;
 }
 
 /**
  * Dropdown client picker. Origin: the `ds-picker` markup inline in
  * `IntegrationsSection` — closes on outside click or Escape.
  */
-export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel, methodLabels }: ClientPickerProps) {
+export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel, methodLabels, agentHandle }: ClientPickerProps) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const selected = clients.find((c) => c.id === selectedClientId) ?? clients[0];
+  const optionHandles = agentHandle
+    ? buildAgentListHandles(agentSubHandle(agentHandle, 'option'), clients.map((c) => c.id))
+    : undefined;
 
   // Close on outside click or Escape — routed through the shared
   // `useDismissOnOutsideOrEscape` toolbox hook (packages/ui/src/browser/)
@@ -52,6 +59,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        {...agentHandleProps(agentHandle, { action: 'trigger', role: 'button', label: selected ? t(selected.label) : t('Client') })}
       >
         <span className="jini-picker-meta">
           <span className="jini-picker-title">{selected ? t(selected.label) : ''}</span>
@@ -62,7 +70,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
       {open ? (
         <div className="jini-picker-popover" role="listbox">
           <div className="jini-picker-list">
-            {clients.map((client) => {
+            {clients.map((client, index) => {
               const active = client.id === selectedClientId;
               return (
                 <button
@@ -75,6 +83,7 @@ export function ClientPicker({ clients, selectedClientId, onSelect, methodLabel,
                     onSelect(client.id);
                     setOpen(false);
                   }}
+                  {...agentHandleProps(optionHandles?.[index], { role: 'button', label: t(client.label) })}
                 >
                   <span className="jini-picker-item-title">{t(client.label)}</span>
                   {methodLabels?.[client.id] ? (

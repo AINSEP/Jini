@@ -48,6 +48,7 @@ export {
   AGENT_ROLE_ATTRIBUTE,
   AGENT_LABEL_ATTRIBUTE,
   AGENT_PAGE_ATTRIBUTE,
+  AGENT_PRIVATE_ATTRIBUTE,
   AGENT_ELEMENT_ROLES,
   isValidElementHandle,
   resolveHandleSelector,
@@ -57,7 +58,16 @@ export {
   type AgentElementState,
 } from './element-handles.js';
 
-export { agentHandle, type AgentHandleOptions, type AgentHandleProps } from './handle.js';
+export {
+  agentHandle,
+  agentSubHandle,
+  agentHandleProps,
+  type AgentHandleOptions,
+  type AgentHandleProps,
+  type AgentHandlePropsOptions,
+} from './handle.js';
+
+export { buildAgentListHandles } from './list-handles.js';
 
 export {
   findFieldFillRefusal,
@@ -129,9 +139,14 @@ export {
  * directory move started: with genuine AG-UI (`./ag-ui.ts`, exported just above as `toAgUiTool`
  * and friends) living in the same barrel, two unrelated protocols were reading as one.
  *
- * `@jini-ai/http-kit`'s `RUN_STREAM_ROUTE_PATH` is deliberately still `/api/runs/:runId/agui-stream`.
- * That string is a wire contract an already-deployed client can be calling; renaming a TypeScript
- * symbol is free, renaming a URL is a breaking change, and the two do not have to move together.
+ * `@jini-ai/http-kit` used to mount this encoder behind a route still named `/api/runs/:runId/
+ * agui-stream` — left un-renamed at the time on the assumption it was a wire contract an
+ * already-deployed client might be calling. A 2026-08-18 audit found zero callers of that route
+ * anywhere (no client in this repo or any consuming product ever requested it, and `@jini-ai/http-kit` has never
+ * actually been published to npm, so no external integrator could depend on it either); the route,
+ * its registrar, and its tests were removed outright rather than renamed. This `gen-ui/` module
+ * itself was untouched — it is `@jini-ai/agentic`'s own public export and its removal is a separate
+ * decision.
  */
 export {
   createGenUiEncoder,

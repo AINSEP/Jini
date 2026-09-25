@@ -163,6 +163,7 @@ export function renderBridgeScript(spec: BridgeScriptSpec): string {
   function toError(error) {
     var failure = new Error(error && typeof error.message === "string" ? error.message : "Host returned an error");
     if (error && typeof error.code === "number") failure.code = error.code;
+    if (error && error.data !== undefined) failure.data = error.data;
     return failure;
   }
 

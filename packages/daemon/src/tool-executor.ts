@@ -46,13 +46,14 @@
  * answer gets back in.
  */
 import { randomUUID } from 'node:crypto';
-import type {
-  AuthorizationDecision,
-  Principal,
-  RunRef,
-  SurfaceEmitter,
-  ToolDescriptor,
-  ToolRegistry,
+import {
+  ToolInputError,
+  type AuthorizationDecision,
+  type Principal,
+  type RunRef,
+  type SurfaceEmitter,
+  type ToolDescriptor,
+  type ToolRegistry,
 } from '@jini-ai/core';
 import { authorizeToolInvocation } from '@jini-ai/core/internal';
 
@@ -137,12 +138,28 @@ export type ToolExecutionStatus =
   | 'cancelled'
   | 'failed';
 
+/**
+ * Distinguishes a `'failed'` execution's cause, for a transport-facing status mapping that needs to
+ * answer with a 4xx rather than fold every failure into one redacted 5xx. `'validation'` means a
+ * handler (or a validator it called, e.g. `@jini-ai/cms`'s `registration-kit.ts` `requireString`)
+ * threw `@jini-ai/core`'s `ToolInputError` — the caller's input was the problem, and a different call
+ * would succeed. `'internal'` is everything else a handler can throw, where retrying with different
+ * input has no reason to help.
+ *
+ * Absent for every status other than `'failed'` — `'timed-out'`/`'cancelled'` are already their own
+ * distinct statuses a transport maps independently, and `'denied'`/`'confirmation-denied'` carry no
+ * thrown error to classify.
+ */
+export type ToolExecutionErrorKind = 'validation' | 'internal';
+
 export interface ToolExecutionResult {
   readonly executionId: string;
   readonly status: ToolExecutionStatus;
   readonly output?: unknown;
   readonly truncated?: boolean;
   readonly error?: string;
+  /** Set only when `status === 'failed'` — see {@link ToolExecutionErrorKind}. */
+  readonly errorKind?: ToolExecutionErrorKind;
 }
 
 export interface ToolExecutor {
@@ -316,7 +333,8 @@ export function createToolExecutor(options: CreateToolExecutorOptions): ToolExec
     }
     const message = err instanceof Error ? err.message : String(err);
     appendEvent(executionId, 'failed', message);
-    return { executionId, status: 'failed', error: message };
+    const errorKind: ToolExecutionErrorKind = err instanceof ToolInputError ? 'validation' : 'internal';
+    return { executionId, status: 'failed', error: message, errorKind };
   }
 
   async function execute(

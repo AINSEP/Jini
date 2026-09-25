@@ -49,7 +49,7 @@ export interface GitHubPagesDeployConfig {
  * blobs → a tree → a commit → create/update a branch ref) rather than the
  * newer artifact-based "Pages deployments" API
  * (`POST /repos/{owner}/{repo}/pages/deployments`). See
- * `packages/deploy/source-map.md`'s 2026-07-21 addition for the full
+ * `packages/devops/source-map.md`'s 2026-07-21 addition for the full
  * research trail; in short: that endpoint requires an `oidc_token` "issued
  * by GitHub Actions certifying the origin of the deployment" — a token this
  * package (running outside an Actions runner, authenticating with a plain

@@ -56,6 +56,8 @@
  * union and cross-checked by this catalog's own contract test rather than imported.
  */
 
+import { ALLOWED_HREF_SHAPES_DESCRIPTION } from "./menu-service.js";
+
 export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
 export type AgentToolActorClassRule = "confirmer-must-equal-own-delegatedBy" | "user-only" | "none";
@@ -116,7 +118,13 @@ const NAV_TARGET_SCHEMA = {
       required: ["kind", "href"],
       properties: {
         kind: { const: "url" },
-        href: { type: "string", description: "An absolute or site-relative URL. 'javascript:', 'data:', and 'vbscript:' schemes are rejected." },
+        href: {
+          type: "string",
+          // Derived from `menu-service.ts`'s own `ALLOWED_HREF_SHAPES_DESCRIPTION` (the single
+          // source of truth `isAllowedHref`'s rejection message also draws from) rather than
+          // hand-copied, so this schema description cannot drift out of sync with the real check.
+          description: `Accepted shapes: ${ALLOWED_HREF_SHAPES_DESCRIPTION}. Anything else — including 'javascript:', 'data:', 'vbscript:', 'file:', 'blob:', 'about:', a protocol-relative '//...' URL, or a bare relative path with no leading '/' — is rejected.`,
+        },
       },
     },
     {

@@ -545,7 +545,7 @@ describe('routineCreateRoute.handle', () => {
     );
     expect(result).toEqual({
       ok: false,
-      error: { code: 'BAD_REQUEST', message: 'target project missing-project not found' },
+      error: { code: 'NOT_FOUND', message: 'target project missing-project not found' },
     });
     expect(await deps.store.list()).toEqual([]);
   });
@@ -654,7 +654,7 @@ describe('routineUpdateRoute.handle', () => {
       { id: routine.id, patch: { target: { mode: 'reuse', projectId: 'missing' } } },
       deps,
     );
-    expect(result).toEqual({ ok: false, error: { code: 'BAD_REQUEST', message: 'target project missing not found' } });
+    expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'target project missing not found' } });
     // The store was never mutated since the check failed before store.update() was called.
     expect((await store.get(routine.id))!.target).toEqual({ mode: 'create_each_run' });
   });

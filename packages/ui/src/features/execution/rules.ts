@@ -1,11 +1,18 @@
 import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
-import { CUSTOM_PRESET_ID, DEFAULT_BASE_URL_BY_PROTOCOL } from './constants.js';
+import {
+  API_KEY_CROSS_VENDOR_WARNING,
+  API_KEY_TOO_SHORT_WARNING,
+  CUSTOM_PRESET_ID,
+  DEFAULT_BASE_URL_BY_PROTOCOL,
+  MIN_PLAUSIBLE_API_KEY_LENGTH,
+} from './constants.js';
 import type {
   AgentCliEnvFieldSpec,
   AgentDiagnostic,
   AgentExecutableRepair,
   AgentExecutableSource,
   AgentModelOption,
+  ApiKeyWarning,
   ByokConfig,
   ByokProviderCredentials,
   ByokRequiredField,
@@ -14,6 +21,7 @@ import type {
   ExecutionMode,
   LocalCliConfig,
   ProviderPreset,
+  ReasoningModelGroup,
 } from './types.js';
 
 /**
@@ -122,6 +130,96 @@ export function missingRequiredFields(
   if (showsBaseUrlField(preset) && !isValidApiBaseUrl(config.baseUrl)) missing.push('baseUrl');
   if (!config.model.trim()) missing.push('model');
   return missing;
+}
+
+/**
+ * The catalog entry that claims this key MORE specifically than the selected preset does — i.e. the
+ * vendor the operator most likely meant to paste it into. `null` when no other row recognises the
+ * string, or when the selection's own claim is at least as specific as any rival's.
+ *
+ * "More specific" is prefix LENGTH, not catalog order. `sk-or-v1-…` starts with both OpenRouter's
+ * `sk-or-` and OpenAI's `sk-`; the longer prefix is the truer claim, and deciding it by row position
+ * would make the message move when someone reorders the catalog. The same comparison gives the
+ * selected preset a tie: a host row that legitimately takes `sk-ant-` keys (an Anthropic-compatible
+ * proxy) claims them exactly as strongly as Anthropic does and so keeps them, silently.
+ *
+ * @param key - The trimmed key text as typed.
+ * @param preset - The selected preset. Required: with no selection there is no "wrong field" to be
+ *   in, and on custom/manual any vendor's key may be exactly right.
+ * @param presets - The catalog to recognise foreign keys against.
+ * @returns The foreign owner, or `null` for silence.
+ * @complexity O(n·m) — n presets, m the length of the longest prefix. Catalogs are single-digit
+ *   rows of authored data, and `startsWith` short-circuits on the first differing character.
+ */
+function foreignKeyOwner(
+  key: string,
+  preset: ProviderPreset,
+  presets: readonly ProviderPreset[],
+): ProviderPreset | null {
+  // -1, not 0, so a preset with no prefix of its own still loses every comparison rather than tying
+  // with one. Azure ships no prefix and must still be told when it is holding an Anthropic key.
+  let bestClaim =
+    preset.apiKeyPrefix && key.startsWith(preset.apiKeyPrefix) ? preset.apiKeyPrefix.length : -1;
+  let owner: ProviderPreset | null = null;
+  for (const candidate of presets) {
+    const prefix = candidate.apiKeyPrefix;
+    if (!prefix || candidate.custom || candidate.id === preset.id) continue;
+    if (prefix.length <= bestClaim || !key.startsWith(prefix)) continue;
+    owner = candidate;
+    bestClaim = prefix.length;
+  }
+  return owner;
+}
+
+/**
+ * The advisory "that key looks wrong" remark for the current draft, or `null` for silence.
+ *
+ * Warns ONLY on what it can positively recognise as wrong, and there are exactly two such things:
+ * a key wearing another catalogued vendor's prefix (pasted into the wrong provider's field), and a
+ * key shorter than {@link MIN_PLAUSIBLE_API_KEY_LENGTH} (the reported Chrome-autofilled PASSWORD).
+ * Everything else — including every shape this package has never seen — is silence.
+ *
+ * That direction is the whole design, and it is the fix for a real reported defect. This function
+ * used to ask "does the key match the selected preset's pattern?" and warn when it did not: a
+ * positive allowlist, which false-positives the instant a vendor issues a shape the catalog has not
+ * been taught. That happened within hours of shipping — an operator pasted a working Google Gemini
+ * key and was told it did not look like a Google API key. A catalog can prove a string belongs to
+ * vendor X; it can never prove a string belongs to nobody. Do not re-derive an allowlist here, and
+ * do not add a per-provider branch: the conditions above are the only two that hold without one.
+ *
+ * ADVISORY ONLY, also by construction: this returns a message, not a validity verdict. No caller may
+ * use it to disable a control or gate a submit — a client-side guess must never be able to block a
+ * working credential. It is deliberately absent from {@link missingRequiredFields}, which IS a gate.
+ *
+ * @param config - The active BYOK draft; only `apiKey` is read.
+ * @param preset - The resolved preset, or `null` on custom/manual, which is exempt from the
+ *   cross-vendor arm (see {@link foreignKeyOwner}) but not from the length floor.
+ * @param presets - The catalog to recognise foreign keys against. Defaults to empty, which is why
+ *   omitting it costs the cross-vendor arm and gains nothing else: an under-informed rule must
+ *   degrade toward silence, never toward guessing.
+ * @returns A translatable {@link ApiKeyWarning}, or `null` when there is nothing to say.
+ * @complexity O(n·m) via {@link foreignKeyOwner}; the length check is O(1).
+ */
+export function apiKeyFormatWarning(
+  config: ByokConfig,
+  preset: ProviderPreset | null,
+  presets: readonly ProviderPreset[] = [],
+): ApiKeyWarning | null {
+  const key = config.apiKey.trim();
+  if (!key) return null;
+  if (preset) {
+    const owner = foreignKeyOwner(key, preset, presets);
+    if (owner) {
+      return {
+        message: API_KEY_CROSS_VENDOR_WARNING,
+        vars: { vendor: owner.title, provider: preset.title },
+      };
+    }
+  }
+  if (key.length < MIN_PLAUSIBLE_API_KEY_LENGTH) {
+    return { message: API_KEY_TOO_SHORT_WARNING, vars: {} };
+  }
+  return null;
 }
 
 /**
@@ -508,4 +606,138 @@ export function agentDiagnosticTooltip(diagnostic: AgentDiagnostic): string {
   return [diagnostic.detail, ...(diagnostic.searchedDirs ?? [])]
     .filter((line): line is string => typeof line === 'string' && line.length > 0)
     .join('\n');
+}
+
+/**
+ * Splits a model id into its base and its reasoning-effort suffix, for a runtime that encodes
+ * effort inside the id (`DetectedAgent.reasoningInModelId`).
+ *
+ * Only a trailing `-<token>` whose token appears in `levelIds` is a level. Everything else stays
+ * part of the base id — which is the whole point: `claude-opus-4-6-thinking` ends in `-thinking`,
+ * which LOOKS like a modifier and is not an effort level, and reading it as one would invent a
+ * `claude-opus-4-6` base that has no variants and a `thinking` level no control can render.
+ *
+ * @param modelId - A full model id from the agent's own catalog.
+ * @param levelIds - The declared effort vocabulary (`reasoningInModelId.levels`, ids only).
+ * @returns The base id and the level, or `level: null` when the id carries no recognized suffix.
+ * @complexity O(k) in `levelIds.length`.
+ */
+export function splitReasoningModelId(
+  modelId: string,
+  levelIds: readonly string[],
+): { baseId: string; level: string | null } {
+  for (const level of levelIds) {
+    const suffix = `-${level}`;
+    // `length > suffix.length` rather than `endsWith` alone: an id that is nothing BUT the suffix
+    // has no base to split off, and splitting it would merge every such entry into one empty-id
+    // group.
+    if (modelId.length > suffix.length && modelId.endsWith(suffix)) {
+      return { baseId: modelId.slice(0, -suffix.length), level };
+    }
+  }
+  return { baseId: modelId, level: null };
+}
+
+/**
+ * Strips a trailing effort qualifier from a model label — `Gemini 3.1 Pro (High)` -> `Gemini 3.1
+ * Pro` — and only when the label really ends in the qualifier for the level its id carried.
+ *
+ * Deliberately narrow: it removes a parenthetical only when that parenthetical's contents match
+ * THIS entry's own level (by id or by label, case-insensitively). `Claude Sonnet 4.6 (Thinking)`
+ * has no level, so nothing is stripped, and a vendor label that happens to end in an unrelated
+ * parenthetical keeps it.
+ */
+function baseLabelForLevel(label: string, level: AgentModelOption | undefined): string {
+  if (!level) return label;
+  const match = /^(.*?)\s*\(([^()]*)\)\s*$/.exec(label);
+  if (!match) return label;
+  const inner = (match[2] ?? '').trim().toLowerCase();
+  if (inner !== level.id.toLowerCase() && inner !== level.label.toLowerCase()) return label;
+  const stripped = (match[1] ?? '').trim();
+  return stripped || label;
+}
+
+/**
+ * Groups an agent's model list by base model, recording for each base the effort levels it
+ * ACTUALLY has.
+ *
+ * Derived, never declared — that is the correctness property this function exists for. Verified
+ * against `agy models`' real output: `gemini-3.8-flash` has high/medium/low, `gemini-3.1-pro` has
+ * ONLY high and low, `gpt-oss-120b` only medium, and `claude-sonnet-4-6` none. A fixed
+ * high/medium/low control would offer `gemini-3.1-pro-medium`, which does not exist and which
+ * `agy --model` rejects outright. Running the same derivation over whichever list the host
+ * supplied — live from the CLI or the def's `fallbackModels` — is also what makes an offline
+ * degrade behave consistently rather than differently.
+ *
+ * @param models - The agent's model catalog, in the order it should be offered.
+ * @param levels - The declared effort vocabulary, in display order.
+ * @returns One group per base id, in first-appearance order. With an empty vocabulary every id is
+ *   its own bare group, so a caller needs no special case for "this agent declares nothing".
+ * @complexity O(n * k) in the catalog size and the vocabulary size.
+ */
+export function reasoningModelGroups(
+  models: readonly AgentModelOption[],
+  levels: readonly AgentModelOption[],
+): ReasoningModelGroup[] {
+  const levelIds = levels.map((level) => level.id);
+  const byBase = new Map<string, { label: string; ids: Map<string, string>; bare?: string }>();
+  for (const model of models) {
+    const { baseId, level } = splitReasoningModelId(model.id, levelIds);
+    const existing = byBase.get(baseId);
+    const entry = existing ?? { label: baseLabelForLevel(model.label, levels.find((l) => l.id === level)), ids: new Map<string, string>() };
+    if (level === null) {
+      // A base listed on its own AND with variants keeps both: the bare id is the "no effort
+      // stated" choice, the variants are the stated ones.
+      entry.bare = model.id;
+    } else {
+      entry.ids.set(level, model.id);
+    }
+    if (!existing) byBase.set(baseId, entry);
+  }
+  return [...byBase.entries()].map(([baseId, entry]) => ({
+    baseId,
+    label: entry.label,
+    // Ordered by the DECLARED vocabulary, not by catalog order, so the control's option order is
+    // stable across bases even if a CLI ever lists one base's variants in a different order.
+    levels: levels.filter((level) => entry.ids.has(level.id)),
+    modelIdByLevel: Object.fromEntries(entry.ids),
+    ...(entry.bare !== undefined ? { bareModelId: entry.bare } : {}),
+  }));
+}
+
+/** The group a full model id belongs to, or `null` when the id is not in this catalog at all — a
+ *  saved pick from an older/different catalog must not be silently attached to some other base. */
+export function reasoningModelGroupFor(
+  groups: readonly ReasoningModelGroup[],
+  modelId: string,
+  levelIds: readonly string[],
+): ReasoningModelGroup | null {
+  if (!modelId) return null;
+  const { baseId } = splitReasoningModelId(modelId, levelIds);
+  return groups.find((group) => group.baseId === baseId) ?? null;
+}
+
+/**
+ * Recombines a base model and an effort level back into one model id — the value `--model`
+ * actually receives.
+ *
+ * Never composes a string: every id it can return came out of the agent's own catalog. That is
+ * what makes "switch base while a level is selected" safe — carrying `medium` from
+ * `gemini-3.8-flash` over to `gemini-3.1-pro` cannot produce `gemini-3.1-pro-medium`, because
+ * that base's table has no `medium` entry and the fallback below lands on a level it does have.
+ *
+ * @param group - The target base's derived group.
+ * @param level - The level to prefer, or `null` for "no preference".
+ * @returns An id from the catalog: the requested level's, else the base's bare id, else its first
+ *   available level's, else the bare base id (only reachable for a group built from nothing).
+ * @complexity O(1).
+ */
+export function modelIdForReasoningLevel(group: ReasoningModelGroup, level: string | null): string {
+  if (level) {
+    const exact = group.modelIdByLevel[level];
+    if (exact) return exact;
+  }
+  if (group.bareModelId !== undefined) return group.bareModelId;
+  const first = group.levels[0];
+  return first ? (group.modelIdByLevel[first.id] ?? group.baseId) : group.baseId;
 }

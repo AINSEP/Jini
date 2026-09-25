@@ -1,18 +1,19 @@
 /**
  * @module react/mcp-ui/McpUiHost
  *
- * Mounts one MCP-UI View: the sandboxed iframe, the handshake, and the frame sizing that follows
- * the View's own `ui/notifications/size-changed`.
+ * Mounts one MCP-UI View through the real `@mcp-ui/client` `AppRenderer` — the sandboxed iframe, the
+ * handshake, and the frame sizing that follows the View's own `ui/notifications/size-changed` are
+ * all `AppRenderer`'s job now; this component supplies the chrome (title, class, height clamping)
+ * around it. See `useMcpUiHost.ts`'s module doc for what this swap changed and why.
  *
- * Thin on purpose — every protocol decision lives in `useMcpUiHost.ts`, so a consumer needing
- * different chrome (a titled card, a modal, a full-height pane) writes that chrome against the hook
- * rather than forking this.
+ * Thin on purpose, same as before — every protocol decision lives in `useMcpUiHost.ts`, so a
+ * consumer needing different chrome writes that chrome against the hook rather than forking this.
  */
+import { AppRenderer } from '@mcp-ui/client';
 import { useMcpUiHost, type McpUiHostOptions } from './useMcpUiHost.js';
-import { MCP_UI_VIEW_SANDBOX } from '../../features/mcp-ui/protocol.js';
 
 export interface McpUiHostProps extends McpUiHostOptions {
-  /** The iframe's accessible name. Required — an unlabelled frame is announced as "frame" and nothing else. */
+  /** The frame's accessible name — forwarded to `AppRenderer`'s `hostInfo`-independent wrapper `<div>`; the iframe itself has no `title` attribute in `@mcp-ui/client`'s own markup, so this labels the wrapper instead. */
   readonly title: string;
   readonly className?: string;
   /** Frame height before the View reports its own, and whenever `autoResize` is off. */
@@ -29,12 +30,6 @@ const DEFAULT_MAX_HEIGHT = 720;
 /**
  * Renders a View and runs its protocol session.
  *
- * The `sandbox` attribute is {@link MCP_UI_VIEW_SANDBOX} — `allow-scripts`, never
- * `allow-same-origin`. See that constant's own documentation: the spec's example includes
- * `allow-same-origin` because spec Views are served from a separate origin, and a `srcdoc` frame has
- * no separate origin to be isolated to, so copying it would grant the generated document full access
- * to the embedding page.
- *
  * @param props - See {@link McpUiHostProps}.
  */
 export function McpUiHost(props: McpUiHostProps) {
@@ -45,18 +40,21 @@ export function McpUiHost(props: McpUiHostProps) {
   const height = autoResize && reported !== undefined ? Math.min(Math.max(reported, 1), maxHeight) : initialHeight;
 
   return (
-    <div className={className} data-mcpui-host="" data-mcpui-state={host.state}>
-      <iframe
-        // Keyed by the session so replacing the document produces a genuinely new frame — and
-        // therefore a new `contentWindow`, which is what the Host authenticates messages against.
-        // Mutating `srcDoc` in place would leave a frame whose script re-runs while the Host is
-        // still in `ready` and refuses its fresh `ui/initialize`.
+    <div
+      className={className}
+      data-mcpui-host=""
+      data-mcpui-state={host.state}
+      aria-label={title}
+      style={{ display: 'block', width: '100%', height }}
+    >
+      <AppRenderer
+        // Keyed by the session so replacing the document remounts `AppRenderer` — a fresh
+        // `AppBridge`, a fresh sandbox iframe, a fresh handshake. `AppRenderer` itself provides no
+        // "replace the document in place" mode; remount via `key` is the supported way to start a
+        // new session, per `@mcp-ui/client`'s own docs.
         key={String(props.sessionKey ?? props.html)}
-        ref={host.iframeRef}
-        title={title}
-        srcDoc={props.html}
-        sandbox={MCP_UI_VIEW_SANDBOX}
-        style={{ display: 'block', width: '100%', height, border: 0 }}
+        ref={host.rendererRef}
+        {...host.rendererProps}
       />
     </div>
   );

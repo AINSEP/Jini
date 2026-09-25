@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFormSurface, renderFormDocument, type FormSurfaceSpec } from '../../surfaces/form.js';
 import { MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 
 const SPEC: FormSurfaceSpec = {
@@ -125,9 +126,32 @@ describe('renderFormDocument', () => {
     expect(surface.disabledActions()).toEqual([false, false]);
   });
 
+  it('keeps a submitted form disabled, and Enter inert, once the host says the dialog expired', async () => {
+    const surface = mountSurface(renderFormDocument(SPEC));
+    surface.submit();
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.statusState()).toBe('expired');
+    expect(surface.disabledActions()).toEqual([true, true]);
+
+    const input = surface.doc.querySelector('input[type="text"]')!;
+    surface.pressEnter(input);
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the form disabled when a cancel tool reports the dialog expired', async () => {
+    const surface = mountSurface(
+      renderFormDocument({ ...SPEC, cancel: { label: 'Cancel', toolName: 'content_post_abandon' } }),
+    );
+    surface.trustedClick('cancel');
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.disabledActions()).toEqual([true, true]);
+  });
+
   it('dismisses locally when cancel names no tool', () => {
     const surface = mountSurface(renderFormDocument(SPEC));
-    surface.click('cancel');
+    surface.trustedClick('cancel');
     expect(surface.api.callTool).not.toHaveBeenCalled();
     expect(surface.status()).toBe('Dismissed.');
     expect(surface.api.requestTeardown).toHaveBeenCalledTimes(1);
@@ -137,7 +161,7 @@ describe('renderFormDocument', () => {
     const surface = mountSurface(
       renderFormDocument({ ...SPEC, cancel: { label: 'Cancel', toolName: 'content_post_abandon', params: { id: 'p1' } } }),
     );
-    surface.click('cancel');
+    surface.trustedClick('cancel');
     expect(surface.api.callTool).toHaveBeenCalledWith('content_post_abandon', { id: 'p1' });
     await surface.settle('resolve', null);
     expect(surface.status()).toBe('Dismissed.');
@@ -145,7 +169,7 @@ describe('renderFormDocument', () => {
     const failing = mountSurface(
       renderFormDocument({ ...SPEC, cancel: { label: 'Cancel', toolName: 'content_post_abandon' } }),
     );
-    failing.click('cancel');
+    failing.trustedClick('cancel');
     expect(failing.api.callTool).toHaveBeenCalledWith('content_post_abandon', {});
     await failing.settle('reject', new Error('already gone'));
     expect(failing.status()).toBe('Failed: already gone');
@@ -170,7 +194,7 @@ describe('renderFormDocument', () => {
 
   it('submits via a click on the submit button, the only path the target sandbox permits', () => {
     const surface = mountSurface(renderFormDocument(SPEC));
-    surface.click('submit');
+    surface.trustedClick('submit');
     expect(surface.api.callTool).toHaveBeenCalledWith('content_post_schedule', {
       id: 'p1',
       confirmationToken: 'tok',
@@ -197,7 +221,7 @@ describe('renderFormDocument', () => {
   it('submits on Enter in a single-line text field, restoring the parity a real <form> would have given away for free', () => {
     const surface = mountSurface(renderFormDocument(SPEC));
     const note = surface.doc.querySelector<HTMLInputElement>('input[name="note"]')!;
-    note.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    surface.pressEnter(note);
     expect(surface.api.callTool).toHaveBeenCalledWith('content_post_schedule', {
       id: 'p1',
       confirmationToken: 'tok',
@@ -218,7 +242,7 @@ describe('renderFormDocument', () => {
   it('ignores repeated Enter while a call is in flight, and re-arms only once that call has failed', async () => {
     const surface = mountSurface(renderFormDocument(SPEC));
     const note = surface.doc.querySelector<HTMLInputElement>('input[name="note"]')!;
-    const pressEnter = () => note.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    const pressEnter = () => surface.pressEnter(note);
 
     pressEnter();
     pressEnter();
@@ -241,10 +265,8 @@ describe('renderFormDocument', () => {
       renderFormDocument({ ...SPEC, cancel: { label: 'Cancel', toolName: 'content_post_abandon', params: { id: 'p1' } } }),
     );
 
-    surface.click('cancel');
-    surface.doc
-      .querySelector<HTMLInputElement>('input[name="note"]')!
-      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    surface.trustedClick('cancel');
+    surface.pressEnter(surface.doc.querySelector<HTMLInputElement>('input[name="note"]')!);
 
     expect(surface.api.callTool).toHaveBeenCalledTimes(1);
     expect(surface.api.callTool).toHaveBeenCalledWith('content_post_abandon', { id: 'p1' });
@@ -253,7 +275,7 @@ describe('renderFormDocument', () => {
   it('does not submit on Enter in a checkbox, matching what native implicit submission would have done', () => {
     const surface = mountSurface(renderFormDocument(SPEC));
     const notify = surface.doc.querySelector<HTMLInputElement>('input[name="notify"]')!;
-    notify.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    surface.pressEnter(notify);
     expect(surface.api.callTool).not.toHaveBeenCalled();
   });
 
@@ -265,7 +287,7 @@ describe('renderFormDocument', () => {
       }),
     );
     const note = surface.doc.querySelector<HTMLTextAreaElement>('textarea[name="note"]')!;
-    note.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    surface.pressEnter(note);
     expect(surface.api.callTool).not.toHaveBeenCalled();
   });
 
@@ -291,6 +313,40 @@ describe('renderFormDocument', () => {
     expect(html).toContain('"host-schedule-form"');
     surface.submit();
     expect(surface.status()).toBe('Envoi…');
+  });
+  describe('acts only on what a person does', () => {
+    // element.click(), dispatchEvent and a synthetic keydown from any script produce isTrusted ===
+    // false. A form's submit is a state-changing tool call, so the same rule as the confirmation.
+    it('sends nothing for a synthetic click on submit', () => {
+      const surface = mountSurface(renderFormDocument(SPEC));
+      surface.click('submit');
+      expect(surface.api.callTool).not.toHaveBeenCalled();
+      expect(surface.status()).toBe('');
+    });
+
+    it('sends nothing for a synthetic Enter in a text field', () => {
+      const surface = mountSurface(renderFormDocument(SPEC));
+      surface.doc
+        .querySelector<HTMLInputElement>('input[name="note"]')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+      expect(surface.api.callTool).not.toHaveBeenCalled();
+      expect(surface.status()).toBe('');
+    });
+
+    it('sends nothing for a synthetic cancel click, with or without a cancel tool', () => {
+      const withTool = mountSurface(
+        renderFormDocument({ ...SPEC, cancel: { label: 'Cancel', toolName: 'content_post_abandon' } }),
+      );
+      withTool.click('cancel');
+      expect(withTool.api.callTool).not.toHaveBeenCalled();
+      expect(withTool.status()).toBe('');
+
+      const dismissOnly = mountSurface(renderFormDocument(SPEC));
+      dismissOnly.click('cancel');
+      expect(dismissOnly.api.requestTeardown).not.toHaveBeenCalled();
+      expect(dismissOnly.status()).toBe('');
+      expect(dismissOnly.disabledActions()).toEqual([false, false]);
+    });
   });
 });
 

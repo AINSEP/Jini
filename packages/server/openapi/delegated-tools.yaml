@@ -1,0 +1,78 @@
+openapi: 3.0.3
+info:
+  title: Jini daemon delegated-tool-call route
+  version: 0.0.0
+  description: |
+    Code-first fragment for `delegated-tools.ts`'s single route in
+    `@jini-ai/http-kit` — the daemon-side half of an MCP-callback continuation:
+    an MCP server subprocess spawned alongside an agent run calls back into the
+    daemon over loopback HTTP with `{runId, toolUseId, toolId, input}`, and this
+    route hands that off to `createDelegatedToolBridge`, the only execution
+    path from here — every call still passes through `ToolExecutor`'s own
+    deny-by-default gate.
+
+    **Response-status convention matches `db-ops.ts`'s precedent for the
+    identical `ToolExecutionResult` union.** `completed` comes back as
+    `200 {result}`. `denied` and `confirmation-denied` both surface as the
+    same `403 TOOL_OPERATION_DENIED`. `timed-out`, `cancelled`, and `failed`
+    are folded into the generic `500 INTERNAL_ERROR` (SEC-005 — the real
+    status/error is only logged server-side via `onInternalError`, never
+    returned to the caller). A genuinely unexpected throw (an unregistered
+    `toolId`, or a run turning terminal mid-flight) reaches that same generic
+    `500 INTERNAL_ERROR`. `input` is intentionally unvalidated `unknown` at
+    this layer — the called tool's own handler is responsible for validating
+    its shape.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/delegated-tool-calls:
+    post:
+      operationId: execute_delegated_tool_call
+      summary: Execute one delegated tool call against an already-started run
+      x-jini-require-same-origin: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/DelegatedToolExecuteRequest' } } }
+      responses:
+        '200': { description: 'The delegated call completed (`ToolExecutionResult.status === "completed"`).', content: { application/json: { schema: { $ref: '#/components/schemas/DelegatedToolExecuteResponse' } } } }
+        '400': { description: 'Body is not a JSON object, or `runId`/`toolUseId`/`toolId` is missing or not a non-empty string.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { description: 'Same-origin guard rejected the request, or `ToolExecutionResult.status` was `denied` or `confirmation-denied` (both return `TOOL_OPERATION_DENIED`).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '404': { description: '`runId` does not reference a known run (checked before `resolvePrincipal` or the bridge ever run).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { description: 'Host-supplied `resolvePrincipal` threw; the bridge threw unexpectedly (e.g. `toolId` not registered in `ToolExecutor` — a routing/programming error); or `ToolExecutionResult.status` was `timed-out`, `cancelled`, or `failed`. All are SEC-005-redacted to a generic `INTERNAL_ERROR` with a correlation requestId in error.details — the real detail is only logged server-side.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+components:
+  securitySchemes:
+    optionalBearer:
+      type: http
+      scheme: bearer
+      description: When the host enables `JINI_API_TOKEN`, the global `/api` middleware requires this token except for health/ready/version probes and permitted direct loopback peers.
+  responses:
+    Forbidden: { description: Same-origin guard rejected the request., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    DelegatedToolExecuteRequest:
+      type: object
+      required: [runId, toolUseId, toolId]
+      properties:
+        runId: { type: string, minLength: 1 }
+        toolUseId: { type: string, minLength: 1 }
+        toolId: { type: string, minLength: 1 }
+        input: { description: Passed through unvalidated to the tool's own handler., nullable: true }
+    ToolExecutionResult:
+      type: object
+      description: 'Mirrors `@jini-ai/daemon`''s `ToolExecutionResult`. Only `status: completed` is ever returned in a `200` body here — the other five statuses are mapped to `403`/`500` error responses instead (see fragment description).'
+      required: [executionId, status]
+      properties:
+        executionId: { type: string }
+        status: { type: string, enum: [completed, denied, confirmation-denied, timed-out, cancelled, failed] }
+        output: { description: 'Present when status is completed.', nullable: true }
+        truncated: { type: boolean, description: True when output was cut to the executor's maxOutputBytes cap. }
+        error: { type: string, description: Present when status is failed. }
+    DelegatedToolExecuteResponse:
+      type: object
+      required: [result]
+      properties: { result: { $ref: '#/components/schemas/ToolExecutionResult' } }

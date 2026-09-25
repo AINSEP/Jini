@@ -114,4 +114,15 @@ export const cursorAgentDef = {
     // it here is what makes detection surface an "auth required" badge for
     // Cursor Agent (the generalized probe only runs for adapters that opt in).
     authProbe: { args: ['status'], timeoutMs: 5000 },
+    // No `externalMcpInjection`: Cursor CLI does support native MCP — it
+    // auto-discovers `.cursor/mcp.json` (project) / `~/.cursor/mcp.json`
+    // (global) with project→global→nested precedence, and reportedly has an
+    // `--approve-mcps` flag to skip the interactive trust prompt — but there
+    // is no confirmed explicit `--mcp-config <path>` flag, so wiring it would
+    // mean merging into the project's real `.cursor/mcp.json` (never a
+    // run-scoped file) and needs `--approve-mcps` verified live against this
+    // package's headless spawn shape first. Needs a new
+    // merge-into-existing-file strategy, not a reuse of `'claude-mcp-json'`
+    // (which relies on an explicit per-run path, never auto-discovery — see
+    // `buildClaudeMcpConfigArgs`'s doc for why).
 } satisfies RuntimeAgentDef;

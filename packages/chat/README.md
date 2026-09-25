@@ -71,7 +71,7 @@ import {
   isTerminalRunStatus,
   type ChatMessage,
   type ChatTransport,
-} from '@jini-ai/chat-core';
+} from '@jini-ai/chat/core';
 
 const history: ChatMessage[] = [
   { id: '1', role: 'user', content: 'summarize this repo' },

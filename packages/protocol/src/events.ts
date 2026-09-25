@@ -88,7 +88,29 @@ export type RunAgentPayload =
   | { type: 'thinking_delta'; delta: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'tool_input_delta'; id: string; name: string; delta: string }
-  | { type: 'tool_result'; toolUseId: string; content: string; isError?: boolean }
+  /**
+   * `media`: typed content blocks a tool result carries ALONGSIDE `content`, for a UI to render
+   * directly — an image, today; more block types later without another wire change. Additive and
+   * optional: a tool that returns none, which is every tool this codebase ships as of this field's
+   * introduction, produces an identical wire event to before.
+   *
+   * Typed `unknown` here for the same reason `mcp-ui`'s `resource` and `a2ui`'s `message` are
+   * (see their own docs below): `@jini-ai/protocol` sits below every feature package and must not
+   * depend sideways on one for a single variant's shape. The real vocabulary
+   * (`{type:'text',text}` / `{type:'image',mimeType,data}`, MCP's own content-block convention —
+   * these blocks come FROM MCP tool results, so reusing its vocabulary beats inventing a fourth
+   * one) is `@jini-ai/daemon`'s `tool-result-media.ts`, and `@jini-ai/chat`'s `AgentEvent` ports
+   * (does not import — see `tools.ts`'s own module doc on why chat-core stays free of a
+   * `@jini-ai/protocol` dependency) the same shape for `ToolCard` to render.
+   *
+   * Deliberately NOT routed through the `mcp-ui` withheld-surface mechanism above: that path exists
+   * for a security property (a UI-only resource must never reach the model — see `mcp-ui`'s doc),
+   * and forcing an image through it would mean building the general MCP-UI host (iframe rendering,
+   * `registerMcpUiSurfaceRenderer`) this field is deliberately scoped to avoid needing yet. `media`
+   * blocks stay on the ordinary `tool_result` event, visible to whatever reads the run stream — the
+   * model still only ever sees `content`, since no driver forwards `media` into a prompt.
+   */
+  | { type: 'tool_result'; toolUseId: string; content: string; isError?: boolean; media?: unknown }
   | { type: 'usage'; usage?: { input_tokens?: number; output_tokens?: number }; costUsd?: number; durationMs?: number }
   | { type: 'raw'; line: string }
   /**
@@ -156,7 +178,25 @@ export type RunAgentPayload =
    * A chat host renders these by calling `@jini-ai/chat`'s `registerMcpUiSurfaceRenderer()` once;
    * this `type` deliberately matches that renderer's `MCP_UI_EXT_EVENT_NAME`.
    */
-  | { type: 'mcp-ui'; toolUseId: string; resource: unknown };
+  | { type: 'mcp-ui'; toolUseId: string; resource: unknown }
+  /**
+   * The wall-clock "still working" signal (`@jini-ai/daemon`'s `run-lifecycle.ts` slow-run notice,
+   * armed kernel-wide by default): a run has gone `slowRunThresholdMs` with no `emit()`, WITHOUT
+   * being finished — a status report, never a termination; the run stays `'running'`.
+   *
+   * Its own `type` rather than reuse of the pre-existing `'status'` variant above, deliberately: no
+   * host in this codebase renders `'status'` events today (verified by reading every consumer of
+   * `@jini-ai/chat`'s reducer output — `MessageRow.tsx`/`message-blocks.ts` have no branch for it,
+   * and a downstream product's own admin — `assistant-transport.ts`'s `terminalReasonNotice` — builds a `'status'`
+   * event the exact same way and it is equally unrendered there). A chat host's generic `ext`
+   * escape hatch (`kind: 'ext'`, the fallback every unrecognized `type` already receives from a
+   * transport's translation switch) is a rendering path already proven live by this codebase's
+   * `mcp-ui`/`a2ui` ext renderers, so a new, distinctly-named `type` here is what actually reaches
+   * an operator instead of silently joining `'status'` in an unrendered dead end. A host that
+   * registers no `'slow_running'` ext renderer sees nothing new — additive to every existing
+   * consumer, the same guarantee every other addition to this union already gives.
+   */
+  | { type: 'slow_running'; detail: string };
 
 export type RunProtocolEvent =
   | RunEvent<'start', RunStartPayload>

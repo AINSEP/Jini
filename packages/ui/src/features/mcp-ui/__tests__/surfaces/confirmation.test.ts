@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { buildConfirmationSurface, renderConfirmationDocument } from '../../surfaces/confirmation.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  CONFIRM_DWELL_MS,
+  buildConfirmationSurface,
+  renderConfirmationDocument,
+} from '../../surfaces/confirmation.js';
 import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 
 const TOKEN = 'single-use-secret-token';
@@ -27,7 +32,22 @@ const DELETE_POST = {
   },
 } as const;
 
+type Surface = ReturnType<typeof mountSurface>;
+
+/** What a person does: the dialog has been on screen for the full dwell, then a trusted click. */
+function humanClick(surface: Surface, action: string): void {
+  vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+  surface.trustedClick(action);
+}
+
 describe('renderConfirmationDocument', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('renders the title, description, every detail, and the warning', () => {
     const { doc } = mountSurface(renderConfirmationDocument(DELETE_POST));
     expect(doc.querySelector('h1')?.textContent).toBe('Delete this post?');
@@ -65,7 +85,7 @@ describe('renderConfirmationDocument', () => {
 
   it('sends a JSON-RPC tools/call with the confirm params when the affirmative button is clicked', async () => {
     const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
-    surface.click('confirm');
+    humanClick(surface, 'confirm');
 
     expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
       id: 'p1',
@@ -73,6 +93,7 @@ describe('renderConfirmationDocument', () => {
       confirmationToken: TOKEN,
       decision: 'confirm',
     });
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
     expect(surface.status()).toBe('Working…');
     expect(surface.disabledActions()).toEqual([true, true]);
 
@@ -82,9 +103,168 @@ describe('renderConfirmationDocument', () => {
     expect(surface.api.requestTeardown).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps the dwell at 1500 ms, longer than the ~1 s render-to-confirm gap it was added for', () => {
+    expect(CONFIRM_DWELL_MS).toBe(1500);
+  });
+
+  it('renders the confirm button disabled, before any script runs', () => {
+    const raw = new DOMParser().parseFromString(renderConfirmationDocument(DELETE_POST), 'text/html');
+    expect(raw.querySelector<HTMLButtonElement>('button[data-mcpui-action="confirm"]')?.disabled).toBe(true);
+    expect(raw.querySelector<HTMLButtonElement>('button[data-mcpui-action="cancel"]')?.disabled).toBe(false);
+  });
+
+  it('enables confirm when the dwell ends, and leaves cancel usable throughout', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    expect(surface.disabledActions()).toEqual([true, false]);
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    expect(surface.disabledActions()).toEqual([true, false]);
+    vi.advanceTimersByTime(1);
+    expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
+  it('keeps confirm disabled while hidden, and disables it again when hidden after the dwell', () => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST), (doc) => {
+      Object.defineProperty(doc, 'visibilityState', { configurable: true, get: () => visibility });
+    });
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 5);
+    expect(surface.disabledActions()).toEqual([true, false]);
+
+    visibility = 'visible';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([false, false]);
+
+    visibility = 'hidden';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    expect(surface.disabledActions()).toEqual([true, false]);
+    visibility = 'visible';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    expect(surface.disabledActions()).toEqual([true, false]);
+    vi.advanceTimersByTime(1);
+    expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
+  it('does not let the dwell timer re-enable confirm while a cancel is in flight or after it expired', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    surface.trustedClick('cancel');
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([true, true]);
+
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 5);
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.disabledActions()).toEqual([true, true]);
+  });
+
+  it('keeps confirm disabled after a failed early cancel until the dwell has run out', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    surface.trustedClick('cancel');
+    await surface.settle('reject', new Error('upstream down'));
+    expect(surface.status()).toBe('Failed: upstream down');
+    expect(surface.disabledActions()).toEqual([true, false]);
+
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
+  it('sends nothing for a synthetic (untrusted) confirm click, however late it lands', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 10);
+    surface.click('confirm');
+
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.api.requestTeardown).not.toHaveBeenCalled();
+    expect(surface.status()).toBe('');
+    expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
+  it('sends nothing for a synthetic cancel click, with or without a cancel tool', () => {
+    const withTool = mountSurface(renderConfirmationDocument(DELETE_POST));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    withTool.click('cancel');
+    expect(withTool.api.callTool).not.toHaveBeenCalled();
+
+    const dismissOnly = mountSurface(renderConfirmationDocument({ ...DELETE_POST, cancel: { label: 'Not now' } }));
+    dismissOnly.click('cancel');
+    expect(dismissOnly.api.requestTeardown).not.toHaveBeenCalled();
+    expect(dismissOnly.status()).toBe('');
+  });
+
+  it('ignores a trusted confirm click that lands before the dwell, then sends exactly one after it', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    surface.trustedClick('confirm');
+
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.status()).toBe('');
+    expect(surface.disabledActions()).toEqual([true, false]);
+
+    vi.advanceTimersByTime(1);
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'confirm',
+    });
+  });
+
+  it('lets a trusted cancel through at once -- backing out needs no dwell', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'cancel',
+    });
+  });
+
+  it('starts the dwell when a hidden dialog becomes visible, not when it loaded', () => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST), (doc) => {
+      Object.defineProperty(doc, 'visibilityState', { configurable: true, get: () => visibility });
+    });
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 5);
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+
+    visibility = 'visible';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(1);
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('restarts the dwell when the dialog is hidden and shown again', () => {
+    let visibility: DocumentVisibilityState = 'visible';
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST), (doc) => {
+      Object.defineProperty(doc, 'visibilityState', { configurable: true, get: () => visibility });
+    });
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 5);
+    visibility = 'hidden';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    visibility = 'visible';
+    surface.doc.dispatchEvent(new Event('visibilitychange'));
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
   it('re-enables the buttons and shows the host’s reason when the call fails', async () => {
     const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
-    surface.click('confirm');
+    humanClick(surface, 'confirm');
     await surface.settle('reject', new Error('Row is locked'));
 
     expect(surface.status()).toBe('Failed: Row is locked');
@@ -94,16 +274,51 @@ describe('renderConfirmationDocument', () => {
     expect(surface.api.requestTeardown).not.toHaveBeenCalled();
   });
 
+  it('keeps the buttons disabled and says the dialog expired when the host reports it is no longer pending', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    await surface.settle(
+      'reject',
+      Object.assign(new Error('that dialog is no longer waiting for an answer'), {
+        data: { code: SURFACE_NOT_PENDING_ERROR_CODE },
+      }),
+    );
+
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(surface.statusState()).toBe('expired');
+    expect(surface.disabledActions()).toEqual([true, true]);
+    expect(surface.api.requestTeardown).not.toHaveBeenCalled();
+
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends one call however many trusted clicks land while it is in flight', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    surface.trustedClick('confirm');
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
+  it('still re-enables on an error whose data carries some other code', async () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    await surface.settle('reject', Object.assign(new Error('nope'), { data: { code: 'TOOL_CALL_FAILED' } }));
+    expect(surface.status()).toBe('Failed: nope');
+    expect(surface.disabledActions()).toEqual([false, false]);
+  });
+
   it('stringifies a non-Error rejection rather than printing [object Object]', async () => {
     const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
-    surface.click('confirm');
+    humanClick(surface, 'confirm');
     await surface.settle('reject', 'plain string failure');
     expect(surface.status()).toBe('Failed: plain string failure');
   });
 
   it('calls the cancel tool too, so a pending token is burned instead of left live', () => {
     const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
-    surface.click('cancel');
+    humanClick(surface, 'cancel');
     expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
       id: 'p1',
       kind: 'post',
@@ -116,7 +331,7 @@ describe('renderConfirmationDocument', () => {
     const surface = mountSurface(
       renderConfirmationDocument({ ...DELETE_POST, cancel: { label: 'Not now' } }),
     );
-    surface.click('cancel');
+    humanClick(surface, 'cancel');
     expect(surface.api.callTool).not.toHaveBeenCalled();
     expect(surface.status()).toBe('Dismissed.');
     expect(surface.statusState()).toBe('dismissed');
@@ -142,13 +357,13 @@ describe('renderConfirmationDocument', () => {
       }),
     );
     expect(surface.doc.documentElement.getAttribute('lang')).toBe('fr');
-    surface.click('confirm');
+    humanClick(surface, 'confirm');
     expect(surface.status()).toBe('Suppression…');
     await surface.settle('resolve', null);
     expect(surface.status()).toBe('Supprimé.');
 
     const failing = mountSurface(renderConfirmationDocument({ ...DELETE_POST, text: { working: 'x' } }));
-    failing.click('confirm');
+    humanClick(failing, 'confirm');
     await failing.settle('reject', new Error('nope'));
     expect(failing.status()).toBe('Failed: nope');
   });
@@ -161,6 +376,162 @@ describe('renderConfirmationDocument', () => {
     });
     expect(html).toContain('"host-delete-dialog"');
     expect(html).toContain('--jini-mcpui-danger: #800000;');
+  });
+});
+
+describe('choices', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const CHOICES = [
+    { id: 'a', label: 'Item A' },
+    { id: 'b', label: 'Item B' },
+  ] as const;
+
+  it('renders one unchecked checkbox per choice, after the details', () => {
+    const { doc } = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    const boxes = [...doc.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    expect(boxes).toHaveLength(2);
+    expect(boxes.map((box) => box.checked)).toEqual([false, false]);
+    expect(boxes.map((box) => box.getAttribute('data-mcpui-choice'))).toEqual(['a', 'b']);
+  });
+
+  it('posts only the ticked ids under "overwrite" when a trusted confirm click lands after the dwell', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.trustedToggleChoice('b', true);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'confirm',
+      overwrite: ['b'],
+    });
+  });
+
+  it('sends confirm params byte-identical to a spec written before this field existed when there are no choices', () => {
+    const surface = mountSurface(renderConfirmationDocument(DELETE_POST));
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'confirm',
+    });
+  });
+
+  it('never lets an untrusted checkbox change affect what confirm sends, and snaps the box back', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.toggleChoice('b', true);
+    expect(surface.choiceInput('b').checked).toBe(false);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'confirm',
+      overwrite: [],
+    });
+  });
+
+  it('leaves cancel’s params untouched by any ticked choice', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.trustedToggleChoice('a', true);
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', {
+      id: 'p1',
+      kind: 'post',
+      confirmationToken: TOKEN,
+      decision: 'cancel',
+    });
+  });
+
+  it('posts under a custom choicesParam name when one is given', () => {
+    const surface = mountSurface(
+      renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES, choicesParam: 'forcedEntityKeys' }),
+    );
+    surface.trustedToggleChoice('a', true);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith(
+      'content_post_delete',
+      expect.objectContaining({ forcedEntityKeys: ['a'] }),
+    );
+  });
+
+  it('escapes a choice id containing script- and attribute-breaking characters', () => {
+    const trickyId = '</script>"';
+    const html = renderConfirmationDocument({ ...DELETE_POST, choices: [{ id: trickyId, label: 'Tricky' }] });
+    // The raw sequence never appears unescaped in the served document.
+    expect(html).not.toContain('</script>"');
+    const surface = mountSurface(html);
+    expect(surface.choiceInput(trickyId).getAttribute('data-mcpui-choice')).toBe(trickyId);
+    surface.trustedToggleChoice(trickyId, true);
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith(
+      'content_post_delete',
+      expect.objectContaining({ overwrite: [trickyId] }),
+    );
+  });
+
+  it('freezes the boxes once confirm is sent, so the visible ticks always match what was posted', async () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    const disabledChoices = () => CHOICES.map((choice) => surface.choiceInput(choice.id).disabled);
+    surface.trustedToggleChoice('a', true);
+    humanClick(surface, 'confirm');
+    expect(disabledChoices()).toEqual([true, true]);
+    // A retryable failure re-arms the boxes along with the buttons.
+    await surface.settle('reject', new Error('upstream down'));
+    expect(disabledChoices()).toEqual([false, false]);
+    humanClick(surface, 'confirm');
+    await surface.settle('reject', Object.assign(new Error('gone'), { data: { code: SURFACE_NOT_PENDING_ERROR_CODE } }));
+    expect(surface.status()).toBe('This dialog expired. Ask again.');
+    expect(disabledChoices()).toEqual([true, true]);
+  });
+
+  it('keeps the boxes frozen after a confirm succeeds', async () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    humanClick(surface, 'confirm');
+    await surface.settle('resolve', {});
+    expect(CHOICES.map((choice) => surface.choiceInput(choice.id).disabled)).toEqual([true, true]);
+  });
+
+  it('never posts an id whose box does not show a tick when confirm is clicked', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES }));
+    surface.trustedToggleChoice('a', true);
+    surface.trustedToggleChoice('b', true);
+    // Cleared with no change event at all -- the box now reads unticked, so it must not be sent.
+    surface.choiceInput('a').checked = false;
+    humanClick(surface, 'confirm');
+    expect(surface.api.callTool).toHaveBeenCalledWith('content_post_delete', expect.objectContaining({ overwrite: ['b'] }));
+  });
+
+  it('refuses two choices with the same id', () => {
+    expect(() =>
+      renderConfirmationDocument({
+        ...DELETE_POST,
+        choices: [
+          { id: 'a', label: 'One' },
+          { id: 'a', label: 'Two' },
+        ],
+      }),
+    ).toThrow('Confirmation choices must have unique ids; "a" appears more than once.');
+  });
+
+  it('refuses a choicesParam that would overwrite one of confirm’s own params', () => {
+    expect(() =>
+      renderConfirmationDocument({ ...DELETE_POST, choices: CHOICES, choicesParam: 'confirmationToken' }),
+    ).toThrow('choicesParam "confirmationToken" collides with a key already in confirm.params.');
+  });
+
+  it('renders no checkbox at all when choices is omitted or empty', () => {
+    const omitted = mountSurface(renderConfirmationDocument(DELETE_POST));
+    expect(omitted.doc.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
+    const empty = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: [] }));
+    expect(empty.doc.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
   });
 });
 

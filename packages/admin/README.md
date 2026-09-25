@@ -18,7 +18,7 @@ not in your bundle.
 | `@jini-ai/admin/core` | contracts, panel registry, route matching, transport, ports | nothing |
 | `@jini-ai/admin/browser` | `window`-bound navigation, link interception | a DOM |
 | `@jini-ai/admin/server` | Composio integration: catalog, OAuth, tool execution | Node.js |
-| `@jini-ai/admin/react` *(not built yet)* | `<AdminShell>`, primitives, panels | React (optional peer) |
+| `@jini-ai/admin/react` | Presentational primitives (`Sidebar`, `DataTable`, `RowMenu`, `ConfirmButton`, `ConfirmDialog`, `InteractiveHtmlEditor`) and hooks; `<AdminShell>` and panels are not built yet | React (optional peer) |
 
 `/core` is the layer a panel author codes against: no React, no DOM, no I/O. That boundary is
 enforced at runtime — this package's vitest config runs `src/core/**` without a jsdom environment,
@@ -133,6 +133,9 @@ unrelated domain features to get a type.
 
 ## Status
 
-Slice 1: `/core` and `/browser`, 76 tests. `/server` (Composio, folded in 2026-08-01, moved back out
-to `@jini-ai/integrations/composio`) no longer exists in this package. `/react` is not built yet,
-and of the twelve planned ports only `AdminIdentityPort` is specified.
+Slice 1: `/core` (75 tests) and `/browser` (no test files). `/server` (Composio, folded in
+2026-08-01, moved back out to `@jini-ai/integrations/composio`) no longer exists in this package.
+`/react` has real content — presentational primitives and hooks (147 tests) — but no `<AdminShell>`
+or panels yet. `src/core/ports/` now specifies 16 ports (`identity`, `menus`, `integrations`,
+`workspace`, `redirects`, `analytics`, `settings`, `forms`, `seo`, `database`, `members`,
+`recovery`, `auth`, `media`, `plugins`, `comments`), not just `AdminIdentityPort`.

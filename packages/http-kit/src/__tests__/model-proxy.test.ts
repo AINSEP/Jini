@@ -6,6 +6,35 @@ vi.mock('../origin-validation.js', () => ({
   isLocalSameOrigin: vi.fn(() => true),
 }));
 
+// `@jini-ai/agent-runtime`'s provider adapters (anthropic-messages.ts, openai-chat.ts — azure-chat.ts
+// delegates to the latter — google-messages.ts, ollama-chat.ts) all call `pinnedFetch` from
+// `connection-guard.ts`, not global `fetch`: it dials via `node:https`/`node:http` with a
+// DNS-pinned address, deliberately bypassing `fetch` (see that module's own doc). Rather than
+// module-mocking `connection-guard.ts` (previously reaching through the pnpm workspace symlink into
+// `@jini-ai/agent-runtime`'s built `dist/` output by relative path, since that package only
+// publishes its root as an npm "exports" target — a mock that silently stops matching if the build
+// layout ever changes), this file injects a fake transport through `ModelProxyHttpDeps.fetchImpl`,
+// the dependency-injection seam `model-proxy.ts` forwards to every turn-runner. `mount()` below
+// always supplies `injectedFetch` as `fetchImpl` (a caller-supplied `deps.fetchImpl` would still win
+// via the spread order, but nothing here ever passes one), so every test just configures
+// `injectedFetch`'s implementation — exactly the same shape as the old `vi.mocked(pinnedFetch)`
+// calls, minus the module mock underneath.
+const injectedFetch = vi.fn();
+
+// `injectedFetch` replacing the transport stops requests from reaching a real socket, but the SSRF
+// guard in front of it (`validateBaseUrlResolved`) still runs for real and still resolves DNS for
+// any non-loopback host — every anthropic/openai fixture below is a real hostname (the providers'
+// own default `baseUrl`s, or `https://gateway.example.com`), since nothing in this file tests the
+// DNS-based SSRF-block path itself (only the azure/google/ollama fixtures use loopback `baseUrl`s,
+// which that guard short-circuits before ever consulting DNS). Injected through
+// `ModelProxyHttpDeps.dnsLookup` the same way `fetchImpl` is, rather than module-mocking `node:dns`:
+// every lookup fails, which the guard already treats as "allow" (a resolver hiccup must not become
+// a security verdict), so this preserves every existing test's pass-through behavior while
+// guaranteeing zero real resolver traffic.
+const injectedDnsLookup = async (hostname: string): Promise<never> => {
+  throw new Error(`ENOTFOUND ${hostname}`);
+};
+
 interface MockApp {
   get: (path: string, handler: any) => void;
   post: (path: string, handler: any) => void;
@@ -57,9 +86,10 @@ function makeSseRes() {
 
 const adapter = { resolvedPortRef: { current: 7456 } };
 
+/** Always injects `injectedFetch`/`injectedDnsLookup` as the transport/resolver — a caller-supplied `deps.fetchImpl`/`deps.dnsLookup` would still win (spread order), but nothing in this file ever passes one. */
 function mount(deps: ModelProxyHttpDeps = {}) {
   const app = makeApp();
-  registerModelProxyRoutes(app as any, deps, adapter);
+  registerModelProxyRoutes(app as any, { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, ...deps }, adapter);
   return app;
 }
 
@@ -203,6 +233,7 @@ const validOllamaBody = {
 
 beforeEach(() => {
   vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  injectedFetch.mockReset();
 });
 
 afterEach(() => {
@@ -243,7 +274,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validAnthropicBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -269,7 +300,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
     ['a non-array tools', { ...validAnthropicBody, tools: {} }, 'tools must be an array when provided'],
   ])('rejects %s with 400 before touching fetch', async (_label, body, message) => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(body), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -279,7 +310,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
 
   it('streams SSE events end-to-end for a plain text response and auto-closes on the end event', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('Hello there'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validAnthropicBody), res);
 
@@ -299,7 +330,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
 
   it('forwards optional baseUrl/apiVersion/system/tools/temperature/maxToolTurns/extraHeaders to the turn-runner', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('hi'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(
       makeReq({
@@ -329,7 +360,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'get_weather', { location: 'SF' }))))
       .mockResolvedValueOnce(okResponse(sseBody(anthropicChunk('Sunny.'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const anthropicExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
     const res = makeSseRes();
     await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
@@ -357,7 +388,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'take_screenshot', {}))))
       .mockResolvedValueOnce(okResponse(sseBody(anthropicChunk('looks right'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const imageBlock = {
       type: 'image',
       source: { type: 'base64', media_type: 'image/png', data: 'iVBORw0KGgoAAAANSUhEUg==' },
@@ -387,7 +418,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
 
   it('SEC-005: catches an executeTool exception, redacts it behind a correlation id, and still ends the stream exactly once', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom_tool', {}))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const onInternalError = vi.fn();
     const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('tool exploded: secret-token-xyz'));
     const res = makeSseRes();
@@ -410,7 +441,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
   it('SEC-005: falls back to console.error when no onInternalError sink is supplied', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom_tool', {}))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom'));
     const res = makeSseRes();
     await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
@@ -426,8 +457,8 @@ describe('POST /api/proxy/anthropic/stream', () => {
   // structurally stops a future same-origin or parse change from throwing, and when it does, that
   // throw becomes an unhandled promise rejection with no process-level guard anywhere in
   // `http-kit`'s path (unlike `desktop-host`, which does register one). Node's documented default
-  // for an unhandled rejection is to terminate the process, exactly like the Tovu decrypt-handler
-  // bug this sweep was dispatched to check for.
+  // for an unhandled rejection is to terminate the process, exactly like the downstream product's
+  // decrypt-handler bug this sweep was dispatched to check for.
   it('does not leak an unhandled rejection when the pre-stream origin check throws, and keeps serving requests after', async () => {
     const rejections: unknown[] = [];
     const onUnhandledRejection = (reason: unknown): void => {
@@ -450,7 +481,7 @@ describe('POST /api/proxy/anthropic/stream', () => {
 
       // Prove survival, not just silence: a normal request right after must still be answered.
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('still alive'))));
-      vi.stubGlobal('fetch', fetchMock);
+      injectedFetch.mockImplementation(fetchMock);
       const res2 = makeSseRes();
       await handler()(makeReq(validAnthropicBody), res2);
       expect(writtenEvents(res2).some((e) => e.kind === 'end')).toBe(true);
@@ -468,7 +499,7 @@ describe('POST /api/proxy/openai/stream', () => {
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validOpenAiBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -487,7 +518,7 @@ describe('POST /api/proxy/openai/stream', () => {
     ['a non-number maxTokens', { ...validOpenAiBody, maxTokens: 'lots' }, 'maxTokens must be a number when provided'],
   ])('rejects %s with 400 before touching fetch', async (_label, body, message) => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(body), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -497,7 +528,7 @@ describe('POST /api/proxy/openai/stream', () => {
 
   it('streams SSE text_delta events and auto-closes on the end event', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(openAiChunk('Hello'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validOpenAiBody), res);
     const events = writtenEvents(res);
@@ -510,7 +541,7 @@ describe('POST /api/proxy/openai/stream', () => {
 
   it('forwards optional baseUrl/tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(openAiChunk('hi'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(
       makeReq({
@@ -542,7 +573,7 @@ describe('POST /api/proxy/openai/stream', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(sseBody(`data: ${JSON.stringify(firstChunk)}\n\n`, `data: ${JSON.stringify(finishFirst)}\n\n`, 'data: [DONE]\n\n')))
       .mockResolvedValueOnce(okResponse(sseBody(openAiChunk('Sunny.'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const openaiExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
     const res = makeSseRes();
     await handler({ openaiExecuteTool })(makeReq(validOpenAiBody), res);
@@ -566,7 +597,7 @@ describe('POST /api/proxy/azure/stream', () => {
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validAzureBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -584,7 +615,7 @@ describe('POST /api/proxy/azure/stream', () => {
     ['a missing apiKey', { ...validAzureBody, apiKey: undefined }, 'apiKey must be a non-empty string'],
   ])('rejects %s with 400 before touching fetch', async (_label, body, message) => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(body), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -594,7 +625,7 @@ describe('POST /api/proxy/azure/stream', () => {
 
   it('streams SSE events and builds the deployment-scoped Azure URL from baseUrl/model/apiVersion', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(azureChunk('Hello from Azure'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validAzureBody), res);
 
@@ -611,7 +642,7 @@ describe('POST /api/proxy/azure/stream', () => {
 
   it('forwards optional tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(azureChunk('hi'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(
       makeReq({
@@ -637,7 +668,7 @@ describe('POST /api/proxy/azure/stream', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(sseBody(openAiToolCallChunk('call_az', 'get_weather', '{}'))))
       .mockResolvedValueOnce(okResponse(sseBody(azureChunk('Sunny.'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const azureExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
     const res = makeSseRes();
     await handler({ azureExecuteTool })(makeReq(validAzureBody), res);
@@ -648,7 +679,7 @@ describe('POST /api/proxy/azure/stream', () => {
 
   it('SEC-005: redacts an executeTool exception behind a correlation id under the azure provider tag', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(openAiToolCallChunk('call_az', 'boom', '{}'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const onInternalError = vi.fn();
     const azureExecuteTool = vi.fn().mockRejectedValue(new Error('azure tool exploded: key-abc'));
     const res = makeSseRes();
@@ -670,7 +701,7 @@ describe('POST /api/proxy/google/stream', () => {
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validGoogleBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -684,7 +715,7 @@ describe('POST /api/proxy/google/stream', () => {
     ['a non-number maxOutputTokens', { ...validGoogleBody, maxOutputTokens: 'many' }, 'maxOutputTokens must be a number when provided'],
   ])('rejects %s with 400 before touching fetch', async (_label, body, message) => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(body), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -694,7 +725,7 @@ describe('POST /api/proxy/google/stream', () => {
 
   it('streams SSE events and sends the uniform `messages` body field as Gemini `contents`', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('Hello from Gemini'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validGoogleBody), res);
 
@@ -712,7 +743,7 @@ describe('POST /api/proxy/google/stream', () => {
 
   it('forwards optional system/tools/temperature/maxOutputTokens/maxToolTurns/extraHeaders', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('hi'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(
       makeReq({
@@ -740,7 +771,7 @@ describe('POST /api/proxy/google/stream', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(sseBody(googleFunctionCallChunk('get_weather', { location: 'SF' }))))
       .mockResolvedValueOnce(okResponse(sseBody(googleChunk('Sunny.'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const googleExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
     const res = makeSseRes();
     await handler({ googleExecuteTool })(makeReq(validGoogleBody), res);
@@ -751,7 +782,7 @@ describe('POST /api/proxy/google/stream', () => {
 
   it('falls back to the public Gemini endpoint when baseUrl is omitted', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('hi'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq({ apiKey: 'goog-test', model: 'gemini-2.5-flash', messages: [{ role: 'user', parts: [{ text: 'hi' }] }] }), res);
     expect(fetchMock.mock.calls[0]![0]).toBe(
@@ -761,7 +792,7 @@ describe('POST /api/proxy/google/stream', () => {
 
   it('SEC-005: redacts an executeTool exception behind a correlation id under the google provider tag', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleFunctionCallChunk('boom', {}))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const onInternalError = vi.fn();
     const googleExecuteTool = vi.fn().mockRejectedValue(new Error('gemini tool exploded: goog-secret'));
     const res = makeSseRes();
@@ -781,7 +812,7 @@ describe('POST /api/proxy/ollama/stream', () => {
   it('rejects a cross-origin request with 403 before touching fetch', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validOllamaBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -793,7 +824,7 @@ describe('POST /api/proxy/ollama/stream', () => {
   // default target is Ollama Cloud (see `model-proxy.ts`'s BYOK module-doc section).
   it('rejects a missing apiKey with 400, exactly like the other four providers', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq({ ...validOllamaBody, apiKey: undefined }), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -803,7 +834,7 @@ describe('POST /api/proxy/ollama/stream', () => {
 
   it('rejects a non-array tools with 400', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq({ ...validOllamaBody, tools: 'nope' }), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -814,7 +845,7 @@ describe('POST /api/proxy/ollama/stream', () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(okResponse(ollamaBody(ollamaTextLine('Hello from Ollama'), ollamaDoneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq(validOllamaBody), res);
 
@@ -829,7 +860,7 @@ describe('POST /api/proxy/ollama/stream', () => {
 
   it('forwards optional tools/temperature/maxTokens/maxToolTurns/extraHeaders to the turn-runner', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaDoneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(
       makeReq({
@@ -854,7 +885,7 @@ describe('POST /api/proxy/ollama/stream', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(ollamaBody(ollamaToolCallLine('get_weather', { location: 'SF' }))))
       .mockResolvedValueOnce(okResponse(ollamaBody(ollamaTextLine('Sunny.'), ollamaDoneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const ollamaExecuteTool = vi.fn().mockResolvedValue({ content: '72F' });
     const res = makeSseRes();
     await handler({ ollamaExecuteTool })(makeReq(validOllamaBody), res);
@@ -875,7 +906,7 @@ describe('POST /api/proxy/ollama/stream', () => {
       .fn()
       .mockResolvedValueOnce(okResponse(ollamaBody(ollamaToolCallLine('take_screenshot', {}), ollamaDoneLine())))
       .mockResolvedValueOnce(okResponse(ollamaBody(ollamaTextLine('looks right'), ollamaDoneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const ollamaExecuteTool = vi.fn().mockResolvedValue({ content: 'here is the screenshot', images: ['iVBORw0KGgoAAAANSUhEUg=='] });
     const res = makeSseRes();
     await handler({ ollamaExecuteTool })(makeReq(validOllamaBody), res);
@@ -892,7 +923,7 @@ describe('POST /api/proxy/ollama/stream', () => {
 
   it('falls back to https://ollama.com/api/chat when baseUrl is omitted', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaDoneLine())));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeReq({ apiKey: 'sk-ollama-cloud', model: 'llama3', messages: [{ role: 'user', content: 'hi' }] }), res);
     expect(fetchMock.mock.calls[0]![0]).toBe('https://ollama.com/api/chat');
@@ -900,7 +931,7 @@ describe('POST /api/proxy/ollama/stream', () => {
 
   it('SEC-005: redacts an executeTool exception behind a correlation id under the ollama provider tag', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(ollamaBody(ollamaToolCallLine('boom', {}))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const onInternalError = vi.fn();
     const ollamaExecuteTool = vi.fn().mockRejectedValue(new Error('ollama tool exploded: ollama-secret'));
     const res = makeSseRes();
@@ -927,7 +958,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
   it('rejects a cross-origin request with 403 before looking at the provider param', async () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -959,7 +990,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
 
       // Prove survival, not just silence: a normal request right after must still be answered.
       const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicChunk('still alive'))));
-      vi.stubGlobal('fetch', fetchMock);
+      injectedFetch.mockImplementation(fetchMock);
       const res2 = makeSseRes();
       await handler()(makeParamReq({ provider: 'anthropic' }, validAnthropicBody), res2);
       expect(writtenEvents(res2).some((e) => e.kind === 'end')).toBe(true);
@@ -970,7 +1001,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
 
   it('rejects an unrecognized provider name with 400 and names it in the message', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeParamReq({ provider: 'openrouter' }, validOpenAiBody), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -982,7 +1013,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
   // belt-and-braces guard; this pins that it degrades to the same 400 rather than throwing.
   it('treats an absent provider param as an unknown provider rather than crashing', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeParamReq({}, validOpenAiBody), res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -992,7 +1023,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
 
   it('applies the named provider’s own parse rules, not a generic one', async () => {
     const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     // A body that is valid for OpenAI but not for Anthropic (which requires maxTokens) must be
     // rejected when routed at `anthropic` — proving the registry dispatches to the right parser.
     const res = makeSseRes();
@@ -1009,7 +1040,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     ['ollama', () => validOllamaBody, () => ollamaBody(ollamaTextLine('via catch-all'), ollamaDoneLine()), 'http://127.0.0.1:11434/api/chat'],
   ])('dispatches %s through its registry entry to the real turn-runner', async (_provider, body, stream, expectedUrl) => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(stream()));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeParamReq({ provider: _provider }, body()), res);
 
@@ -1021,7 +1052,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
 
   it('dispatches google through its registry entry, renaming messages to contents', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(googleChunk('via catch-all'))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeParamReq({ provider: 'google' }, validGoogleBody), res);
 
@@ -1040,7 +1071,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
   ])('wires %s’s registry entry to the matching deps.%s executor', async (provider, depsKey, body, stream) => {
     const executeTool = vi.fn().mockResolvedValue({ content: '72F' });
     const fetchMock = vi.fn().mockResolvedValue(okResponse(stream()));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler({ [depsKey]: executeTool } as ModelProxyHttpDeps)(makeParamReq({ provider }, body()), res);
     expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({ name: 'get_weather', input: { location: 'SF' } }));
@@ -1125,7 +1156,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
     ],
   ])('forwards every optional field through %s’s registry entry', async (provider, body, stream, assertWire) => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(stream()));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const res = makeSseRes();
     await handler()(makeParamReq({ provider }, body), res);
     expect(writtenEvents(res)).toContainEqual({ kind: 'text_delta', data: { type: 'text_delta', delta: 'ok' } });
@@ -1135,7 +1166,7 @@ describe('POST /api/proxy/:provider/stream — the generic catch-all', () => {
 
   it('SEC-005: tags the internal-error context with the provider read from the path param', async () => {
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom', {}))));
-    vi.stubGlobal('fetch', fetchMock);
+    injectedFetch.mockImplementation(fetchMock);
     const onInternalError = vi.fn();
     const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom'));
     const res = makeSseRes();

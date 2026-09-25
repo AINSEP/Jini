@@ -1,0 +1,225 @@
+openapi: 3.0.3
+info:
+  title: Jini core daemon HTTP routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for the health, run, agent-discovery, active-context,
+    host-editor, and daemon-status route registrars in `@jini-ai/http-kit`.
+    A host mounts only the feature packs it enables. JSON success responses are
+    unwrapped; JSON errors use `ErrorResponse`.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /health:
+    get: &health
+      operationId: get_liveness
+      summary: Read daemon liveness
+      responses:
+        '200': { description: Process is up, content: { application/json: { schema: { $ref: '#/components/schemas/Liveness' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/health:
+    get:
+      <<: *health
+      operationId: get_api_liveness
+  /ready:
+    get: &ready
+      operationId: get_readiness
+      summary: Read dependency readiness
+      responses:
+        '200': { description: All configured checks passed, content: { application/json: { schema: { $ref: '#/components/schemas/Readiness' } } } }
+        '503': { description: A configured check failed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/ready:
+    get:
+      <<: *ready
+      operationId: get_api_readiness
+  /version:
+    get: &version
+      operationId: get_version
+      summary: Read running build version
+      responses:
+        '200': { description: Version string, content: { application/json: { schema: { $ref: '#/components/schemas/Version' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/version:
+    get:
+      <<: *version
+      operationId: get_api_version
+  /api/runs:
+    post:
+      operationId: create_run
+      summary: Create a durable run
+      x-jini-require-same-origin: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CreateRunRequest' } } }
+      responses:
+        '201': { description: Run created (or existing idempotent run returned), content: { application/json: { schema: { $ref: '#/components/schemas/RunStartResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    get:
+      operationId: list_runs
+      summary: List runs, optionally by opaque context reference
+      parameters:
+        - { name: contextRef, in: query, required: false, schema: { type: string, minLength: 1 } }
+      responses:
+        '200': { description: Run list, content: { application/json: { schema: { $ref: '#/components/schemas/RunListResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/runs/{runId}:
+    get:
+      operationId: get_run
+      summary: Read a run's current status
+      parameters: [ { $ref: '#/components/parameters/RunId' } ]
+      responses:
+        '200': { description: Run status, content: { application/json: { schema: { $ref: '#/components/schemas/RunStatusResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/runs/{runId}/cancel:
+    post:
+      operationId: cancel_run
+      summary: Request run cancellation
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/RunId' } ]
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, properties: { reason: { type: string, minLength: 1 } }, additionalProperties: true } } }
+      responses:
+        '200': { description: Updated run status, content: { application/json: { schema: { $ref: '#/components/schemas/RunStatusResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/runs/{runId}/events:
+    get:
+      operationId: stream_run_events
+      summary: Stream canonical run events as server-sent events
+      description: Reconnect with `Last-Event-ID` or `afterCursor`; the latter is resolved by the shared SSE helper. The connection ends when an `end` event is delivered.
+      parameters:
+        - { $ref: '#/components/parameters/RunId' }
+        - { name: Last-Event-ID, in: header, required: false, schema: { type: string }, description: Replay cursor. }
+        - { name: afterCursor, in: query, required: false, schema: { type: string }, description: Replay cursor when no header is supplied. }
+      responses:
+        '200': { description: text/event-stream of RunProtocolEvent objects, content: { text/event-stream: { schema: { $ref: '#/components/schemas/RunProtocolEvent' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Replay gap; error details include oldestAvailableCursor, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/agents:
+    get:
+      operationId: list_agents
+      summary: List host-exposed agent summaries
+      responses:
+        '200': { description: Agent inventory, content: { application/json: { schema: { $ref: '#/components/schemas/AgentListResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/agents/rescan:
+    post:
+      operationId: rescan_agents
+      summary: Invalidate and refresh agent discovery
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Refreshed agent inventory, content: { application/json: { schema: { $ref: '#/components/schemas/AgentListResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/active:
+    get:
+      operationId: get_active_context
+      summary: Get the in-memory active resource context
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Active or inactive context, content: { application/json: { schema: { $ref: '#/components/schemas/ActiveContextGetResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: set_active_context
+      summary: Set or clear the in-memory active resource context
+      x-jini-require-same-origin: true
+      requestBody:
+        required: false
+        content: { application/json: { schema: { $ref: '#/components/schemas/ActiveContextSetRequest' } } }
+      responses:
+        '200': { description: Stored active context or inactive marker, content: { application/json: { schema: { $ref: '#/components/schemas/ActiveContextSetResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/editors:
+    get:
+      operationId: list_host_editors
+      summary: List applicable host editor integrations and availability
+      responses:
+        '200': { description: Editor inventory, content: { application/json: { schema: { $ref: '#/components/schemas/HostEditorsResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/resources/{resourceRef}/open-in:
+    post:
+      operationId: open_resource_in_editor
+      summary: Open a host-resolved resource in an installed editor
+      x-jini-require-same-origin: true
+      parameters: [ { name: resourceRef, in: path, required: true, schema: { type: string, minLength: 1 } } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OpenInEditorRequest' } } }
+      responses:
+        '200': { description: Editor launch was accepted by the OS, content: { application/json: { schema: { $ref: '#/components/schemas/OpenInEditorResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { description: Known editor is not installed, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/daemon/status:
+    get:
+      operationId: get_daemon_status
+      summary: Read daemon operator details
+      description: This is not the liveness/readiness contract; use `/health` or `/ready` for monitoring.
+      responses:
+        '200': { description: Daemon details, content: { application/json: { schema: { $ref: '#/components/schemas/DaemonStatusResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/daemon/shutdown:
+    post:
+      operationId: schedule_daemon_shutdown
+      summary: Schedule graceful shutdown after this response
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Shutdown callback was scheduled, content: { application/json: { schema: { $ref: '#/components/schemas/DaemonShutdownResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  securitySchemes:
+    optionalBearer:
+      type: http
+      scheme: bearer
+      description: When the host enables `JINI_API_TOKEN`, the global `/api` middleware requires this token except for health/ready/version probes and permitted direct loopback peers.
+  parameters:
+    RunId: { name: runId, in: path, required: true, schema: { type: string, minLength: 1 } }
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin or global origin policy rejected the request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    NotFound: { description: Resource not found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; adapter-generated errors include a correlation requestId in error.details, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    Liveness: { type: object, required: [ok, version], properties: { ok: { type: boolean, enum: [true] }, version: { type: string } } }
+    Readiness: { type: object, required: [ok, ready, version, checks], properties: { ok: { type: boolean, enum: [true] }, ready: { type: boolean, enum: [true] }, version: { type: string }, checks: { type: object, additionalProperties: { type: boolean } } } }
+    Version: { type: object, required: [version], properties: { version: { type: string } } }
+    CreateRunRequest: { type: object, required: [contextRef], properties: { contextRef: { type: string, minLength: 1 }, agentId: { type: string, minLength: 1 }, idempotencyKey: { type: string, minLength: 1 } } }
+    Run: { type: object, description: RunStatus from @jini-ai/protocol; exact event/status fields are owned by the protocol package., additionalProperties: true, required: [id] }
+    RunStartResponse: { type: object, required: [run, started], properties: { run: { $ref: '#/components/schemas/Run' }, started: { type: boolean } } }
+    RunListResponse: { type: object, required: [runs], properties: { runs: { type: array, items: { $ref: '#/components/schemas/Run' } } } }
+    RunStatusResponse: { type: object, required: [run], properties: { run: { $ref: '#/components/schemas/Run' } } }
+    RunProtocolEvent: { type: object, description: Canonical RunProtocolEvent from @jini-ai/protocol, additionalProperties: true }
+    AgentSummary: { type: object, required: [id, name], properties: { id: { type: string }, name: { type: string }, available: { type: boolean }, version: { type: string, nullable: true }, authStatus: { type: string, enum: [ok, missing, unknown] }, models: { type: array, items: { $ref: '#/components/schemas/AgentOption' } }, reasoningOptions: { type: array, items: { $ref: '#/components/schemas/AgentOption' } }, modelsSource: { type: string, enum: [live, fallback] }, supportsCustomModel: { type: boolean }, diagnostic: { type: string } } }
+    AgentOption: { type: object, required: [id, label], properties: { id: { type: string }, label: { type: string } } }
+    AgentListResponse: { type: object, required: [agents], properties: { agents: { type: array, items: { $ref: '#/components/schemas/AgentSummary' } } } }
+    ActiveContextSetRequest: { type: object, properties: { active: { type: boolean, description: Set false to clear; omitted/true requires resourceRef. }, resourceRef: { type: string, minLength: 1 }, detail: { type: string, minLength: 1 } } }
+    ActiveContextSetResponse: { oneOf: [ { type: object, required: [active], properties: { active: { type: boolean, enum: [false] } } }, { type: object, required: [active, resourceRef, detail, ts], properties: { active: { type: boolean, enum: [true] }, resourceRef: { type: string }, detail: { type: string, nullable: true }, ts: { type: number } } } ] }
+    ActiveContextGetResponse: { oneOf: [ { type: object, required: [active], properties: { active: { type: boolean, enum: [false] } } }, { type: object, required: [active, resourceRef, resourceName, detail, ts, ageMs], properties: { active: { type: boolean, enum: [true] }, resourceRef: { type: string }, resourceName: { type: string, nullable: true }, detail: { type: string, nullable: true }, ts: { type: number }, ageMs: { type: number } } } ] }
+    HostEditorsResponse: { type: object, required: [editors, platform], properties: { platform: { type: string, enum: [darwin, win32, linux, unknown] }, editors: { type: array, items: { type: object, required: [id, label, icon, available], properties: { id: { type: string }, label: { type: string }, icon: { type: string }, available: { type: boolean }, resolvedPath: { type: string }, platforms: { type: array, items: { type: string } } } } } } }
+    OpenInEditorRequest: { type: object, required: [editorId], properties: { editorId: { type: string, minLength: 1 }, detail: { type: string, minLength: 1 } } }
+    OpenInEditorResponse: { type: object, required: [ok, editorId, path], properties: { ok: { type: boolean, enum: [true] }, editorId: { type: string }, path: { type: string } } }
+    DaemonStatusResponse: { type: object, required: [ok, version, host, port, dataDir, shuttingDown, pid], properties: { ok: { type: boolean, enum: [true] }, version: { type: string }, host: { type: string }, port: { type: number }, dataDir: { type: string }, shuttingDown: { type: boolean }, pid: { type: number } } }
+    DaemonShutdownResponse: { type: object, required: [ok, scheduled], properties: { ok: { type: boolean, enum: [true] }, scheduled: { type: boolean, enum: [true] } } }

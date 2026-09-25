@@ -2,6 +2,7 @@
 // optional failure explanation, the written-entry chips, and a delete action.
 // Shared by the saved-memory list and the connected-apps scan history. Pure
 // formatting comes from the slice formatters; state lives in the hooks.
+import { agentHandleProps } from '@jini-ai/agentic';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import {
@@ -17,12 +18,15 @@ export function MemoryExtractionCard({
   nowClock,
   onOpenPreview,
   onDelete,
+  agentHandle,
 }: {
   record: MemoryExtractionRecord;
   /** Wall clock so relative ages ("12s ago") re-render without freezing. */
   nowClock: number;
   onOpenPreview: (id: string) => void;
   onDelete: (id: string) => void;
+  /** This card's own agent handle — `MemoryList` derives one per extraction record. */
+  agentHandle?: string;
 }) {
   const t = useT();
   const desc = describeRecord(record, t);
@@ -69,6 +73,7 @@ export function MemoryExtractionCard({
           onClick={() => onDelete(record.id)}
           title={t('Remove')}
           aria-label={t('Remove')}
+          {...agentHandleProps(agentHandle, { action: 'delete', role: 'button', label: t('Remove') })}
         >
           <Icon name="close" size={14} />
         </button>

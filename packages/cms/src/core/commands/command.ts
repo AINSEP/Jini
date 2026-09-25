@@ -163,6 +163,25 @@ export class ForbiddenError extends Error {
 }
 
 /**
+ * Detects a UNIQUE-constraint violation on `changeSets.insert()`'s idempotency-key index —
+ * the losing side of the TOCTOU race between the pre-execute `findByIdempotencyKey` check and
+ * this same key's insert (two concurrent requests can both pass the check before either inserts;
+ * the DB's real unique index then rejects the second write). Duck-typed on `.code` rather than an
+ * `instanceof` class check: `core/commands` stays storage-agnostic (see this file's header — it
+ * never imports a SQLite adapter), and `better-sqlite3`'s `SqliteError` is not a dependency here.
+ * `SQLITE_CONSTRAINT_UNIQUE` is deliberately not treated as conclusive on its own — a caller must
+ * still re-query for the winning row (see `executeCommand`'s catch block) before trusting this,
+ * since an adapter could throw the same code for an unrelated UNIQUE index.
+ */
+function isIdempotencyKeyConflict(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: unknown }).code === "SQLITE_CONSTRAINT_UNIQUE"
+  );
+}
+
+/**
  * Execute a mutation through the command gateway.
  *
  * Order matters: idempotency check → inverse capture → execute → record.
@@ -294,6 +313,26 @@ export async function executeCommand<TResult>(
     // original persist error; a rollback that itself throws is a harder failure
     // that the SQLite transaction path is designed to remove.
     await mutation.rollback?.();
+
+    // TOCTOU: the idempotency check above and this insert are separated by
+    // `captureInverse`/`execute`, so two concurrent requests on the same key can both pass the
+    // check before either inserts — the DB's unique index then rejects the loser here instead of
+    // at the check. Re-throw as the intended `DuplicateCommandError` (referencing the WINNING
+    // change set) rather than letting the raw driver error escape, so callers' existing
+    // `instanceof DuplicateCommandError` handling (409) catches this race the same as the
+    // already-covered non-racing replay.
+    if (command.idempotencyKey && isIdempotencyKeyConflict(recordError)) {
+      const winner = await deps.changeSets.findByIdempotencyKey({
+        workspaceId: command.workspaceId,
+        idempotencyKey: command.idempotencyKey,
+      });
+      if (winner) {
+        throw new DuplicateCommandError(
+          `command with idempotency key '${command.idempotencyKey}' was already executed`,
+          winner.id
+        );
+      }
+    }
     throw recordError;
   }
 

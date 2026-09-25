@@ -127,6 +127,116 @@ describe('createJsonEventStreamHandler (codex)', () => {
     expect(events).toEqual([{ type: 'raw', line: JSON.stringify({ type: 'item.started', item: { id: 'x', type: 'reasoning' } }) }]);
   });
 
+  // Fixtures below are the actual raw JSON lines a real, locally installed Codex CLI (0.151.0)
+  // emitted against a throwaway MCP server during live root-cause reproduction — not synthesized
+  // from the docs alone. Before this parser recognized `item.type: 'mcp_tool_call'`, every one of
+  // these fell through to `{type:'raw', line}` (see the "falls through to raw" test above for the
+  // shape that produces), which `@jini-ai/chat`'s transcript reducer never renders — so a genuine
+  // tool call, success or failure, was invisible to both the operator and the audit trail. This is
+  // the actual bug: Codex's own MCP client can call `execute_delegated_tool` for real and even have
+  // it denied by Codex's own approval gate, and the daemon/UI would show nothing at all.
+  it('emits a tool_use for an item.started mcp_tool_call (in_progress)', () => {
+    const events = feed('codex', [
+      {
+        type: 'item.started',
+        item: {
+          id: 'item_0',
+          type: 'mcp_tool_call',
+          server: 'jini',
+          tool: 'execute_delegated_tool',
+          arguments: { toolId: 'media_generate_asset', input: { prompt: 'A solid green square' } },
+          result: null,
+          error: null,
+          status: 'in_progress',
+        },
+      },
+    ]);
+    expect(events).toEqual([
+      {
+        type: 'tool_use',
+        id: 'item_0',
+        name: 'execute_delegated_tool',
+        input: { toolId: 'media_generate_asset', input: { prompt: 'A solid green square' } },
+      },
+    ]);
+  });
+
+  it('reports a denied/failed mcp_tool_call as an error tool_result, not silence', () => {
+    // Captured verbatim from a real denial: Codex's headless approval gate auto-denies an MCP tool
+    // call whose def carries no `readOnlyHint: true` annotation (`execute_delegated_tool`'s own
+    // annotations are all `false` — see `packages/mcp/src/server/tools/delegated-tool.ts`), before
+    // the call ever reaches the target MCP server.
+    const events = feed('codex', [
+      {
+        type: 'item.started',
+        item: {
+          id: 'item_0',
+          type: 'mcp_tool_call',
+          server: 'probe',
+          tool: 'probe_tool',
+          arguments: { note: 'hello-from-repro' },
+          result: null,
+          error: null,
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'item.completed',
+        item: {
+          id: 'item_0',
+          type: 'mcp_tool_call',
+          server: 'probe',
+          tool: 'probe_tool',
+          arguments: { note: 'hello-from-repro' },
+          result: null,
+          error: { message: 'MCP tool call requires approval, but approval policy is never' },
+          status: 'failed',
+        },
+      },
+    ]);
+    // Exactly one tool_use (deduped against the item.started frame), plus a matching error result —
+    // never a silent drop, and never a second, duplicate tool_use for the same call id.
+    expect(events.filter((e) => e.type === 'tool_use')).toHaveLength(1);
+    const toolResult = events.find((e) => e.type === 'tool_result')!;
+    expect(toolResult).toEqual({
+      type: 'tool_result',
+      toolUseId: 'item_0',
+      content: 'MCP tool call requires approval, but approval policy is never',
+      isError: true,
+    });
+  });
+
+  it('reports a completed mcp_tool_call as a successful tool_result carrying the real output', () => {
+    // Captured verbatim from a real success: the identical probe tool, annotated `readOnlyHint:
+    // true`, completes normally under Codex's headless approval gate.
+    const events = feed('codex', [
+      {
+        type: 'item.completed',
+        item: {
+          id: 'item_0',
+          type: 'mcp_tool_call',
+          server: 'probe',
+          tool: 'probe_tool',
+          arguments: { note: 'hello-readonly' },
+          result: { content: [{ type: 'text', text: 'PROBE_OK: received "hello-readonly"' }], structured_content: null },
+          error: null,
+          status: 'completed',
+        },
+      },
+    ]);
+    // No preceding item.started in this trace (a truncated/mid-stream feed) — the fallback inside
+    // the item.completed branch still emits the tool_use, mirroring command_execution's own
+    // fallback shape, so the call is never silently missing its opening card either.
+    expect(events.filter((e) => e.type === 'tool_use')).toHaveLength(1);
+    const toolResult = events.find((e) => e.type === 'tool_result')!;
+    expect(toolResult.isError).toBe(false);
+    expect(toolResult.toolUseId).toBe('item_0');
+    expect(JSON.parse(toolResult.content as string)).toEqual({
+      content: [{ type: 'text', text: 'PROBE_OK: received "hello-readonly"' }],
+      structured_content: null,
+    });
+  });
+
   it('emits a TodoWrite tool_use for an item.started todo_list', () => {
     const events = feed('codex', [
       {

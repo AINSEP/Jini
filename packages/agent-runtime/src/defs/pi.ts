@@ -34,15 +34,23 @@ export const piAgentDef = {
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
       {
-        id: 'anthropic/claude-sonnet-4-5',
-        label: 'Claude Sonnet 4.5 (anthropic)',
+        id: 'anthropic/claude-sonnet-5',
+        label: 'Claude Sonnet 5 (anthropic)',
       },
-      { id: 'anthropic/claude-opus-4-5', label: 'Claude Opus 4.5 (anthropic)' },
+      { id: 'anthropic/claude-opus-5', label: 'Claude Opus 5 (anthropic)' },
       { id: 'openai/gpt-5', label: 'GPT-5 (openai)' },
-      { id: 'openai/o4-mini', label: 'o4-mini (openai)' },
+      // `o4-mini` is stale — OpenAI's GPT-5.6 family replaced the old flagship/mini/nano naming
+      // with named tiers (sol/terra/luna); `terra` is the mid tier `o4-mini` mapped to. See
+      // `packages/ui/src/features/execution/constants.ts`'s OpenAI preset and
+      // `scripts/check-model-fallback-freshness.ts`.
+      { id: 'openai/gpt-5.6-terra', label: 'GPT-5.6 Terra (openai)' },
       { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro (google)' },
       { id: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash (google)' },
     ],
+    // Asserted against `packages/ui/src/features/execution/constants.ts`'s current OpenAI preset
+    // (gpt-5.6-sol/terra/luna). See `RuntimeAgentDef.fallbackModelsAssertedAt` and
+    // `scripts/check-model-fallback-freshness.ts`.
+    fallbackModelsAssertedAt: '2026-09-16',
     // Thinking level presets mapped to pi's --thinking flag.
     reasoningOptions: [
       { id: 'default', label: 'Default' },
@@ -72,9 +80,11 @@ export const piAgentDef = {
       if (options.reasoning && options.reasoning !== 'default') {
         args.push('--thinking', options.reasoning);
       }
-      // pi supports --append-system-prompt for cwd and extra context.
-      // For now we rely on the composed prompt containing the cwd hint
-      // (same pattern as other agents) rather than using system-prompt flags.
+      // pi supports --append-system-prompt for cwd and extra context. It's repeatable (pi merges
+      // every occurrence), which is what lets this def push its own dir-hint values here AND the
+      // caller's `systemPromptDelivery: 'append-flag'` overlay (declared below, dispatched
+      // centrally by `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery`) push a separate
+      // occurrence carrying the overlay text — the two never collide or need to be merged by hand.
       //
       // extraAllowedDirs carries skill seed and design-system directories
       // that live outside the project cwd. pi doesn't have an --add-dir
@@ -98,4 +108,14 @@ export const piAgentDef = {
     // input (base64-encoded). The daemon attaches image paths to the
     // session so attachPiRpcSession can read and forward them.
     imageDelivery: 'native',
+    // No `capabilityKey`: unlike `claude`'s probe-gated flag, this repeatable flag's presence is
+    // already trusted unconditionally by this file's own pre-existing dir-hint usage above (no
+    // `helpArgs`/`capabilityFlags` probe declared for pi at all) — the overlay delivery rides the
+    // same trust, not a new assumption.
+    systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt' },
+    // No `externalMcpInjection`: pi has no MCP client, and never will by
+    // design — its author has stated publicly that pi "does not and will not
+    // support MCP" (MCP servers judged overkill and too much context overhead
+    // for this CLI's scope). There is no config surface to inject a server
+    // into; this is a permanent unwired, not a gap to close later.
 } satisfies RuntimeAgentDef;

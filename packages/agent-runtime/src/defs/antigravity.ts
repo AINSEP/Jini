@@ -1,186 +1,34 @@
 /** Ported verbatim from OD's `apps/daemon/src/runtimes/defs/antigravity.ts` (import path adjusted only). See `source-map.md`. */
-import {
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import { readFile as fsReadFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
-
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef, RuntimeLock, RuntimeLockHold } from '../types.js';
+import type { RuntimeAgentDef, RuntimeModelOption } from '../types.js';
 
-// `agy` v1.0.3 still has no `--model` flag (upstream issue #35), but the
-// TUI's Switch-Model picker writes the choice to its settings.json, and
-// every `agy -p` invocation re-reads that file on startup — verified by
-// capturing the `--log-file` line `Propagating selected model override to
-// backend: label="<model>"`. So we can route OD's model picker through
-// settings.json: when the user picks a concrete model in Settings, the
-// daemon writes the label into agy's settings.json right before spawn,
-// and the resulting print-mode run uses that model.
+// `agy` v1.1.24 has a real `--model <id>` flag (`agy --help`: "Model for the current CLI
+// session") plus a machine-readable `agy models` subcommand that lists every selectable model as
+// a stable `<slug>\t<label>` pair — both verified live, neither true of the v1.0.3 this file used
+// to target (upstream issue #35, closed by the flag's addition). That retires the
+// settings.json-write-then-poll-the-log workaround this file used to carry (see git history for
+// `writeAntigravityModelSelection`/`antigravityModelLock`/`waitForAgyToReadModel`, and the
+// process-global race across concurrent runs it existed to serialize): the model rides argv on
+// `buildArgs` below instead, exactly like every other flag this def emits, and there is nothing
+// left to lock.
 //
-// Two ids the picker exposes are special:
-//   - 'default'         : leave settings.json untouched, so agy keeps
-//                         whatever the user last picked in its own TUI.
-//                         (Respects user choice when they switch models
-//                         from `agy` directly.)
-//   - any other id      : the literal display label agy expects (e.g.
-//                         "Gemini 3.1 Pro (High)", "Claude Sonnet 4.6
-//                         (Thinking)"). We persist it before spawn.
+// Two cases `buildArgs` treats specially:
+//   - `DEFAULT_MODEL_OPTION.id` ('default') or no model at all: omit `--model` entirely, so agy
+//     keeps whatever it would otherwise default to (its own TUI's last pick, or its own default).
+//   - any other id: one of the stable slugs below (e.g. `gemini-3.1-pro-high`), passed verbatim as
+//     `--model`'s value.
 //
-// `supportsCustomModel: false` because the label set is a server-side
-// enum — a typed id agy doesn't recognise resolves to a silent
-// `availableModels` cache miss + empty print-mode output, which surfaces
-// to the user as a generic "empty response" error.
+// `supportsCustomModel: false` because the model set is still a server-side enum, not free text —
+// but the failure mode for an id outside it changed for the better: `agy --model <bogus> -p ...`
+// now prints a loud `Error: invalid model selection ...` plus the full list of valid models
+// (verified live), rather than the old settings.json path's silent `availableModels` cache miss +
+// empty print-mode output. Kept `false` anyway: nothing here validates a typed id before spawn, so
+// letting a UI send arbitrary text would just move that same failure into production instead of
+// preventing it — `isKnownModel` (`../models.ts`) is what actually gates a caller-supplied id
+// against this list before it ever reaches `buildArgs`.
 //
-// The 8 model labels mirror what `Switch Model` in agy's TUI lists for
-// consumer-tier accounts as of 2026-05-28. The set is small and stable
-// enough to ship statically until upstream adds a programmatic
-// `agy models` subcommand (also tracked under issue #35).
-const ANTIGRAVITY_SETTINGS_PATH = join(
-  homedir(),
-  '.gemini',
-  'antigravity-cli',
-  'settings.json',
-);
-
-export function writeAntigravityModelSelection(
-  label: string,
-  settingsPath: string = ANTIGRAVITY_SETTINGS_PATH,
-): void {
-  let existing: Record<string, unknown> = {};
-  if (existsSync(settingsPath)) {
-    try {
-      const parsed = JSON.parse(readFileSync(settingsPath, 'utf8')) as unknown;
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        existing = parsed as Record<string, unknown>;
-      }
-    } catch {
-      // Corrupt JSON — fall through and rewrite the file from scratch so
-      // the next spawn starts from a known-good state.
-    }
-  }
-  existing.model = label;
-  mkdirSync(dirname(settingsPath), { recursive: true });
-  writeFileSync(settingsPath, `${JSON.stringify(existing, null, 2)}\n`);
-}
-
-// Per-process serialization for write-settings → spawn → agy-reads
-// cycles on antigravity. `~/.gemini/antigravity-cli/settings.json` is
-// process-global, so two OD runs that both pick concrete (non-default)
-// models can race: run A writes model A, spawn A starts, run B writes
-// model B before A's agy has read settings.json — A then executes on
-// model B. The daemon serialises non-default antigravity spawns
-// through this chain: each acquire awaits the previous release, and
-// each release fires only after the spawned agy actually emits
-// `Propagating selected model override to backend: label="<X>"` in
-// its `--log-file` (which is the upstream signal that settings.json
-// has been read).
-let antigravityLockChain: Promise<void> = Promise.resolve();
-
-export async function acquireAntigravityModelLock(): Promise<() => void> {
-  const previous = antigravityLockChain;
-  // Definite-assignment assertion (`!`), not a `() => {}` fallback default:
-  // the ECMAScript spec guarantees a `Promise` executor runs synchronously,
-  // immediately, during construction — `release = resolve` below has
-  // already run by the time `new Promise(...)` returns, so a fallback
-  // no-op default would be assigned, coverage-instrumented, and never once
-  // invoked. Removing it drops that dead function instead of padding a
-  // test around code that cannot execute.
-  let release!: () => void;
-  antigravityLockChain = new Promise<void>((resolve) => {
-    release = resolve;
-  });
-  await previous;
-  return release;
-}
-
-// Visible for tests. Resets the module-level lock chain so a test that
-// installed a hanging acquirer can release it without leaking state to
-// subsequent test cases. Production code never calls this.
-export function _resetAntigravityModelLockForTests(): void {
-  antigravityLockChain = Promise.resolve();
-}
-
-export interface WaitForAgyModelOptions {
-  timeoutMs?: number;
-  pollIntervalMs?: number;
-  // Override for tests; production reads the daemon-owned log file path.
-  readFile?: (path: string) => Promise<string>;
-  // Override `Date.now` for tests; production uses the wall clock.
-  now?: () => number;
-  // Stops polling when fired. Production wires this to `child.once('exit')`
-  // so the watcher cancels as soon as agy exits — the lock release is
-  // then driven by the exit handler rather than the helper's return
-  // value, eliminating the slow-startup race the looper review at
-  // 263fd2fe7 flagged: if a cold agy takes >timeoutMs to read its
-  // settings.json, we'd otherwise return false, the caller would
-  // release the lock, and a concurrent run B could rewrite
-  // settings.json before A's agy actually read it.
-  abortSignal?: AbortSignal;
-}
-
-// Polls agy's `--log-file` for the line
-//   `Propagating selected model override to backend: label="<expectedModel>"`
-// which `model_config_manager.go` emits once agy has finished reading
-// `~/.gemini/antigravity-cli/settings.json` and sent the model
-// override to the upstream backend. Returns true on observed signal,
-// false on timeout OR abort. Never throws — a missing log file is
-// treated as "not yet seen" so the polling loop keeps retrying until
-// either the deadline or the abort signal fires.
-//
-// IMPORTANT: callers MUST NOT use a `false` return as a "go ahead and
-// release the settings.json lock" signal — false means "I gave up
-// polling," not "agy definitely didn't read this." Release the lock
-// only on (a) a `true` return, OR (b) child exit. See server.ts for
-// the wiring.
-export async function waitForAgyToReadModel(
-  logFilePath: string,
-  expectedModel: string,
-  options: WaitForAgyModelOptions = {},
-): Promise<boolean> {
-  const timeoutMs = options.timeoutMs ?? 15_000;
-  const pollIntervalMs = options.pollIntervalMs ?? 250;
-  const readFile =
-    options.readFile ?? ((path: string) => fsReadFile(path, 'utf8'));
-  const now = options.now ?? Date.now;
-  const abortSignal = options.abortSignal;
-  if (abortSignal?.aborted) return false;
-  const escaped = expectedModel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(
-    `Propagating selected model override to backend: label="${escaped}"`,
-  );
-  const deadline = now() + timeoutMs;
-  while (now() < deadline) {
-    if (abortSignal?.aborted) return false;
-    try {
-      const content = await readFile(logFilePath);
-      if (pattern.test(content)) return true;
-    } catch {
-      // Log file may not have appeared yet; keep polling.
-    }
-    if (now() >= deadline) break;
-    await new Promise<void>((resolve) => {
-      const onAbort = () => {
-        clearTimeout(timer);
-        resolve();
-      };
-      // `{ once: true }` only detaches the listener on the abort path. When the
-      // timer wins instead — the common case, once per poll — the listener would
-      // stay attached to a signal that outlives this iteration, so a default
-      // 15s/250ms run accumulates ~60 of them on the same AbortSignal before the
-      // process exits. Detach explicitly on the timer path too.
-      const timer = setTimeout(() => {
-        abortSignal?.removeEventListener('abort', onAbort);
-        resolve();
-      }, pollIntervalMs);
-      abortSignal?.addEventListener('abort', onAbort, { once: true });
-    });
-  }
-  return false;
-}
+// The 14 slugs/labels below are `agy models`' full live output as of agy v1.1.24 (2026-09-02), not
+// a hand-maintained guess — re-run `agy models` to refresh if upstream's catalog changes.
 
 // `agy -p` prints an interactive OAuth sign-in URL to **stdout** and then
 // exits **0** when the keyring entry is missing or expired, so a driver that
@@ -240,86 +88,94 @@ export function redactAntigravityAuthUrls(fullText: string): string {
 }
 
 /**
- * Resolves when `signal` aborts (immediately if it already has). Used instead
- * of a never-settling `new Promise(() => {})` so a long-lived caller does not
- * accumulate one permanently-pending promise, plus its captured closure, per
- * run.
- */
-function waitUntilAborted(signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    signal.addEventListener('abort', () => resolve(), { once: true });
-  });
-}
-
-/**
- * Adapts the module-level `acquireAntigravityModelLock` /
- * `waitForAgyToReadModel` pair to the caller-facing {@link RuntimeLock}
- * contract. A thin adapter, deliberately: the mutex and the log-polling
- * handoff detector are the existing, separately-tested functions above, and
- * this adds no serialization logic of its own.
+ * Parses `agy models`' stdout into the shared `RuntimeModelOption[]` shape.
  *
- * The one policy decision it does make — skipping the lock entirely when no
- * concrete model was selected — mirrors `buildArgs`'s own
- * `options.model && options.model !== DEFAULT_MODEL_OPTION.id` guard exactly.
- * The lock guards the `settings.json` write, so when that write will not
- * happen there is nothing to serialize, and holding the chain anyway would
- * make a `'default'`-model run queue behind an unrelated one for no benefit.
+ * The CLI's real output (agy v1.1.24, verified live — see this file's header
+ * comment for the exact captured transcript) is one `Fetching available
+ * models...` progress line followed by one `<slug>\t<label>` pair per line.
+ * Each data line is split on the FIRST tab only, so a label that itself
+ * contains a tab or extra whitespace never bleeds into the id.
+ *
+ * @param stdout - Raw stdout from `agy models`.
+ * @returns The synthetic default option prepended to every parsed entry, or
+ * `null` when no real entry was found (empty stdout, or only the progress
+ * line survives filtering) — mirrors `parseCursorAgentModels`'s same-shape
+ * null contract, which `detection.ts#fetchModels` already treats the same
+ * as an empty array: fall back to `fallbackModels`.
+ * @complexity O(n) in the stdout length.
  */
-export const antigravityModelLock: RuntimeLock = {
-  acquire: async ({ model }): Promise<RuntimeLockHold> => {
-    if (!model || model === DEFAULT_MODEL_OPTION.id) {
-      // No settings.json write this spawn — hand back an inert hold rather
-      // than joining the chain. `release` must still exist and still be
-      // idempotent: the caller calls it on both handoff and process exit
-      // without knowing which kind of hold it got.
-      return { release: () => {} };
-    }
-    const release = await acquireAntigravityModelLock();
-    return {
-      release,
-      waitForHandoff: async ({ logFilePath, processExited }) => {
-        if (logFilePath !== undefined) {
-          const observed = await waitForAgyToReadModel(logFilePath, model, {
-            abortSignal: processExited,
-          });
-          if (observed) return;
-        }
-        // Reached when either there is no `--log-file` to watch (no
-        // observable propagation signal exists at all), or the watcher
-        // stopped without seeing the line. Neither is evidence that agy
-        // failed to read settings.json — `waitForAgyToReadModel`'s `false`
-        // means "stopped polling" (see its own doc). Resolving here would
-        // release the lock while a cold-starting agy may still be about to
-        // read the file, reopening exactly the race this lock closes. So
-        // hand the release decision back to process exit, the only event
-        // that proves agy can no longer read it.
-        await waitUntilAborted(processExited);
-      },
-    };
-  },
-};
+export function parseAgyModels(stdout: string): RuntimeModelOption[] | null {
+  const lines = String(stdout || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  if (lines.length === 0) return null;
+
+  const out = [DEFAULT_MODEL_OPTION];
+  const seen = new Set<string>([DEFAULT_MODEL_OPTION.id]);
+  for (const line of lines) {
+    if (/^fetching available models\.\.\.$/i.test(line)) continue;
+    const tabIndex = line.indexOf('\t');
+    if (tabIndex === -1) continue;
+    const id = line.slice(0, tabIndex).trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const label = line.slice(tabIndex + 1).trim();
+    out.push({ id, label: label || id });
+  }
+
+  return out.length > 1 ? out : null;
+}
 
 export const antigravityAgentDef = {
   id: 'antigravity',
   name: 'Antigravity',
   bin: 'agy',
   versionArgs: ['--version'],
+  // `agy models` does a real network fetch (its own stdout says "Fetching
+  // available models..."), so this gets a longer budget than codex's 5s
+  // local-cache read — 10s to absorb ordinary network latency without
+  // making every detection pass wait needlessly long on a slow/offline run
+  // (`detection.ts#fetchModels` falls back to `fallbackModels` on timeout).
+  listModels: {
+    args: ['models'],
+    parse: parseAgyModels,
+    timeoutMs: 10_000,
+  },
   fallbackModels: [
     DEFAULT_MODEL_OPTION,
-    { id: 'Gemini 3.1 Pro (High)', label: 'Gemini 3.1 Pro (High)' },
-    { id: 'Gemini 3.1 Pro (Low)', label: 'Gemini 3.1 Pro (Low)' },
-    { id: 'Gemini 3.5 Flash (High)', label: 'Gemini 3.5 Flash (High)' },
-    { id: 'Gemini 3.5 Flash (Medium)', label: 'Gemini 3.5 Flash (Medium)' },
-    { id: 'Gemini 3.5 Flash (Low)', label: 'Gemini 3.5 Flash (Low)' },
-    {
-      id: 'Claude Sonnet 4.6 (Thinking)',
-      label: 'Claude Sonnet 4.6 (Thinking)',
-    },
-    { id: 'Claude Opus 4.6 (Thinking)', label: 'Claude Opus 4.6 (Thinking)' },
-    { id: 'GPT-OSS 120B (Medium)', label: 'GPT-OSS 120B (Medium)' },
+    { id: 'gemini-3.8-flash-high', label: 'Gemini 3.8 Flash (High)' },
+    { id: 'gemini-3.8-flash-medium', label: 'Gemini 3.8 Flash (Medium)' },
+    { id: 'gemini-3.8-flash-low', label: 'Gemini 3.8 Flash (Low)' },
+    { id: 'gemini-3.7-flash-high', label: 'Gemini 3.7 Flash (High)' },
+    { id: 'gemini-3.7-flash-medium', label: 'Gemini 3.7 Flash (Medium)' },
+    { id: 'gemini-3.7-flash-low', label: 'Gemini 3.7 Flash (Low)' },
+    { id: 'gemini-3.6-flash-high', label: 'Gemini 3.6 Flash (High)' },
+    { id: 'gemini-3.6-flash-medium', label: 'Gemini 3.6 Flash (Medium)' },
+    { id: 'gemini-3.6-flash-low', label: 'Gemini 3.6 Flash (Low)' },
+    { id: 'gemini-3.1-pro-high', label: 'Gemini 3.1 Pro (High)' },
+    { id: 'gemini-3.1-pro-low', label: 'Gemini 3.1 Pro (Low)' },
+    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet 4.6 (Thinking)' },
+    { id: 'claude-opus-4-6-thinking', label: 'Claude Opus 4.6 (Thinking)' },
+    { id: 'gpt-oss-120b-medium', label: 'GPT-OSS 120B (Medium)' },
   ],
   supportsCustomModel: false,
+  // agy has no `--effort`-shaped flag: reasoning effort is a trailing `-high`/
+  // `-medium`/`-low` on the model slug `--model` already carries (see the
+  // `fallbackModels` list above, which is `agy models`' real output). So this
+  // def declares the suffix VOCABULARY only — see `types.ts`'s
+  // `RuntimeReasoningInModelId` for why the per-base-model availability is
+  // derived from the model list instead of enumerated here, and why
+  // `-thinking` on `claude-opus-4-6-thinking` must not be read as a level.
+  // `buildArgs` below is deliberately unchanged: the effort is already inside
+  // `--model`'s value, so there is no second argv to emit.
+  reasoningInModelId: {
+    levels: [
+      { id: 'high', label: 'High' },
+      { id: 'medium', label: 'Medium' },
+      { id: 'low', label: 'Low' },
+    ],
+  },
   // We deliberately do NOT opt into `resumesSessionViaCli` / agy's `-c`
   // resume flag on follow-up turns. Tested both shapes; `-c` activates
   // agy's internal agentic loop (multi-step model retries, tool calls,
@@ -337,60 +193,59 @@ export const antigravityAgentDef = {
   // composed in server.ts gives a second line of defense for weak
   // plain-stream models like Gemini 3.5 Flash.
   buildArgs: (
-    _prompt,
+    prompt,
     _imagePaths,
     _extra = [],
     options = {},
     runtimeContext = {},
   ) => {
-    if (options.model && options.model !== DEFAULT_MODEL_OPTION.id) {
-      writeAntigravityModelSelection(
-        options.model,
-        runtimeContext.antigravitySettingsPath,
-      );
-    }
-    // We invoke agy via `-p -` (print mode + stdin sentinel), NOT
-    // `chat -`. Verified against `agy --help` on v1.0.3 — the
-    // `Available subcommands` list is `changelog / help / install /
-    // plugin / update`, and `chat` is NOT among them. `-p` is the
-    // documented print-mode flag (`Short alias for --print`) and
-    // `agy -p -` reads the prompt from stdin. The looper reviewer
-    // bot's environment runs a different agy build that may have
-    // renamed the entry point; until upstream confirms a stable
-    // headless subcommand (see google-antigravity/antigravity-cli#119)
-    // and the change actually ships in the auto-update channel that
-    // packaged OD users get, `-p -` is the contract that actually
-    // produces a print-mode reply on the installed CLI.
+    // `-p` is a Go `flag`-package flag that TAKES THE PROMPT AS ITS VALUE,
+    // not a boolean switch followed by a positional prompt, and agy has no
+    // stdin sentinel under the default `--input-format text`. Verified
+    // against the installed agy v1.1.19:
+    //   - `agy -p` alone           -> `flag needs an argument: -p`
+    //   - `echo <prompt> | agy -p -` -> runs, but the prompt is the literal
+    //     one-character string `-`; the piped stdin is never read, and agy
+    //     answers the empty ask with a generic greeting drawn from whatever
+    //     project memory it has ("How can I assist you today?").
+    //   - `agy -p '<prompt>'`      -> the prompt actually lands.
+    // So the prompt rides argv as `-p`'s value. That is also why this def is
+    // argv-budgeted (`maxPromptArgBytes` below) rather than `promptViaStdin`.
     const args: string[] = [];
+    // `--model` is the same kind of Go flag as `--log-file`/`-p`: its value is
+    // whatever argv token immediately follows it, so it too must be pushed
+    // before `-p` (always last — see below). Verified live against agy
+    // v1.1.24: `agy --model <slug> -p '<prompt>'` runs that one print-mode
+    // turn on the named model, and combining it with `--log-file` works the
+    // same way — relative order between `--model` and `--log-file` doesn't
+    // matter (each independently consumes exactly the one token after it),
+    // only that both precede `-p`.
+    if (options.model && options.model !== DEFAULT_MODEL_OPTION.id) {
+      args.push('--model', options.model);
+    }
     // Always opt into `--log-file` when the daemon supplied a path so
     // it can post-exit grep for the actual upstream failure shape
     // (auth missing vs quota reached vs upstream error) — without it
     // the chat surfaces a generic "empty response" because print mode
     // never echoes those errors on stdout. See server.ts empty-output
     // guard for the consumer.
-    //
-    // Flag order is load-bearing on agy v1.0.3: `agy -p --log-file
-    // /tmp/x -` runs successfully but leaves /tmp/x empty, while `agy
-    // --log-file /tmp/x -p -` captures the diagnostic log, including
-    // `Propagating selected model override to backend: label="<model>"`
-    // and auth/quota failures.
     if (runtimeContext.agentLogFilePath) {
       args.push('--log-file', runtimeContext.agentLogFilePath);
     }
-    args.push('-p');
-    args.push('-');
+    args.push('-p', prompt);
     return args;
   },
-  promptViaStdin: true,
+  // agy takes its prompt on argv (see `buildArgs`), so this def is
+  // argv-budgeted like the other plain-stream argv adapters (aider,
+  // deepseek) rather than `promptViaStdin`. Without one of these three
+  // fields `assessAgentExecutorCompatibility` rejects the def outright.
+  maxPromptArgBytes: 30_000,
   streamFormat: 'plain',
   // `buildArgs` above already consumes `runtimeContext.agentLogFilePath` when
-  // the caller supplies one; this is what asks it to. Two distinct things
-  // depend on the log file, which is why it is not merely a diagnostic nicety
-  // for this adapter:
-  //   - `runtimeLock`'s handoff detector polls it for agy's own
-  //     "Propagating selected model override to backend" line;
-  //   - print mode never echoes auth/quota failures on stdout, so post-exit
-  //     log inspection is the only way to tell those two apart.
+  // the caller supplies one; this is what asks it to. Print mode never
+  // echoes auth/quota failures on stdout, so post-exit log inspection is the
+  // only way to tell those two apart — see server.ts's empty-output guard
+  // for the consumer.
   needsAgentLogFile: true,
   // The one adapter in this package that must not stream live — see
   // `redactAntigravityAuthUrls`'s comment for the OAuth-URL-on-stdout-plus-
@@ -399,7 +254,67 @@ export const antigravityAgentDef = {
   // and keeps streaming per chunk; aider's and deepseek's own comments call
   // that live cadence out as deliberate.
   stdoutPolicy: { buffering: 'until-close', sanitize: redactAntigravityAuthUrls },
-  runtimeLock: antigravityModelLock,
   installUrl: 'https://antigravity.google/cli',
   docsUrl: 'https://antigravity.google/docs/cli-overview',
+  // `externalMcpInjection: 'env-passthrough'` — the prior verdict here ("no safe, run-scoped
+  // delivery mechanism exists") stood as long as the only candidates were a per-run config
+  // flag/relocatable home dir, neither of which `agy` has (see the probes below, still accurate).
+  // What flips the verdict is a THIRD property, verified live and not previously tested: `agy`
+  // passes its own parent process environment through to the stdio MCP server children it spawns
+  // for servers already sitting in its persistent global registry.
+  //
+  //   - Proven with a probe MCP server registered under a relocated `HOME`'s
+  //     `.gemini/config/mcp_config.json`: booted under `agy -p`, it read a marker variable
+  //     (`TOVU_ENV_PASSTHROUGH_PROBE`) straight out of its own `process.env` — no config field, no
+  //     argv, nothing but inherited environment. Full MCP handshake observed on the same run:
+  //     `server/discover` → `initialize` → `notifications/initialized` → `tools/list`
+  //     (protocolVersion `2025-11-25`, clientInfo `antigravity-client`).
+  //   - That makes the registration itself a STATIC, one-time operation — the operator adds one
+  //     `tovu` entry to their real `~/.gemini/config/mcp_config.json` (confirmed still the one real
+  //     mechanism; see the probes below) with a bare, env-free `command` pointing at this package's
+  //     own `jini-mcp` bin, resolving its credential from the environment at spawn time instead of
+  //     a baked-in value. No per-spawn config mutation, no lock, no restore discipline — the exact
+  //     "safe, run-scoped delivery" gap the old verdict cited is closed by inheritance, not by
+  //     relocation.
+  //   - So this def's job shrinks to exactly what `'env-passthrough'` describes in `types.ts`: put
+  //     the bridge entry's `JINI_RUN_ID`/`JINI_DAEMON_URL`/`JINI_DAEMON_TOKEN` onto `agy`'s OWN
+  //     spawn env (done centrally by `@jini-ai/daemon`'s `computeChildEnv`, not by this def's
+  //     `buildArgs`), and `agy` carries them the rest of the way to the already-registered server on
+  //     its own.
+  //
+  // The prior probes into a per-run/relocatable mechanism remain accurate and are kept as the
+  // record of what does NOT work, so a future reader does not re-walk the same dead ends:
+  //
+  //   - No per-run config-path flag. `agy --help` and `agy mcp add --help` were read in full: `mcp
+  //     add/remove/list/enable/disable` only mutate the PERSISTENT global registry — there is no
+  //     `--mcp-config <path>`-shaped flag anywhere on the top-level command or its subcommands.
+  //   - No CODEX_HOME-equivalent env var. `strings` over the `agy` binary itself (not just docs) for
+  //     every all-caps `*HOME*`/`*_DIR`/`*_PATH`/`XDG_*` token found nothing naming a relocatable
+  //     config/data root for Antigravity or Gemini specifically — only the generic `HOME` (relocating
+  //     that would redirect the ENTIRE user profile for the child, not a scoped config dir, and is not
+  //     an "explicit, run-scoped delivery" by any reasonable reading). Also why the passthrough probe
+  //     above used a relocated `HOME` only to prove inheritance in isolation — production spawns
+  //     always use the operator's real `HOME`, since relocating it breaks `agy`'s own auth.
+  //   - The workspace-relative `.agents/mcp_config.json` this comment used to cite as unverified is
+  //     now verified NOT to be what it looked like: a project dir was seeded with a real
+  //     `.agents/mcp_config.json` entry, then `agy mcp list` (run from that cwd) showed only the
+  //     REAL global config's servers — the workspace file never appeared. A live headless `agy -p`
+  //     run from that same cwd (both with and without `--new-project`), captured via `--log-file`,
+  //     shows zero mention of "mcp" or the seeded server name anywhere in its diagnostic log, and its
+  //     own log line reports the run scoped to a generic `"CLI Project"` bucket, not the cwd as a
+  //     distinct project. Best read: `.agents/mcp_config.json` belongs to the Antigravity IDE
+  //     extension's own project layer, a different consumer than the bare `agy` CLI binary this
+  //     daemon actually spawns — not a mechanism reachable from a plain `agy -p` invocation at all.
+  //     Confirmed independently upstream: antigravity-cli issue #60 (open, no maintainer response)
+  //     reports the identical "project-local mcp_config.json is read but ignored" symptom.
+  //   - `~/.gemini/config/mcp_config.json` (global, JSON, `{"mcpServers":{"<name>":{"command":...}}}`,
+  //     confirmed by reading the operator's own file read-only after backing it up) has no relocation
+  //     path — but per the passthrough finding above, this def never needs to write to it at all
+  //     outside the one-time operator registration, so the shared-file race a prior version of this
+  //     comment warned about (a second race alongside the now-deleted settings.json model lock) never
+  //     materializes: nothing here mutates that file per run.
+  //
+  // No hang was observed on any of these probes (all completed in well under `--print-timeout`'s
+  // default 5m).
+  externalMcpInjection: 'env-passthrough',
 } satisfies RuntimeAgentDef;

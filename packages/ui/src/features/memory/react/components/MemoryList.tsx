@@ -3,6 +3,7 @@
 // visible extraction rows). Rendering only — every list, count, and handler is
 // supplied by a host's entries/extractions hooks.
 import { useMemo, type MutableRefObject } from 'react';
+import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { TYPES } from '../../constants.js';
@@ -29,6 +30,7 @@ export function MemoryList({
   onStartEdit,
   onDeleteEntry,
   onDeleteExtraction,
+  agentHandle,
 }: {
   sectionRef: MutableRefObject<HTMLElement | null>;
   entries: MemoryEntrySummary[];
@@ -47,9 +49,17 @@ export function MemoryList({
   onStartEdit: (id: string) => void;
   onDeleteEntry: (id: string) => void;
   onDeleteExtraction: (id: string) => void;
+  /** This section's own agent handle — see `MemorySettingsPanel`'s `agentHandle` doc. */
+  agentHandle?: string;
 }) {
   const t = useT();
   const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
+  const entryHandles = agentHandle
+    ? buildAgentListHandles(agentSubHandle(agentHandle, 'entry'), filtered.map((e) => e.id))
+    : undefined;
+  const extractionHandles = agentHandle
+    ? buildAgentListHandles(agentSubHandle(agentHandle, 'extraction'), visibleExtractions.map((r) => r.id))
+    : undefined;
   return (
     <section ref={sectionRef} className="settings-section settings-section-card memory-records-section">
       <div className="memory-management-panel">
@@ -70,7 +80,12 @@ export function MemoryList({
 
         <div className="library-toolbar is-row">
           <div className="library-filters">
-            <button type="button" className={`filter-pill${filter === 'all' ? ' active' : ''}`} onClick={() => onFilterChange('all')}>
+            <button
+              type="button"
+              className={`filter-pill${filter === 'all' ? ' active' : ''}`}
+              onClick={() => onFilterChange('all')}
+              {...agentHandleProps(agentHandle, { action: 'filter-all', role: 'button', label: t('All') })}
+            >
               {t('All')}
               <span className="filter-pill-count">{entries.length + visibleExtractions.length}</span>
             </button>
@@ -83,6 +98,7 @@ export function MemoryList({
                   type="button"
                   className={`filter-pill${filter === type ? ' active' : ''}`}
                   onClick={() => onFilterChange(type)}
+                  {...agentHandleProps(agentHandle, { action: `filter-${type}`, role: 'button', label: typeLabel[type] })}
                 >
                   {typeLabel[type]}
                   <span className="filter-pill-count">{count}</span>
@@ -97,6 +113,7 @@ export function MemoryList({
                 className="ghost memory-clear-extractions"
                 onClick={() => onClearExtractions()}
                 title={t('Clear extraction history')}
+                {...agentHandleProps(agentHandle, { action: 'clear-extractions', role: 'button', label: t('Clear extraction history') })}
               >
                 <Icon name="close" size={12} />
                 <span>{t('Clear')}</span>
@@ -109,6 +126,7 @@ export function MemoryList({
                 onClick={() => onRefreshExtractions()}
                 disabled={isRefreshing}
                 title={t('Refresh')}
+                {...agentHandleProps(agentHandle, { action: 'refresh-extractions', role: 'button', label: t('Refresh') })}
               >
                 <Icon name="refresh" size={12} className={isRefreshing ? 'icon-spin' : ''} />
                 <span>{isRefreshing ? t('Refreshing') : t('Refresh')}</span>
@@ -131,7 +149,7 @@ export function MemoryList({
             </div>
           ) : (
             <>
-              {filtered.map((entry) => (
+              {filtered.map((entry, index) => (
                 <MemoryEntryCard
                   key={entry.id}
                   entry={entry}
@@ -140,10 +158,18 @@ export function MemoryList({
                   onOpenPreview={onOpenPreview}
                   onStartEdit={onStartEdit}
                   onDelete={onDeleteEntry}
+                  {...(entryHandles?.[index] ? { agentHandle: entryHandles[index] } : {})}
                 />
               ))}
-              {visibleExtractions.map((record) => (
-                <MemoryExtractionCard key={record.id} record={record} nowClock={nowClock} onOpenPreview={onOpenPreview} onDelete={onDeleteExtraction} />
+              {visibleExtractions.map((record, index) => (
+                <MemoryExtractionCard
+                  key={record.id}
+                  record={record}
+                  nowClock={nowClock}
+                  onOpenPreview={onOpenPreview}
+                  onDelete={onDeleteExtraction}
+                  {...(extractionHandles?.[index] ? { agentHandle: extractionHandles[index] } : {})}
+                />
               ))}
             </>
           )}

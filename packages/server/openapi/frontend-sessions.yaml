@@ -1,0 +1,179 @@
+openapi: 3.0.3
+info:
+  title: Jini frontend-sessions HTTP routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for the frontend-session registrar in `@jini-ai/http-kit`
+    (`frontend-sessions.ts`) — the transport half of `@jini-ai/daemon`'s
+    `FrontendSessionRegistry`: how a browser surface attaches to the daemon and
+    receives capability-invocation calls, and how it answers them.
+
+    STREAMING NOTE: `GET /api/frontend-sessions/stream` is Server-Sent Events
+    (`text/event-stream`), but built on the *raw* `createSseResponse` primitive
+    (`raw-sse.ts`), not this package's shared `sse.ts` `createSseChannel` that
+    `memory.ts`/`terminals.ts`/`model-proxy.ts` all use. That means its wire
+    format is bare `data: <json>\n\n` frames — no `event:` field, no `id:`
+    field — and consequently **no `Last-Event-ID`/`afterCursor` reconnect
+    replay** on this stream (contrast `terminals.ts`'s stream route, which does
+    support replay). Each frame's JSON body carries its own `type`
+    discriminator instead of relying on the SSE `event:` field.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/frontend-sessions/stream:
+    get:
+      operationId: stream_frontend_session
+      summary: Open a frontend-session SSE stream and attach a surface
+      x-jini-require-same-origin: true
+      description: |
+        STREAMING (Server-Sent Events). The daemon mints a `sessionId`, attaches
+        the surface to `FrontendSessionRegistry`, and pushes one frame per
+        stream event: `attached` once (first frame, success case), then one
+        `invocation` frame per capability call routed to this surface. The
+        connection's lifetime IS the session — there is deliberately no
+        separate register/unregister pair; closing the connection for any
+        reason (navigation, crashed tab, dropped network) detaches the surface
+        and fails every invocation still awaiting it.
+
+        `bindToken` is delivered ONLY in the `attached` frame, never in a URL,
+        query string, or log — it is the secret a surface later presents to
+        bind a run to itself, kept off the `sessionId` path segment precisely
+        because that id already travels in `POST .../responses` and therefore
+        leaks into access logs and proxies by design.
+
+        SSE response headers commit before the `capability` query parameter is
+        validated, so an invalid `capability` value is NOT reported as an HTTP
+        4xx: the connection still opens as `200 text/event-stream`, and the
+        one-and-only frame sent is `{type:'error', message:...}`, after which
+        the stream closes immediately. Callers must branch on the first
+        frame's `type`, not the HTTP status — same precedent `runs.ts`/
+        `run-stream.ts` set for "no status-code channel left once SSE headers
+        are committed."
+
+        SECURITY: this route bypasses `mountJsonRoute` (raw `app.get`, for the
+        SSE response shape), so it does not get `requireSameOrigin` for free
+        the way `POST .../responses` below does. Fixed 2026-08-23: the same
+        `guardSameOrigin` check `mountJsonRoute` applies is now called
+        directly at the top of the handler, before the SSE channel opens or a
+        `sessionId`/`bindToken` is minted — a cross-origin request gets a
+        `403` JSON error and never reaches `FrontendSessionRegistry.attach`.
+        Previously this GET had no origin guard at all (unlike the sibling
+        `POST .../responses` route, and unlike every mutating route in
+        `http-kit-core.yaml`); see `packages/http-kit/src/__tests__/
+        frontend-sessions.test.ts` for the same-origin/cross-origin
+        regression coverage.
+      parameters:
+        - name: capability
+          in: query
+          required: false
+          description: |
+            Repeatable (`?capability=a&capability=b`). Each occurrence must be a
+            non-empty string; a single value is accepted as a bare string, a
+            missing parameter means "no capability filter." A bracketed/nested
+            query value (Express parses those as an object) is rejected outright,
+            not coerced — the whole request is refused via the in-stream `error`
+            frame described above.
+          schema:
+            oneOf:
+              - { type: string, minLength: 1 }
+              - { type: array, items: { type: string, minLength: 1 } }
+      responses:
+        '200':
+          description: |
+            `text/event-stream`. Bare `data: <json>` frames (no `event:`/`id:`
+            fields). First frame is `FrontendSessionAttachedEvent` on success or
+            `FrontendSessionErrorEvent` on a validation failure (stream closes
+            immediately after). Subsequent frames (success case only) are
+            `FrontendSessionInvocationEvent`, one per capability call.
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/FrontendSessionStreamEvent' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/frontend-sessions/{sessionId}/responses:
+    post:
+      operationId: respond_to_frontend_session_invocation
+      summary: Deliver a surface's answer to an invocation it was asked to execute
+      x-jini-require-same-origin: true
+      description: |
+        Settles the promise a `ToolHandler` is already awaiting — this route
+        does not execute anything itself, so the call it answers has already
+        passed `ToolExecutor`'s authorization, confirmation, timeout,
+        cancellation, truncation, and audit. Always responds `200`;
+        `{settled:false}` reports an unknown or already-settled `invocationId`
+        (an SSE reconnect or a retried POST), which is an expected outcome, not
+        a transport error.
+      parameters:
+        - { name: sessionId, in: path, required: true, schema: { type: string, minLength: 1 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FrontendSessionResponseRequest' }
+      responses:
+        '200': { description: Delivery outcome, content: { application/json: { schema: { $ref: '#/components/schemas/FrontendSessionResponseBody' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin policy rejected the request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; adapter-generated errors include a correlation requestId in error.details, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    FrontendSessionAttachedEvent:
+      type: object
+      description: First frame on a successful attach.
+      required: [type, sessionId, bindToken]
+      properties:
+        type: { type: string, enum: [attached] }
+        sessionId: { type: string }
+        bindToken: { type: string, description: Secret used to bind a run to this surface. Never logged or placed in a URL. }
+    FrontendSessionInvocationEvent:
+      type: object
+      description: One capability call the surface must execute and answer via the POST responses route.
+      required: [type, invocationId, capabilityId, input]
+      properties:
+        type: { type: string, enum: [invocation] }
+        invocationId: { type: string }
+        capabilityId: { type: string }
+        input: { type: object, additionalProperties: true }
+    FrontendSessionErrorEvent:
+      type: object
+      description: Sent instead of `attached` when the request itself was unusable; the stream closes immediately after.
+      required: [type, message]
+      properties:
+        type: { type: string, enum: [error] }
+        message: { type: string }
+    FrontendSessionStreamEvent:
+      oneOf:
+        - { $ref: '#/components/schemas/FrontendSessionAttachedEvent' }
+        - { $ref: '#/components/schemas/FrontendSessionInvocationEvent' }
+        - { $ref: '#/components/schemas/FrontendSessionErrorEvent' }
+      discriminator: { propertyName: type }
+    FrontendSessionResponseRequest:
+      description: A discriminated union, not a flat record — a failure with no message is rejected by the parser rather than represented.
+      oneOf:
+        - type: object
+          required: [invocationId, ok]
+          properties:
+            invocationId: { type: string, minLength: 1 }
+            ok: { type: boolean, enum: [true] }
+            output: {}
+        - type: object
+          required: [invocationId, ok, message]
+          properties:
+            invocationId: { type: string, minLength: 1 }
+            ok: { type: boolean, enum: [false] }
+            message: { type: string, minLength: 1, description: Required and non-empty when ok is false — a failure with no reason gives the caller nothing to act on. }
+    FrontendSessionResponseBody:
+      type: object
+      required: [settled]
+      properties:
+        settled: { type: boolean, description: "false when the invocation was unknown or already settled — a duplicate answer, not an error." }

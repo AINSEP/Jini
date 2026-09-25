@@ -15,7 +15,7 @@
  * from the very `JsonRouteSpec` constant the family's `register*Routes` function mounts, so a spec's
  * path change moves the manifest with it, automatically. The single exception is the SSE run-event
  * route, which is registered with a bare `app.get` rather than a spec — and it contributes the
- * already-exported `RUN_STREAM_ROUTE_PATH` constant rather than a copy of it.
+ * already-exported `RUN_EVENTS_ROUTE_PATH` constant rather than a copy of it.
  *
  * That leaves exactly one failure mode: a family gains a route and nobody adds it *here*. The paired
  * test (`__tests__/route-manifest.test.ts`) closes that by mounting each declared family's real
@@ -38,7 +38,6 @@ import {
   readyRoute,
   versionInfoRoute,
 } from './health.js';
-import { RUN_STREAM_ROUTE_PATH } from './run-stream.js';
 import {
   RUN_EVENTS_ROUTE_PATH,
   runCancelRoute,
@@ -83,14 +82,9 @@ export const JINI_ROUTE_MANIFEST: Readonly<Record<string, readonly RouteRegistra
   ),
   runs: [
     ...fromSpecs(runStartRoute, runListRoute, runStatusRoute, runCancelRoute),
-    // Two distinct streaming routes, both registered with a bare `app.get` rather than a route spec,
-    // so each contributes its exported path constant instead of a copied literal. They are easy to
-    // mistake for one another and a proxy needs BOTH: `RUN_EVENTS_ROUTE_PATH` is the run's own event
-    // log (mounted by `registerRunRoutes` itself), `RUN_STREAM_ROUTE_PATH` is the protocol-encoded
-    // stream `registerRunStreamRoute` mounts separately. Forwarding only the first is a real,
-    // already-observed consumer bug.
+    // Registered with a bare `app.get` rather than a route spec (by `registerRunRoutes` itself), so
+    // it contributes its exported path constant instead of a copied literal.
     { method: 'GET', path: RUN_EVENTS_ROUTE_PATH },
-    { method: 'GET', path: RUN_STREAM_ROUTE_PATH },
   ],
   agents: fromSpecs(agentListRoute, agentRescanRoute),
   toolCatalog: fromSpecs(toolCatalogSearchRoute, toolCatalogDescribeRoute),

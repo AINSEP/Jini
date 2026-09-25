@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sandbox Proxy</title>
+  <style>
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <script>
+    // Official MCP-UI sandbox proxy implementation (from mcpui.dev/guide/client/walkthrough).
+    // Receives HTML content from the host and renders it securely inside this sandboxed frame.
+    window.addEventListener('message', (event) => {
+      const data = event.data;
+      if (!data || typeof data !== 'object') return;
+
+      if (data.method === 'ui/notifications/sandbox-resource-ready') {
+        const { html } = data.params || {};
+        if (html) {
+          document.open();
+          document.write(html);
+          document.close();
+        }
+      }
+    });
+
+    window.parent.postMessage({
+      method: 'ui/notifications/sandbox-proxy-ready',
+      params: {}
+    }, '*');
+  </script>
+</body>
+</html>

@@ -320,6 +320,13 @@ export const amrAgentDef = {
   fallbackModels: [] as RuntimeModelOption[],
   buildArgs: () => ['agent', 'run', '--runtime', 'opencode'],
   streamFormat: 'acp-json-rpc',
+  // AMR is a genuine ACP-native def (same `acp-json-rpc` transport as devin/hermes/kilo/kimi/
+  // kiro/reasonix/trae-cli/vibe), so it gets the caller's external MCP servers the same way those
+  // 8 do: merged into the `session/new` `mcpServers` array. `buildMcpBridgeDelivery` dispatches on
+  // this declared strategy alone, never on `def.id`, so this one field is the whole fix — no
+  // `agent-executor.ts` change needed. Previously undeclared here only because this def was ported
+  // after the other 8 and the field was missed, not because vela lacks the transport.
+  externalMcpInjection: 'acp-merge',
   // vela resumes the upstream OpenCode session via ACP session/load across
   // turns (the OpenCode session store persists per conversation), so the daemon
   // captures the durable handle, skips the transcript resend on resume, and

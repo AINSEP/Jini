@@ -1,8 +1,8 @@
-import type { CSSProperties, ReactNode } from 'react';
-import type { ChatAttachment, ChatMessage } from '@jini-ai/chat/core';
+import type { CSSProperties, ReactNode, RefObject } from 'react';
+import type { ChatAttachment, ChatMessage } from '@jini-ai/chat';
 
 import type { ComposerSlots } from '../../slots.js';
-import type { ChatTransport, RunContext } from '@jini-ai/chat/core';
+import type { ChatTransport, RunContext } from '@jini-ai/chat';
 
 export interface ChatPaneAgentOption {
   id: string;
@@ -24,6 +24,14 @@ export interface ChatPaneAgent {
   reasoningOptions?: readonly ChatPaneAgentOption[];
   supportsCustomModel?: boolean;
   diagnostic?: string;
+  /**
+   * Whether this runtime can receive external MCP servers (Tovu/Jini tools) at all — mirrors
+   * `@jini-ai/http-kit`'s `AgentSummary.supportsTools`, itself derived from
+   * `@jini-ai/agent-runtime`'s `runtimeSupportsExternalTools(def)`. `AgentRuntimePicker` reads this
+   * to show a "No tools" badge; `undefined` (a host on an older wire payload) is treated the same
+   * as `true` — no badge — since there is no signal either way.
+   */
+  supportsTools?: boolean;
 }
 
 export interface ChatPaneAgentSelection {
@@ -94,6 +102,13 @@ export interface ChatPaneAgentControlOptions {
   enabled?: boolean;
   /** Wires the daemon-relayed transports (HTTP route table, MCP stdio server) in addition to in-page WebMCP. */
   bridgeAccess?: ChatPaneAgentBridgeAccess;
+  /**
+   * Registers this pane's own actions with the in-page WebMCP surface (`document.modelContext`).
+   * Defaults to `false`; forwarded verbatim to `useChatPaneAgentControl`'s own `webmcp` option — see
+   * that hook's doc for why the default is a security position, not caution, and kept separate from
+   * `enabled`/`bridgeAccess` rather than implied by them.
+   */
+  webmcp?: boolean;
 }
 
 export interface ChatPaneRunContextInput {
@@ -105,6 +120,21 @@ export interface ChatPaneRunContextInput {
 export type ChatPaneRunContext =
   | RunContext
   | ((input: ChatPaneRunContextInput) => RunContext | undefined);
+
+/**
+ * Imperative access to the composer's draft text — published on `composerHandle.current` by
+ * `ChatPane` itself once mounted (`null` before mount and after unmount).
+ */
+export interface ChatPaneComposerHandle {
+  /**
+   * Appends `text` to whatever the operator has already typed (same joining rule the "+" discovery
+   * menu's `insertText` items use — see `appendComposerDiscovery`), rather than replacing the draft
+   * outright. This is the seam for a host that needs to write into the draft AFTER first render —
+   * `initialDraft` only seeds the very first one and cannot be written to again, and `ChatPane`
+   * exposes no other prop for pushing text into an in-progress draft from outside.
+   */
+  insertText: (text: string) => void;
+}
 
 export interface ChatPaneProps {
   transport: ChatTransport;
@@ -136,7 +166,35 @@ export interface ChatPaneProps {
   /** Passed straight through to the runtime picker. */
   onByokModelChange?: (model: string) => void;
   initialDraft?: string;
+  /**
+   * Confirms which previously staged attachments still exist, so a draft restored after a reload
+   * never shows a chip for a file the backend has since garbage-collected — that looks intact and
+   * then fails at send. Receives the cached references, returns the subset still valid; a rejection
+   * is treated as "none survived".
+   *
+   * **Optional, and omitting it keeps the previous behavior exactly**: attachment persistence stays
+   * off, nothing is written and nothing is restored, and only the draft TEXT survives a reload. No
+   * existing host needs to change anything. Wire it only if the host can actually answer the
+   * liveness question — restoring references it cannot vouch for is the failure this prevents.
+   */
+  validateAttachments?: (attachments: readonly ChatAttachment[]) => Promise<readonly ChatAttachment[]>;
+  /**
+   * A ref `ChatPane` populates with a `ChatPaneComposerHandle` once mounted, for a host that needs
+   * to insert text into the draft from OUTSIDE this component's own props — e.g. an absolute path
+   * a desktop host recovered from a native drag-drop event and could not have known at
+   * `initialDraft`-seeding time. `null` before mount and after unmount; a host calling `.insertText`
+   * before the pane exists has nothing to call.
+   */
+  composerHandle?: RefObject<ChatPaneComposerHandle | null>;
   placeholder?: string;
+  /**
+   * Rotating composer suggestions, cycled every few seconds in place of one fixed `placeholder` —
+   * see `useChatPaneComposerPlaceholder`. Takes over from `placeholder` once it has two or more
+   * entries; a single-entry list (or `prefers-reduced-motion: reduce`) shows that one entry with no
+   * rotation. `placeholder` keeps resolving exactly as before when this is omitted or empty, so
+   * this is additive — no existing host needs to change anything.
+   */
+  placeholders?: readonly string[];
   suggestions?: readonly string[];
   /** Controlled working-directory value. */
   workingDirectory?: string | null;
@@ -146,6 +204,27 @@ export interface ChatPaneProps {
   onChangeWorkingDirectory?: (workingDirectory: string | null) => void;
   /** Optional native filesystem effects used by the package-owned picker. */
   workingDirectoryAccess?: ChatPaneWorkingDirectoryAccess;
+  /**
+   * Where the working-directory control renders when `workingDirectoryAccess` is supplied.
+   * Ignored when `workingDirectoryAccess` is absent — that case always uses the composer's own
+   * lightweight text-input popover, regardless of this prop.
+   *
+   * - `'below'` (default): the package's own `WorkingDirPicker` renders beneath the composer, as
+   *   it always has. Existing hosts (e.g. the reference-web example's desktop bridge) that never
+   *   set this prop keep this exact behavior unchanged.
+   * - `'composer'`: the control moves into the composer's action row instead, next to the
+   *   attach/discovery button — clicking it calls `workingDirectoryAccess.pickWorkingDirectory`
+   *   directly (the native OS dialog IS the picker, so there is no popover to open). Nothing
+   *   renders below the composer in this mode. Opt in when a host wants a single working-directory
+   *   control living next to "+" rather than two competing ones.
+   * - `'none'`: no working-directory control renders anywhere — not the composer's folder icon,
+   *   not the below-composer `WorkingDirPicker`. Opt in when a host has no real filesystem path to
+   *   offer (e.g. a browser context where a directory picker can only ever yield a folder name, not
+   *   a path the agent runtime can use) and a non-functional control would be worse than none.
+   *
+   * @default 'below'
+   */
+  workingDirectoryControlPlacement?: 'below' | 'composer' | 'none';
   projectFileNames?: ReadonlySet<string>;
   uploadAttachments?: (
     files: File[],
@@ -154,8 +233,24 @@ export interface ChatPaneProps {
   attachmentAccept?: string;
   disabled?: boolean;
   runtimePickerPlacement?: RuntimePickerPlacement;
-  composerSlots?: Omit<ComposerSlots, 'footerAccessories'>;
+  /**
+   * `footerAccessories` AND `leadingAccessories` are both excluded here for the same reason:
+   * `ChatPane` itself always owns both ends of the composer's slot row. The footer is always the
+   * `AgentRuntimePicker` (see `slots` assembly below); the leading, pinned-context zone is always
+   * assembled from this interface's own {@link leadingAccessory} prop. A `composerSlots` value
+   * carrying either key used to type-check but silently lose the value at runtime — `ChatPane`'s
+   * `slots` object always overwrote both keys unconditionally — so this `Omit` turns that dead end
+   * into a compile error instead of a debugging session.
+   */
+  composerSlots?: Omit<ComposerSlots, 'footerAccessories' | 'leadingAccessories'>;
   header?: ReactNode;
+  /**
+   * Content for the composer's pinned-context zone — the space above the input that a host
+   * populates with whatever it wants pinned there (selected plugins, MCP servers, anything else),
+   * and which Jini renders and animates as a first-class part of the composer control (see
+   * `CHAT_PANE_STYLES`'s `.jini-composer-leading` rules). `undefined`/`null` renders nothing at
+   * all, so an idle composer reserves no space for this zone.
+   */
   leadingAccessory?: ReactNode;
   footer?: ReactNode;
   className?: string;

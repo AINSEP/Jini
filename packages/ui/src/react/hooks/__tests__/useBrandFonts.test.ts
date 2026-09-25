@@ -89,7 +89,11 @@ describe('useBrandFonts — self-hosted font manifest', () => {
     renderHook(() => useBrandFonts('proj-1', [], { resolveProjectAssetUrl }));
     await flushMicrotasks();
 
-    expect(fetchSpy).toHaveBeenCalledWith('/assets/proj-1/fonts/manifest.json', { cache: 'no-store' });
+    // fetchWithTimeout composes its own timeout AbortSignal in — see fetch-with-timeout.ts.
+    expect(fetchSpy).toHaveBeenCalledWith('/assets/proj-1/fonts/manifest.json', {
+      cache: 'no-store',
+      signal: expect.any(AbortSignal),
+    });
     expect(resolveProjectAssetUrl).toHaveBeenCalledWith('proj-1', 'fonts/manifest.json');
     expect(resolveProjectAssetUrl).toHaveBeenCalledWith('proj-1', 'fonts/obrien.woff2');
 
@@ -198,6 +202,9 @@ describe('useBrandFonts — self-hosted font manifest', () => {
     rerender({ projectId: 'proj-2' });
     await flushMicrotasks();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    expect(fetchSpy).toHaveBeenLastCalledWith('/assets/proj-2/fonts/manifest.json', { cache: 'no-store' });
+    expect(fetchSpy).toHaveBeenLastCalledWith('/assets/proj-2/fonts/manifest.json', {
+      cache: 'no-store',
+      signal: expect.any(AbortSignal),
+    });
   });
 });

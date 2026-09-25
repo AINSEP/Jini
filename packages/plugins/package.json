@@ -1,59 +1,20 @@
 {
   "name": "@jini-ai/plugins",
-  "version": "0.1.0",
-  "description": "Namespace package for plugin packaging in Jini: format support on one subpath per format (the third-party Agent Plugins open standard on ./agent-plugins; Jini's own host-extension plugins on ./host, reserved — see README), plus the plugins themselves, each on a subpath named for itself (./ui-ux-design).",
+  "version": "0.3.0",
+  "description": "Reserved for Jini's own host-extension plugin format (./host — manifest + setup() + hooks + activation), not yet implemented; the only working implementation of that concept today is Tovu's src/features/plugin-runtime/ (SPEC-005), which has not moved here. The third-party Agent Plugins open standard support and bundled plugins that used to live under this package's ./agent-plugins subpath moved out on 2026-08-18 to @jini-ai/agent-plugins — see that package for ui-ux-design, create-tovu-theme, or anything Agent-Plugins-spec related.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/AINSEP/Jini.git",
     "directory": "packages/plugins"
   },
+  "private": true,
   "jini": {
     "domain": "tooling",
     "kind": "plugin-packaging",
     "runtime": "universal",
-    "entries": {
-      "./agent-plugins": "universal",
-      "./ui-ux-design/*": "universal"
-    }
+    "entries": {}
   },
   "type": "module",
-  "sideEffects": false,
-  "exports": {
-    "./agent-plugins": {
-      "types": "./dist/agent-plugins/index.d.ts",
-      "import": "./dist/agent-plugins/index.js",
-      "default": "./dist/agent-plugins/index.js"
-    },
-    "./ui-ux-design/*": "./ui-ux-design/*"
-  },
-  "typesVersions": {
-    "*": {
-      "agent-plugins": [
-        "./dist/agent-plugins/index.d.ts"
-      ]
-    }
-  },
-  "files": [
-    "dist",
-    "ui-ux-design",
-    "!dist/**/*.test.js",
-    "!dist/**/*.test.d.ts",
-    "!dist/**/*.test.js.map",
-    "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
-  ],
-  "publishConfig": {
-    "access": "public",
-    "registry": "https://registry.npmjs.org"
-  },
-  "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
-  },
-  "devDependencies": {
-    "@vitest/coverage-v8": "^2.1.9"
-  }
+  "sideEffects": false
 }

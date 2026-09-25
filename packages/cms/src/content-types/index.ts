@@ -8,6 +8,8 @@
  */
 export type {
   ContentTypeFieldKind,
+  IndexableFieldKind,
+  StorageOnlyFieldKind,
   ContentTypeFieldDef,
   ContentTypeStatus,
   ContentTypeRecord,
@@ -15,7 +17,20 @@ export type {
   ActorIdentityInput,
   Result,
 } from "./types.js";
-export { CONTENT_TYPE_FIELD_KINDS, isContentTypeFieldKind } from "./types.js";
+/**
+ * `CONTENT_TYPE_FIELD_KINDS`/`isContentTypeFieldKind` answer "may this kind be DECLARED and
+ * STORED". `INDEXABLE_FIELD_KINDS`/`isIndexableFieldKind` answer the narrower "may this kind be
+ * `queryable`, and therefore reach `mapFieldKindToCast`". A host writing its own DDL provisioner
+ * needs the second pair, not the first — they are no longer the same set.
+ */
+export {
+  CONTENT_TYPE_FIELD_KINDS,
+  CONTENT_TYPE_SCALAR_KINDS,
+  INDEXABLE_FIELD_KINDS,
+  STORAGE_ONLY_FIELD_KINDS,
+  isContentTypeFieldKind,
+  isIndexableFieldKind,
+} from "./types.js";
 
 export type { ContentTypeListPort } from "./list.js";
 export { listContentTypes } from "./list.js";
@@ -35,10 +50,17 @@ export {
   ReservedContentTypeKeyError,
   InvalidFieldNameGrammarError,
   InvalidFieldKindError,
+  /**
+   * A SUBCLASS of `InvalidFieldKindError` — an existing boundary whose `instanceof` list already
+   * carries the parent maps this to the same `400 VALIDATION_ERROR` with no change. Catch it by
+   * name only if the finer distinction matters.
+   */
+  StorageOnlyFieldNotQueryableError,
   InvalidFieldShapeError,
   QueryableFieldCapExceededError,
   VersionConflictError,
   ContentTypeNotFoundError,
+  ContentTypeAlreadyExistsError,
   ValidationError,
   ContentTypeLifecycleError,
   CleanupNotEligibleError,

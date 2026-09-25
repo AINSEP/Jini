@@ -42,6 +42,16 @@ export type {
 export { computeBlobStorageKey } from "./blob-key.js";
 
 export {
+  MEDIA_HTML_ATTRIBUTE_ALLOWED_NAMES,
+  isAllowedMediaHtmlAttributeName,
+  parseMediaHtmlAttributes,
+  describeMediaHtmlAttributeError,
+  type MediaHtmlAttributeRejectionReason,
+  type MediaHtmlAttributeError,
+  type ParsedMediaHtmlAttributes,
+} from "./html-attributes.js";
+
+export {
   InMemoryMediaRepo,
   InMemoryAssetBlobRepo,
   InMemoryAssetRenditionRepo,
@@ -72,12 +82,15 @@ export {
   uploadMedia,
   listMedia,
   getMediaById,
+  findMediaByIdOrSlug,
   updateMediaMetadata,
   trashMedia,
   purgeMedia,
+  isValidMediaSlugFormat,
   type UploadMediaInput,
   type UploadMediaDeps,
   type UpdateMediaMetadataInput,
+  type FindMediaByIdOrSlugRequired,
 } from "./media-service.js";
 
 // -----------------------------------------------------------------------------
@@ -116,7 +129,7 @@ export {
 export type { ImageTransformerPort, TransformImageInput, TransformImageOutput } from "./image-transformer.js";
 export { InMemoryImageTransformer } from "./image-transformer.js";
 
-export { SharpImageTransformer, ImageTransformUnavailableError } from "./image-transformer.sharp.js";
+export { SharpImageTransformer, ImageTransformUnavailableError, ImageSourceCorruptError } from "./image-transformer.sharp.js";
 
 // -----------------------------------------------------------------------------
 // Original-bytes admin preview route support. See `content-type-sniffer.ts`'s

@@ -13,7 +13,7 @@ export type SettingsDialogTab<TId extends string = string> = TabbedDialogTab<TId
 
 /**
  * Alias of `TabbedDialogProps` — see that interface for the field-by-field docs. Kept as its
- * own name (rather than inlining `TabbedDialogProps` at every Tovu call site) purely for
+ * own name (rather than inlining `TabbedDialogProps` at every host call site) purely for
  * call-site continuity; `SettingsDialogShell` adds no fields of its own.
  */
 export type SettingsDialogShellProps<T extends SettingsDialogTab = SettingsDialogTab> = TabbedDialogProps<T>;

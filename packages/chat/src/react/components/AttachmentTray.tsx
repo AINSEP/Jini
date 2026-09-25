@@ -18,9 +18,15 @@ export function AttachmentTray({ attachments, onRemove, renderItem }: Attachment
   const t = useT();
   if (attachments.length === 0) return null;
   return (
-    <div className="jini-attachment-tray">
+    <div className="jini-attachment-tray" data-testid="composer-attachment-tray">
       {attachments.map((a) => (
-        <div key={a.path} className="jini-attachment-chip">
+        <div
+          key={a.path}
+          className="jini-attachment-chip"
+          data-testid="attachment-chip"
+          data-attachment-kind={a.kind}
+          data-attachment-name={a.name}
+        >
           {renderItem ? renderItem(a) : <DefaultAttachmentChip attachment={a} />}
           <button type="button" className="jini-attachment-remove" onClick={() => onRemove(a.path)} title={t('Remove {name}', { name: a.name })} aria-label={t('Remove {name}', { name: a.name })}>
             <Icon name="close" size={12} />

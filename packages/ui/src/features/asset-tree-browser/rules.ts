@@ -16,6 +16,7 @@ export {
   filesFromDataTransfer,
   filesFromFileSystemEntry,
 } from '../../utils/file-transfer.js';
+export type { FileWithRelativePath } from '../../utils/file-transfer.js';
 import {
   DEFAULT_KIND_GLYPH,
   DOUBLE_ACTIVATION_WINDOW_MS,

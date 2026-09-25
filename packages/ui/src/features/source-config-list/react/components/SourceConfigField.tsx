@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../../i18n/index.js';
+import { sourceConfigAgentProps } from '../../agent-handles.js';
 import { maskFieldValue } from '../../rules.js';
 import type { SourceFieldSpec } from '../../types.js';
 
@@ -18,6 +19,19 @@ export interface SourceConfigFieldProps {
    * from before this prop existed).
    */
   idPrefix?: string;
+  /**
+   * This field's own agent handle — publishes the input/select/textarea to
+   * `@jini-ai/agentic`'s `page.*` verbs as `<agentHandle>`, and the
+   * `password`/`secret-textarea` show-hide toggle as `<agentHandle>-reveal`.
+   * A plain string, not a per-element map: the caller names the field, this
+   * component names its own parts and supplies each one's role and label,
+   * because only it knows what its own toggle does. See
+   * `../../agent-handles.ts` for the full scheme.
+   *
+   * Omit entirely and no `data-agent-*` markup is emitted at all — the
+   * rendered DOM is byte-identical to before this prop existed.
+   */
+  agentHandle?: string;
 }
 
 /**
@@ -35,8 +49,23 @@ export interface SourceConfigFieldProps {
  * brand-new/always-empty field, or one already cleared out) is immediately
  * editable with no reveal click required; there is no secret to guard, so
  * gating it would just block legitimate first-time entry.
+ *
+ * ## Agent handles
+ *
+ * Given `agentHandle="mcp-add-field-api-key"` this publishes:
+ *
+ * | element | handle | role |
+ * |---|---|---|
+ * | the input/select/textarea | `mcp-add-field-api-key` | `field` |
+ * | the show-hide toggle | `mcp-add-field-api-key-reveal` | `button` |
+ *
+ * Note that publishing a handle is not the same as making a field writable:
+ * `page.fill` independently refuses credential fields, so a `password`-kind
+ * field is discoverable and readable-as-ontology but still only a human can
+ * type into it. That refusal lives in `@jini-ai/agentic`'s own guards and is
+ * not something this component either grants or can route around.
  */
-export function SourceConfigField({ spec, value, error, disabled = false, idPrefix = 'source-config-field', onChange }: SourceConfigFieldProps) {
+export function SourceConfigField({ spec, value, error, disabled = false, idPrefix = 'source-config-field', agentHandle, onChange }: SourceConfigFieldProps) {
   const t = useT();
   const [revealed, setRevealed] = useState(false);
 
@@ -77,10 +106,20 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
   // "Show"/reveal click required.
   const isLockedSecret = spec.kind === 'secret-textarea' && hadStoredSecretRef.current && !revealed;
 
+  const fieldLabel = t(spec.label);
+  const controlAgentProps = sourceConfigAgentProps(agentHandle, { role: 'field', label: fieldLabel });
+  // Labelled by the field it reveals, not by the live "Show"/"Hide" on its face: an agent label is
+  // stable page ontology, so it must not flip every time the toggle is clicked.
+  const revealAgentProps = sourceConfigAgentProps(agentHandle, {
+    role: 'button',
+    label: t('Show or hide {label}', { label: fieldLabel }),
+    action: 'reveal',
+  });
+
   return (
     <label className="source-config-field" htmlFor={inputId}>
       <span className="source-config-field-label">
-        {t(spec.label)}
+        {fieldLabel}
         {spec.required ? (
           <span className="source-config-field-required" aria-label={t('required')}>
             *
@@ -94,6 +133,7 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
           disabled={disabled}
           aria-invalid={Boolean(error) || undefined}
           aria-describedby={errorId}
+          {...controlAgentProps}
           onChange={(event) => onChange(event.target.value)}
         >
           <option value="" disabled hidden>
@@ -120,6 +160,7 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
             disabled={disabled}
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={errorId}
+            {...controlAgentProps}
             onChange={(event) => onChange(event.target.value)}
           />
           {spec.kind === 'secret-textarea' ? (
@@ -127,6 +168,7 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
               type="button"
               className="source-config-field-toggle"
               disabled={disabled}
+              {...revealAgentProps}
               onClick={() => setRevealed((current) => !current)}
               title={revealed ? t('Hide') : t('Show')}
             >
@@ -139,17 +181,23 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
           <input
             id={inputId}
             type={revealed ? 'text' : 'password'}
+            // `new-password`, NOT `off`: Chrome deliberately ignores `off` and fills a saved site
+            // login into the first password input it finds (and the text input above it as the
+            // username). A source's credential is never the operator's own login.
+            autoComplete="new-password"
             value={value}
             placeholder={placeholder}
             disabled={disabled}
             aria-invalid={Boolean(error) || undefined}
             aria-describedby={errorId}
+            {...controlAgentProps}
             onChange={(event) => onChange(event.target.value)}
           />
           <button
             type="button"
             className="source-config-field-toggle"
             disabled={disabled}
+            {...revealAgentProps}
             onClick={() => setRevealed((current) => !current)}
             title={revealed ? t('Hide') : t('Show')}
           >
@@ -165,6 +213,7 @@ export function SourceConfigField({ spec, value, error, disabled = false, idPref
           disabled={disabled}
           aria-invalid={Boolean(error) || undefined}
           aria-describedby={errorId}
+          {...controlAgentProps}
           onChange={(event) => onChange(event.target.value)}
         />
       )}

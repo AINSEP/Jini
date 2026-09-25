@@ -45,6 +45,20 @@ export interface MediaRecord {
   id: UUID;
   workspaceId: UUID;
   title: string;
+  /**
+   * Human-memorable, unique-per-workspace lookup key (owner-directed, 2026-09-07) — an ADDITIONAL
+   * key alongside `id`, never a replacement: `id` stays the canonical primary key every existing
+   * embed/reference resolves by, and this column only gives a second, human-typeable way to reach
+   * the same row (`findMediaByIdOrSlug` in `media-service.ts` tries this first, `id` second).
+   *
+   * Derived from `title` at upload time (`deriveMediaSlug`), then independently editable afterward
+   * — renaming `title` does NOT recompute this field; it changes only on an explicit `slug` write.
+   * Unique per `(workspaceId, slug)`, enforced by the host's own DB index (see the host's
+   * `idx_media_workspace_slug`) — `updateMediaMetadata`'s own `findBySlug` check is a friendly-error
+   * courtesy on top of that, not the enforcement itself, the same split `posts_workspace_slug_unique`
+   * already establishes for `post`'s identical `slug` field.
+   */
+  slug: string;
   alt: string;
   caption: string;
   credit: string;
@@ -66,6 +80,18 @@ export interface MediaRecord {
   width: number | null;
   height: number | null;
   cssClass: string | null;
+  /**
+   * Owner-directed (2026-09-07) free-text HTML attributes threaded onto this asset's public
+   * `<img>`/`<video>` tag (stated uses: animations, custom WebMCP hooks) — raw, ALREADY-VALIDATED
+   * source text (e.g. `data-motion="fade-in" loading="lazy"`), the same "one string column, `null`
+   * means not set" shape {@link cssClass} already establishes; `null` by default. This is a stored-
+   * XSS boundary: `updateMediaMetadata` validates it against `html-attributes.ts`'s allowlist before
+   * ever writing it (`on*` handlers, `javascript:` values, and any name not on the allowlist are
+   * rejected outright, never sanitized), and a host's render path must re-validate before emitting
+   * it onto a real tag rather than trusting a stored value was never written by an older code path
+   * or a direct DB edit.
+   */
+  htmlAttributes: string | null;
 }
 
 /**

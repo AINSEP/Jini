@@ -6,6 +6,7 @@
 // `@jini-ai/chat`'s `./react` subpath (formerly this package's own `./chat` export, extracted
 // 2026-08-03)/this package's own `./renderers` subpath — see `packages/ui/source-map.md`)
 // — just enough to render a saved memory's plain-text/Markdown body safely.
+import { agentHandleProps } from '@jini-ai/agentic';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { renderMarkdown } from '../render-markdown.js';
@@ -18,6 +19,7 @@ export function MemoryEntryCard({
   onOpenPreview,
   onStartEdit,
   onDelete,
+  agentHandle,
 }: {
   entry: MemoryEntrySummary;
   previewId: string | null;
@@ -25,6 +27,8 @@ export function MemoryEntryCard({
   onOpenPreview: (id: string) => void;
   onStartEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  /** This card's own agent handle — `MemoryList` derives one per entry. */
+  agentHandle?: string;
 }) {
   const t = useT();
   return (
@@ -41,13 +45,26 @@ export function MemoryEntryCard({
           className="library-card-expand"
           onClick={() => onOpenPreview(entry.id)}
           title={t('Preview')}
+          {...agentHandleProps(agentHandle, { action: 'preview', role: 'button', label: t('Preview') })}
         >
           <Icon name={previewId === entry.id ? 'chevron-down' : 'chevron-right'} size={14} />
         </button>
-        <button type="button" className="ghost library-card-action" onClick={() => onStartEdit(entry.id)} title={t('Edit')}>
+        <button
+          type="button"
+          className="ghost library-card-action"
+          onClick={() => onStartEdit(entry.id)}
+          title={t('Edit')}
+          {...agentHandleProps(agentHandle, { action: 'edit', role: 'button', label: t('Edit') })}
+        >
           <Icon name="edit" size={14} />
         </button>
-        <button type="button" className="ghost library-card-action" onClick={() => onDelete(entry.id)} title={t('Delete')}>
+        <button
+          type="button"
+          className="ghost library-card-action"
+          onClick={() => onDelete(entry.id)}
+          title={t('Delete')}
+          {...agentHandleProps(agentHandle, { action: 'delete', role: 'button', label: t('Delete') })}
+        >
           <Icon name="close" size={14} />
         </button>
       </div>

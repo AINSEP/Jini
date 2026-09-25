@@ -383,6 +383,59 @@ a.jini-button {
   color: var(--jini-text-strong);
 }
 
+/* Base URL + Max tokens on one line (owner ruling, 2026-09-02). A WRAPPING flex row rather than a
+   two-column grid, and the responsiveness is entirely in these two declarations: `flex: 1 1 210px`
+   is what makes each field claim half a wide card and the whole of a narrow one, and `flex-wrap`
+   is what lets the second drop below the first instead of both being squeezed. Container-driven,
+   with no media query — this card renders inside a settings modal, a full-width admin page, and a
+   phone, and a viewport breakpoint would be answering the wrong question in the first two.
+
+   `align-items: start` so a field with a two-line hint (an invalid base URL) does not stretch its
+   neighbour's input to match. */
+.jini-byok-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 14px;
+}
+
+.jini-byok-field-row > .jini-field {
+  /* 210px let the row keep Base URL and Max tokens side by side well before either had real room
+     (owner-reported, 2026-09-02). The longest realistic default Base URL preset
+     ('https://generativelanguage.googleapis.com', `constants.ts`) is 41 characters, which at
+     `.jini-input`'s 13px font needs roughly 300px (glyphs + the input's 20px horizontal padding
+     and 1px border each side) before it displays without visually truncating — so the row now
+     requires that much per field before it stays on one line; below it, Max tokens drops below
+     Base URL instead of squeezing both into a sliver. */
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
+/* The Model control with "Test connection" beside it, same wrapping rule as the field row above so
+   the button drops below the field on a narrow card.
+
+   `align-items: flex-end` is what puts the button on the input's own line rather than level with the
+   field's "Model" caption: the label is a flex column of [caption, control], so its bottom edge IS
+   the control's bottom edge. That holds only because both status lines live outside this row — a
+   hint inside the label would extend it downward and take the button with it. */
+.jini-byok-model-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.jini-byok-model-row > .jini-field {
+  flex: 1 1 210px;
+  min-width: 0;
+}
+
+.jini-byok-model-row > .jini-byok-test-btn {
+  flex: 0 0 auto;
+}
+
+/* Now the probe's RESULT line only — the button itself moved up into `.jini-byok-model-row`. Kept as
+   a row rather than a bare span so a future second status can sit beside this one. */
 .jini-byok-test-row {
   display: flex;
   align-items: center;
@@ -793,6 +846,27 @@ a.jini-button {
 .jini-btn-ghost,
 .jini-button-ghost {
   background: transparent;
+}
+
+/* A host app's own global `button:disabled` reset (Tovu's admin: `styles.css`'s burnt-orange
+   `color-mix` tint) is a type selector + pseudo-class, (0,1,1) specificity — it outranks the
+   class-only rule above for the SAME property, so a disabled ghost button would otherwise show
+   that host's accent tint behind it instead of staying transparent (confirmed live: the Media
+   providers tab's disabled "Clear" button). `:disabled` gives this rule the matching (0,1,1)
+   specificity it needs to win regardless of which host renders it — a ghost button has no fill in
+   any state, disabled included, and that contract shouldn't depend on what a consuming app's own
+   button reset happens to do.
+
+   `color` needs the same treatment, not just `background`: Tovu's global rule sets BOTH as a
+   matched pair (a near-white "ink" meant to sit on ITS OWN peach fill), so resetting only the
+   background left white-on-white invisible text — confirmed live, not a hypothetical. `.jini-
+   button:disabled` (above, line ~150) already dims via `opacity: 0.55`; restoring the ordinary
+   `var(--jini-text)` here just gives that opacity something visible to dim, same as every other
+   disabled `.jini-button` variant that doesn't hit this host-specific collision. */
+.jini-btn-ghost:disabled,
+.jini-button-ghost:disabled {
+  background: transparent;
+  color: var(--jini-text);
 }
 
 /* Searchable model select (gap 4) — thin wrapper around the shared
@@ -3343,6 +3417,17 @@ button.connector-action.is-loading { cursor: wait; }
   border-radius: var(--jini-radius-sm);
 }
 
+/* Separates a pinned provider (`MediaProvidersTabProps.pinnedProviderIds`) from the rest of the
+   configured-first/alphabetical list below it — a plain `<hr>` rather than a styled `<div>` since
+   it carries no content, just a boundary; a flex child of `.jini-media-provider-list` so it needs
+   its own margin reset (the browser default `hr` margin would otherwise fight that list's own
+   `gap`, doubling the visual space around it). */
+.jini-media-provider-divider {
+  margin: 2px 0;
+  border: none;
+  border-top: 1px solid var(--jini-border);
+}
+
 .jini-media-provider-card-head {
   display: flex;
   align-items: center;
@@ -3389,8 +3474,19 @@ button.connector-action.is-loading { cursor: wait; }
   background: var(--jini-bg-subtle);
 }
 
+/* `top: 0; left: 0` is a BUG FIX, not cosmetic — do not drop it. Without an explicit offset,
+   `position: absolute` resolves against the element's STATIC position, and when every ancestor up
+   the chain is `position: static` (true for every current caller — none of `.jini-media-provider-
+   field`'s ancestors are positioned except the one `--secret` field's own wrapper), the containing
+   block falls back to the *initial containing block* (the whole document). A static position deep
+   in a long page can then inflate the document's scrollHeight well past its real content — the
+   exact defect class the consuming host's own `.visually-hidden` was fixed for after a "bunch of
+   white space" incident; pinning to the containing block's origin here closes it for every current
+   and future `.jini-sr-only` caller instead of leaving it latent. */
 .jini-sr-only {
   position: absolute;
+  top: 0;
+  left: 0;
   width: 1px;
   height: 1px;
   padding: 0;
@@ -4070,6 +4166,34 @@ button.connector-action.is-loading { cursor: wait; }
   cursor: not-allowed;
 }
 
+.source-config-add-form-actions {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.source-config-add-form-cancel {
+  padding: 8px 16px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--jini-text);
+  background: transparent;
+  border: 1px solid var(--jini-border);
+  border-radius: var(--jini-radius-sm);
+  cursor: pointer;
+}
+
+.source-config-add-form-cancel:hover:not(:disabled) {
+  background: var(--jini-bg-subtle);
+}
+
+.source-config-add-form-cancel:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .source-config-test-control {
   display: flex;
   align-items: center;
@@ -4232,6 +4356,7 @@ button.connector-action.is-loading { cursor: wait; }
   padding: 5px 10px;
   font: inherit;
   font-size: 12px;
+  color: var(--jini-text);
   background: var(--jini-bg-panel);
   border: 1px solid var(--jini-border);
   border-radius: var(--jini-radius-sm);

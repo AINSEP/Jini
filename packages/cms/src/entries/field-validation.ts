@@ -45,17 +45,108 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 /**
+ * Maximum nesting depth a `json` field's value may reach.
+ *
+ * A resource bound, not a product rule — the same role `MAX_FIELD_DEFS` plays in
+ * `content-types/field-defs.ts`. It is also what makes this check total: a self-referential value
+ * (`a.self = a`) is a legal JS object that `JSON.stringify` throws on, and it is the depth cap,
+ * not a visited-set, that guarantees this function terminates on one. Deliberately far above any
+ * plausible content payload so it can never act as a product constraint.
+ */
+const MAX_JSON_DEPTH = 32;
+
+/**
+ * Maximum number of values (scalars, arrays and objects, counted together) one `json` field may
+ * contain. The second half of the termination guarantee above, and the bound that stops a
+ * pathological wide-but-shallow payload from making validation the expensive part of a write.
+ */
+const MAX_JSON_NODES = 10_000;
+
+/**
+ * True only for objects that are structurally plain — prototype `Object.prototype` or `null`.
+ *
+ * Stricter than this module's {@link isPlainObject}, and deliberately so: a `Map`, `Set`, or class
+ * instance passes a `typeof === "object"` test and then `JSON.stringify`s to `{}`, silently
+ * discarding every value it held. A `Date` survives, but as a string — its type changes at the
+ * storage boundary, so a later read gets a different kind of value than the one written. Both are
+ * exactly the "accepted here, mangled downstream" class this check exists to reject.
+ */
+function isStructurallyPlainObject(value: unknown): value is Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const proto: unknown = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
+}
+
+/**
+ * Verifies that a value is a JSON value — `null`, a boolean, a FINITE number, a string, an array
+ * of JSON values, or a plain object whose values are JSON values — within a bounded depth and node
+ * budget.
+ *
+ * This exists because "storage-only" means "not indexed", never "not checked". The obvious
+ * alternative — accepting every value for the `json` kind — is not a validator: it admits
+ * functions, `symbol`, `bigint`, `undefined`, `NaN`/`Infinity`, and circular references, each of
+ * which either throws inside `JSON.stringify` or is silently dropped/coerced by it, downstream of
+ * the validator whose entire job was to catch them. Rejecting them here turns a serialization
+ * crash (or a silent data loss) at the storage boundary into a named per-field validation error.
+ *
+ * Symbol-keyed properties are rejected rather than ignored for the same reason `field-defs.ts`
+ * rejects an unrecognized key instead of dropping it: `JSON.stringify` discards them, so accepting
+ * one would persist a value the caller did not get told was thrown away.
+ *
+ * @complexity O(n) in the number of contained values, hard-bounded by {@link MAX_JSON_NODES}, and
+ * O(d) stack depth bounded by {@link MAX_JSON_DEPTH}. Total on every input, including cyclic ones.
+ * @overallScore 100
+ */
+function isBoundedJsonValue(value: unknown, budget: { nodes: number }, depth = 0): boolean {
+  if (depth > MAX_JSON_DEPTH) return false;
+  if (budget.nodes <= 0) return false;
+  budget.nodes -= 1;
+
+  if (value === null) return true;
+  switch (typeof value) {
+    case "boolean":
+    case "string":
+      return true;
+    case "number":
+      // `NaN`/`Infinity` are numbers that `JSON.stringify` silently rewrites to `null` — a value
+      // that reads back as a different type than the one written.
+      return Number.isFinite(value);
+    case "object":
+      break;
+    default:
+      // `undefined`, `function`, `symbol`, `bigint`: dropped, dropped, dropped, and throws.
+      return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.every((element) => isBoundedJsonValue(element, budget, depth + 1));
+  }
+  if (!isStructurallyPlainObject(value)) return false;
+  if (Object.getOwnPropertySymbols(value).length > 0) return false;
+  return Object.values(value).every((entry) => isBoundedJsonValue(entry, budget, depth + 1));
+}
+
+/**
  * Runtime-conformance check for one field's value against its declared kind. Loose by design
  * (e.g. `datetime` accepts any string) — kind-conformance here is about JS runtime shape, not
  * full ISO-8601/format validation, which is out of this package's scope.
  *
- * @complexity O(1).
+ * The `default: return false` arm is load-bearing: a kind added to `ContentTypeFieldKind` without
+ * an arm here does not fail the build, it produces a field that can be DECLARED but whose every
+ * value is rejected on write. Any future kind must be added here in the same change.
+ *
+ * @complexity O(1) for every scalar kind; O(n) bounded by `MAX_JSON_NODES` for `json`.
  * @overallScore 100
  */
 function conformsToKind(value: unknown, kind: ContentTypeFieldKind): boolean {
   switch (kind) {
     case "text":
     case "datetime":
+    // A foreign entity id. String-shaped exactly like `text`; referential integrity is NOT checked
+    // here and is not checked anywhere — this function is a pure runtime-shape check with no repo
+    // access, and giving it one would put an I/O dependency into a module whose header commits to
+    // having none. The gap is real and belongs to the application layer.
+    case "relation":
       return typeof value === "string";
     case "integer":
       return typeof value === "number" && Number.isInteger(value);
@@ -63,6 +154,10 @@ function conformsToKind(value: unknown, kind: ContentTypeFieldKind): boolean {
       return typeof value === "number";
     case "boolean":
       return typeof value === "boolean";
+    // Storage-only: no scalar shape is imposed, but the value must still be something that
+    // survives the `JSON.stringify` boundary intact. See `isBoundedJsonValue`.
+    case "json":
+      return isBoundedJsonValue(value, { nodes: MAX_JSON_NODES });
     default:
       return false;
   }

@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { I18nProvider } from '../../../../i18n/index.js';
 import type { PrivacyConsentState } from '../../../types.js';
 import { PrivacyTab } from '../../../react/components/PrivacyTab.js';
@@ -152,5 +153,31 @@ describe('PrivacyTab', () => {
       </I18nProvider>,
     );
     expect(screen.getByRole('button', { name: 'Partager' })).toBeInTheDocument();
+  });
+
+  describe('agentHandle', () => {
+    it('publishes no data-agent-* markup at all when omitted — additive by default', () => {
+      const { container } = render(<PrivacyTab state={decidedState()} onChange={() => {}} now={() => NOW} />);
+      expect(container.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`)).toHaveLength(0);
+    });
+
+    it('derives one distinct handle per control from the single base the host passes', () => {
+      render(<PrivacyTab state={decidedState()} onChange={() => {}} now={() => NOW} agentHandle="settings-privacy" />);
+      expect(screen.getByRole('button', { name: "Don't share" })).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-privacy-decline');
+      expect(screen.getByRole('button', { name: 'Share usage' })).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-privacy-share');
+      expect(screen.getByRole('button', { name: /Anonymous metrics/ })).toHaveAttribute(
+        AGENT_ELEMENT_ATTRIBUTE,
+        'settings-privacy-metrics-toggle',
+      );
+      expect(screen.getByRole('button', { name: /Conversation and tool content/ })).toHaveAttribute(
+        AGENT_ELEMENT_ATTRIBUTE,
+        'settings-privacy-content-toggle',
+      );
+      expect(screen.getByLabelText('Installation ID')).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-privacy-installation-id');
+      expect(screen.getByRole('button', { name: /Delete my data/ })).toHaveAttribute(
+        AGENT_ELEMENT_ATTRIBUTE,
+        'settings-privacy-delete-my-data',
+      );
+    });
   });
 });

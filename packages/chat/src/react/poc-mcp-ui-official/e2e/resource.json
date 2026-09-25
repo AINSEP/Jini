@@ -1,0 +1,8 @@
+{
+  "type": "resource",
+  "resource": {
+    "uri": "ui://jini-poc/checkbox-e2e-card",
+    "mimeType": "text/html;profile=mcp-app",
+    "text": "<!doctype html>\n<html>\n  <body style=\"font-family: sans-serif; margin: 0; padding: 16px;\">\n    <h1 data-testid=\"poc-card-heading\">Real MCP-UI checkbox card</h1>\n    <label><input type=\"checkbox\" data-testid=\"cb-newsletter\" /> Subscribe to newsletter</label><br/>\n    <p>Pick one:</p>\n    <label><input type=\"radio\" name=\"plan\" value=\"free\" data-testid=\"radio-free\" checked /> Free</label><br/>\n    <label><input type=\"radio\" name=\"plan\" value=\"pro\" data-testid=\"radio-pro\" /> Pro</label>\n  </body>\n</html>"
+  }
+}

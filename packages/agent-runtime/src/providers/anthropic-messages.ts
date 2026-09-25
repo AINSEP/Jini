@@ -5,7 +5,7 @@
  * against Anthropic's real, current public API docs (`platform.claude.com/
  * docs/en/build-with-claude/streaming`, `.../api/messages-streaming`),
  * following this repo's established "verify against real API docs, don't
- * guess from memory" convention (see `packages/deploy/src/netlify.ts`'s
+ * guess from memory" convention (see `packages/devops/src/deploy/netlify.ts`'s
  * doc comment for the precedent) — not a byte-for-byte OD port. Only the
  * *shape* is modeled on OD's `apps/daemon/src/routes/chat.ts`'s
  * `runAnthropicToolTurn` (per `ADS-memory/reports/proposals/
@@ -74,7 +74,7 @@
  *    for the integration-level regression proof.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 
@@ -188,6 +188,19 @@ export interface AnthropicTurnOptions {
    * leak documented in this module's header comment.
    */
   readonly extraHeaders?: Record<string, string>;
+  /**
+   * Injectable HTTP transport, defaulting to `connection-guard.ts`'s {@link pinnedFetch}
+   * (SSRF-guarded, DNS-pinned). The dependency-injection seam a test uses to supply a fake
+   * directly instead of module-mocking `connection-guard.ts` (or its compiled `dist/` output, from
+   * outside this package) — see that module's `PinnedFetch` doc. Never override this in production
+   * wiring: doing so bypasses the SSRF guard entirely for whatever transport is supplied.
+   */
+  readonly fetchImpl?: PinnedFetch;
+  /**
+   * Injectable DNS resolver for {@link validateBaseUrlResolved}'s DNS-pinning check, defaulting to
+   * {@link defaultDnsLookup}. Same test-only override rationale as `fetchImpl`.
+   */
+  readonly dnsLookup?: DnsLookupFn;
 }
 
 export interface AnthropicTurnResult {
@@ -510,7 +523,7 @@ async function openAnthropicResponseStream(
 
   // DNS-resolving, not merely textual — see the identical note in `openai-chat.ts`. A literal
   // private IP was already rejected; a hostname resolving to one was not.
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_ANTHROPIC_BASE_URL, options.dnsLookup ?? defaultDnsLookup);
   if (baseUrlCheck.error) {
     onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
@@ -519,7 +532,7 @@ async function openAnthropicResponseStream(
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = await pinnedFetch(
+    response = await (options.fetchImpl ?? pinnedFetch)(
       anthropicRequestUrl(options.baseUrl),
       {
         method: 'POST',

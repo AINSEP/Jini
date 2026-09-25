@@ -149,6 +149,20 @@ export type { ExecutionPort } from './features/execution/ports.js';
 export { createFakeExecutionPort } from './features/execution/dependencies.js';
 export type { FakeExecutionPortOptions } from './features/execution/dependencies.js';
 
+// --- folder-path-drop ---
+export type { FolderPathDropPort } from './features/folder-path-drop/ports.js';
+export type {
+  CaptureFolderPathDropInput,
+  FolderPathDropEvent,
+  FolderPathDropInsertTarget,
+  FolderPathDropInsertTargetRef,
+} from './features/folder-path-drop/types.js';
+export {
+  captureFolderPathDrop,
+  folderPathsFromDataTransfer,
+  formatDroppedFolderPaths,
+} from './features/folder-path-drop/rules.js';
+
 // --- integrations ---
 export type {
   CodexInstallStatus,
@@ -301,6 +315,7 @@ export type { FakeSkillsPortOptions } from './features/skills/dependencies.js';
 // Full surface of the source-config-list domain logic. `export *`, matching the old ui-core
 // source-config-list barrel: the React side imports these modules directly, so an omission here
 // silently becomes a broken import there.
+export * from './features/source-config-list/agent-handles.js';
 export * from './features/source-config-list/constants.js';
 export * from './features/source-config-list/dependencies.js';
 export * from './features/source-config-list/ports.js';

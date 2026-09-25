@@ -184,6 +184,118 @@ describe('Composer', () => {
     expect(menu).not.toBeInTheDocument();
   });
 
+  it('closes the grouped add menu on an outside click but not on a click inside it', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    const menu = screen.getByRole('menu', { name: 'Add context' });
+
+    // A click INSIDE the popover (its own group label, not an actionable item) must not dismiss it —
+    // only a click that lands outside `.jini-composer-discovery` entirely should.
+    await userEvent.click(within(menu).getByText('Plugins'));
+    expect(screen.getByRole('menu', { name: 'Add context' })).toBeInTheDocument();
+
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('menu', { name: 'Add context' })).not.toBeInTheDocument();
+  });
+
+  it('closes the slash palette on an outside click, but a click back into the textarea keeps it open', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/word');
+    expect(screen.getByRole('listbox', { name: 'Composer commands' })).toBeInTheDocument();
+
+    // Repositioning the cursor in the textarea is not "clicking away" — the palette must survive it,
+    // or every click a user makes to edit their own draft would silently kill the palette.
+    await userEvent.click(textarea);
+    expect(screen.getByRole('listbox', { name: 'Composer commands' })).toBeInTheDocument();
+
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('listbox', { name: 'Composer commands' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the add-menu row compact — description is a real styled hover/focus tooltip, not a bare title, and stays reachable for assistive tech', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    const item = screen.getByRole('menuitem', { name: /^\/mcp/ });
+
+    // A bare native `title` was rejected on review (~1s delay, unstyled, no touch support) in favor
+    // of a real tooltip matching the popover's own look — asserting its absence keeps this test
+    // honest about which mechanism is actually in play.
+    expect(item).not.toHaveAttribute('title');
+    const describedBy = item.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const description = document.getElementById(describedBy!);
+    expect(description).toHaveTextContent('Open MCP settings');
+    expect(description).toHaveClass('jini-composer-discovery-description');
+    // Never `display: none` — most screen readers drop an `aria-describedby` target from the
+    // accessibility tree entirely once it's `display: none`, which would silently un-fix this bug.
+    // `opacity`/`pointer-events` (not `display`/`visibility`) is what keeps this node present at
+    // rest and only visually revealed on `:hover`/`:focus-visible` of the row.
+    const descriptionStyleRule = CHAT_PANE_STYLES.match(
+      /\.jini-chat-pane \.jini-composer-discovery-description \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(descriptionStyleRule).not.toContain('display: none');
+    expect(descriptionStyleRule).toContain('opacity: 0');
+    expect(descriptionStyleRule).toContain('pointer-events: none');
+    const revealStyleRule = CHAT_PANE_STYLES.match(
+      /\.jini-chat-pane \.jini-composer-discovery-item:hover \.jini-composer-discovery-description,\s*\n\.jini-chat-pane \.jini-composer-discovery-item:focus-visible \.jini-composer-discovery-description \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(revealStyleRule).toContain('opacity: 1');
+  });
+
+  it('expands the hovered description in normal flow instead of floating it over the next row', async () => {
+    // Regression test for an owner-reported bug: hovering "UI/UX Design (Skill)" popped a
+    // description box that painted over the "/mcp" row beneath it. Root cause was
+    // '.jini-composer-discovery-description' being 'position: absolute; top: 100%' of its own
+    // row — a stacking z-index fix would only have changed WHICH box wins the overlap, not
+    // removed the overlap itself, so the real fix is confining the description to the row's own
+    // normal flex-column flow so an expanding row pushes its siblings down instead of covering
+    // them. This asserts the mechanism, not just the visual symptom: the description rule must
+    // not remove itself from flow via 'position: absolute' (or 'fixed').
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    const item = screen.getByRole('menuitem', { name: /^\/mcp/ });
+    const describedBy = item.getAttribute('aria-describedby');
+    const description = document.getElementById(describedBy!);
+    expect(description).toHaveClass('jini-composer-discovery-description');
+
+    const descriptionStyleRule = CHAT_PANE_STYLES.match(
+      /\.jini-chat-pane \.jini-composer-discovery-description \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(descriptionStyleRule).not.toMatch(/position:\s*(absolute|fixed)/);
+    expect(descriptionStyleRule).not.toContain('z-index');
+
+    // Collapsed at rest via 'max-height: 0', not 'display: none' — still resolvable via
+    // 'aria-describedby' — and now sized to the row's own width so it wraps in place instead of
+    // floating off to one side.
+    expect(descriptionStyleRule).toContain('max-height: 0');
+    expect(descriptionStyleRule).toContain('width: 100%');
+  });
+
+  it('anchors the add-menu and slash palette with position: fixed so an overflow: hidden ancestor cannot clip them', async () => {
+    // Regression test for an owner-reported bug: the list read as "clipped mid-item" at the top
+    // instead of cleanly scrolled. Root cause was both popovers being plain `position: absolute`
+    // descendants of `.jini-composer`, itself inside `.jini-chat-pane__body` — which sets
+    // `overflow: hidden` unconditionally — plus whatever clipping box a host's own dock chrome
+    // adds (a host admin's `.admin-chat-dock` is `overflow: hidden` too, and its mobile "peek" sheet
+    // caps the whole dock at 58vh). The exact arithmetic (viewport-clamped `maxHeight`/`bottom`) is
+    // covered directly in `composer-discovery.test.ts`; this asserts the wiring — that `Composer`
+    // actually applies the computed `position: fixed` style to each popover's DOM node, the same
+    // way `AgentRuntimePicker`'s already-portaled popover escapes the identical ancestor.
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+    const menu = screen.getByRole('menu', { name: 'Add context' });
+    expect(menu.style.position).toBe('fixed');
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('menu', { name: 'Add context' })).not.toBeInTheDocument();
+
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/word');
+    const palette = screen.getByRole('listbox', { name: 'Composer commands' });
+    expect(palette.style.position).toBe('fixed');
+  });
+
   it('groups Attach files into the discovery menu without changing upload behavior', async () => {
     const onFiles = vi.fn();
     render(
@@ -244,6 +356,19 @@ describe('Composer', () => {
     expect(within(palette).getAllByRole('option')).toHaveLength(4);
     expect(within(palette).getByRole('option', { name: /\/mcp.*Open MCP settings/i })).toBeInTheDocument();
     expect(within(palette).queryByText(/server-id/i)).not.toBeInTheDocument();
+  });
+
+  it('hints that typing narrows the list on a bare slash, and drops the hint once a real query is typed', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: DISCOVERY_GROUPS }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, '/');
+
+    const palette = screen.getByRole('listbox', { name: 'Composer commands' });
+    const hint = within(palette).getByText('Keep typing to narrow the list');
+    expect(hint).toHaveAttribute('role', 'presentation');
+
+    await userEvent.type(textarea, 'word');
+    expect(within(palette).queryByText('Keep typing to narrow the list')).not.toBeInTheDocument();
   });
 
   it('selects the /mcp command through the generic callback without inventing server inventory', async () => {
@@ -383,6 +508,55 @@ describe('Composer', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Attaching files…' })).toBeDisabled();
+  });
+
+  it(
+    'stages a file pasted directly into the textarea — a screenshot or a Finder-copied video ' +
+      'carries no text, so without this the owner-reported symptom is total silence: no chip, no ' +
+      'network call, nothing',
+    () => {
+      const onFiles = vi.fn();
+      render(<DiscoveryHarness attachmentPicker={{ onFiles, accept: 'image/*' }} />);
+      const textarea = screen.getByRole('textbox');
+      const file = new File(['image'], 'clipboard-image.png', { type: 'image/png' });
+      const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+      Object.defineProperty(pasteEvent, 'clipboardData', { value: { files: [file] } });
+
+      act(() => {
+        textarea.dispatchEvent(pasteEvent);
+      });
+
+      expect(onFiles).toHaveBeenCalledWith([file]);
+    },
+  );
+
+  it('lets an ordinary text paste through untouched when the clipboard carries no files', async () => {
+    const onFiles = vi.fn();
+    render(<DiscoveryHarness attachmentPicker={{ onFiles }} />);
+    const textarea = screen.getByRole('textbox');
+    await userEvent.type(textarea, 'hello ');
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: { files: [] } });
+
+    act(() => {
+      textarea.dispatchEvent(pasteEvent);
+    });
+
+    expect(onFiles).not.toHaveBeenCalled();
+  });
+
+  it('ignores a file paste when no attachmentPicker is wired, without throwing', () => {
+    render(<ComposerHarness onSend={() => {}} />);
+    const textarea = screen.getByRole('textbox');
+    const file = new File(['image'], 'clipboard-image.png', { type: 'image/png' });
+    const pasteEvent = new Event('paste', { bubbles: true, cancelable: true }) as ClipboardEvent;
+    Object.defineProperty(pasteEvent, 'clipboardData', { value: { files: [file] } });
+
+    expect(() => {
+      act(() => {
+        textarea.dispatchEvent(pasteEvent);
+      });
+    }).not.toThrow();
   });
 
   it('reports a rejected attachment host effect without leaving an unhandled rejection', async () => {
@@ -616,6 +790,34 @@ describe('Composer', () => {
     expect(within(option).getByText('Confirm')).toBeInTheDocument();
   });
 
+  it('puts the argument placeholder and confirm badge on the same type scale as the row label', async () => {
+    // `<code>`/`<small>` default to the browser's own UA styling (monospace, unrelated size) with
+    // nothing overriding it today — that's what read as "visibly larger" next to the label even
+    // though the computed font-size already happened to match; the fix is a font-family reset, not
+    // a size change, so this asserts the actual rule rather than a computed size that already passed.
+    const argumentStyleRule = CHAT_PANE_STYLES.match(
+      /\.jini-chat-pane \.jini-composer-slash-argument,\s*\n\.jini-chat-pane \.jini-composer-slash-confirm-badge \{([^}]*)\}/,
+    )?.[1] ?? '';
+    expect(argumentStyleRule).toContain('font-family: inherit');
+    expect(argumentStyleRule).toContain('font-size: inherit');
+  });
+
+  it('keeps the slash row compact — description is a real hover/focus tooltip, not a bare title, and stays reachable for assistive tech', async () => {
+    render(<DiscoveryHarness slots={{ discoveryGroups: ARGUMENT_COMMAND_GROUPS }} />);
+    await userEvent.type(screen.getByRole('textbox'), '/mcp');
+    // `/mcp` fuzzy-matches both "mcp" and "mcp-docs" (existing test above, line ~470) — disambiguate
+    // the same way the existing bare-slash test does (line ~245), by requiring both label and
+    // description text rather than the label alone.
+    const option = screen.getByRole('option', { name: /\/mcp.*Open MCP settings/i });
+
+    expect(option).not.toHaveAttribute('title');
+    const describedBy = option.getAttribute('aria-describedby');
+    expect(describedBy).toBeTruthy();
+    const description = document.getElementById(describedBy!);
+    expect(description).toHaveTextContent('Open MCP settings');
+    expect(description).toHaveClass('jini-composer-discovery-description');
+  });
+
   it('swaps the send button for a stop button while running, calling onCancel instead of onSend', async () => {
     const onSend = vi.fn();
     const onCancel = vi.fn();
@@ -643,6 +845,39 @@ describe('Composer', () => {
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 
+  it('routes Cmd/Ctrl+Enter to onInterrupt instead of onSend when supplied', async () => {
+    const onSend = vi.fn();
+    const onInterrupt = vi.fn();
+    const { result } = renderHook(() => useComposer());
+    act(() => result.current.setDraft('next turn'));
+    render(
+      <Composer composer={result.current} onSend={onSend} onInterrupt={onInterrupt} sendDisabled />,
+    );
+    const textarea = screen.getByPlaceholderText('Send a message…');
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+    expect(onInterrupt).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
+    expect(onInterrupt).toHaveBeenCalledTimes(2);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('a host with no onInterrupt keeps the original Enter behavior on Cmd/Ctrl+Enter — falls through to onSend, still gated by sendDisabled', async () => {
+    const onSend = vi.fn();
+    const { result } = renderHook(() => useComposer());
+    act(() => result.current.setDraft('hello'));
+    const { rerender } = render(<Composer composer={result.current} onSend={onSend} />);
+    const textarea = screen.getByPlaceholderText('Send a message…');
+
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+    expect(onSend).toHaveBeenCalledTimes(1);
+
+    rerender(<Composer composer={result.current} onSend={onSend} sendDisabled />);
+    fireEvent.keyDown(textarea, { key: 'Enter', metaKey: true });
+    expect(onSend).toHaveBeenCalledTimes(1);
+  });
+
   it('can disable only submission while keeping draft editing available', async () => {
     const onSend = vi.fn();
     const { result } = renderHook(() => useComposer({ initialDraft: 'editable' }));
@@ -653,5 +888,170 @@ describe('Composer', () => {
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
     await userEvent.type(textarea, '{Enter}');
     expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it(
+    'tags the file input with a stable E2E hook regardless of which render site is live — the ' +
+      'plain attachment picker (no discovery items) or the "+" discovery menu\'s Files group',
+    async () => {
+      const onFiles = vi.fn();
+      // No discoveryGroups -> hasDiscoveryItems is false -> Composer.tsx's own <input> renders.
+      const { unmount } = render(<DiscoveryHarness attachmentPicker={{ onFiles, accept: 'image/*' }} />);
+      expect(screen.getByTestId('composer-attachment-input')).toHaveAttribute('accept', 'image/*');
+      unmount();
+
+      // discoveryGroups present -> hasDiscoveryItems is true -> ComposerDiscovery.tsx's <input> renders.
+      render(
+        <DiscoveryHarness
+          slots={{ discoveryGroups: DISCOVERY_GROUPS }}
+          attachmentPicker={{ onFiles, accept: 'image/*' }}
+        />,
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Add context' }));
+      expect(screen.getByTestId('composer-attachment-input')).toHaveAttribute('accept', 'image/*');
+    },
+  );
+
+  it('no longer renders any streaming interrupt hint — the queueing behavior itself is unchanged (see the Cmd/Ctrl+Enter tests above)', () => {
+    const { result } = renderHook(() => useComposer());
+    render(
+      <Composer composer={result.current} onSend={() => {}} running onCancel={() => {}} onInterrupt={() => {}} />,
+    );
+    expect(screen.queryByText(/queues this after the run finishes/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/interrupts it and sends now/)).not.toBeInTheDocument();
+  });
+
+  describe('working directory trigger', () => {
+    it('is absent when the host has not wired onChangeWorkingDirectory', () => {
+      const { result } = renderHook(() => useComposer());
+      render(<Composer composer={result.current} onSend={() => {}} workingDirectory="/repo" />);
+      expect(screen.queryByTestId('composer-workdir')).not.toBeInTheDocument();
+    });
+
+    it('labels the trigger with the current directory, or a fallback when none is set', () => {
+      const { result } = renderHook(() => useComposer());
+      const { rerender } = render(
+        <Composer composer={result.current} onSend={() => {}} onChangeWorkingDirectory={() => {}} />,
+      );
+      expect(screen.getByTestId('composer-workdir-trigger')).toHaveAccessibleName('Set working directory');
+
+      rerender(
+        <Composer
+          composer={result.current}
+          onSend={() => {}}
+          workingDirectory="/Users/test/project"
+          onChangeWorkingDirectory={() => {}}
+        />,
+      );
+      expect(screen.getByTestId('composer-workdir-trigger')).toHaveAccessibleName(
+        'Working directory: /Users/test/project',
+      );
+    });
+
+    it('confirming a typed path calls onChangeWorkingDirectory and closes the popover', async () => {
+      const onChangeWorkingDirectory = vi.fn();
+      const { result } = renderHook(() => useComposer());
+      render(
+        <Composer
+          composer={result.current}
+          onSend={() => {}}
+          workingDirectory="/repo"
+          onChangeWorkingDirectory={onChangeWorkingDirectory}
+        />,
+      );
+
+      await userEvent.click(screen.getByTestId('composer-workdir-trigger'));
+      const input = screen.getByTestId('composer-workdir-input');
+      expect(input).toHaveValue('/repo');
+      await userEvent.clear(input);
+      await userEvent.type(input, '/repo/subdir');
+      await userEvent.click(screen.getByTestId('composer-workdir-confirm'));
+
+      expect(onChangeWorkingDirectory).toHaveBeenCalledTimes(1);
+      expect(onChangeWorkingDirectory).toHaveBeenCalledWith('/repo/subdir');
+      expect(screen.queryByTestId('composer-workdir-panel')).not.toBeInTheDocument();
+    });
+
+    it('confirming via Enter has the same effect as clicking the confirm button', async () => {
+      const onChangeWorkingDirectory = vi.fn();
+      const { result } = renderHook(() => useComposer());
+      render(
+        <Composer composer={result.current} onSend={() => {}} onChangeWorkingDirectory={onChangeWorkingDirectory} />,
+      );
+      await userEvent.click(screen.getByTestId('composer-workdir-trigger'));
+      await userEvent.type(screen.getByTestId('composer-workdir-input'), '/new/dir{Enter}');
+      expect(onChangeWorkingDirectory).toHaveBeenCalledTimes(1);
+      expect(onChangeWorkingDirectory).toHaveBeenCalledWith('/new/dir');
+    });
+
+    it('Escape closes the popover without calling onChangeWorkingDirectory', async () => {
+      const onChangeWorkingDirectory = vi.fn();
+      const { result } = renderHook(() => useComposer());
+      render(
+        <Composer
+          composer={result.current}
+          onSend={() => {}}
+          workingDirectory="/repo"
+          onChangeWorkingDirectory={onChangeWorkingDirectory}
+        />,
+      );
+      await userEvent.click(screen.getByTestId('composer-workdir-trigger'));
+      await userEvent.type(screen.getByTestId('composer-workdir-input'), '{Escape}');
+      expect(screen.queryByTestId('composer-workdir-panel')).not.toBeInTheDocument();
+      expect(onChangeWorkingDirectory).not.toHaveBeenCalled();
+    });
+
+    it('confirming a blank draft closes without calling the host — there is no clear affordance here', async () => {
+      const onChangeWorkingDirectory = vi.fn();
+      const { result } = renderHook(() => useComposer());
+      render(
+        <Composer
+          composer={result.current}
+          onSend={() => {}}
+          workingDirectory="/repo"
+          onChangeWorkingDirectory={onChangeWorkingDirectory}
+        />,
+      );
+      await userEvent.click(screen.getByTestId('composer-workdir-trigger'));
+      await userEvent.clear(screen.getByTestId('composer-workdir-input'));
+      await userEvent.click(screen.getByTestId('composer-workdir-confirm'));
+      expect(onChangeWorkingDirectory).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('composer-workdir-panel')).not.toBeInTheDocument();
+    });
+
+    // Regression: when a host has a native `ChatPaneWorkingDirectoryAccess`, `ChatPane` wires this
+    // trigger to `onPickWorkingDirectory` instead of `onChangeWorkingDirectory` — clicking must
+    // invoke the native dialog directly, never open the in-page text popover.
+    it('renders the trigger for onPickWorkingDirectory alone, with no onChangeWorkingDirectory', () => {
+      const { result } = renderHook(() => useComposer());
+      render(
+        <Composer
+          composer={result.current}
+          onSend={() => {}}
+          workingDirectory="/Users/test/project"
+          onPickWorkingDirectory={() => {}}
+        />,
+      );
+      expect(screen.getByTestId('composer-workdir-trigger')).toHaveAccessibleName(
+        'Working directory: /Users/test/project',
+      );
+    });
+
+    it('clicking the trigger calls onPickWorkingDirectory directly, never opening the text popover', async () => {
+      const onPickWorkingDirectory = vi.fn();
+      const { result } = renderHook(() => useComposer());
+      render(
+        <Composer
+          composer={result.current}
+          onSend={() => {}}
+          workingDirectory="/repo"
+          onPickWorkingDirectory={onPickWorkingDirectory}
+        />,
+      );
+      await userEvent.click(screen.getByTestId('composer-workdir-trigger'));
+      expect(onPickWorkingDirectory).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId('composer-workdir-panel')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('composer-workdir-input')).not.toBeInTheDocument();
+    });
   });
 });

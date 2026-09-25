@@ -66,7 +66,7 @@ export async function deprecateContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId });
+  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId, entityType: "content-type" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError(`principal '${input.actorId}' cannot deprecate content type '${input.key}' (${authResult.reason})`) };
   }
@@ -122,7 +122,7 @@ export async function reactivateContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId });
+  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId, entityType: "content-type" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError(`principal '${input.actorId}' cannot reactivate content type '${input.key}' (${authResult.reason})`) };
   }
@@ -185,7 +185,7 @@ export async function tombstoneContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId });
+  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId, entityType: "content-type" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError(`principal '${input.actorId}' cannot tombstone content type '${input.key}' (${authResult.reason})`) };
   }

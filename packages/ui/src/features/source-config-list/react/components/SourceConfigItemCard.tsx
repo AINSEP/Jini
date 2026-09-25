@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../../../i18n/index.js';
+import { sourceConfigActionHandle, sourceConfigAgentProps, sourceConfigFieldHandle } from '../../agent-handles.js';
 import {
   issueForField,
   maskFieldValue,
@@ -36,6 +37,20 @@ export interface SourceConfigItemCardProps<TSource extends SourceConfigItem> {
   onTest: () => void;
   /** Patches this item's `label`/`enabled`/`fields`. Only ever called when `capabilities.canUpdate` is true. */
   onUpdate: (patch: SourceUpdateInput) => void;
+  /**
+   * This card's own agent handle — publishes the card and every control on it
+   * to `@jini-ai/agentic`'s `page.*` verbs. A plain string, not a per-element
+   * map: the caller names the card, this component names its own parts and
+   * supplies each one's role and label, because only it knows which of its
+   * eight-or-so controls are rendered for a given `capabilities`/expansion/
+   * edit state. Omit and no `data-agent-*` markup is emitted at all.
+   *
+   * A list renders many of these, so the caller is responsible for handing
+   * each card a DISTINCT base — two cards under the same base would publish
+   * duplicate handles and make every verb on them ambiguous. See the table
+   * below and `../../agent-handles.ts`.
+   */
+  agentHandle?: string;
 }
 
 /**
@@ -49,6 +64,29 @@ export interface SourceConfigItemCardProps<TSource extends SourceConfigItem> {
  * `McpClientSection.tsx`'s expand-to-edit `McpRow` (enable toggle + editable
  * label/fields when expanded) and `PluginsView.tsx`'s `SourcesPanel`
  * marketplace card.
+ *
+ * ## Agent handles
+ *
+ * Given `agentHandle="mcp-server-1"` this publishes, whenever the control in
+ * question is actually rendered:
+ *
+ * | element | handle | role |
+ * |---|---|---|
+ * | the card | `mcp-server-1` | `region` |
+ * | enable/disable toggle | `mcp-server-1-enabled` | `checkbox` |
+ * | expand/collapse summary | `mcp-server-1-expand` | `button` |
+ * | trust selector | `mcp-server-1-trust` | `field` |
+ * | refresh / remove | `mcp-server-1-refresh` / `-remove` | `button` |
+ * | edit / save / cancel | `mcp-server-1-edit` / `-save` / `-cancel` | `button` |
+ * | the label input (editing) | `mcp-server-1-label` | `field` |
+ * | one field (editing) | `mcp-server-1-field-<kebab-cased key>` | `field` |
+ * | the test control | `mcp-server-1-test` / `-test-status` | `button` / `status` |
+ *
+ * A caller reaching the edit fields has to `page.click` `-expand` and then
+ * `-edit` first, and re-run `page.find_elements` after each: those controls
+ * genuinely do not exist in the DOM until then, and this component owns that
+ * state privately. That sequencing is the honest shape of the card, not a
+ * limitation of the markup.
  */
 export function SourceConfigItemCard<TSource extends SourceConfigItem>({
   source,
@@ -66,6 +104,7 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
   onTrustChange,
   onTest,
   onUpdate,
+  agentHandle,
 }: SourceConfigItemCardProps<TSource>) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
@@ -103,8 +142,15 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
     setEditing(false);
   };
 
+  const enabledLabel = t('Enable {name}', { name: label });
+  const trustLabel = t('Trust level for {name}', { name: label });
+
   return (
-    <article className={`source-config-item-card${expanded ? ' is-expanded' : ''}`} data-testid="source-config-item-card">
+    <article
+      className={`source-config-item-card${expanded ? ' is-expanded' : ''}`}
+      data-testid="source-config-item-card"
+      {...sourceConfigAgentProps(agentHandle, { role: 'region', label })}
+    >
       <div className="source-config-item-card-head">
         {source.enabled !== undefined && capabilities.canUpdate ? (
           <label className="source-config-item-card-enabled-toggle" title={source.enabled ? t('Enabled') : t('Disabled')}>
@@ -112,7 +158,8 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
               type="checkbox"
               checked={source.enabled}
               disabled={updating}
-              aria-label={t('Enable {name}', { name: label })}
+              aria-label={enabledLabel}
+              {...sourceConfigAgentProps(agentHandle, { role: 'checkbox', label: enabledLabel, action: 'enabled' })}
               onChange={(event) => onUpdate({ enabled: event.target.checked })}
             />
           </label>
@@ -120,6 +167,12 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
         <button
           type="button"
           className="source-config-item-card-summary"
+          {...sourceConfigAgentProps(agentHandle, {
+            role: 'button',
+            // Stable ontology, so it must not read "Collapse" once expanded — see `agent-handles.ts`.
+            label: t('Show or hide details for {name}', { name: label }),
+            action: 'expand',
+          })}
           onClick={() => setExpanded((current) => !current)}
           aria-expanded={expanded}
         >
@@ -133,7 +186,8 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
             <select
               value={source.trust ?? ''}
               disabled={settingTrust}
-              aria-label={t('Trust level for {name}', { name: label })}
+              aria-label={trustLabel}
+              {...sourceConfigAgentProps(agentHandle, { role: 'field', label: trustLabel, action: 'trust' })}
               onChange={(event) => onTrustChange(event.target.value)}
             >
               {!source.trust ? (
@@ -149,11 +203,22 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
             </select>
           ) : null}
           {capabilities.canRefresh ? (
-            <button type="button" onClick={onRefresh} disabled={anyActionPending}>
+            <button
+              type="button"
+              {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Refresh'), action: 'refresh' })}
+              onClick={onRefresh}
+              disabled={anyActionPending}
+            >
               {refreshing ? t('Refreshing…') : t('Refresh')}
             </button>
           ) : null}
-          <button type="button" className="source-config-item-card-remove" onClick={onRemove} disabled={anyActionPending}>
+          <button
+            type="button"
+            className="source-config-item-card-remove"
+            {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Remove'), action: 'remove' })}
+            onClick={onRemove}
+            disabled={anyActionPending}
+          >
             {removing ? t('Removing…') : t('Remove')}
           </button>
         </div>
@@ -167,17 +232,28 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
                 <>
                   <button
                     type="button"
+                    {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Save'), action: 'save' })}
                     onClick={saveEditing}
                     disabled={updating || (saveAttempted && !editValidation.ok)}
                   >
                     {t('Save')}
                   </button>
-                  <button type="button" onClick={cancelEditing} disabled={updating}>
+                  <button
+                    type="button"
+                    {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Cancel'), action: 'cancel' })}
+                    onClick={cancelEditing}
+                    disabled={updating}
+                  >
                     {t('Cancel')}
                   </button>
                 </>
               ) : (
-                <button type="button" onClick={startEditing} disabled={anyActionPending}>
+                <button
+                  type="button"
+                  {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Edit'), action: 'edit' })}
+                  onClick={startEditing}
+                  disabled={anyActionPending}
+                >
                   {t('Edit')}
                 </button>
               )}
@@ -192,6 +268,7 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
                   type="text"
                   value={editLabel}
                   placeholder={label}
+                  {...sourceConfigAgentProps(agentHandle, { role: 'field', label: t('Label'), action: 'label' })}
                   onChange={(event) => setEditLabel(event.target.value)}
                 />
               </label>
@@ -206,6 +283,7 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
                     value={editFields[spec.key] ?? ''}
                     idPrefix={`source-config-item-card-${source.id}-field`}
                     {...(issue ? { error: t(issue.message, { label: t(spec.label) }) } : {})}
+                    {...(agentHandle ? { agentHandle: sourceConfigFieldHandle(agentHandle, spec.key) } : {})}
                     onChange={(value) => setEditFields((current) => ({ ...current, [spec.key]: value }))}
                   />
                 );
@@ -227,6 +305,7 @@ export function SourceConfigItemCard<TSource extends SourceConfigItem>({
               disabled={anyActionPending}
               onTest={onTest}
               {...(testResult ? { result: testResult } : {})}
+              {...(agentHandle ? { agentHandle: sourceConfigActionHandle(agentHandle, 'test') } : {})}
             />
           ) : null}
         </div>

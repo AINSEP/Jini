@@ -3,7 +3,7 @@
  *
  * Resolve the absolute path of an agent's binary on the current PATH, by
  * agent id, from the registry. Ported verbatim from OD's
- * `apps/daemon/src/runtimes/launch/resolution.ts`.
+ * `apps/daemon/src/runtimes/resolution.ts`.
  */
 import { getAgentDef } from './registry.js';
 import { resolveAgentExecutable } from './executables.js';

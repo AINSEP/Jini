@@ -4,7 +4,7 @@
  * translation.
  *
  * This is a SEPARATE i18n system from any Jini-consuming host's own
- * dictionaries (e.g. Tovu's `apps/admin/src/lib/i18n-common.ts` +
+ * dictionaries (e.g. a host product's `apps/admin/src/lib/i18n-common.ts` +
  * `apps/admin/src/lib/dictionary-translator.ts` + one `*-i18n.ts` file per
  * admin feature) -- deliberately so, since this package is meant to be
  * reusable across hosts and a host's own product copy has no reason to ship

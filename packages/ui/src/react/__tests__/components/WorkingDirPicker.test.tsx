@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { StrictMode, useState } from 'react';
 import { act, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -82,6 +83,68 @@ describe('useDismissablePanel', () => {
     expect(result.current.open).toBe(true); // non-Escape ignored
     act(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })));
     expect(result.current.open).toBe(false);
+  });
+
+  it('fires onOpen from the click handler, not the setOpen updater, so a host that synchronously updates its own state in onOpen never triggers React\'s cross-component render warning or double-fires', async () => {
+    // Regression for: onOpen used to run *inside* the setOpen updater
+    // (`setOpen((v) => { if (!v) onOpen?.(); return !v; })`), which is not a
+    // pure function of previous state. Two concrete symptoms of that impurity:
+    //
+    // 1. When a host's onOpen synchronously calls its own setState (e.g.
+    //    a downstream consumer's `pane.openWorkingDirectoryPicker` calling
+    //    `setWorkingDirectoryPending(true)`), React's normal event-handler
+    //    fast path computes the updater eagerly and no warning appears — but
+    //    under StrictMode's deliberate double-invocation of updaters (which
+    //    exists precisely to catch impure reducers, and mirrors what
+    //    concurrent rendering may also do), the second invocation runs while
+    //    React is mid-render, and React reports "Cannot update a component
+    //    (Host) while rendering a different component (WorkingDirPicker)".
+    // 2. That same StrictMode double-invocation calls the impure updater
+    //    (and therefore onOpen) twice for a single click.
+    //
+    // Rendering under StrictMode is what actually exercises the bug here;
+    // a plain (non-Strict) render takes React's eager fast path and passes
+    // even with the old, impure implementation.
+    const user = userEvent.setup();
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onOpenCallCounts: number[] = [];
+
+    function Host() {
+      const [hostState, setHostState] = useState(0);
+      const onOpen = () => {
+        onOpenCallCounts.push(hostState);
+        setHostState((n) => n + 1); // mirrors ChatPane's synchronous setWorkingDirectoryPending(true)
+      };
+      return (
+        <WorkingDirPicker
+          workingDir={null}
+          recentDirs={[]}
+          onPickDirectory={vi.fn()}
+          onSelectRecent={vi.fn()}
+          onOpen={onOpen}
+        />
+      );
+    }
+
+    render(
+      <StrictMode>
+        <Host />
+      </StrictMode>,
+    );
+    const trigger = screen.getByTestId('working-dir-trigger');
+
+    await user.click(trigger); // open -> onOpen must fire exactly once
+    expect(onOpenCallCounts).toEqual([0]);
+
+    await user.click(trigger); // close -> onOpen must NOT re-fire
+    expect(onOpenCallCounts).toEqual([0]);
+
+    const crossComponentWarning = errorSpy.mock.calls.some(
+      (args) => typeof args[0] === 'string' && args[0].includes('Cannot update a component'),
+    );
+    expect(crossComponentWarning).toBe(false);
+
+    errorSpy.mockRestore();
   });
 });
 

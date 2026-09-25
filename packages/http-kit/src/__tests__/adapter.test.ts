@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
+import { ClientFacingError, defineJsonRoute, mountJsonRoute } from '../adapter.js';
 import { err, ok } from '../types.js';
 import { isLocalSameOrigin } from '../origin-validation.js';
 
@@ -230,6 +230,38 @@ describe('http adapter', () => {
     } finally {
       consoleError.mockRestore();
     }
+  });
+
+  // Before this test's fix: nothing distinguishes a `ClientFacingError` thrown a level deeper than
+  // `handle` itself (inside an awaited call `handle` never wrapped in its own `try`) from a genuine
+  // unanticipated exception, so it fell into the SAME SEC-005 redaction as `/boom` above — the
+  // caller (and the assistant reading the response) saw only "an internal error occurred", with no
+  // way to tell "your input conflicted with something" from "the database fell over". This is the
+  // general-purpose version of the carve-out `attachments.ts`'s `AttachmentRejectedError` and
+  // `delegated-tools.ts`'s `errorKind: 'validation'` split each hand-roll per module: a route that
+  // already knows its own failure is safe to disclose should not have to reinvent that split.
+  it('surfaces a thrown ClientFacingError verbatim instead of redacting it', async () => {
+    const route = defineJsonRoute<void, unknown, unknown>({
+      method: 'post',
+      path: '/conflict',
+      parse: () => ok(undefined),
+      handle: () => {
+        throw new ClientFacingError(createApiError('CONFLICT', 'site "tovu-com" already exists'));
+      },
+    });
+    const app = makeApp();
+    const onInternalError = vi.fn();
+    mountJsonRoute(app as any, route, {}, { ...adapter, onInternalError });
+    const res = makeRes();
+    await app.handlers['POST /conflict']!({ body: {}, query: {}, params: {} }, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: { code: 'CONFLICT', message: 'site "tovu-com" already exists' },
+    });
+    // Classified, not internal: nothing genuinely unanticipated happened, so nothing goes to the
+    // operator sink and no `requestId` correlation id is minted for it.
+    expect(onInternalError).not.toHaveBeenCalled();
   });
 
   it('passes deps through to the handler', async () => {

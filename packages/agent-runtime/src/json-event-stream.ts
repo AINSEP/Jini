@@ -2,7 +2,7 @@
  * @module json-event-stream
  *
  * Ported verbatim from OD's
- * `apps/daemon/src/runtimes/stream/json-event-stream.ts`. Self-contained —
+ * `apps/daemon/src/runtimes/json-event-stream.ts`. Self-contained —
  * no imports, no product coupling. See `source-map.md`.
  */
 type JsonObject = Record<string, unknown>;
@@ -599,6 +599,41 @@ function emitCodexTodoList(item: JsonObject, onEvent: StreamEventHandler): boole
   return true;
 }
 
+/**
+ * Emits the `tool_use` for one `item.type: 'mcp_tool_call'` item, deduped per `item.id` via
+ * `state.codexToolUses` (the same dedup `command_execution`'s two call sites — `item.started` and
+ * `item.completed` — already rely on, since Codex reports both frames for one call).
+ *
+ * `item.tool` — the literal MCP tool name Codex called (`search_tools`, `describe_tool`,
+ * `execute_delegated_tool`) — is used verbatim as the emitted `name`, never unwrapped to the
+ * delegated `toolId` inside `item.arguments`: `@jini-ai/chat`'s `ToolCard`/`DelegatedToolCard`
+ * already recover that id from `{toolId, input}` for `execute_delegated_tool` specifically (see that
+ * component's own doc), so duplicating the unwrap here would be a second, driftable copy of the same
+ * decision.
+ *
+ * @param item - The `item.started`/`item.completed` payload's `item` object.
+ * @param onEvent - Sink for the emitted `tool_use`.
+ * @param state - Parser state; only `codexToolUses` is read/written.
+ * @returns `true` iff this item is an `mcp_tool_call` with a usable id (whether or not a `tool_use`
+ * was newly emitted vs. already deduped) — this is what `handleCodexEvent`'s `item.started` branch
+ * uses to decide the frame was handled.
+ * @complexity O(1).
+ * @overallScore 100
+ */
+function emitCodexMcpToolUse(item: JsonObject, onEvent: StreamEventHandler, state: ParserState): boolean {
+  if (item.type !== 'mcp_tool_call' || typeof item.id !== 'string') return false;
+  if (!state.codexToolUses.has(item.id)) {
+    state.codexToolUses.add(item.id);
+    onEvent({
+      type: 'tool_use',
+      id: item.id,
+      name: typeof item.tool === 'string' && item.tool ? item.tool : 'mcp_tool_call',
+      input: item.arguments ?? {},
+    });
+  }
+  return true;
+}
+
 function emitCursorTextDelta(text: string, onEvent: StreamEventHandler, state: ParserState): void {
   // Timestamped assistant events WITHOUT `model_call_id` are cursor-agent's
   // real-time incremental deltas (`--stream-partial-output`): the final turn
@@ -779,6 +814,11 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
       }
       return true;
     }
+    if (item.type === 'mcp_tool_call') {
+      state.codexPreviousEventWasAgentMessage = false;
+      state.codexLastAgentMessageEndedWithNewline = false;
+      if (emitCodexMcpToolUse(item, onEvent, state)) return true;
+    }
   }
 
   if (obj.type === 'item.updated' && isRecord(obj.item)) {
@@ -823,6 +863,28 @@ function handleCodexEvent(obj: unknown, onEvent: StreamEventHandler, state: Pars
         state.codexErrorEmitted = true;
         onEvent({ type: 'error', message: connectorToolError });
       }
+      return true;
+    }
+    if (item.type === 'mcp_tool_call' && typeof item.id === 'string') {
+      state.codexPreviousEventWasAgentMessage = false;
+      state.codexLastAgentMessageEndedWithNewline = false;
+      // `item.started` normally already emitted the matching `tool_use` (see
+      // `emitCodexMcpToolUse`); this call is a no-op then, and only actually emits one for a
+      // call whose `item.started` frame this parser never saw (a truncated/mid-stream feed —
+      // the same fallback shape `command_execution`'s own `item.completed` branch above uses).
+      emitCodexMcpToolUse(item, onEvent, state);
+      // A call Codex's own approval gate denies before ever reaching the target MCP server
+      // reports back exactly this shape — `status: 'failed'`, `result: null`, an `error` object
+      // — which is otherwise indistinguishable from "never happened" downstream: no
+      // `tool_use`/`tool_result` pair means no audit row, no error card, nothing an operator or
+      // the model itself can ground a claim on. `isError` on `status !== 'completed'` (not a
+      // truthiness check on `item.error`) matches every other status branch in this file and
+      // stays correct even for a hypothetical future status this union does not name yet.
+      const isError = item.status !== 'completed';
+      const content = isError
+        ? extractErrorMessage(item.error, 'MCP tool call failed')
+        : stringifyContent(item.result);
+      onEvent({ type: 'tool_result', toolUseId: item.id, content, isError });
       return true;
     }
   }

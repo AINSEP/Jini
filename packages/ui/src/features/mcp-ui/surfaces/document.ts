@@ -129,7 +129,7 @@ body {
 .mcpui-button-danger:hover:not([disabled]) { background: var(--jini-mcpui-danger-hover); border-color: var(--jini-mcpui-danger-hover); }
 .mcpui-button[disabled] { opacity: 0.55; cursor: default; }
 .mcpui-status { margin: 12px 0 0; min-height: 1.4em; color: var(--jini-mcpui-text-muted); }
-.mcpui-status[data-state="failed"], .mcpui-status[data-state="invalid"] { color: var(--jini-mcpui-danger); }
+.mcpui-status[data-state="failed"], .mcpui-status[data-state="invalid"], .mcpui-status[data-state="expired"] { color: var(--jini-mcpui-danger); }
 .mcpui-status[data-state="done"] { color: var(--jini-mcpui-text-strong); }
 /* Neither a plain success nor a failure — e.g. an outcome surface reporting "uploaded, not yet
    reachable" (outcome.ts's own state: partial). Distinct from both --jini-mcpui-danger (would
@@ -248,6 +248,13 @@ export function renderStatusRegion(): string {
   return `<p class="mcpui-status" id="${SURFACE_STATUS_ELEMENT_ID}" role="status" aria-live="polite" data-state="idle"></p>`;
 }
 
+/**
+ * The `error.data.code` a Host relays when the dialog a call came from is no longer waiting for an
+ * answer (answered elsewhere, expired, or its run is gone). Retrying cannot succeed, so a surface
+ * that sees it keeps its buttons disabled instead of re-arming them.
+ */
+export const SURFACE_NOT_PENDING_ERROR_CODE = 'SURFACE_NOT_PENDING';
+
 /** The id {@link renderStatusRegion} emits and {@link SURFACE_SCRIPT_PRELUDE} looks up. */
 export const SURFACE_STATUS_ELEMENT_ID = 'mcpui-status';
 
@@ -269,6 +276,8 @@ export interface SurfaceStatusText {
   readonly dismissed: string;
   /** Prefixed to the comma-joined labels of unfilled required fields. */
   readonly missingPrefix: string;
+  /** Shown when the Host says the dialog is no longer pending; the buttons stay disabled. */
+  readonly expired: string;
 }
 
 export const DEFAULT_SURFACE_STATUS_TEXT: SurfaceStatusText = {
@@ -277,6 +286,7 @@ export const DEFAULT_SURFACE_STATUS_TEXT: SurfaceStatusText = {
   failedPrefix: 'Failed: ',
   dismissed: 'Dismissed.',
   missingPrefix: 'Please complete: ',
+  expired: 'This dialog expired. Ask again.',
 };
 
 /**
@@ -301,6 +311,19 @@ function setBusy(busy) {
 }
 function describeError(error) {
   return error && typeof error.message === "string" ? error.message : String(error);
+}
+// Reports a rejected tool call and returns whether the human may try again. A rejected call did not
+// happen, so normally the buttons re-arm; but a dialog the Host no longer waits on cannot succeed,
+// and live-looking buttons there only invite clicks that fail the same way. Reads TEXT, which each
+// surface script declares after this prelude.
+function reportCallFailure(error) {
+  if (error && error.data && error.data.code === ${JSON.stringify(SURFACE_NOT_PENDING_ERROR_CODE)}) {
+    setStatus(TEXT.expired, "expired");
+    return false;
+  }
+  setBusy(false);
+  setStatus(TEXT.failedPrefix + describeError(error), "failed");
+  return true;
 }`;
 
 /**
@@ -367,6 +390,8 @@ export interface SurfaceAction {
    * than that sandbox; every current builder passes `button` (the default).
    */
   readonly type?: 'button' | 'submit';
+  /** Renders the button `disabled`; the surface script decides when to enable it. */
+  readonly disabled?: boolean;
 }
 
 /**
@@ -401,7 +426,7 @@ export function renderActions(actions: readonly SurfaceAction[]): string {
       // would accept. That is unenforced on purpose (see the function doc above: `page.find_elements`
       // can never reach this document to resolve it either way), so failing loudly here would refuse
       // markup for a reason that can never matter to the one consumer that can actually query it.
-      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}">${label}</button>`;
+      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}"${action.disabled === true ? ' disabled' : ''}>${label}</button>`;
     })
     .join('\n');
   return `<div class="mcpui-actions">\n${buttons}\n</div>`;

@@ -78,7 +78,12 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
       'search_components',
       'describe_component',
       'execute_delegated_tool',
+      // Hosted alongside, never instead of: a client that auto-denies any tool lacking
+      // `readOnlyHint: true` gets a reachable read half, and every other client still sees both.
+      'execute_readonly_delegated_tool',
     ]);
+    const readonlyGateway = seenOptions?.tools.find((t) => t.name === 'execute_readonly_delegated_tool');
+    expect(readonlyGateway?.annotations).toMatchObject({ readOnlyHint: true });
     expect(seenOptions?.resources).toEqual(
       expect.arrayContaining([expect.objectContaining({ uri: 'jini://active' })]),
     );

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/capability-providers",
-  "version": "0.1.2",
+  "version": "0.3.0",
   "description": "Swappable capability-provider ports (auth, storage, payments, db, realtime) as interfaces and DI tokens only; concrete adapters live behind ./adapters/* subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -75,7 +75,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",
@@ -92,7 +93,7 @@
     "@jini-ai/platform": "workspace:*"
   },
   "peerDependencies": {
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^13.0.0",
     "ws": "^8.18.0"
   },
   "peerDependenciesMeta": {
@@ -107,7 +108,7 @@
     "@types/better-sqlite3": "^7.6.11",
     "@types/ws": "^8.18.0",
     "@vitest/coverage-v8": "^2.1.9",
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^13.0.0",
     "ws": "^8.18.0"
   }
 }

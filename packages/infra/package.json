@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/infra",
-  "version": "0.1.0",
+  "version": "0.3.2",
   "description": "Backing-service infrastructure for a Jini-hosted site: a driver-neutral persistence core plus selectively-installable database drivers. Import `./db/core` with no native module installed; add `./db/sqlite` only if you run SQLite.",
   "license": "Apache-2.0",
   "repository": {
@@ -56,7 +56,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",
@@ -69,7 +70,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "peerDependencies": {
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^13.0.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
@@ -79,6 +80,6 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@vitest/coverage-v8": "^2.1.9",
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^13.0.0"
   }
 }

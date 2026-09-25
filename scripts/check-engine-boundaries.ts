@@ -456,11 +456,29 @@ export async function checkEngineBoundaries(
             // create-mcp-ui-tool-caller.ts) to the bare "@jini-ai/ui" specifier would not compile.
             // Gated to this exact literal, same as the other three — no other @jini-ai/ui subpath is
             // exempted by this branch.
+          } else if (spec === '@jini-ai/platform/fetch-with-timeout') {
+            // R2 exception #5 (2026-08-17): unlike the four exceptions above, the bare
+            // "@jini-ai/platform" barrel DOES already re-export fetchWithTimeout/FETCH_TIMEOUT_MS
+            // (packages/platform/src/index.ts) — this is not a "only reachable via the subpath" case.
+            // The subpath exists because the barrel ALSO re-exports Node-only surfaces (process
+            // helpers, etc.), and pulling the barrel into a browser bundle drags those in too. Proven
+            // empirically, not assumed: esbuild --bundle --platform=browser on the bare barrel produced
+            // 154 resolution errors on transitively re-exported node:* builtins; `vite dev` (native ESM,
+            // no bundling) failed harder — Vite serves every node:* builtin as a Proxy that throws on
+            // first property access, so the whole module graph throws the instant anything imports the
+            // barrel, regardless of which export is actually used. `vite build` (this repo's real prod
+            // bundler) succeeds and tree-shakes the barrel import down to just fetch-with-timeout.js
+            // (5.92kB, zero node:* code) — but "works after tree-shaking in prod" does not help a dev
+            // server that never bundles. The five real browser consumers (packages/chat's
+            // frontend-session-bridge.ts and create-daemon-attachment-uploader.ts, packages/ui's
+            // memory/dependencies.ts, ExportDiagnosticsButton.tsx, useBrandFonts.ts) all need the dev
+            // server to work, so they import the subpath directly and skip the barrel entirely. Gated
+            // to this exact literal — no other @jini-ai/platform subpath is exempted by this branch.
           } else {
             violations.push({
               rule: 'R2-deep-path',
               file,
-              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui) is allowed`,
+              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed`,
             });
           }
         }

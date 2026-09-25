@@ -20,7 +20,8 @@ export type IconName =
   | 'x'
   | 'comment'
   | 'search'
-  | 'plus';
+  | 'plus'
+  | 'copy';
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName;
@@ -115,6 +116,14 @@ export function Icon({ name, size = 14, strokeWidth = 1.6, ...rest }: IconProps)
           <rect width="18" height="18" x="3" y="3" rx="2" />
           <circle cx="9" cy="9" r="2" />
           <path d="m21 15-5-5L5 21" />
+        </svg>
+      );
+    /** Per-message copy affordance (MessageRow.tsx). Two overlapping squares -- the conventional copy glyph. */
+    case 'copy':
+      return (
+        <svg {...common}>
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
         </svg>
       );
   }

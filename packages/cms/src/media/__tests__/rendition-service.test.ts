@@ -73,6 +73,35 @@ test("resolveMediaRendition: unknown assetId -> not-found", async () => {
   assert.deepEqual(result, { outcome: "not-found" });
 });
 
+test("resolveMediaRendition: resolves by slug (2026-09-07), and stores the rendition row under the CANONICAL id, not the slug text", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadOne(deps); // filename "a.png" -> slug "a"
+  assert.equal(media.slug, "a");
+  const { definition } = await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "thumb", params: { format: "jpeg" }, owner: "core" } });
+
+  const bySlug = await resolveMediaRendition({
+    deps,
+    input: { workspaceId: WORKSPACE_ID, assetId: media.slug, transformName: "thumb", version: definition.version },
+  });
+  assert.equal(bySlug.outcome, "ok");
+
+  // The written rendition row must be keyed by the real id — never the slug — so a later lookup BY
+  // ID (the pre-existing, most common path) finds the SAME row instead of generating a duplicate.
+  const rowsByCanonicalId = await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id });
+  assert.equal(rowsByCanonicalId.filter((r) => r.transformName === "thumb").length, 1);
+  const rowsBySlugText = await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.slug });
+  assert.equal(rowsBySlugText.length, 0, "no rendition row may ever be keyed by the slug text itself");
+
+  const byId = await resolveMediaRendition({
+    deps,
+    input: { workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "thumb", version: definition.version },
+  });
+  assert.equal(byId.outcome, "ok");
+  if (bySlug.outcome === "ok" && byId.outcome === "ok") {
+    assert.deepEqual(bySlug.bytes, byId.bytes, "slug and id resolve to the identical already-generated rendition, not two");
+  }
+});
+
 test("resolveMediaRendition: trashed asset -> gone (410), even though its row still physically exists", async () => {
   const { deps } = makeDeps();
   const { media } = await uploadOne(deps);

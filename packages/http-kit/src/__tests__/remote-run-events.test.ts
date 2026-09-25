@@ -192,6 +192,12 @@ describe('requireRemoteToolBridgeToken', () => {
     const next = vi.fn();
     gate({ headers: {}, get: () => undefined } as any, res as any, next);
     expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      error: {
+        code: 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED',
+        message: `${TOKEN_ENV_VAR} is not set — remote run-event ingestion is disabled`,
+      },
+    });
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -201,6 +207,9 @@ describe('requireRemoteToolBridgeToken', () => {
     const next = vi.fn();
     gate({ headers: {}, get: () => 'Bearer wrong-secret' } as any, res as any, next);
     expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      error: { code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${TOKEN_ENV_VAR}> required` },
+    });
     expect(next).not.toHaveBeenCalled();
   });
 

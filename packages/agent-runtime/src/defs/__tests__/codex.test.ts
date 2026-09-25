@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { codexAgentDef, codexNeedsDangerFullAccessSandbox, parseCodexDebugModels } from '../codex.js';
+import {
+  codexAgentDef,
+  codexNeedsDangerFullAccessSandbox,
+  parseCodexDebugModels,
+  unionModelReasoningOptions,
+} from '../codex.js';
 
 describe('codexAgentDef shape', () => {
   it('declares the expected identity and transport fields', () => {
@@ -10,6 +15,11 @@ describe('codexAgentDef shape', () => {
     expect(codexAgentDef.capturesSessionIdFromStream).toBe(true);
     expect(codexAgentDef.streamFormat).toBe('json-event-stream');
     expect(codexAgentDef.eventParser).toBe('codex');
+    // Codex gets the caller's external MCP servers via a relocated, run-scoped CODEX_HOME carrying
+    // a `[mcp_servers.jini]` TOML table — see `@jini-ai/daemon`'s `agent-executor.ts`
+    // (`buildMcpBridgeDelivery`'s `'codex-toml'` case, `prepareCodexHomeForRun`), which dispatches
+    // on this declared strategy alone, never on `def.id`.
+    expect(codexAgentDef.externalMcpInjection).toBe('codex-toml');
     expect(codexAgentDef.listModels).toEqual({ args: ['debug', 'models'], parse: parseCodexDebugModels, timeoutMs: 5000 });
     expect(codexAgentDef.authProbe).toEqual({ args: ['login', 'status'], timeoutMs: 5000 });
     expect(codexAgentDef.reasoningOptions?.map((r) => r.id)).toEqual([
@@ -54,6 +64,38 @@ describe('parseCodexDebugModels', () => {
       JSON.stringify({ models: [{ slug: 'gpt-5', visibility: 'hidden' }, { slug: 'gpt-5.1' }] }),
     );
     expect(result?.map((m) => m.id)).toEqual(['default', 'gpt-5.1']);
+  });
+
+  // Regression: OpenAI's real Codex catalog spells the hidden state `hide`, not `hidden` — verified
+  // live against `codex debug models` (0.153.4), where `gpt-reserve` and `codex-auto-review` both
+  // carry `visibility: "hide"`, and corroborated by openai/codex PR #42874, which describes flipping
+  // Astra from `hide` to `list`. Testing only `=== 'hidden'` let both internal entries render in the
+  // picker. Asserting the WHOLE list, not just "gpt-reserve is absent": a filter that dropped every
+  // entry would also satisfy the narrower assertion.
+  it("skips entries with the catalog's real hidden literal `hide`, keeping the listed ones", () => {
+    const result = parseCodexDebugModels(
+      JSON.stringify({
+        models: [
+          { slug: 'gpt-6-astra', visibility: 'list' },
+          { slug: 'gpt-reserve', visibility: 'hide' },
+          { slug: 'gpt-5.6-sol', visibility: 'list' },
+          { slug: 'codex-auto-review', visibility: 'hide' },
+        ],
+      }),
+    );
+    expect(result?.map((m) => m.id)).toEqual(['default', 'gpt-6-astra', 'gpt-5.6-sol']);
+  });
+
+  // Permissive on input by design: a vendor that already shipped two spellings of the same state can
+  // ship a third, and the cost of over-normalizing is zero (no real catalog value is a cased or
+  // padded variant of a DIFFERENT state).
+  it('treats cased and padded hidden literals as hidden too', () => {
+    const result = parseCodexDebugModels(
+      JSON.stringify({
+        models: [{ slug: 'a', visibility: 'HIDE' }, { slug: 'b', visibility: '  hidden ' }, { slug: 'c' }],
+      }),
+    );
+    expect(result?.map((m) => m.id)).toEqual(['default', 'c']);
   });
 
   it('uses .id when .slug is absent, and skips an entry with neither', () => {
@@ -287,5 +329,133 @@ describe('codexAgentDef.buildArgs', () => {
   it('defaults extraAllowedDirs/options/runtimeContext when omitted entirely', () => {
     setPlatform('darwin');
     expect(() => codexAgentDef.buildArgs('hi', [])).not.toThrow();
+  });
+
+  it('adds -i <path> for each attachment path on a fresh turn (not silently dropped)', () => {
+    setPlatform('darwin');
+    const args = codexAgentDef.buildArgs('hi', ['/img/one.png', '/notes/two.md'], [], {}, { cwd: '/proj' });
+    const attachFlags = args.reduce<string[]>((acc, v, i) => (v === '-i' ? [...acc, args[i + 1]!] : acc), []);
+    expect(attachFlags).toEqual(['/img/one.png', '/notes/two.md']);
+  });
+
+  it('adds -i <path> on a resume turn too, unlike -C/--add-dir which are create-only', () => {
+    setPlatform('darwin');
+    const args = codexAgentDef.buildArgs('hi', ['/img/one.png'], [], {}, { resumeSessionId: 'thread-1' });
+    expect(args).toContain('-i');
+    expect(args[args.indexOf('-i') + 1]).toBe('/img/one.png');
+    // The resume thread id positional must still come after every flag, attachments included.
+    expect(args[args.length - 1]).toBe('thread-1');
+  });
+
+  it('filters out non-string/empty attachment path entries', () => {
+    setPlatform('darwin');
+    const args = codexAgentDef.buildArgs('hi', ['', 123 as unknown as string, '/img/ok.png']);
+    const attachFlags = args.reduce<string[]>((acc, v, i) => (v === '-i' ? [...acc, args[i + 1]!] : acc), []);
+    expect(attachFlags).toEqual(['/img/ok.png']);
+  });
+
+  it('adds no -i flag when imagePaths is empty or nullish', () => {
+    setPlatform('darwin');
+    expect(codexAgentDef.buildArgs('hi', [])).not.toContain('-i');
+    expect(codexAgentDef.buildArgs('hi', null as unknown as string[])).not.toContain('-i');
+  });
+});
+
+describe('codexAgentDef.imageDelivery', () => {
+  it('declares "native" so attachments are never silently dropped (regression: was undefined)', () => {
+    expect(codexAgentDef.imageDelivery).toBe('native');
+  });
+});
+
+
+/**
+ * The real catalog shape, trimmed to the fields these tests read. Copied from a live
+ * `codex debug models` run (codex-cli 0.153.4) — the effort sets below are NOT invented: Astra and
+ * the Sol/Terra models really do offer `ultra`, Luna stops at `max`, and 5.5 / 5.4-mini stop at
+ * `xhigh`. That per-model divergence is the whole reason a single global effort list is wrong.
+ */
+const LIVE_CATALOG_SHAPE = JSON.stringify({
+  models: [
+    {
+      slug: 'gpt-6-astra',
+      display_name: 'GPT-6 Astra',
+      visibility: 'list',
+      supported_reasoning_levels: [
+        { effort: 'low' }, { effort: 'medium' }, { effort: 'high' },
+        { effort: 'xhigh' }, { effort: 'max' }, { effort: 'ultra' },
+      ],
+    },
+    {
+      slug: 'gpt-reserve',
+      visibility: 'hide',
+      supported_reasoning_levels: [{ effort: 'low' }, { effort: 'nonsense-internal-level' }],
+    },
+    {
+      slug: 'gpt-5.5',
+      visibility: 'list',
+      supported_reasoning_levels: [
+        { effort: 'low' }, { effort: 'medium' }, { effort: 'high' }, { effort: 'xhigh' },
+      ],
+    },
+  ],
+});
+
+describe('parseCodexDebugModels — per-model reasoning levels', () => {
+  it("carries each model's own supported_reasoning_levels on its option row", () => {
+    const models = parseCodexDebugModels(LIVE_CATALOG_SHAPE);
+    const astra = models?.find((m) => m.id === 'gpt-6-astra');
+    expect(astra?.reasoning?.map((r) => r.id)).toEqual(['low', 'medium', 'high', 'xhigh', 'max', 'ultra']);
+    // Not the same set — a global list cannot be right for both.
+    const gpt55 = models?.find((m) => m.id === 'gpt-5.5');
+    expect(gpt55?.reasoning?.map((r) => r.id)).toEqual(['low', 'medium', 'high', 'xhigh']);
+  });
+
+  it('labels the levels the way the picker already spells them', () => {
+    const models = parseCodexDebugModels(LIVE_CATALOG_SHAPE);
+    const astra = models?.find((m) => m.id === 'gpt-6-astra');
+    expect(astra?.reasoning?.map((r) => r.label)).toEqual(['Low', 'Medium', 'High', 'XHigh', 'Max', 'Ultra']);
+  });
+
+  it('accepts a bare-string level as well as the {effort} object form', () => {
+    const models = parseCodexDebugModels(
+      JSON.stringify({ models: [{ slug: 'm', supported_reasoning_levels: ['low', { effort: 'high' }] }] }),
+    );
+    expect(models?.find((m) => m.id === 'm')?.reasoning?.map((r) => r.id)).toEqual(['low', 'high']);
+  });
+
+  it('omits `reasoning` entirely for a model that declares no levels', () => {
+    const models = parseCodexDebugModels(JSON.stringify({ models: [{ slug: 'm' }] }));
+    expect(models?.find((m) => m.id === 'm')).toEqual({ id: 'm', label: 'm' });
+  });
+});
+
+describe('unionModelReasoningOptions', () => {
+  it('unions every listed model\'s levels, so `max` and `ultra` become reachable', () => {
+    const models = parseCodexDebugModels(LIVE_CATALOG_SHAPE)!;
+    expect(unionModelReasoningOptions(models)?.map((r) => r.id)).toEqual([
+      'default', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra',
+    ]);
+  });
+
+  it('never surfaces a hidden model\'s private levels', () => {
+    // `gpt-reserve` is `visibility: "hide"` and carries a bogus level; it is filtered out by
+    // `parseCodexDebugModels` before the union ever sees it. Asserted here, not just implied by the
+    // test above, because the union is the thing that renders.
+    const models = parseCodexDebugModels(LIVE_CATALOG_SHAPE)!;
+    expect(unionModelReasoningOptions(models)?.map((r) => r.id)).not.toContain('nonsense-internal-level');
+  });
+
+  it('returns null when no model carries levels, so the caller keeps its static list', () => {
+    expect(unionModelReasoningOptions([{ id: 'default', label: 'Default' }, { id: 'm', label: 'm' }])).toBeNull();
+    expect(unionModelReasoningOptions([])).toBeNull();
+  });
+});
+
+describe('codexAgentDef.deriveReasoningOptions', () => {
+  it('is declared, and turns the live catalog into the effort list the picker renders', () => {
+    const models = parseCodexDebugModels(LIVE_CATALOG_SHAPE)!;
+    expect(codexAgentDef.deriveReasoningOptions?.(models)?.map((r) => r.id)).toEqual([
+      'default', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra',
+    ]);
   });
 });

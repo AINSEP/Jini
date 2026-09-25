@@ -1,3 +1,13 @@
+## Note (2026-08-09) — folded into `@jini-ai/ui`
+
+This package was retired as a standalone publish and folded into `@jini-ai/ui` as the
+`./renderers` subpath (`git mv` of the whole `src/**` tree to `packages/ui/src/renderers/`,
+unchanged in shape) — see `.changeset/fold-renderers-react-into-ui.md` and this file's own
+current location. Every `pnpm --filter @jini/renderers-react` / `@jini-ai/renderers-react`
+command below is historical and will fail today (no such package); run the equivalent
+`pnpm --filter @jini-ai/ui` command instead. The provenance/transformation record below
+predates the fold and is otherwise left as the historical account of the original extraction.
+
 # `@jini/renderers-react` — provenance
 
 Origin: `leonaburime-ucla/open-design`, branch `main`, commit

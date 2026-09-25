@@ -43,6 +43,9 @@ const ERROR_STATUS_BY_CODE: Partial<Record<ApiErrorCode, number>> = {
   TOOL_ENDPOINT_DENIED: 403,
   TOOL_OPERATION_DENIED: 403,
   TOOL_NOT_AVAILABLE: 503,
+  REMOTE_TOOL_BRIDGE_NOT_CONFIGURED: 503,
+  REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED: 401,
+  OAUTH_FLOW_IN_PROGRESS: 409,
 };
 
 /** Resolves the HTTP status to send for an `ApiError`, defaulting to 500 for unmapped codes. */

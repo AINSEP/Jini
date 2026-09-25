@@ -14,12 +14,64 @@
  * is that enum's single source of truth so the write-service's validation and the index
  * provisioner's CAST-mapping can never drift apart.
  *
+ * The enum is SPLIT rather than flat (2026-09-05): a kind is either INDEXABLE — it may carry
+ * `queryable: true` and therefore may reach `mapFieldKindToCast` — or STORAGE-ONLY, stored
+ * verbatim in `fieldsJson` and never indexed, sorted, or filtered on. The split is what keeps the
+ * CAST table's exhaustiveness compiler-enforced without forcing a CAST target to be invented for a
+ * kind that has none; see `index-provisioning.ts`'s `KIND_TO_CAST_LITERAL`.
+ *
  * Architectural role:
  * `features/content-types` domain vocabulary. No dependencies.
  */
 
-/** CIC U-001-B1 — the closed, 5-entry field-kind enum. Never extend ad hoc. */
-export const CONTENT_TYPE_FIELD_KINDS = ["text", "integer", "real", "boolean", "datetime"] as const;
+/**
+ * CIC U-001-B1 — the closed, 5-entry INDEXABLE SCALAR set. Never extend ad hoc.
+ *
+ * Unchanged since the original enum: every value that has ever reached a `CAST` literal is still
+ * here, in this order. Kept as its own constant so the "these five are the original, untouched
+ * scalars" claim is expressible in code rather than only in a comment.
+ */
+export const CONTENT_TYPE_SCALAR_KINDS = ["text", "integer", "real", "boolean", "datetime"] as const;
+
+/**
+ * CIC U-001-B1 — kinds that MAY carry `queryable: true` and therefore MAY reach
+ * `mapFieldKindToCast`. Every member MUST have an entry in `index-provisioning.ts`'s
+ * `KIND_TO_CAST_LITERAL`; the compiler enforces this via `Record<IndexableFieldKind, string>`, so
+ * adding a member here fails the build until a CAST literal is supplied for it.
+ *
+ * `relation` stores a foreign entity id and shares `text`'s storage class, so its CAST target is
+ * the already-present literal `"TEXT"` — it adds a KEY to that table, never a new VALUE to the
+ * DDL alphabet.
+ */
+export const INDEXABLE_FIELD_KINDS = [...CONTENT_TYPE_SCALAR_KINDS, "relation"] as const;
+
+export type IndexableFieldKind = (typeof INDEXABLE_FIELD_KINDS)[number];
+
+/**
+ * Kinds stored verbatim inside `fieldsJson` and NEVER indexed, sorted, or filtered on. A
+ * storage-only kind has no CAST target — it is not that one is hard to choose, it is that a JSON
+ * document has no scalar storage class to cast to — so `write-service.ts` rejects
+ * `queryable: true` on one before any index transition can be resolved.
+ */
+export const STORAGE_ONLY_FIELD_KINDS = ["json"] as const;
+
+export type StorageOnlyFieldKind = (typeof STORAGE_ONLY_FIELD_KINDS)[number];
+
+/**
+ * CIC U-001-B1 — the closed field-kind enum. UNCHANGED NAME AND MEANING for every existing
+ * consumer: it is still the complete, closed set of legal `kind` values, and
+ * {@link isContentTypeFieldKind} is still the gate for it.
+ *
+ * Member order is load-bearing, not cosmetic: the five scalars must stay first and in their
+ * original order because this array's `join("|")` is interpolated into an operator-facing error
+ * message. The spread order below preserves that; the published agent-tool schema
+ * (`agent-tools.ts`) also spreads this constant, so both widen in lockstep with no hand-copied
+ * second list to drift.
+ */
+export const CONTENT_TYPE_FIELD_KINDS = [
+  ...INDEXABLE_FIELD_KINDS,
+  ...STORAGE_ONLY_FIELD_KINDS,
+] as const;
 
 export type ContentTypeFieldKind = (typeof CONTENT_TYPE_FIELD_KINDS)[number];
 
@@ -27,11 +79,31 @@ export type ContentTypeFieldKind = (typeof CONTENT_TYPE_FIELD_KINDS)[number];
  * Type guard for {@link ContentTypeFieldKind}. The single gate every kind value must pass before
  * it is trusted anywhere near DDL construction (`index-provisioning.ts`) or write validation.
  *
- * @complexity O(1).
+ * Note the division of labour with {@link isIndexableFieldKind}: passing THIS gate means the value
+ * is a legal kind to DECLARE and STORE. It does NOT license a CAST — `mapFieldKindToCast` applies
+ * the narrower gate, because "storable" and "indexable" are no longer the same set.
+ *
+ * @complexity O(1) — a fixed-size array membership test.
  * @overallScore 100
  */
 export function isContentTypeFieldKind(value: unknown): value is ContentTypeFieldKind {
   return typeof value === "string" && (CONTENT_TYPE_FIELD_KINDS as readonly string[]).includes(value);
+}
+
+/**
+ * Type guard for {@link IndexableFieldKind} — the gate `mapFieldKindToCast` applies instead of
+ * {@link isContentTypeFieldKind}, and the gate `write-service.ts` applies to reject
+ * `queryable: true` on a storage-only kind.
+ *
+ * For all five original scalars this predicate and {@link isContentTypeFieldKind} agree exactly,
+ * which is what makes narrowing the CAST gate behavior-preserving for every input that could
+ * exist before `relation`/`json` were introduced.
+ *
+ * @complexity O(1) — a fixed-size array membership test.
+ * @overallScore 100
+ */
+export function isIndexableFieldKind(value: unknown): value is IndexableFieldKind {
+  return typeof value === "string" && (INDEXABLE_FIELD_KINDS as readonly string[]).includes(value);
 }
 
 export interface ContentTypeFieldDef {

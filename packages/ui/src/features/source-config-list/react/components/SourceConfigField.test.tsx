@@ -58,6 +58,12 @@ describe('SourceConfigField', () => {
     expect(input).toHaveAttribute('type', 'password');
   });
 
+  it('marks a password field autoComplete="new-password", so Chrome never fills the saved site login into a source credential', () => {
+    const spec: SourceFieldSpec = { key: 'clientSecret', label: 'Client secret', kind: 'password' };
+    render(<SourceConfigField spec={spec} value="" onChange={vi.fn()} />);
+    expect(screen.getByLabelText('Client secret')).toHaveAttribute('autocomplete', 'new-password');
+  });
+
   it('renders a select field with the given options', async () => {
     const onChange = vi.fn();
     const spec: SourceFieldSpec = {
@@ -176,9 +182,9 @@ describe('SourceConfigField', () => {
     it('is immediately editable for a first-time/empty secret-textarea — nothing to reveal, so no reveal-gate blocks input', async () => {
       // Regression coverage: this kind was designed for "editing an EXISTING
       // secret" (mask + read-only until "Show" is clicked), but an always-empty
-      // field (e.g. Tovu's external-MCP credentials block on first entry) has
+      // field (e.g. a host product's external-MCP credentials block on first entry) has
       // nothing to protect, so gating it behind a reveal click blocked all
-      // typing. Discovered by Tovu's external-MCP feature hitting this wall on
+      // typing. Discovered by a host product's external-MCP feature hitting this wall on
       // a brand-new field.
       const onChange = vi.fn();
       const spec: SourceFieldSpec = { key: 'env', label: 'Env', kind: 'secret-textarea' };

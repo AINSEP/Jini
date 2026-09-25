@@ -46,7 +46,13 @@ export function AgentCliEnvFields({ agentId, fields, config, onChange }: AgentCl
                 value={agentCliEnvValue(config, agentId, field.envKey)}
                 placeholder={field.placeholder}
                 spellCheck={false}
-                autoComplete="off"
+                /* Per-field, because this input is both kinds at once. A `secret` field renders
+                   `type="password"`, and Chrome deliberately ignores `autoComplete="off"` on
+                   credential-shaped fields — the same defect fixed on `ByokProviderForm`'s API-key
+                   input; see its comment for the full reasoning. A NON-secret field (a proxy URL, a
+                   config path) keeps `off`: `new-password` there would invite Chrome to offer to
+                   GENERATE a password for a field that holds a file path. */
+                autoComplete={field.secret ? 'new-password' : 'off'}
                 data-testid={`jini-agent-cli-env-${agentId}-${field.envKey}`}
                 onChange={(event) => onChange(agentId, field.envKey, event.target.value)}
               />

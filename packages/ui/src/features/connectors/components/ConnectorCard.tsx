@@ -1,4 +1,5 @@
 import type { KeyboardEvent as ReactKeyboardEvent, SyntheticEvent } from 'react';
+import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../i18n/index.js';
 import { getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '../rules.js';
 import type { Connector, ConnectorAction, ConnectorAuthorizationPending } from '../types.js';
@@ -20,6 +21,9 @@ export interface ConnectorCardProps {
   cancelFailedMessage?: string;
   continueInBrowserLabel?: string;
   onOpenExternalUrl?: (url: string) => void;
+  /** This card's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc; `ConnectorGrid`
+   *  derives one distinct handle per connector and passes it here. */
+  agentHandle?: string;
 }
 
 export function ConnectorCard({
@@ -37,6 +41,7 @@ export function ConnectorCard({
   cancelFailedMessage,
   continueInBrowserLabel,
   onOpenExternalUrl,
+  agentHandle,
 }: ConnectorCardProps) {
   const t = useT();
   const resolvedCancelFailedMessage = cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.");
@@ -92,6 +97,7 @@ export function ConnectorCard({
       aria-label={t('Open details for {name}', { name: connector.name })}
       onClick={openDetails}
       onKeyDown={onKeyActivate}
+      {...agentHandleProps(agentHandle, { role: 'button', label: connector.name })}
     >
       <div className="connector-card-top">
         <ConnectorLogo connectorId={connector.id} connectorName={connector.name} logoUrl={connector.logoUrl} size="sm" />
@@ -143,6 +149,7 @@ export function ConnectorCard({
                 stop(e);
                 onDisconnect(connector.id);
               }}
+              {...agentHandleProps(agentHandle, { action: 'disconnect', role: 'button', label: t('Disconnect') })}
             >
               <Icon name={isDisconnecting ? 'spinner' : 'close'} size={12} />
             </button>
@@ -161,6 +168,7 @@ export function ConnectorCard({
                 stop(e);
                 onConnect(connector.id);
               }}
+              {...agentHandleProps(agentHandle, { action: 'connect', role: 'button', label: t('Connect') })}
             >
               <Icon name={isConnecting || isAuthorizationPending ? 'spinner' : 'plus'} size={12} />
             </button>

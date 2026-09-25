@@ -1,3 +1,4 @@
+import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
 import type { SkillsPort } from '../../ports.js';
 import { humanizeSkillCategory } from '../../rules.js';
 import { useT } from '../../../i18n/index.js';
@@ -27,6 +28,13 @@ export interface SkillsTabProps {
   onToggleEnabled: (id: string, enabled: boolean) => void;
   locale?: string;
   labels?: SkillsTabLabels | undefined;
+  /**
+   * This tab's own agent handle, published by the host. The search box, the new-skill button, the
+   * filter selects, the create form, and every skill row (each with its own distinct sub-handle,
+   * derived from the skill's own stable id) all derive their own `data-agent-*` handle from this
+   * ONE base.
+   */
+  agentHandle?: string;
 }
 
 /**
@@ -37,7 +45,7 @@ export interface SkillsTabProps {
  * host-defined. All filtering/search/count logic lives in this feature's
  * own `rules.ts`; this component only renders it.
  */
-export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels }: SkillsTabProps) {
+export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'en', labels, agentHandle }: SkillsTabProps) {
   const t = useT();
   const {
     loading,
@@ -84,6 +92,9 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
   const allLabel = labels?.allLabel ?? t('All');
   const noResultsLabel = labels?.noResultsLabel ?? t('No skills match these filters.');
   const loadErrorLabel = labels?.loadErrorLabel ?? t('Could not load skills: {error}', { error: loadError ?? '' });
+  const rowHandles = agentHandle
+    ? buildAgentListHandles(agentSubHandle(agentHandle, 'skill'), filteredSkills.map((skill) => skill.id))
+    : undefined;
 
   return (
     <section className="jini-settings-section jini-settings-skills">
@@ -96,8 +107,15 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
             value={filters.search}
             onChange={(event) => setSearch(event.target.value)}
             aria-label={searchPlaceholder}
+            {...agentHandleProps(agentHandle, { action: 'search', role: 'field', label: searchPlaceholder })}
           />
-          <button type="button" className="jini-button jini-button-primary" onClick={startCreate} data-testid="skills-new">
+          <button
+            type="button"
+            className="jini-button jini-button-primary"
+            onClick={startCreate}
+            data-testid="skills-new"
+            {...agentHandleProps(agentHandle, { action: 'new', role: 'button', label: newSkillLabel })}
+          >
             <Icon name="plus" size={13} />
             <span>{newSkillLabel}</span>
           </button>
@@ -106,7 +124,11 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
         <div className="jini-skills-filter-selects">
           <label className="jini-skills-filter-select">
             <span>{sourceFilterLabel}</span>
-            <select value={filters.source} onChange={(event) => setSourceFilter(event.target.value as typeof filters.source)}>
+            <select
+              value={filters.source}
+              onChange={(event) => setSourceFilter(event.target.value as typeof filters.source)}
+              {...agentHandleProps(agentHandle, { action: 'filter-source', role: 'field', label: sourceFilterLabel })}
+            >
               <option value="all">
                 {allLabel} ({sourceOptions.all})
               </option>
@@ -120,7 +142,11 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
 
           <label className="jini-skills-filter-select">
             <span>{modeFilterLabel}</span>
-            <select value={filters.mode} onChange={(event) => setModeFilter(event.target.value)}>
+            <select
+              value={filters.mode}
+              onChange={(event) => setModeFilter(event.target.value)}
+              {...agentHandleProps(agentHandle, { action: 'filter-mode', role: 'field', label: modeFilterLabel })}
+            >
               <option value="all">
                 {allLabel} ({modeOptions.all})
               </option>
@@ -135,7 +161,11 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
           {categoryOptions ? (
             <label className="jini-skills-filter-select" data-testid="skills-category-filters">
               <span>{categoryFilterLabel}</span>
-              <select value={filters.category} onChange={(event) => setCategoryFilter(event.target.value)}>
+              <select
+                value={filters.category}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+                {...agentHandleProps(agentHandle, { action: 'filter-category', role: 'field', label: categoryFilterLabel })}
+              >
                 <option value="all">
                   {allLabel} ({categoryOptions.all})
                 </option>
@@ -167,6 +197,7 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
           onCancel={cancelDraft}
           onSubmit={submitDraft}
           labels={labels}
+          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'create-form') } : {})}
         />
       ) : null}
 
@@ -176,12 +207,13 @@ export function SkillsTab({ port, disabledSkillIds, onToggleEnabled, locale = 'e
         </div>
       ) : (
         <div className="jini-skills-rows" data-testid="skills-list">
-          {filteredSkills.map((skill) => {
+          {filteredSkills.map((skill, index) => {
             const isExpanded = expandedId === skill.id;
             const isEditing = editingId === skill.id;
             return (
               <SkillRow
                 key={skill.id}
+                {...(rowHandles?.[index] ? { agentHandle: rowHandles[index] } : {})}
                 skill={skill}
                 locale={locale}
                 enabled={!disabledSkillIds.has(skill.id)}

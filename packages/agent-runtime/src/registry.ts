@@ -4,7 +4,7 @@
  * The static `BASE_AGENT_DEFS` catalog (the 24 built-in CLI adapters), a
  * dup-id guard, and `getAgentDef(id)` lookup.
  *
- * Ported from OD's `apps/daemon/src/runtimes/registry/registry.ts`. Per the
+ * Ported from OD's `apps/daemon/src/runtimes/registry.ts`. Per the
  * task's explicit scope ("`registry.ts` → `BASE_AGENT_DEFS` array + dup-id
  * guard + `getAgentDef(id)`"), the origin's `readLocalAgentProfileDefs`
  * local-profile-file loader is deliberately NOT ported here — it reads a
@@ -84,4 +84,24 @@ for (const def of AGENT_DEFS) {
 
 export function getAgentDef(id: string): RuntimeAgentDef | null {
   return AGENT_DEFS.find((a) => a.id === id) || null;
+}
+
+/**
+ * Whether a caller can inject external MCP servers (the host application's or this engine's own
+ * tools) into a session run by this
+ * def, per its own `externalMcpInjection` declaration (`types.ts`'s own doc names the six wired
+ * strategies and the defs that leave the field `undefined` because the CLI has no mechanism to
+ * receive one — `aider`, `amp`, `copilot`, `cursor-agent`, `deepseek`, `grok-build`, `pi`,
+ * `qoder`, and `qwen` today, each documenting why in its own def file).
+ *
+ * This is the single seam a tool-availability UI (e.g. the chat runtime picker's "No tools" badge)
+ * should read instead of hardcoding a runtime-id list: that list goes stale the moment a def gains
+ * or loses `externalMcpInjection`, whereas every caller of this function tracks the def
+ * automatically. Changing which runtimes support tools is a one-def-field edit; no caller of this
+ * function needs to change.
+ *
+ * @complexity Time/space: O(1).
+ */
+export function runtimeSupportsExternalTools(def: Pick<RuntimeAgentDef, 'externalMcpInjection'>): boolean {
+  return def.externalMcpInjection !== undefined;
 }

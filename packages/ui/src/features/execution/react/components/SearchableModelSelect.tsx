@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { agentHandleProps } from '@jini-ai/agentic';
 import { filterAgentModelOptions } from '../../rules.js';
 import type { AgentModelOption } from '../../types.js';
 import { CustomSelect } from '../../../../react/components/CustomSelect.js';
@@ -30,6 +31,9 @@ export interface SearchableModelSelectProps {
   menuClassName?: string | undefined;
   testId?: string | undefined;
   searchInputTestId?: string | undefined;
+  /** Tags the wrapping element — `CustomSelect` owns the actual trigger/popover markup, so this is
+   *  the addressable unit an agent locates, then drives via its own trigger button inside. */
+  agentHandle?: string | undefined;
 }
 
 /**
@@ -60,6 +64,7 @@ export function SearchableModelSelect({
   menuClassName,
   testId,
   searchInputTestId,
+  agentHandle,
 }: SearchableModelSelectProps) {
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement | null>(null);
@@ -90,7 +95,7 @@ export function SearchableModelSelect({
   };
 
   return (
-    <div className="jini-searchable-select" data-testid={testId}>
+    <div className="jini-searchable-select" data-testid={testId} {...agentHandleProps(agentHandle, { role: 'field', label: ariaLabel })}>
       <CustomSelect
         value={value}
         options={visibleOptions}

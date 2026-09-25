@@ -67,7 +67,7 @@
  * reasoning.
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupAddress } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupAddress, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -155,6 +155,10 @@ export interface OpenAiTurnOptions {
   readonly signal?: AbortSignal;
   /** Caller-supplied extra headers — see `anthropic-messages.ts#AnthropicTurnOptions.extraHeaders`'s doc for why this exists and what it fixes. */
   readonly extraHeaders?: Record<string, string>;
+  /** Injectable HTTP transport, defaulting to {@link pinnedFetch} (SSRF-guarded, DNS-pinned). See `anthropic-messages.ts#AnthropicTurnOptions.fetchImpl`'s doc for the seam this exists for and why production wiring must never override it. Forwarded to {@link runOpenAiCompatibleRequest} via `OpenAiCompatibleRequestInit.fetchImpl` — `azure-chat.ts`/`ollama-chat.ts` accept and forward their own copy of this field the same way. */
+  readonly fetchImpl?: PinnedFetch;
+  /** Injectable DNS resolver for {@link validateBaseUrlResolved}'s DNS-pinning check, defaulting to {@link defaultDnsLookup}. Same test-only override rationale as `fetchImpl`. */
+  readonly dnsLookup?: DnsLookupFn;
 }
 
 export interface OpenAiTurnResult {
@@ -251,6 +255,8 @@ export interface OpenAiCompatibleRequestInit {
    * cannot retry again.
    */
   readonly retryableBody?: (status: number, rawErrorText: string) => Record<string, unknown> | null | undefined;
+  /** Injectable HTTP transport, defaulting to {@link pinnedFetch} (SSRF-guarded, DNS-pinned) — forwarded verbatim from the calling provider's own `OpenAiTurnOptions.fetchImpl`/`AzureTurnOptions.fetchImpl`/`OllamaTurnOptions.fetchImpl`. See `anthropic-messages.ts#AnthropicTurnOptions.fetchImpl`'s doc for the seam this exists for. */
+  readonly fetchImpl?: PinnedFetch;
 }
 
 /** Mutable reduction state threaded through one streaming request's SSE frame handlers (below). Grouped into one object so each handler takes a single parameter instead of several. Exported so a unit test can construct one directly (e.g. `{ guard: createRoleMarkerGuard('t'), toolCalls: new Map(), fullText: '', finishReason: null, usage: null }`) without going through a full `runOpenAiToolTurn` call. */
@@ -382,7 +388,7 @@ async function requestOpenAiCompatibleStream(init: OpenAiCompatibleRequestInit):
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = await pinnedFetch(
+    response = await (init.fetchImpl ?? pinnedFetch)(
       init.url,
       {
         method: 'POST',
@@ -527,7 +533,7 @@ async function runSingleOpenAiRequest(
   // so `https://internal.example.com -> 10.0.0.5` passed it and this runner connected to private
   // infrastructure on behalf of whoever supplied `baseUrl`. Matches what the Azure, Google and
   // Ollama runners in this directory already did.
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_OPENAI_BASE_URL, defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_OPENAI_BASE_URL, options.dnsLookup ?? defaultDnsLookup);
   if (baseUrlCheck.error) {
     options.onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
@@ -540,6 +546,7 @@ async function runSingleOpenAiRequest(
     body: openAiRequestBody(options, messages),
     ...(baseUrlCheck.pinnedAddress ? { pinnedAddress: baseUrlCheck.pinnedAddress } : {}),
     ...(options.signal ? { signal: options.signal } : {}),
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
     redactSecretsList: [options.apiKey],
     guardMessageId: 'openai-turn',
     providerLabel: 'OpenAI',

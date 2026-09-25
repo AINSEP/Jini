@@ -77,6 +77,9 @@ export {
   logout,
   validateSession,
   getEffectivePermissions,
+  /** The password-free session minter `login()` itself is now built on — see its own doc for who
+   *  else should call it directly. */
+  createSessionForPrincipal,
   SESSION_TTL_MS,
   type AuthServiceDeps,
 } from "./auth-service.js";
@@ -113,6 +116,10 @@ export {
   deleteRole,
   deletePolicy,
   writePolicyPermission,
+  /** OQ-10 — the inverse of `writePolicyPermission`; without it a policy's permission set was
+   *  append-only (shrinking it meant `deletePolicy` + recreate, which INV-09 blocks once the
+   *  policy is referenced). */
+  removePolicyPermission,
 } from "./admin-crud-service.js";
 
 /**

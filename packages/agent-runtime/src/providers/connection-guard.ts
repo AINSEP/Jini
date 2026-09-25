@@ -282,6 +282,22 @@ export interface PinnedFetchResponse {
 }
 
 /**
+ * The call signature of {@link pinnedFetch} — exported so provider adapters
+ * (`AnthropicTurnOptions.fetchImpl`, `OpenAiTurnOptions.fetchImpl`, etc.) can accept it as an
+ * injectable dependency instead of hardcoding the import, and so a test can pass a fake directly
+ * through that seam rather than module-mocking this file (or, worse, its compiled `dist/` output —
+ * see `@jini-ai/http-kit`'s `model-proxy.test.ts` for the fragility that motivated this). Every
+ * adapter still defaults to the real {@link pinnedFetch} when the option is omitted — production
+ * behavior, including the SSRF guard and DNS pinning, never changes unless a caller explicitly
+ * overrides it.
+ */
+export type PinnedFetch = (
+  url: string,
+  init: PinnedFetchInit,
+  pinnedAddress: DnsLookupAddress | undefined,
+) => Promise<PinnedFetchResponse>;
+
+/**
  * Idle-socket safety net, applied to every `pinnedFetch` request regardless of `init.signal`.
  * Plain `http(s).request` has NO default timeout at all — unlike `fetch`, which is backed by
  * undici's `Agent` defaults (`headersTimeout`/`bodyTimeout`, both 300_000ms there). Without this,

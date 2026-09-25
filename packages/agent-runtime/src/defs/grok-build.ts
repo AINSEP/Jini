@@ -105,4 +105,14 @@ export const grokBuildAgentDef = {
   streamFormat: 'plain',
   installUrl: 'https://x.ai/cli',
   docsUrl: 'https://x.ai/cli',
+  // No `externalMcpInjection`: Grok Build does ship native MCP support and
+  // reads `.mcp.json`/Claude/Cursor configs directly ("zero configuration
+  // needed" per xAI's docs) plus `grok mcp enable/disable <name>` CLI
+  // control, but that is auto-discovery of a fixed path, not an explicit
+  // `--mcp-config <path>` flag. `buildArgs` above already had to route around
+  // several non-standard CLI quirks for this def (`--prompt-file` instead of
+  // stdin/argv); auto-discovery risks the same interactive-trust-prompt stall
+  // `'claude-mcp-json'` was built to avoid for Claude Code (see
+  // `buildClaudeMcpConfigArgs`'s doc), unverified here. Needs live
+  // verification before any strategy — new or reused — is safe to assign.
 } satisfies RuntimeAgentDef;

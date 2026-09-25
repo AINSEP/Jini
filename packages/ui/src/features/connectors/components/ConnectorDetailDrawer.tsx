@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { SyntheticEvent } from 'react';
+import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../i18n/index.js';
 import {
   getConnectorDisplayToolCount,
@@ -30,6 +31,8 @@ export interface ConnectorDetailDrawerProps {
   getDisplayableAccountLabel?: (connector: Connector) => string | undefined;
   cancelFailedMessage?: string;
   continueInBrowserLabel?: string;
+  /** This drawer's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. */
+  agentHandle?: string;
 }
 
 /**
@@ -59,6 +62,7 @@ export function ConnectorDetailDrawer({
   getDisplayableAccountLabel = getDisplayableConnectorAccountLabel,
   cancelFailedMessage,
   continueInBrowserLabel,
+  agentHandle,
 }: ConnectorDetailDrawerProps) {
   const t = useT();
   const resolvedCancelFailedMessage = cancelFailedMessage ?? t("Couldn't cancel authorization. Try again.");
@@ -127,6 +131,7 @@ export function ConnectorDetailDrawer({
         aria-labelledby="connector-drawer-title"
         data-testid="connector-drawer"
         onClick={(e) => e.stopPropagation()}
+        {...agentHandleProps(agentHandle, { role: 'region', label: connector.name })}
       >
         <header className="connector-drawer-head">
           <ConnectorLogo connectorId={connector.id} connectorName={connector.name} logoUrl={connector.logoUrl} size="lg" />
@@ -158,6 +163,7 @@ export function ConnectorDetailDrawer({
             onClick={onClose}
             aria-label={t('Close')}
             data-testid="connector-drawer-close"
+            {...agentHandleProps(agentHandle, { action: 'close', role: 'button', label: t('Close') })}
           >
             <Icon name="close" size={14} />
           </button>
@@ -201,6 +207,7 @@ export function ConnectorDetailDrawer({
                   disabled={!canDisconnect}
                   aria-busy={isDisconnecting || undefined}
                   onClick={() => onDisconnect(connector.id)}
+                  {...agentHandleProps(agentHandle, { action: 'disconnect', role: 'button', label: t('Disconnect') })}
                 >
                   {isDisconnecting ? <Icon name="spinner" size={12} /> : null}
                   <span>{t('Disconnect')}</span>
@@ -295,12 +302,18 @@ export function ConnectorDetailDrawer({
               disabled={!canConnect}
               aria-busy={isConnecting || isAuthorizationPending || undefined}
               onClick={() => onConnect(connector.id)}
+              {...agentHandleProps(agentHandle, { action: 'connect', role: 'button', label: t('Connect') })}
             >
               {isConnecting || isAuthorizationPending ? <Icon name="spinner" size={12} /> : null}
               <span>{isAuthorizationPending ? t('Authorization pending') : t('Connect')}</span>
             </button>
             {isAuthorizationPending ? (
-              <button type="button" className="ghost connector-action is-cancel-authorization" onClick={() => onCancelAuthorization(connector.id)}>
+              <button
+                type="button"
+                className="ghost connector-action is-cancel-authorization"
+                onClick={() => onCancelAuthorization(connector.id)}
+                {...agentHandleProps(agentHandle, { action: 'cancel-authorization', role: 'button', label: t('Cancel authorization') })}
+              >
                 <span>{t('Cancel authorization')}</span>
               </button>
             ) : null}

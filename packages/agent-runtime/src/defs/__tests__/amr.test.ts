@@ -30,6 +30,11 @@ describe('amrAgentDef shape', () => {
     expect(amrAgentDef.id).toBe('amr');
     expect(amrAgentDef.bin).toBe('vela');
     expect(amrAgentDef.streamFormat).toBe('acp-json-rpc');
+    // AMR is one of the 9 `acp-json-rpc` defs and gets the caller's external MCP servers merged
+    // into its ACP `session/new` params exactly like the other 8 (devin/hermes/kilo/kimi/kiro/
+    // reasonix/trae-cli/vibe) — see `buildMcpBridgeDelivery` in `@jini-ai/daemon`'s
+    // `agent-executor.ts`, which dispatches on this declared strategy alone, never on `def.id`.
+    expect(amrAgentDef.externalMcpInjection).toBe('acp-merge');
     expect(amrAgentDef.supportsCustomModel).toBe(false);
     expect(amrAgentDef.imageDelivery).toBe('native');
     expect(amrAgentDef.resumesSessionViaAcpLoad).toBe(true);

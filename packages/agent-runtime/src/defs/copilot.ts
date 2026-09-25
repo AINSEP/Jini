@@ -90,4 +90,18 @@ export const copilotAgentDef = {
     // operator to override this via its own env var if it wants it
     // tighter.
     inactivityTimeoutMs: 30 * 60 * 1000,
+    // No `externalMcpInjection` yet. Copilot CLI has an explicit, run-scoped
+    // flag for this: `--additional-mcp-config <json|@path>`, documented as
+    // session-only and the highest-priority MCP source (it wins over both
+    // `~/.copilot/mcp-config.json` and the auto-discovered project
+    // `.github/mcp.json`/`.mcp.json`) — so, unlike the global-file or
+    // auto-discovery routes this comment previously (incorrectly) treated as
+    // the only options, this one needs neither `COPILOT_HOME` redirection nor
+    // `GITHUB_COPILOT_PROMPT_MODE_WORKSPACE_MCP` trust gating. What's still
+    // unconfirmed is the exact JSON shape the flag expects at its top level
+    // (official docs describe the flag's purpose but not its schema
+    // verbatim) — needs a local `copilot --help`/`copilot mcp --help` check
+    // before wiring, not a guess. Closest candidate for a new strategy: pass
+    // `@<run-scoped-file>` the same way `'claude-mcp-json'` passes a path,
+    // once the schema is confirmed.
 } satisfies RuntimeAgentDef;

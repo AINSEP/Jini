@@ -1,4 +1,11 @@
-# `@jini/node-host` — provenance
+# `@jini-ai/server` — provenance
+
+**Package/directory name note:** this package now lives at `packages/server` (npm name
+`@jini-ai/server`). Most of this file's history below was written while it was still
+`packages/node-host` (`@jini/node-host`) — commands like `pnpm --dir packages/node-host ...`
+in the older sections should be read as `pnpm --dir packages/server ...` today. Left as
+dated history rather than rewritten throughout; only the 2026-07-29 section already uses
+the current name.
 
 Origin: the generic bootstrap skeleton inside OD's `startServer()`
 (`apps/daemon/src/server.ts`) plus `apps/daemon/src/daemon-startup.ts`, on the user's

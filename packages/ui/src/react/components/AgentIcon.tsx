@@ -1,10 +1,12 @@
 import type { CSSProperties } from 'react';
+import { AGENT_ICON_DATA_URIS } from './agent-icon-data-uris.generated.js';
 
 interface Props {
   id: string;
   size?: number;
   className?: string;
-  /** Base path assets are served from. Defaults to `/agent-icons`. */
+  /** Overrides where assets are served from as `${basePath}/<id>.<ext>`. Omit to use this
+   *  package's own bundled icon set (`BUNDLED_ICON_URLS`) instead. */
   basePath?: string;
 }
 
@@ -57,41 +59,68 @@ const MONO_ICONS = new Set([
 ]);
 
 /**
- * Renders a coding-agent's brand mark by id, with a graceful initial-letter
- * fallback for ids the host hasn't shipped artwork for. Assets are expected
- * to live under `${basePath}/<id>.<ext>` (default basePath `/agent-icons`).
+ * This package's own bundled brand marks, as inline `data:` URIs generated from
+ * `agent-icons/*.svg` by `scripts/generate-agent-icon-data-uris.mjs` — see that script for why
+ * data URIs rather than a `new URL('./file', import.meta.url)` runtime lookup (the previous
+ * approach here, and still how `RemixIcon.tsx` loads its font). That pattern is rewritten
+ * correctly by Vite/Rollup/webpack for first-party source and for a production bundle of a
+ * dependency, but it silently breaks whenever the *referencing module itself* gets flattened into
+ * a different file before it runs — e.g. Vite's esbuild-based dev-server dependency pre-bundling,
+ * which changes `import.meta.url` to the flattened chunk's own served URL and leaves the computed
+ * relative path pointing at nothing. Confirmed live against a downstream Vite app whose dev server
+ * pre-bundles `@jini-ai/chat` (and this package through it): the resulting
+ * `.../agent-icons/codex.svg` request came back `200 text/html` (Vite's SPA fallback for the
+ * unmatched path) instead of the SVG, which every non-mono icon rendered as a browser broken-image
+ * glyph and every `MONO_ICONS` mask-image icon rendered as nothing at all. A `data:` URI needs no
+ * separate request and no bundler-specific asset handling, so it works identically under `file://`
+ * (an Electron shell with no bundler in front of it), any bundler's dev or production mode, and
+ * Vitest/jsdom.
+ *
+ * Only lists ids this package actually ships artwork for (a subset of `ICON_EXT` — the three PNG
+ * brands aren't bundled here yet). A host that already vendors its own assets and passes an
+ * explicit `basePath` is unaffected by this map; see the `basePath` branch below.
  */
-export function AgentIcon({ id, size = 36, className, basePath = '/agent-icons' }: Props) {
+const BUNDLED_ICON_URLS: Partial<Record<string, string>> = AGENT_ICON_DATA_URIS;
+
+/**
+ * Renders a coding-agent's brand mark by id, with a graceful initial-letter
+ * fallback for ids the host hasn't shipped artwork for. A host-supplied
+ * `basePath` always wins (backward compatible with hosts already vendoring
+ * their own copies); otherwise this falls back to `BUNDLED_ICON_URLS`.
+ */
+export function AgentIcon({ id, size = 36, className, basePath }: Props) {
   const cls = 'agent-icon' + (className ? ' ' + className : '');
   const ext = ICON_EXT[id];
   if (ext) {
-    if (ext === 'svg' && MONO_ICONS.has(id)) {
-      const src = `${basePath}/${id}.svg`;
-      const style: CSSProperties = {
-        width: size,
-        height: size,
-        WebkitMaskImage: `url("${src}")`,
-        maskImage: `url("${src}")`,
-      };
+    const src = basePath !== undefined ? `${basePath}/${id}.${ext}` : BUNDLED_ICON_URLS[id];
+    if (src !== undefined) {
+      if (ext === 'svg' && MONO_ICONS.has(id)) {
+        const style: CSSProperties = {
+          width: size,
+          height: size,
+          WebkitMaskImage: `url("${src}")`,
+          maskImage: `url("${src}")`,
+        };
+        return (
+          <span
+            className={cls + ' agent-icon-mono'}
+            style={style}
+            aria-hidden="true"
+          />
+        );
+      }
       return (
-        <span
-          className={cls + ' agent-icon-mono'}
-          style={style}
+        <img
+          src={src}
+          alt=""
+          width={size}
+          height={size}
+          className={cls}
           aria-hidden="true"
+          draggable={false}
         />
       );
     }
-    return (
-      <img
-        src={`${basePath}/${id}.${ext}`}
-        alt=""
-        width={size}
-        height={size}
-        className={cls}
-        aria-hidden="true"
-        draggable={false}
-      />
-    );
   }
   // Fallback for brands we don't ship artwork for. A neutral rounded
   // square with the initial letter — reads as "no official mark yet"

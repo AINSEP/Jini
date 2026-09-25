@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type { ComposerDiscoveryGroup, ComposerDiscoveryItem } from '../slots.js';
 
 export interface ComposerDiscoveryMatch {
@@ -161,4 +162,77 @@ export function resolveComposerSlashKeyAction(key: string, shiftKey: boolean): C
   if ((key === 'Enter' || key === 'Tab') && !shiftKey) return { type: 'select' };
   if (key === 'Escape') return { type: 'dismiss' };
   return { type: 'none' };
+}
+
+/** The subset of `DOMRect` the popover-positioning math below actually reads, so a caller (or a
+ *  test) can pass a plain object instead of constructing every read-only `DOMRect` accessor. */
+export interface ComposerMenuAnchorRect {
+  top: number;
+  left: number;
+  width: number;
+}
+
+/**
+ * Vertical half of a composer popover's viewport-fixed position, shared by
+ * {@link composerDiscoveryMenuPosition} and {@link composerSlashMenuPosition}.
+ *
+ * Both popovers were previously plain `position: absolute` descendants of `.jini-composer`, which
+ * is itself nested inside `.jini-chat-pane__body` — an ancestor that sets `overflow: hidden`
+ * unconditionally (`styles.ts`), plus whatever clipping box a host's own dock chrome adds on top
+ * (a host admin's `.admin-chat-dock` is `overflow: hidden` too, and its mobile "peek" sheet caps the
+ * whole dock at `58vh`). CSS alone cannot know how much room that leaves above the composer on a
+ * given host; when the popover's natural content is taller than the available space, the
+ * ancestor's hard clip boundary slices through whichever row sits at the clip line instead of the
+ * popover's own internal scroll doing so — reported as the list reading "clipped mid-item" rather
+ * than cleanly scrolled. `position: fixed` escapes every ancestor's `overflow` (none of them sets
+ * `transform`/`filter`/`contain`/`will-change: transform`, which is the only thing that would trap
+ * a fixed-position descendant), the same fix `useAgentRuntimePicker.hooks.ts`'s
+ * `runtimePopoverPosition('up', ...)` already applies to the sibling runtime popover for the
+ * identical reason.
+ *
+ * @complexity Time/space: O(1).
+ */
+function verticalUpPosition(anchorTop: number): Pick<CSSProperties, 'position' | 'bottom' | 'maxHeight' | 'zIndex'> {
+  const gap = 6; // matches the reference stylesheet's `bottom: calc(100% + 6px)`
+  const margin = 8; // keeps the popover off the literal viewport edge on a very short window
+  const maxHeightCap = 280; // matches the reference stylesheet's unconditional `max-height: 280px`
+  return {
+    position: 'fixed',
+    bottom: Math.max(margin, window.innerHeight - anchorTop + gap),
+    maxHeight: Math.min(maxHeightCap, Math.max(0, anchorTop - gap - margin)),
+    zIndex: 8, // matches the reference stylesheet's `.jini-composer-discovery-menu`/`-slash-menu`
+  };
+}
+
+/**
+ * Viewport-fixed position for the "+" discovery menu, anchored to `.jini-composer`'s live rect.
+ * Keeps the menu's existing left-aligned, width-capped footprint (`inset-inline-start: 8px; width:
+ * min(280px, 100vw - 32px)` in the reference stylesheet) — only the escape-the-ancestor-clip and
+ * available-space clamp from {@link verticalUpPosition} are new.
+ *
+ * @complexity Time/space: O(1).
+ */
+export function composerDiscoveryMenuPosition(composerRect: ComposerMenuAnchorRect): CSSProperties {
+  const inset = 8;
+  return {
+    ...verticalUpPosition(composerRect.top),
+    left: composerRect.left + inset,
+    width: Math.min(280, window.innerWidth - 32),
+  };
+}
+
+/**
+ * Viewport-fixed position for the slash-command palette, anchored to `.jini-composer`'s live
+ * rect. Keeps the palette's existing full-width-minus-insets footprint (`inset-inline: 8px` in
+ * the reference stylesheet).
+ *
+ * @complexity Time/space: O(1).
+ */
+export function composerSlashMenuPosition(composerRect: ComposerMenuAnchorRect): CSSProperties {
+  const inset = 8;
+  return {
+    ...verticalUpPosition(composerRect.top),
+    left: composerRect.left + inset,
+    width: Math.max(0, composerRect.width - inset * 2),
+  };
 }

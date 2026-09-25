@@ -20,7 +20,7 @@
  * generic rendering for it.
  */
 import { useState, type ReactNode } from 'react';
-import type { AgentEvent } from '../../core/index.js';
+import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
 import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { getToolRenderer } from '../tool-renderer-registry.js';
@@ -174,6 +174,7 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
           <div className="op-card-detail">
             <pre className="op-command">{JSON.stringify(args ?? {})}</pre>
             {result?.content ? <pre className="op-output">{truncate(result.content, 2000)}</pre> : null}
+            <ToolResultMedia result={result} />
           </div>
         </div>
       </div>
@@ -465,6 +466,7 @@ function GenericCard({ name, input, result, runStreaming, runSucceeded }: CardPr
         <span className="op-title">{name}</span>
         {summary ? <span className="op-meta">{truncate(summary, 200)}</span> : null}
       </div>
+      <ToolResultMedia result={result} />
     </div>
   );
 }
@@ -493,6 +495,38 @@ function ResultBadge({ result, runStreaming, runSucceeded }: { result?: ToolResu
     <span className="op-status op-status-ok" title={t('Done')}>
       <Icon name="check" size={14} />
     </span>
+  );
+}
+
+/**
+ * Renders the `image` blocks a tool result's `media` field carries — the one media type this slice
+ * proves end to end (`ToolResultMediaBlock`'s `text` arm is never collected into `media` in the
+ * first place; see `@jini-ai/daemon`'s `tool-result-media.ts`, so there is nothing to render for
+ * it). `null` for the overwhelming majority of results, which carry no `media` at all — every
+ * existing card that renders this stays visually unchanged.
+ *
+ * Styled only with an inline `max-width` safety net, not a class-driven layout: this package ships
+ * unstyled semantic markup (this module's own header) and a host supplies CSS via `.op-media`/
+ * `.op-media-image`. Without the inline rule, a handler-supplied image at its native pixel size
+ * could blow out the card's width before any host stylesheet loads.
+ */
+function ToolResultMedia({ result }: { result?: ToolResultEvent | undefined }) {
+  const blocks = result?.media;
+  if (!blocks || blocks.length === 0) return null;
+  const images = blocks.filter((block): block is Extract<ToolResultMediaBlock, { type: 'image' }> => block.type === 'image');
+  if (images.length === 0) return null;
+  return (
+    <div className="op-media">
+      {images.map((block, index) => (
+        <img
+          key={index}
+          className="op-media-image"
+          src={`data:${block.mimeType};base64,${block.data}`}
+          alt=""
+          style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
+        />
+      ))}
+    </div>
   );
 }
 

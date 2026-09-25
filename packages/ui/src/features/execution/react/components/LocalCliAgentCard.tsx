@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { CUSTOM_MODEL_SENTINEL, DEFAULT_AGENT_DESCRIPTIONS } from '../../constants.js';
 import {
@@ -6,9 +7,6 @@ import {
   agentMetaLabel,
   agentModelSummary,
   binPathEnvField,
-  selectedAgentModel,
-  selectedAgentReasoning,
-  shouldShowCustomModelInput,
 } from '../../rules.js';
 import type {
   AgentCliEnvFieldSpec,
@@ -16,6 +14,7 @@ import type {
   DetectedAgent,
   LocalCliConfig,
 } from '../../types.js';
+import { useReasoningControl } from '../hooks/useReasoningControl.js';
 import { AgentCliEnvFields } from './AgentCliEnvFields.js';
 import { AgentDiagnosticRow } from './AgentDiagnosticRow.js';
 import { SearchableModelSelect } from './SearchableModelSelect.js';
@@ -41,6 +40,9 @@ export interface LocalCliAgentCardProps {
    *  that specific fix button (a diagnostic with no OTHER fix action then
    *  renders with no buttons at all, same as the origin). */
   onRescan?: (() => void) | undefined;
+  /** This card's own agent handle — see `ExecutionTab`'s `agentHandle` doc; `LocalCliAgentList`
+   *  derives one distinct handle per agent and passes it here. */
+  agentHandle?: string;
 }
 
 /**
@@ -70,6 +72,7 @@ export function LocalCliAgentCard({
   onTest,
   agentTest,
   onRescan,
+  agentHandle,
 }: LocalCliAgentCardProps) {
   const t = useT();
 
@@ -90,29 +93,27 @@ export function LocalCliAgentCard({
     installed: t('Installed'),
     notInstalled: t('Not installed'),
   });
-  const models = agent.models ?? [];
-  const hasModels = models.length > 0;
-  const reasoningOptions = agent.reasoningOptions ?? [];
-  const hasReasoning = reasoningOptions.length > 0;
-  const resolvedModel = selectedAgentModel(config, agent);
-  const rawModel = config.modelByAgentId?.[agent.id] ?? '';
   const summary = agentModelSummary(config, agent);
-  const reasoningValue = selectedAgentReasoning(config, agent);
 
-  // Adapters opt out via `supportsCustomModel: false` when their CLI has no
-  // free-text model flag, or validates the id against a live catalog and
-  // rejects unknown ones. `undefined` allows it, matching every adapter's
-  // default before this field existed.
-  const allowCustomModel = agent.supportsCustomModel !== false;
-  const knownModelIds = models.map((model) => model.id);
-  const customActive =
-    allowCustomModel && hasModels && shouldShowCustomModelInput(resolvedModel, knownModelIds, explicitCustomMode);
-  const selectValue = customActive ? CUSTOM_MODEL_SENTINEL : resolvedModel;
-  // While the custom box is open, the text field must show the operator's raw
-  // typed text (which may not resolve to anything yet) rather than the
-  // resolved-with-fallback value — otherwise every keystroke would show a
-  // stale fallback model instead of what was actually typed.
-  const customModelInputValue = explicitCustomMode ? rawModel : resolvedModel;
+  const {
+    hasModels,
+    reasoningOptions,
+    hasReasoning,
+    reasoningValue,
+    reasoningDisabled,
+    allowCustomModel,
+    customActive,
+    modelChoices,
+    selectValue,
+    customModelInputValue,
+    resolveNextModelId,
+    resolveReasoningModelId,
+  } = useReasoningControl({
+    agent,
+    config,
+    explicitCustomMode,
+    onReasoningChange: (next) => onReasoningChange(agent.id, next),
+  });
 
   // `modelsSource` is optional in the contract, so an absent value means the
   // host did not say where the list came from — NOT that it came from a
@@ -183,6 +184,7 @@ export function LocalCliAgentCard({
           aria-pressed={selected}
           disabled={!agent.installed}
           onClick={() => onSelect(agent.id)}
+          {...agentHandleProps(agentHandle, { action: 'select', role: 'button', label: agent.label })}
         >
           <span className="jini-agent-card-icon" aria-hidden="true">
             {renderIcon ? renderIcon(agent) : agent.label.slice(0, 1).toUpperCase()}
@@ -236,6 +238,7 @@ export function LocalCliAgentCard({
             data-testid={`jini-agent-test-${agent.id}`}
             disabled={testing}
             onClick={() => onTest(agent)}
+            {...agentHandleProps(agentHandle, { action: 'test', role: 'button', label: t('Test') })}
           >
             {testing ? t('Testing…') : t('Test')}
           </button>
@@ -266,17 +269,18 @@ export function LocalCliAgentCard({
                   searchPlaceholder={t('Search models')}
                   testId={`jini-agent-model-${agent.id}`}
                   searchInputTestId={`jini-agent-model-search-${agent.id}`}
+                  {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'model') } : {})}
                   value={selectValue}
-                  models={models}
+                  models={modelChoices}
                   additionalOptions={allowCustomModel ? [{ value: CUSTOM_MODEL_SENTINEL, label: t('Custom…') }] : undefined}
                   onChange={(nextValue) => {
                     if (nextValue === CUSTOM_MODEL_SENTINEL) {
                       setExplicitCustomMode(true);
                       onModelChange(agent.id, '');
-                    } else {
-                      setExplicitCustomMode(false);
-                      onModelChange(agent.id, nextValue);
+                      return;
                     }
+                    setExplicitCustomMode(false);
+                    onModelChange(agent.id, resolveNextModelId(nextValue));
                   }}
                 />
               </label>
@@ -295,6 +299,7 @@ export function LocalCliAgentCard({
                 placeholder={t('e.g. my-fine-tuned-model')}
                 spellCheck={false}
                 onChange={(event) => onModelChange(agent.id, event.target.value.trim())}
+                {...agentHandleProps(agentHandle, { action: 'custom-model', role: 'field', label: t('Custom model id') })}
               />
             </label>
           ) : null}
@@ -306,7 +311,18 @@ export function LocalCliAgentCard({
                 className="jini-input"
                 data-testid={`jini-agent-reasoning-${agent.id}`}
                 value={reasoningValue}
-                onChange={(event) => onReasoningChange(agent.id, event.target.value)}
+                disabled={reasoningDisabled}
+                onChange={(event) => {
+                  // A model-suffix agent has no reasoning value of its own to record: the choice
+                  // is which model id runs, so it goes back out through `onModelChange`.
+                  const suffixModelId = resolveReasoningModelId(event.target.value);
+                  if (suffixModelId !== null) {
+                    onModelChange(agent.id, suffixModelId);
+                    return;
+                  }
+                  onReasoningChange(agent.id, event.target.value);
+                }}
+                {...agentHandleProps(agentHandle, { action: 'reasoning', role: 'field', label: t('Reasoning effort') })}
               >
                 {reasoningOptions.map((option) => (
                   <option key={option.id} value={option.id}>

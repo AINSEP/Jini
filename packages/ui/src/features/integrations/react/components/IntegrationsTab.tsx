@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { DEFAULT_MCP_CLIENT_ID, DEFAULT_MCP_SERVER_NAME, MCP_CLIENTS } from '../../constants.js';
 import { createFakeMcpIntegrationsPort } from '../../dependencies.js';
@@ -27,6 +28,11 @@ export interface IntegrationsTabProps {
   port?: McpIntegrationsPort;
   capabilitiesTitle?: string;
   capabilities?: readonly string[];
+  /**
+   * This tab's own agent handle. The client picker, the one-click install link, and the Codex
+   * install/uninstall toggle all derive their own `data-agent-*` handle from this ONE base.
+   */
+  agentHandle?: string;
 }
 
 /**
@@ -45,6 +51,7 @@ export function IntegrationsTab({
   port,
   capabilitiesTitle,
   capabilities,
+  agentHandle,
 }: IntegrationsTabProps) {
   const t = useT();
   const resolvedPort = useMemo(() => port ?? createFakeMcpIntegrationsPort(), [port]);
@@ -97,11 +104,14 @@ export function IntegrationsTab({
           onSelect={setClientId}
           methodLabel={methodLabel}
           methodLabels={methodLabels}
+          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'client') } : {})}
         />
 
         {resolved ? <p className="jini-mcp-instruction">{t(resolved.instructionTemplate, resolved.instructionVars)}</p> : null}
 
-        {client?.id === 'codex' ? <CodexInstallToggleButton port={resolvedPort} /> : null}
+        {client?.id === 'codex' ? (
+          <CodexInstallToggleButton port={resolvedPort} {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'codex-toggle') } : {})} />
+        ) : null}
 
         {resolved?.deeplink && info ? (
           <div className="jini-mcp-deeplink-row">
@@ -120,6 +130,7 @@ export function IntegrationsTab({
                 if (isMcpInstallPrerequisiteMissing(info)) event.preventDefault();
               }}
               rel="noopener noreferrer"
+              {...agentHandleProps(agentHandle, { action: 'one-click-install', role: 'link', label: t('One-click install') })}
             >
               {t('One-click install')}
             </a>

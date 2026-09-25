@@ -44,7 +44,7 @@ import type { McpToolDef } from '../server/tool-protocol.js';
 import { RUN_TOOLS } from '../server/tools/run-tools.js';
 import { TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
 import { COMPONENT_CATALOG_TOOLS } from '../server/tools/component-catalog-tools.js';
-import { createExecuteDelegatedToolTool } from '../server/tools/delegated-tool.js';
+import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool } from '../server/tools/delegated-tool.js';
 import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
 
 /** The one run this process is scoped to for its entire lifetime. Set by the spawning daemon, never by the MCP client. */
@@ -135,19 +135,27 @@ export async function serve(deps: ServeDeps = {}): Promise<void> {
     return resolveDaemonUrlFn(options);
   };
 
+  // Shared by both gateways so their run scope, correlation-id source, and deadline cannot diverge
+  // — the only difference between the two defs is the read-only constraint each declares.
+  const delegatedGatewayOptions = {
+    runId,
+    ...(deps.generateToolUseId !== undefined ? { generateToolUseId: deps.generateToolUseId } : {}),
+    // Parsed, not validated: `createExecuteDelegatedToolTool` already rejects a non-finite or
+    // non-positive value back to the default, so `NaN` from a malformed env var lands there too.
+    ...(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR] !== undefined
+      ? { delegatedToolTimeoutMs: Number(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR]) }
+      : {}),
+  };
+
   const tools: readonly McpToolDef[] = [
     ...RUN_TOOLS,
     ...TOOL_CATALOG_TOOLS,
     ...COMPONENT_CATALOG_TOOLS,
-    createExecuteDelegatedToolTool({
-      runId,
-      ...(deps.generateToolUseId !== undefined ? { generateToolUseId: deps.generateToolUseId } : {}),
-      // Parsed, not validated: `createExecuteDelegatedToolTool` already rejects a non-finite or
-      // non-positive value back to the default, so `NaN` from a malformed env var lands there too.
-      ...(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR] !== undefined
-        ? { delegatedToolTimeoutMs: Number(env[DELEGATED_TOOL_TIMEOUT_ENV_VAR]) }
-        : {}),
-    }),
+    createExecuteDelegatedToolTool(delegatedGatewayOptions),
+    // Hosted ALONGSIDE the unconstrained gateway, never instead of it. A client that gates on
+    // `readOnlyHint: true` can now reach the read half of the catalog at all; every other client
+    // sees both and picks by what its call actually does.
+    createExecuteReadonlyDelegatedToolTool(delegatedGatewayOptions),
   ];
 
   // Absent credential => no `authHeaders` at all => byte-identical request headers to before this

@@ -94,8 +94,20 @@ describe('splitToolResultSurfaces', () => {
     expect(output.content).toHaveLength(2);
   });
 
-  it('keeps `text` as the only model-visible type — widening this list is a deliberate act', () => {
+  it('keeps `text` and `image` as the only model-visible types — widening this list further is a deliberate act', () => {
     // Guards the header's rule: if someone adds a type here, this assertion makes them say so.
-    expect(MODEL_VISIBLE_BLOCK_TYPES).toEqual(['text']);
+    // `image` was added deliberately (2026-08-30, the assistant_demo_image/admin.capture_screenshot
+    // typed-media bridge fix) — see MODEL_VISIBLE_BLOCK_TYPES's own doc for why it is model-safe.
+    expect(MODEL_VISIBLE_BLOCK_TYPES).toEqual(['text', 'image']);
+  });
+
+  it('keeps a well-formed image block in modelOutput rather than withholding it as a surface', () => {
+    const imageBlock = { type: 'image', mimeType: 'image/png', data: 'AAAA' };
+    const output = { content: [{ type: 'text', text: 'here is your image' }, imageBlock] };
+
+    const { modelOutput, surfaces } = splitToolResultSurfaces(output);
+
+    expect(modelOutput).toEqual({ content: [{ type: 'text', text: 'here is your image' }, imageBlock] });
+    expect(surfaces).toEqual([]);
   });
 });

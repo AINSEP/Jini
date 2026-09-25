@@ -1,9 +1,12 @@
+import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import type { McpIntegrationsPort } from '../../ports.js';
 import { useCodexInstallToggle } from '../hooks/useCodexInstallToggle.js';
 
 export interface CodexInstallToggleButtonProps {
   port: Pick<McpIntegrationsPort, 'fetchCodexInstallStatus' | 'installCodexMcp' | 'uninstallCodexMcp'>;
+  /** This button's own agent handle — see `IntegrationsTab`'s `agentHandle` doc. */
+  agentHandle?: string;
 }
 
 /**
@@ -12,7 +15,7 @@ export interface CodexInstallToggleButtonProps {
  * doesn't support Codex one-click install (falls back to snippet-copy-only,
  * same as every other client).
  */
-export function CodexInstallToggleButton({ port }: CodexInstallToggleButtonProps) {
+export function CodexInstallToggleButton({ port, agentHandle }: CodexInstallToggleButtonProps) {
   const t = useT();
   const { available, installed, busy, error, successKind, toggle } = useCodexInstallToggle(port);
 
@@ -33,7 +36,13 @@ export function CodexInstallToggleButton({ port }: CodexInstallToggleButtonProps
 
   return (
     <div className="jini-codex-install-row">
-      <button type="button" className={installed ? 'jini-button' : 'jini-button jini-button-primary'} disabled={busy} onClick={toggle}>
+      <button
+        type="button"
+        className={installed ? 'jini-button' : 'jini-button jini-button-primary'}
+        disabled={busy}
+        onClick={toggle}
+        {...agentHandleProps(agentHandle, { role: 'button', label })}
+      >
         {busy ? t('Working…') : label}
       </button>
       {error ? <span className="jini-hint jini-hint-error">{t('Install failed: {error}', { error })}</span> : null}

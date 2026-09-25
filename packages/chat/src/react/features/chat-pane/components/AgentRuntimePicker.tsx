@@ -79,7 +79,7 @@ interface RuntimeAgentListProps {
   orderedAgents: readonly ChatPaneAgent[];
   value: ChatPaneAgentSelection;
   onChange: (selection: ChatPaneAgentSelection) => void;
-  agentIconBasePath: string;
+  agentIconBasePath?: string;
   t: (key: string) => string;
 }
 
@@ -113,11 +113,19 @@ function RuntimeAgentList({
               id={agent.id}
               size={20}
               className="jini-runtime-agent-icon"
-              basePath={agentIconBasePath}
+              {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
             />
             <span className="jini-runtime-agent__copy">
               <strong>{agent.name}</strong>
             </span>
+            {agent.supportsTools === false ? (
+              <span
+                className="jini-runtime-agent__badge"
+                title={t("This CLI has no MCP support, so it cannot use this app's tools.")}
+              >
+                {t('No tools')}
+              </span>
+            ) : null}
             <span className="jini-runtime-agent__status">
               {active ? t('selected') : status}
             </span>
@@ -293,7 +301,10 @@ export function AgentRuntimePicker({
   onExecutionModeChange,
   byokRuntime,
   onByokModelChange,
-  agentIconBasePath = '/agent-icons',
+  // No default here (was '/agent-icons'): omitted means "let AgentIcon fall back to its own
+  // bundled icon set" — see AgentIcon.tsx's BUNDLED_ICON_URLS. A host that still wants to vendor
+  // its own asset directory can pass this explicitly, same as before.
+  agentIconBasePath,
 }: AgentRuntimePickerProps) {
   const t = useT();
   const {
@@ -341,7 +352,7 @@ export function AgentRuntimePicker({
               id={byokRuntime.iconId}
               size={22}
               className="jini-runtime-agent-icon"
-              basePath={agentIconBasePath}
+              {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
             />
           ) : (
             <RemixIcon name="link" size={20} className="jini-runtime-agent-icon" />
@@ -351,7 +362,7 @@ export function AgentRuntimePicker({
             id={selectedAgent?.id ?? ''}
             size={22}
             className="jini-runtime-agent-icon"
-            basePath={agentIconBasePath}
+            {...(agentIconBasePath === undefined ? {} : { basePath: agentIconBasePath })}
           />
         )}
         <span className="jini-runtime-trigger__copy">
@@ -401,7 +412,7 @@ export function AgentRuntimePicker({
                   orderedAgents={orderedAgents}
                   value={value}
                   onChange={onChange}
-                  agentIconBasePath={agentIconBasePath}
+                  {...(agentIconBasePath === undefined ? {} : { agentIconBasePath })}
                   t={t}
                 />
               </div>

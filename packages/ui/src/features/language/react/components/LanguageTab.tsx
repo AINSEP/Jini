@@ -1,3 +1,4 @@
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import type { LocaleOption } from '../../types.js';
@@ -7,6 +8,9 @@ export interface LanguageTabProps {
   selectedLocale: string;
   onSelectLocale: (code: string) => void;
   ariaLabel?: string;
+  /** This tab's own agent handle. One distinct sub-handle per locale tile, derived from the
+   *  locale's own code. */
+  agentHandle?: string;
 }
 
 /**
@@ -15,14 +19,15 @@ export interface LanguageTabProps {
  * dropped) analytics tracking call and OD's own fixed locale list (now a
  * host-supplied `locales` prop).
  */
-export function LanguageTab({ locales, selectedLocale, onSelectLocale, ariaLabel }: LanguageTabProps) {
+export function LanguageTab({ locales, selectedLocale, onSelectLocale, ariaLabel, agentHandle }: LanguageTabProps) {
   const t = useT();
   const resolvedAriaLabel = ariaLabel ?? t('Language');
+  const tileHandles = agentHandle ? buildAgentListHandles(agentHandle, locales.map((l) => l.code)) : undefined;
 
   return (
     <section className="jini-settings-section jini-settings-language">
       <div className="jini-settings-language-grid" role="radiogroup" aria-label={resolvedAriaLabel}>
-        {locales.map(({ code, label }) => {
+        {locales.map(({ code, label }, index) => {
           const active = selectedLocale === code;
           return (
             <button
@@ -32,6 +37,7 @@ export function LanguageTab({ locales, selectedLocale, onSelectLocale, ariaLabel
               aria-checked={active}
               className={`jini-settings-language-tile${active ? ' active' : ''}`}
               onClick={() => onSelectLocale(code)}
+              {...agentHandleProps(tileHandles?.[index], { role: 'button', label })}
             >
               <span className="jini-settings-language-tile-text">
                 <span className="jini-settings-language-tile-title">{label}</span>

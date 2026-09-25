@@ -1,0 +1,223 @@
+openapi: 3.0.3
+info:
+  title: Jini daemon routine routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for `routines.ts`'s seven routes in `@jini-ai/http-kit`
+    — routine CRUD plus run-now/run-history, over host-injected `RoutineStore`
+    (CRUD + read-only run history) and `RoutineScheduler` (a narrowed
+    `RoutineService`) ports from `@jini-ai/daemon`. No business logic lives in
+    this file — it is a thin translation layer, the same shape as `runs.ts`
+    over `RunLifecycle`.
+
+    **Same-origin gating here is the "expected" pattern** (matching the
+    README's general rule): only the five mutating routes require
+    same-origin; the two list/read GETs (`GET /api/routines`, `GET
+    /api/routines/:id/runs`) and `GET /api/routines/:id` do not — unlike
+    `media.yaml`'s asymmetric gating or `db-ops.yaml`/`tool-catalog.yaml`'s
+    same-origin-on-every-GET posture.
+
+    **`target project not found` is `404 NOT_FOUND`, not `400`** — matches the
+    convention `tool-catalog.yaml` documents (a request naming a
+    real-shaped-but-missing entity is 404). This route answered `400` until
+    2026-08-23, inconsistently with `tool-catalog.yaml`'s `GET /api/tools/:id`
+    equivalent "referenced thing isn't there" case, which used 404 — fixed to
+    match. Only checked when a host injects `projectExists`; omitted entirely,
+    reuse targets are accepted unchecked.
+
+    **`POST /api/routines/:id/run` can return `202` with `run: null`** even on
+    success: `RoutineStore` deliberately does not itself record runs (that
+    stays the scheduler's separately-injected `RoutinePersistence` concern) —
+    `run` is only non-null if a host has bridged the two. `routine`,
+    `projectId`, `conversationId`, and `agentRunId` always reflect the real,
+    just-started run regardless of that wiring.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/routines:
+    get:
+      operationId: list_routines
+      summary: List all routines
+      x-jini-require-same-origin: false
+      responses:
+        '200': { description: Routine list, each with a live `nextRunAt` overlaid from the scheduler., content: { application/json: { schema: { $ref: '#/components/schemas/RoutineListResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: create_routine
+      summary: Create a routine
+      x-jini-require-same-origin: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RoutineCreateRequest' } } }
+      responses:
+        '201': { description: Routine created and scheduled., content: { application/json: { schema: { $ref: '#/components/schemas/RoutineResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: 'A `{mode: reuse, projectId}` target names a project that does not exist.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/routines/{id}:
+    get:
+      operationId: get_routine
+      summary: Read one routine
+      x-jini-require-same-origin: false
+      parameters: [ { $ref: '#/components/parameters/RoutineId' } ]
+      responses:
+        '200': { description: Routine., content: { application/json: { schema: { $ref: '#/components/schemas/RoutineResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      operationId: update_routine
+      summary: Partially update a routine
+      description: Every field is independently optional; only fields present in the body are patched. `skillId`/`agentId` accept `null` to clear.
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/RoutineId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RoutineUpdateRequest' } } }
+      responses:
+        '200': { description: Updated routine, rescheduled., content: { application/json: { schema: { $ref: '#/components/schemas/RoutineResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: delete_routine
+      summary: Delete a routine
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/RoutineId' } ]
+      responses:
+        '200': { description: Deleted (unscheduled first)., content: { application/json: { schema: { $ref: '#/components/schemas/RoutineDeleteResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/routines/{id}/run:
+    post:
+      operationId: run_routine_now
+      summary: Trigger an immediate, manually-triggered routine run
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/RoutineId' } ]
+      responses:
+        '202': { description: 'Run started. `run` may be `null` — see fragment description.', content: { application/json: { schema: { $ref: '#/components/schemas/RoutineRunNowResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/routines/{id}/runs:
+    get:
+      operationId: list_routine_runs
+      summary: List a routine's run history
+      x-jini-require-same-origin: false
+      parameters:
+        - { $ref: '#/components/parameters/RoutineId' }
+        - { name: limit, in: query, required: false, schema: { type: string }, description: 'Any non-positive-integer/absent value (including 0, negative, or non-numeric) falls back to 20, matching `Number(value) || 20`. Clamped to [1, 100].' }
+      responses:
+        '200': { description: Runs, newest first., content: { application/json: { schema: { $ref: '#/components/schemas/RoutineRunsResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  securitySchemes:
+    optionalBearer:
+      type: http
+      scheme: bearer
+      description: When the host enables `JINI_API_TOKEN`, the global `/api` middleware requires this token except for health/ready/version probes and permitted direct loopback peers.
+  parameters:
+    RoutineId: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+  responses:
+    BadRequest: { description: 'Body failed field validation, or a reuse-mode target names a project that does not exist (see fragment description).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin guard rejected the request., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    NotFound: { description: No routine with this id., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; adapter-generated errors include a correlation requestId in error.details., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    RoutineSchedule:
+      oneOf:
+        - { type: object, required: [kind, minute], properties: { kind: { type: string, enum: [hourly] }, minute: { type: number } } }
+        - { type: object, required: [kind, time, timezone], properties: { kind: { type: string, enum: [daily] }, time: { type: string }, timezone: { type: string } } }
+        - { type: object, required: [kind, time, timezone], properties: { kind: { type: string, enum: [weekdays] }, time: { type: string }, timezone: { type: string } } }
+        - { type: object, required: [kind, time, timezone, weekday], properties: { kind: { type: string, enum: [weekly] }, time: { type: string }, timezone: { type: string }, weekday: { type: integer, minimum: 0, maximum: 6, description: 0=Sunday..6=Saturday. } } }
+    RoutineProjectTarget:
+      oneOf:
+        - { type: object, required: [mode], properties: { mode: { type: string, enum: [create_each_run] } } }
+        - { type: object, required: [mode, projectId], properties: { mode: { type: string, enum: [reuse] }, projectId: { type: string } } }
+    RoutineContextSelection:
+      type: object
+      description: Each field, if present, is a deduplicated, trimmed, non-empty array — an explicitly-empty array is dropped entirely rather than stored as `[]`.
+      properties:
+        skillIds: { type: array, items: { type: string } }
+        pluginIds: { type: array, items: { type: string } }
+        mcpServerIds: { type: array, items: { type: string } }
+        connectorIds: { type: array, items: { type: string } }
+    Routine:
+      type: object
+      required: [id, name, prompt, schedule, target, skillId, agentId, context, enabled, nextRunAt, lastRun, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        prompt: { type: string }
+        schedule: { $ref: '#/components/schemas/RoutineSchedule' }
+        target: { $ref: '#/components/schemas/RoutineProjectTarget' }
+        skillId: { type: string, nullable: true }
+        agentId: { type: string, nullable: true }
+        context: { $ref: '#/components/schemas/RoutineContextSelection' }
+        enabled: { type: boolean }
+        nextRunAt: { type: number, nullable: true, description: Epoch milliseconds; live-overlaid from the scheduler at read time. }
+        lastRun: { description: 'A filtered run summary object, or null if the routine has never run.', nullable: true }
+        createdAt: { type: number, description: Epoch milliseconds. }
+        updatedAt: { type: number, description: Epoch milliseconds. }
+    RoutineRun:
+      type: object
+      required: [id, routineId, trigger, status, projectId, conversationId, agentRunId, startedAt, completedAt, summary, error, errorCode]
+      properties:
+        id: { type: string }
+        routineId: { type: string }
+        trigger: { type: string, enum: [manual, scheduled] }
+        status: { type: string, enum: [queued, running, succeeded, failed, canceled] }
+        projectId: { type: string }
+        conversationId: { type: string }
+        agentRunId: { type: string }
+        startedAt: { type: number, description: Epoch milliseconds. }
+        completedAt: { type: number, nullable: true, description: Epoch milliseconds. }
+        summary: { type: string, nullable: true }
+        error: { type: string, nullable: true }
+        errorCode: { type: string, nullable: true }
+    RoutineCreateRequest:
+      type: object
+      required: [name, prompt, schedule, target]
+      properties:
+        name: { type: string, minLength: 1 }
+        prompt: { type: string, minLength: 1 }
+        schedule: { $ref: '#/components/schemas/RoutineSchedule' }
+        target: { $ref: '#/components/schemas/RoutineProjectTarget' }
+        skillId: { type: string, nullable: true }
+        agentId: { type: string, nullable: true }
+        context: { $ref: '#/components/schemas/RoutineContextSelection' }
+        enabled: { type: boolean, description: Defaults to true. }
+    RoutineUpdateRequest:
+      type: object
+      description: All fields optional; only present keys are applied.
+      properties:
+        name: { type: string, minLength: 1 }
+        prompt: { type: string, minLength: 1 }
+        schedule: { $ref: '#/components/schemas/RoutineSchedule' }
+        target: { $ref: '#/components/schemas/RoutineProjectTarget' }
+        skillId: { type: string, nullable: true }
+        agentId: { type: string, nullable: true }
+        context: { $ref: '#/components/schemas/RoutineContextSelection' }
+        enabled: { type: boolean }
+    RoutineResponse: { type: object, required: [routine], properties: { routine: { $ref: '#/components/schemas/Routine' } } }
+    RoutineListResponse: { type: object, required: [routines], properties: { routines: { type: array, items: { $ref: '#/components/schemas/Routine' } } } }
+    RoutineDeleteResponse: { type: object, required: [ok], properties: { ok: { type: boolean, enum: [true] } } }
+    RoutineRunsResponse: { type: object, required: [runs], properties: { runs: { type: array, items: { $ref: '#/components/schemas/RoutineRun' } } } }
+    RoutineRunNowResponse:
+      type: object
+      required: [routine, run, projectId, conversationId, agentRunId]
+      properties:
+        routine: { oneOf: [ { $ref: '#/components/schemas/Routine' }, { type: 'null' } ] }
+        run: { oneOf: [ { $ref: '#/components/schemas/RoutineRun' }, { type: 'null' } ] }
+        projectId: { type: string }
+        conversationId: { type: string }
+        agentRunId: { type: string }

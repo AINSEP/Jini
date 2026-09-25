@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
+import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import {
   FAILURE_SOUNDS,
@@ -36,6 +37,8 @@ export interface NotificationsTabProps {
   testNotificationTitle?: string;
   testNotificationBody?: string;
   labels?: NotificationsTabLabels;
+  /** This tab's own agent handle — see other tabs' `agentHandle` doc for the split. */
+  agentHandle?: string;
 }
 
 /**
@@ -59,8 +62,21 @@ export interface NotificationsTabProps {
  * 'sent'/'failed' rather than carrying unreachable members (see its own doc
  * comment in this feature's `rules.ts`).
  */
-export function NotificationsTab({ preferences, onChange, testNotificationTitle, testNotificationBody, labels }: NotificationsTabProps) {
+export function NotificationsTab({
+  preferences,
+  onChange,
+  testNotificationTitle,
+  testNotificationBody,
+  labels,
+  agentHandle,
+}: NotificationsTabProps) {
   const t = useT();
+  const successSoundHandles = agentHandle
+    ? buildAgentListHandles(agentSubHandle(agentHandle, 'success-sound'), SUCCESS_SOUNDS.map((s) => s.id))
+    : undefined;
+  const failureSoundHandles = agentHandle
+    ? buildAgentListHandles(agentSubHandle(agentHandle, 'failure-sound'), FAILURE_SOUNDS.map((s) => s.id))
+    : undefined;
   const [permission, setPermission] = useState<NotificationPermission | 'unsupported'>(() => notificationPermission());
   const [testStatus, setTestStatus] = useState<TestStatus | null>(null);
 
@@ -126,6 +142,7 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
                 aria-pressed={preferences.soundEnabled}
                 aria-label={completionSoundTitle}
                 onClick={toggleSound}
+                {...agentHandleProps(agentHandle, { action: 'sound-toggle', role: 'button', label: completionSoundTitle })}
               >
                 <span className="jini-seg-title">{preferences.soundEnabled ? activeLabel : offLabel}</span>
               </button>
@@ -144,7 +161,7 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
                 aria-label={successSoundLabel}
                 style={{ '--seg-cols': SUCCESS_SOUNDS.length } as CSSProperties}
               >
-                {SUCCESS_SOUNDS.map((sound) => (
+                {SUCCESS_SOUNDS.map((sound, index) => (
                   <button
                     key={sound.id}
                     type="button"
@@ -154,6 +171,7 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
                       onChange({ successSoundId: sound.id });
                       playSound(sound.id);
                     }}
+                    {...agentHandleProps(successSoundHandles?.[index], { role: 'button', label: t(sound.labelKey) })}
                   >
                     <span className="jini-seg-title">{t(sound.labelKey)}</span>
                   </button>
@@ -169,7 +187,7 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
                 aria-label={failureSoundLabel}
                 style={{ '--seg-cols': FAILURE_SOUNDS.length } as CSSProperties}
               >
-                {FAILURE_SOUNDS.map((sound) => (
+                {FAILURE_SOUNDS.map((sound, index) => (
                   <button
                     key={sound.id}
                     type="button"
@@ -179,6 +197,7 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
                       onChange({ failureSoundId: sound.id });
                       playSound(sound.id);
                     }}
+                    {...agentHandleProps(failureSoundHandles?.[index], { role: 'button', label: t(sound.labelKey) })}
                   >
                     <span className="jini-seg-title">{t(sound.labelKey)}</span>
                   </button>
@@ -208,6 +227,7 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
                 onClick={() => {
                   void toggleDesktop();
                 }}
+                {...agentHandleProps(agentHandle, { action: 'desktop-toggle', role: 'button', label: desktopTitle })}
               >
                 <span className="jini-seg-title">{preferences.desktopEnabled ? activeLabel : offLabel}</span>
               </button>
@@ -225,6 +245,7 @@ export function NotificationsTab({ preferences, onChange, testNotificationTitle,
               onClick={() => {
                 void sendTestNotification();
               }}
+              {...agentHandleProps(agentHandle, { action: 'send-test', role: 'button', label: sendTestLabel })}
             >
               {sendTestLabel}
             </button>

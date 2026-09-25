@@ -16,6 +16,7 @@
 // either component's real signature.
 import { useRef, type CSSProperties } from 'react';
 import type { ComponentProps } from 'react';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { MemoryHowPanel } from './MemoryHowPanel.js';
@@ -37,6 +38,12 @@ export interface MemorySettingsPanelProps {
   onOpenAdvanced?: () => void;
   savedMemory: Omit<ComponentProps<typeof MemoryList>, 'sectionRef'>;
   howItWorks: ComponentProps<typeof MemoryHowPanel>;
+  /**
+   * This panel's own agent handle, published by the host. The segmented view switch, the
+   * add/advanced buttons, the master toggle, and both body panels (`MemoryList`/`MemoryHowPanel`)
+   * all derive their own `data-agent-*` handle from this ONE base.
+   */
+  agentHandle?: string;
 }
 
 export function MemorySettingsPanel({
@@ -48,6 +55,7 @@ export function MemorySettingsPanel({
   onOpenAdvanced,
   savedMemory,
   howItWorks,
+  agentHandle,
 }: MemorySettingsPanelProps) {
   const t = useT();
   // Scroll target for the saved-memory section; nothing outside this panel
@@ -76,6 +84,7 @@ export function MemorySettingsPanel({
               aria-selected={topTab === 'memories'}
               className={'jini-seg-btn' + (topTab === 'memories' ? ' active' : '')}
               onClick={() => onTopTabChange('memories')}
+              {...agentHandleProps(agentHandle, { action: 'view-memories', role: 'button', label: t('Memories') })}
             >
               <span className="jini-seg-title">{t('Memories')}</span>
             </button>
@@ -85,6 +94,7 @@ export function MemorySettingsPanel({
               aria-selected={topTab === 'how'}
               className={'jini-seg-btn' + (topTab === 'how' ? ' active' : '')}
               onClick={() => onTopTabChange('how')}
+              {...agentHandleProps(agentHandle, { action: 'view-how', role: 'button', label: t('How it works') })}
             >
               <span className="jini-seg-title">{t('How it works')}</span>
             </button>
@@ -96,6 +106,7 @@ export function MemorySettingsPanel({
             disabled={!onAdd}
             aria-label={t('Add memory')}
             title={t('Add memory')}
+            {...agentHandleProps(agentHandle, { action: 'add', role: 'button', label: t('Add memory') })}
           >
             <Icon name="plus" size={14} />
           </button>
@@ -106,6 +117,7 @@ export function MemorySettingsPanel({
             disabled={!onOpenAdvanced}
             aria-label={t('Advanced')}
             title={t('Advanced')}
+            {...agentHandleProps(agentHandle, { action: 'advanced', role: 'button', label: t('Advanced') })}
           >
             <Icon name="settings" size={14} />
           </button>
@@ -115,13 +127,18 @@ export function MemorySettingsPanel({
               aria-label={t('Enable memory')}
               checked={enabled}
               onChange={(event) => onToggleEnabled(event.target.checked)}
+              {...agentHandleProps(agentHandle, { action: 'enabled', role: 'checkbox', label: t('Enable memory') })}
             />
             <span className="toggle-slider" />
           </label>
         </div>
       </section>
 
-      {topTab === 'memories' ? <MemoryList sectionRef={sectionRef} {...savedMemory} /> : <MemoryHowPanel {...howItWorks} />}
+      {topTab === 'memories' ? (
+        <MemoryList sectionRef={sectionRef} {...savedMemory} {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'saved') } : {})} />
+      ) : (
+        <MemoryHowPanel {...howItWorks} {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'how') } : {})} />
+      )}
     </div>
   );
 }

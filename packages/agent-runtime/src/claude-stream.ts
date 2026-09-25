@@ -1,7 +1,7 @@
 /**
  * @module claude-stream
  *
- * Ported verbatim from OD's `apps/daemon/src/runtimes/stream/claude-stream.ts`
+ * Ported verbatim from OD's `apps/daemon/src/runtimes/claude-stream.ts`
  * (only the `role-marker-guard` import path changed — it now resolves
  * within this package instead of two directories up). See `source-map.md`.
  *

@@ -15,7 +15,11 @@ export interface PendingSurfaceCall {
   reject(error: unknown): void;
 }
 
-export function mountSurface(html: string) {
+/**
+ * @param beforeScript - Runs against the parsed document before the surface script does, for state
+ *   the script reads at load (e.g. `visibilityState`).
+ */
+export function mountSurface(html: string, beforeScript?: (doc: Document) => void) {
   const doc = new DOMParser().parseFromString(html, 'text/html');
   const calls: PendingSurfaceCall[] = [];
   const api = {
@@ -33,10 +37,33 @@ export function mountSurface(html: string) {
     isReady: () => true,
   };
 
+  // `isTrusted` is an unforgeable own property in jsdom, so no test can dispatch a trusted event.
+  // Instead, every listener the surface script adds to a button, a choice checkbox, or a form is
+  // wrapped: while `trustNext` is set, the listener receives the REAL dispatched event seen through
+  // a view whose `isTrusted` reads true. The product script is unchanged; only what this harness
+  // hands it differs.
+  let trustNext = false;
+  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action], [data-mcpui-choice], form')) {
+    const add = node.addEventListener.bind(node);
+    node.addEventListener = ((type: string, listener: EventListener, options?: AddEventListenerOptions) =>
+      add(type, (event: Event) => listener(trustNext ? asTrusted(event) : event), options)) as typeof node.addEventListener;
+  }
+
+  beforeScript?.(doc);
   const scripts = [...doc.querySelectorAll('script')];
   const surfaceScript = scripts[1]?.textContent ?? '';
   // eslint-disable-next-line @typescript-eslint/no-implied-eval, no-new-func
   new Function('window', 'document', surfaceScript)({ jiniMcpUi: api }, doc);
+
+  /** Runs `dispatch` so every event it fires at a button or form reads `isTrusted: true`. */
+  function asUser(dispatch: () => void): void {
+    trustNext = true;
+    try {
+      dispatch();
+    } finally {
+      trustNext = false;
+    }
+  }
 
   function button(action: string): HTMLButtonElement {
     const node = doc.querySelector<HTMLButtonElement>(`button[data-mcpui-action="${action}"]`);
@@ -49,11 +76,48 @@ export function mountSurface(html: string) {
     api,
     calls,
     button,
+    /** An untrusted click — what `element.click()` or `dispatchEvent` from any script produces. */
     click(action: string) {
       button(action).dispatchEvent(new Event('click', { bubbles: true }));
     },
+    /** A click the surface script sees as `isTrusted: true`, i.e. one the browser says a user made. */
+    trustedClick(action: string) {
+      asUser(() => button(action).dispatchEvent(new Event('click', { bubbles: true })));
+    },
+    asUser,
+    /** A trusted Enter keydown in `target`, the way a person presses it. */
+    pressEnter(target: Element) {
+      asUser(() => target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })));
+    },
     /**
-     * Clicks the submit button — deliberately NOT a synthetic "submit" `Event` on the form. The
+     * The choice checkbox for a given `data-mcpui-choice` id (its caller-facing value, not its DOM
+     * name). Found by comparing the *decoded* attribute value in JS rather than building a CSS
+     * attribute-selector string, so an id containing a quote or other selector-special character
+     * (exactly what the escaping spec exists to cover) still resolves.
+     */
+    choiceInput(choiceId: string): HTMLInputElement {
+      const node = [...doc.querySelectorAll<HTMLInputElement>('[data-mcpui-choice]')].find(
+        (candidate) => candidate.getAttribute('data-mcpui-choice') === choiceId,
+      );
+      expect(node, `no choice checkbox for id "${choiceId}"`).not.toBeUndefined();
+      return node!;
+    },
+    /** Ticks (or unticks) a choice checkbox the way a person clicking it does: a trusted "change". */
+    trustedToggleChoice(choiceId: string, checked: boolean) {
+      asUser(() => {
+        const node = this.choiceInput(choiceId);
+        node.checked = checked;
+        node.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    },
+    /** What a script setting `.checked` and dispatching "change" itself would produce -- untrusted. */
+    toggleChoice(choiceId: string, checked: boolean) {
+      const node = this.choiceInput(choiceId);
+      node.checked = checked;
+      node.dispatchEvent(new Event('change', { bubbles: true }));
+    },
+    /**
+     * A person clicking the submit button (a trusted click) — deliberately NOT a synthetic "submit" `Event` on the form. The
      * sandbox these documents actually render in (`allow-scripts`, no `allow-forms`) blocks native
      * form submission before the "submit" event is ever dispatched, so a helper that fired that
      * event directly could report every one of these specs green while the real click path stayed
@@ -62,7 +126,7 @@ export function mountSurface(html: string) {
      * form's submit event" for the regression test this rewrite exists to make possible.
      */
     submit() {
-      button('submit').dispatchEvent(new Event('click', { bubbles: true }));
+      asUser(() => button('submit').dispatchEvent(new Event('click', { bubbles: true })));
     },
     status(): string {
       return doc.getElementById('mcpui-status')?.textContent ?? '';
@@ -83,4 +147,15 @@ export function mountSurface(html: string) {
       await Promise.resolve();
     },
   };
+}
+
+/** The dispatched event, except `isTrusted` reads true. Reads go to the real event so jsdom's brand checks pass. */
+function asTrusted(event: Event): Event {
+  return new Proxy(event, {
+    get(target, prop) {
+      if (prop === 'isTrusted') return true;
+      const value: unknown = Reflect.get(target, prop, target);
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    },
+  });
 }

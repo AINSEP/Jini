@@ -101,12 +101,18 @@ export function useDismissablePanel(onOpen?: () => void): UseDismissablePanelRes
   const wrapRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => setOpen(false), []);
+  // Read `open` directly and fire `onOpen` from this handler rather than from
+  // inside the `setOpen` updater: an updater must stay a pure function of
+  // previous state, and calling a caller-supplied callback there can run it
+  // while React is mid-render of a different component (a synchronous
+  // setState inside `onOpen` then trips "Cannot update a component while
+  // rendering a different component"), and React may invoke an updater more
+  // than once (e.g. StrictMode), which would fire `onOpen` twice.
   const toggle = useCallback(() => {
-    setOpen((v) => {
-      if (!v) onOpen?.();
-      return !v;
-    });
-  }, [onOpen]);
+    const next = !open;
+    setOpen(next);
+    if (next) onOpen?.();
+  }, [open, onOpen]);
 
   useEffect(() => {
     if (!open) return;

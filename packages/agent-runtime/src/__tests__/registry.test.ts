@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { agentCapabilities } from '../capabilities.js';
-import { AGENT_DEFS, BASE_AGENT_DEFS, getAgentDef } from '../registry.js';
+import { AGENT_DEFS, BASE_AGENT_DEFS, getAgentDef, runtimeSupportsExternalTools } from '../registry.js';
 
 // `agentCapabilities` is process-global, so a probe result set by one test would
 // otherwise decide what argv a later one builds.
@@ -85,5 +85,36 @@ describe('registry', () => {
     const amr = getAgentDef('amr')!;
     expect(amr.supportsCustomModel).toBe(false);
     expect(amr.streamFormat).toBe('acp-json-rpc');
+  });
+
+  describe('runtimeSupportsExternalTools', () => {
+    it('is true only when externalMcpInjection is declared', () => {
+      expect(runtimeSupportsExternalTools({ externalMcpInjection: 'claude-mcp-json' })).toBe(true);
+      expect(runtimeSupportsExternalTools({})).toBe(false);
+    });
+
+    // Locks in the exact split this session's picker fix depends on, derived from the real defs
+    // rather than a hardcoded id list — if a def gains or loses `externalMcpInjection` this test
+    // moves with it instead of silently drifting stale.
+    it('splits the 24 built-in defs into the known tool-capable and tool-less sets', () => {
+      const toolLess = BASE_AGENT_DEFS
+        .filter((def) => !runtimeSupportsExternalTools(def))
+        .map((def) => def.id)
+        .sort();
+      const toolCapable = BASE_AGENT_DEFS
+        .filter((def) => runtimeSupportsExternalTools(def))
+        .map((def) => def.id)
+        .sort();
+
+      expect(toolLess).toEqual(
+        ['aider', 'amp', 'copilot', 'cursor-agent', 'deepseek', 'grok-build', 'pi', 'qoder', 'qwen'].sort(),
+      );
+      expect(toolCapable.length).toBe(BASE_AGENT_DEFS.length - toolLess.length);
+      expect(toolCapable).toContain('claude');
+      // antigravity moved from tool-less to tool-capable once its stdio MCP server can be
+      // statically pre-registered and reached via inherited env (`'env-passthrough'`) — see
+      // `defs/antigravity.ts`'s own doc for the live evidence behind the move.
+      expect(toolCapable).toContain('antigravity');
+    });
   });
 });

@@ -47,6 +47,34 @@ describe('execution tab barrel', () => {
     expect(Array.isArray(ExecutionBarrel.PROTOCOL_OPTIONS)).toBe(true);
   });
 
+  it('pins the Claude ids in DEFAULT_PROVIDER_PRESETS to the current generation', () => {
+    // Source of truth is `claude.ts`'s `CLAUDE_FALLBACK_MODELS` in
+    // `@jini-ai/agent-runtime` — these ids went stale once already
+    // (`claude-sonnet-4-5`/`claude-opus-4-5`, `claude-3.7-sonnet`), so this
+    // pin exists to make the next staleness a failing test instead of a
+    // silent drift.
+    const anthropic = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'anthropic');
+    expect(anthropic?.preferredModels).toEqual(['claude-sonnet-5', 'claude-opus-5', 'claude-haiku-4-5']);
+
+    const openrouter = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openrouter');
+    expect(openrouter?.preferredModels[0]).toBe('anthropic/claude-sonnet-5');
+  });
+
+  it('pins the OpenAI ids in DEFAULT_PROVIDER_PRESETS to the current generation', () => {
+    // Verified against OpenAI's official API changelog and pricing docs
+    // (developers.openai.com/api/docs/{changelog,pricing}, read 2026-09-13):
+    // `gpt-4o`/`gpt-4o-mini`/`o3`/`o4-mini` were superseded by the GPT-5.6
+    // family's named tiers. `sol` leads because the changelog calls it out
+    // as the production-recommended default, not the newer/pricier
+    // `gpt-6-astra` flagship — this pin exists so the next staleness fails a
+    // test instead of drifting silently.
+    const openai = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openai');
+    expect(openai?.preferredModels).toEqual(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna']);
+
+    const openrouter = ExecutionBarrel.DEFAULT_PROVIDER_PRESETS.find((p) => p.id === 'openrouter');
+    expect(openrouter?.preferredModels[2]).toBe('openai/gpt-5.6-sol');
+  });
+
   it('exports the port fake and every React component', () => {
     expect(typeof ExecutionBarrel.createFakeExecutionPort).toBe('function');
     expect(typeof ExecutionBarrel.ExecutionTab).toBe('function');

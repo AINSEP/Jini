@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import type {
   AgentCliEnvFieldSpec,
@@ -33,6 +34,9 @@ export interface LocalCliAgentListProps {
    * true in both shapes.
    */
   scopeLabel?: string | undefined;
+  /** This list's own agent handle — see `ExecutionTab`'s `agentHandle` doc. Each card gets its own
+   *  distinct sub-handle, derived from the agent's own stable id via `buildAgentListHandles`. */
+  agentHandle?: string;
 }
 
 /**
@@ -57,10 +61,12 @@ export function LocalCliAgentList({
   agentTest,
   renderAgentIcon,
   scopeLabel,
+  agentHandle,
 }: LocalCliAgentListProps) {
   const t = useT();
   const installed = agents.filter((agent) => agent.installed);
   const scope = scopeLabel ?? t('Runs a code-agent CLI detected by the host.');
+  const cardHandles = agentHandle ? buildAgentListHandles(agentHandle, agents.map((agent) => agent.id)) : undefined;
 
   return (
     <section className="jini-settings-section jini-local-cli">
@@ -77,6 +83,7 @@ export function LocalCliAgentList({
             className="jini-btn jini-local-cli-rescan"
             disabled={scan.status === 'scanning'}
             onClick={onRescan}
+            {...agentHandleProps(agentHandle, { action: 'rescan', role: 'button', label: t('Rescan') })}
           >
             {scan.status === 'scanning' ? t('Scanning…') : t('↻ Rescan')}
           </button>
@@ -106,7 +113,7 @@ export function LocalCliAgentList({
         )
       ) : (
         <div className="jini-agent-grid">
-          {agents.map((agent) => (
+          {agents.map((agent, index) => (
             <LocalCliAgentCard
               key={agent.id}
               agent={agent}
@@ -121,6 +128,7 @@ export function LocalCliAgentList({
               onTest={onTest}
               agentTest={agentTest}
               onRescan={onRescan}
+              {...(cardHandles?.[index] ? { agentHandle: cardHandles[index] } : {})}
             />
           ))}
         </div>

@@ -8,12 +8,18 @@
  * the exact original text). That is genuine product-specific prompt
  * content baked into what's supposed to be a pure declarative def literal,
  * not the generic ACP-transport config the rest of this file is. It is
- * dropped here; a host that wants an
- * equivalent system-prompt append for reasonix should supply it via
- * `PromptAugmenter.systemOverlay` (see `prompt-augmenter.ts`) and merge it
- * into this def's `env.REASONIX_ACP_SYSTEM_APPEND` itself, since the
- * engine has no generic way to know a given def's env-based system-prompt
- * hook exists. See `source-map.md`.
+ * dropped here — this file stays product-neutral (R5, `pnpm guard`'s
+ * `checkEngineBoundaries`), never carrying any specific host's own wording.
+ *
+ * The MECHANISM itself (the `REASONIX_ACP_SYSTEM_APPEND` env var) is real
+ * and now wired generically via `systemPromptDelivery: { strategy:
+ * 'env-var', varName: 'REASONIX_ACP_SYSTEM_APPEND' }` below — a host's
+ * `PromptAugmenter.systemOverlay()` result reaches this def through
+ * `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery` (the same
+ * central dispatch every def's overlay delivery goes through) and
+ * `computeChildEnv`, not through this file's own static `env` object
+ * below (that one is fixed at def-load time, computed once; the overlay
+ * varies per run and per host). See `source-map.md`.
  */
 import os from 'node:os';
 import path from 'node:path';
@@ -55,6 +61,10 @@ export const reasonixAgentDef = {
     env: {
       REASONIX_HOME: reasonixHome(),
     },
+    // See this file's module doc — the real, OD-confirmed mechanism, wired generically (no
+    // product-specific text lives here; the overlay content itself comes from the host's own
+    // `PromptAugmenter`, never from this def).
+    systemPromptDelivery: { strategy: 'env-var', varName: 'REASONIX_ACP_SYSTEM_APPEND' },
     fallbackModels: [
       DEFAULT_MODEL_OPTION,
       { id: 'deepseek-v4-pro', label: 'deepseek-v4-pro' },

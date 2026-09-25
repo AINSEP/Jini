@@ -24,7 +24,7 @@
  * the handler — and that judgement stays recorded in the domain file next to the handler it
  * describes, where a reviewer reading the handler can see it.
  */
-import type { ToolHandler, ToolRegistration } from "@jini-ai/core";
+import { ToolInputError, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 
 // Imported from `../commands/command` rather than the `../commands` barrel deliberately. The barrel
 // re-exports `appliers.ts`, which names `features/post` and `features/settings` directly, so any file
@@ -112,22 +112,65 @@ export type DerivedRiskByToolId = ReadonlyMap<string, AgentToolSideEffect>;
 export const AGENT_TOOL_PRINCIPAL_KIND: "agent" = "agent";
 
 /**
- * Actor-class rules that cannot be honored while no confirmation transport is wired.
+ * Actor-class rules that need a human confirmer.
  *
  * `confirmer-must-equal-own-delegatedBy` means "a human must confirm this, and the confirmer must
- * be the principal who delegated". A host can only deliver that by building `ToolExecutor` with an
- * `ExecutionDelegate`. Without one, `descriptor.requiresConfirmation` would park the execution on a
- * promise only `resumeConfirmation` can settle — and nothing would call it. The park is also unbounded, because `descriptor.timeoutMs`'s timer is armed only AFTER the
- * confirmation await.
+ * be the principal who delegated". The kit never delivers that through `descriptor.requiresConfirmation`:
+ * without a host `ExecutionDelegate`, that flag parks the execution on a promise only
+ * `resumeConfirmation` can settle, and nothing would call it (unbounded, too, because
+ * `descriptor.timeoutMs`'s timer is armed only AFTER the confirmation await).
  *
- * So a tool carrying this rule must not be wired at all. Today none is — `collections_execute_cleanup`,
- * `database_execute_migrate_forward`, and `backup_execute_restore` all carry it and all three are
- * declared unwired — which makes this guard a statement of the invariant rather than a fix: a
- * future edit wiring any of them fails the build instead of silently shipping a tool whose stated
- * human-confirmation requirement is unenforceable. When a confirmation transport does land, this
- * constant is the deliberate place to relax.
+ * So a tool carrying this rule is wirable only when its handler was built with
+ * {@link humanConfirmedHandler}, which asks the human through the host's own confirmation transport
+ * and runs the action only on an explicit yes. Any other handler fails the build.
  */
 export const ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT = new Set(["confirmer-must-equal-own-delegatedBy"]);
+
+/**
+ * The human who confirmed, as {@link humanConfirmedHandler} hands it to `run`: always the run's own
+ * delegating principal (`ctx.principal.id`, see {@link AGENT_TOOL_PRINCIPAL_KIND}), always
+ * `kind: "user"`. The only thing a `run` step may pass to a confirm step as its confirmer.
+ */
+export interface HumanConfirmer {
+  readonly id: string;
+  readonly kind: "user";
+}
+
+/** What the host's transport reports back. Only exactly `confirmed: true` counts as a yes. */
+export type HumanConfirmationAnswer = { confirmed: true } | { confirmed: false; result: unknown };
+
+const HUMAN_CONFIRMED_HANDLERS = new WeakSet<ToolHandler>();
+
+/**
+ * Builds the one kind of handler a `confirmer-must-equal-own-delegatedBy` tool may be wired with
+ * (see {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT}).
+ *
+ * The order is fixed here, not left to each domain: `prepare` (validate, pre-authorize, derive what
+ * the human will see) → `askHuman` (the host's transport, e.g. an MCP-UI dialog) → `run`, only when
+ * the answer is exactly `{ confirmed: true }`. The decision never comes from `ctx.input`, so nothing
+ * the model sends can stand in for the human. `run` gets the confirmer as the delegating human.
+ *
+ * @param steps.prepare - Reads input and derives what the human is asked about. May throw.
+ * @param steps.askHuman - Asks the human through the host's transport. Throws when no human can be
+ *   asked; a no-answer returns `{ confirmed: false, result }` and `result` is the tool's result.
+ * @param steps.run - Performs the action on a yes.
+ * @returns A handler {@link assertToolIsWirable} accepts for a tool carrying the rule.
+ * @complexity O(1) plus the three steps.
+ */
+export function humanConfirmedHandler<TPrepared>(steps: {
+  prepare: (ctx: Parameters<ToolHandler>[0]) => Promise<TPrepared>;
+  askHuman: (ctx: Parameters<ToolHandler>[0], prepared: TPrepared) => Promise<HumanConfirmationAnswer>;
+  run: (ctx: Parameters<ToolHandler>[0], prepared: TPrepared, confirmer: HumanConfirmer) => Promise<unknown>;
+}): ToolHandler {
+  const handler: ToolHandler = async (ctx) => {
+    const prepared = await steps.prepare(ctx);
+    const answer = await steps.askHuman(ctx, prepared);
+    if (answer.confirmed !== true) return answer.result;
+    return steps.run(ctx, prepared, { id: ctx.principal.id, kind: "user" });
+  };
+  HUMAN_CONFIRMED_HANDLERS.add(handler);
+  return handler;
+}
 
 /**
  * Indexes a domain catalog by tool id — the single lookup used for descriptors, risk metadata, and
@@ -152,14 +195,14 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 
 /** Narrows `ctx.input` to a record, refusing anything else. The first line of most handlers. */
 export function requireInputRecord(input: unknown): Record<string, unknown> {
-  if (!isRecord(input)) throw new Error("input must be an object");
+  if (!isRecord(input)) throw new ToolInputError("input must be an object");
   return input;
 }
 
 export function requireString(input: Record<string, unknown>, key: string): string {
   const value = input[key];
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`'${key}' (non-empty string) is required`);
+    throw new ToolInputError(`'${key}' (non-empty string) is required`);
   }
   return value;
 }
@@ -167,7 +210,7 @@ export function requireString(input: Record<string, unknown>, key: string): stri
 export function requireNumber(input: Record<string, unknown>, key: string): number {
   const value = input[key];
   if (typeof value !== "number" || !Number.isFinite(value)) {
-    throw new Error(`'${key}' (number) is required`);
+    throw new ToolInputError(`'${key}' (number) is required`);
   }
   return value;
 }
@@ -175,7 +218,7 @@ export function requireNumber(input: Record<string, unknown>, key: string): numb
 export function requireObject(input: Record<string, unknown>, key: string): Record<string, unknown> {
   const value = input[key];
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error(`'${key}' (object) is required`);
+    throw new ToolInputError(`'${key}' (object) is required`);
   }
   return value as Record<string, unknown>;
 }
@@ -183,21 +226,21 @@ export function requireObject(input: Record<string, unknown>, key: string): Reco
 export function optionalString(input: Record<string, unknown>, key: string): string | undefined {
   const value = input[key];
   if (value === undefined) return undefined;
-  if (typeof value !== "string") throw new Error(`'${key}' must be a string`);
+  if (typeof value !== "string") throw new ToolInputError(`'${key}' must be a string`);
   return value;
 }
 
 export function optionalNumber(input: Record<string, unknown>, key: string): number | undefined {
   const value = input[key];
   if (value === undefined) return undefined;
-  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`'${key}' must be a number`);
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new ToolInputError(`'${key}' must be a number`);
   return value;
 }
 
 export function optionalBoolean(input: Record<string, unknown>, key: string): boolean | undefined {
   const value = input[key];
   if (value === undefined) return undefined;
-  if (typeof value !== "boolean") throw new Error(`'${key}' must be a boolean`);
+  if (typeof value !== "boolean") throw new ToolInputError(`'${key}' must be a boolean`);
   return value;
 }
 
@@ -209,7 +252,7 @@ export function optionalBoolean(input: Record<string, unknown>, key: string): bo
 export function requireNoInput(input: unknown): void {
   if (input === undefined) return;
   if (!isRecord(input) || Object.keys(input).length > 0) {
-    throw new Error("this tool accepts no input — omit 'input' or pass {}");
+    throw new ToolInputError("this tool accepts no input — omit 'input' or pass {}");
   }
 }
 
@@ -330,7 +373,12 @@ export function decorateWithSchema(params: {
   message: string;
 }): Error {
   const schema = params.catalog.get(params.toolId)?.inputSchema;
-  return new Error(
+  // A `ToolInputError`, not a plain `Error`: every rejection reaching here already passed the
+  // caller's own `isShapeRejection` predicate — "a DIFFERENT input would fix this" — which is
+  // exactly what the marker means. `@jini-ai/daemon`'s `ToolExecutor` reads it off the thrown error
+  // to tag the execution result `errorKind: 'validation'` rather than folding it into the same
+  // redacted-500 bucket a genuine internal failure gets.
+  return new ToolInputError(
     schema
       ? `${params.message}. ${RETRY_IS_FUTILE} Schema for '${params.toolId}': ${JSON.stringify(schema)}`
       : `${params.message}. ${RETRY_IS_FUTILE}`,
@@ -344,8 +392,8 @@ export function decorateWithSchema(params: {
 /**
  * Build-time gate on a single tool's risk metadata: refuses to wire a tool whose declared
  * `sideEffects` disagrees with the wiring layer's own {@link DerivedRiskByToolId} classification,
- * whose id that layer has not classified at all, or whose `actorClassRule` needs a confirmation
- * transport that does not exist.
+ * whose id that layer has not classified at all, or whose `actorClassRule` needs a human confirmer
+ * its handler does not ask for.
  *
  * Throws rather than warning, and at registration time rather than call time: a metadata
  * inconsistency is a developer error that should stop the daemon booting, not a runtime condition
@@ -354,7 +402,10 @@ export function decorateWithSchema(params: {
  * @param params.toolId - The wired tool id.
  * @param params.catalogEntry - Its `agent-tools.ts` entry, the declared side of the comparison.
  * @param params.derivedRisk - The wiring layer's independent classification, the derived side.
- * @throws {Error} If the tool is unclassified, misclassified, or needs missing confirmation support.
+ * @param params.handler - The handler being wired; checked only for a tool carrying a rule in
+ *   {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT}.
+ * @throws {Error} If the tool is unclassified, misclassified, or needs a human confirmer its handler
+ *   does not ask for.
  * @complexity O(1) — two map/set lookups.
  * @overallScore 100
  */
@@ -362,6 +413,7 @@ export function assertToolIsWirable(params: {
   toolId: string;
   catalogEntry: WirableToolDefinition;
   derivedRisk: DerivedRiskByToolId;
+  handler?: ToolHandler;
 }): void {
   const { toolId, catalogEntry } = params;
   const derived = params.derivedRisk.get(toolId);
@@ -375,9 +427,10 @@ export function assertToolIsWirable(params: {
       `tool-registrations: '${toolId}' declares sideEffects '${catalogEntry.sideEffects}' but this layer derives '${derived}' from what its handler calls — reconcile the two rather than trusting the declaration`,
     );
   }
-  if (catalogEntry.actorClassRule && ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT.has(catalogEntry.actorClassRule)) {
+  const needsHuman = catalogEntry.actorClassRule && ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT.has(catalogEntry.actorClassRule);
+  if (needsHuman && !(params.handler && HUMAN_CONFIRMED_HANDLERS.has(params.handler))) {
     throw new Error(
-      `tool-registrations: '${toolId}' declares actorClassRule '${catalogEntry.actorClassRule}', which requires a human-confirmation transport this host has not wired — leave it unwired until one exists (see ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT)`,
+      `tool-registrations: '${toolId}' declares actorClassRule '${catalogEntry.actorClassRule}', which needs a human confirmer — build its handler with humanConfirmedHandler so a human answers through the host's confirmation transport (see ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT)`,
     );
   }
 }
@@ -401,9 +454,9 @@ export function assertToolIsWirable(params: {
  * the same rule, and a `ToolPolicy`-only check would be bypassable by any future non-tool caller of
  * the same domain function, which is precisely why the chokepoint owns the gate.
  *
- * `descriptor.requiresConfirmation` is deliberately never set — see
- * {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT} for why that omission is safe rather
- * than a hole.
+ * `descriptor.requiresConfirmation` is deliberately never set — a tool that needs a human confirm
+ * asks inside its own {@link humanConfirmedHandler}; see
+ * {@link ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT}.
  *
  * @param spec.domain - Human-readable domain name, used only in failure messages.
  * @param spec.catalogModule - Path of the catalog file, named in the drift message so the failure
@@ -433,14 +486,30 @@ export function buildDomainRegistrations(spec: {
     if (!catalogEntry) {
       throw new Error(`tool-registrations: ${spec.domain} catalog has no entry named '${id}' — ${spec.catalogModule} drifted`);
     }
-    assertToolIsWirable({ toolId: id, catalogEntry, derivedRisk: spec.derivedRisk });
+    assertToolIsWirable({ toolId: id, catalogEntry, derivedRisk: spec.derivedRisk, handler });
     if (!catalogEntry.inputSchema) {
       throw new Error(
         `tool-registrations: wired tool '${id}' publishes no inputSchema — add one to its entry in ${spec.catalogModule} so the model gets a contract, or leave the tool unwired`,
       );
     }
     registrations.push({
-      descriptor: { id, description: catalogEntry.description, inputSchema: catalogEntry.inputSchema },
+      descriptor: {
+        id,
+        description: catalogEntry.description,
+        inputSchema: catalogEntry.inputSchema,
+        // The ONE place a domain's declared risk becomes the descriptor flag every read-only gate
+        // reads (`@jini-ai/core`'s `isReadOnlyTool`). Placed here rather than in each domain's
+        // `tool-registrations.ts` for the same reason the drift tripwire is: twelve copies of this
+        // line is twelve chances for one to say something different. Change what counts as
+        // read-only and every domain follows.
+        //
+        // Safe to derive from the declaration only because `assertToolIsWirable` has ALREADY run
+        // two lines above and refused any tool whose declared `sideEffects` disagrees with the
+        // wiring layer's own `DERIVED_RISK_BY_TOOL_ID` classification — so by this point the
+        // declaration has been independently corroborated, and a catalog entry cannot make itself
+        // read-only by editing one word.
+        readOnly: catalogEntry.sideEffects === "none",
+      },
       handler,
       policy: { authorize: () => "allow" },
     });

@@ -16,6 +16,12 @@ export interface SourceConfigListProps<TSource extends SourceConfigItem> {
   subtitle?: string;
   emptyMessage?: string;
   addLabel?: string;
+  /**
+   * This whole list's own agent handle, forwarded to `SourceConfigListView` unchanged — see that
+   * component's own doc and `../../agent-handles.ts`'s "list-level scheme" for what it derives.
+   * Omit and no `data-agent-*` markup is emitted for the add form or any item card.
+   */
+  agentHandle?: string;
   /** Custom hook overrides for dependency injection / testing. */
   useWiredSourceConfigList?: typeof useWiredSourceConfigList;
   useWiredSourceConfigAddForm?: typeof useWiredSourceConfigAddForm;
@@ -40,6 +46,7 @@ export function SourceConfigList<TSource extends SourceConfigItem>({
   subtitle,
   emptyMessage,
   addLabel,
+  agentHandle,
   useWiredSourceConfigList: useWiredSourceConfigListHook = useWiredSourceConfigList,
   useWiredSourceConfigAddForm: useWiredSourceConfigAddFormHook = useWiredSourceConfigAddForm,
 }: SourceConfigListProps<TSource>) {
@@ -88,6 +95,7 @@ export function SourceConfigList<TSource extends SourceConfigItem>({
       {...(title ? { title } : {})}
       {...(subtitle ? { subtitle } : {})}
       {...(emptyMessage ? { emptyMessage } : {})}
+      {...(agentHandle ? { agentHandle } : {})}
     />
   );
 }

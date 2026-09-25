@@ -220,8 +220,8 @@ export async function createUser(required: {
   if (!username || !input.password) {
     throw new IdentityValidationError("username and password are required");
   }
-  // NIST SP 800-63B length-only policy (MSG-04) — never reaches seed.ts's owner password, see
-  // password-policy.ts's own header for why that separation is deliberate.
+  // Presence-and-upper-bound-only policy (MSG-04, no minimum length) — never reaches seed.ts's
+  // owner password, see password-policy.ts's own header for why that separation is deliberate.
   const passwordError = validatePasswordPolicy(input.password);
   if (passwordError) {
     throw new IdentityValidationError(passwordError);

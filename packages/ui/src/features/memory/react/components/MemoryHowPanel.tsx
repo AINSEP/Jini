@@ -10,10 +10,13 @@ export function MemoryHowPanel({
   enabled,
   hookFlags,
   onToggleHook,
+  agentHandle,
 }: {
   enabled: boolean;
   hookFlags: Record<MemoryConfigFlagKey, boolean>;
   onToggleHook: (key: MemoryConfigFlagKey, next: boolean) => void;
+  /** This panel's own agent handle, forwarded unchanged to `MemoryHooksPanel`. */
+  agentHandle?: string;
 }) {
   const t = useT();
   return (
@@ -32,7 +35,7 @@ export function MemoryHowPanel({
           'Memory is gathered automatically from profile setup, project and brand extraction, connected apps, and useful facts learned during chats. The saved list below is the review surface; everything else stays quiet unless you open Add or Advanced.',
         )}
       </p>
-      <MemoryHooksPanel enabled={enabled} flags={hookFlags} onToggle={onToggleHook} />
+      <MemoryHooksPanel enabled={enabled} flags={hookFlags} onToggle={onToggleHook} {...(agentHandle ? { agentHandle } : {})} />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 /**
  * @module qoder-stream
  *
- * Ported verbatim from OD's `apps/daemon/src/runtimes/stream/qoder-stream.ts`
+ * Ported verbatim from OD's `apps/daemon/src/runtimes/qoder-stream.ts`
  * (only `node:buffer` as a dependency). See `source-map.md`.
  *
  * Parses Qoder CLI's `--output-format stream-json` JSONL stream into the

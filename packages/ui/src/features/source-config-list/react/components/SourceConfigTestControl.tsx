@@ -1,4 +1,5 @@
 import { useT } from '../../../i18n/index.js';
+import { sourceConfigAgentProps } from '../../agent-handles.js';
 import type { SourceTestResult } from '../../types.js';
 
 export interface SourceConfigTestControlProps {
@@ -7,6 +8,14 @@ export interface SourceConfigTestControlProps {
   /** The last test result for this item, if any has completed. */
   result?: SourceTestResult;
   disabled?: boolean;
+  /**
+   * This control's own agent handle — publishes the Test/Retry button as
+   * `<agentHandle>` and the status line as `<agentHandle>-status`. A plain
+   * string, not a per-element map: the caller names the control, this
+   * component names its own parts. Omit and no `data-agent-*` markup is
+   * emitted at all. See `../../agent-handles.ts` for the full scheme.
+   */
+  agentHandle?: string;
   onTest: () => void;
 }
 
@@ -17,12 +26,28 @@ export interface SourceConfigTestControlProps {
  * deliberately simplified — the OAuth-specific postMessage/polling handshake
  * and the "ready to test" pre-flight hint are origin-source-specific UX, not
  * part of this generic primitive. See `packages/ui/source-map.md`.
+ *
+ * ## Agent handles
+ *
+ * Given `agentHandle="mcp-add-test"`: the button is `mcp-add-test` (role
+ * `button`) and the status line is `mcp-add-test-status` (role `status`).
+ * The status handle sits on the always-rendered wrapper rather than on the
+ * message span, so a caller can read the result of its own click through one
+ * stable handle instead of one that only exists once there is something to
+ * say.
  */
-export function SourceConfigTestControl({ running, result, disabled = false, onTest }: SourceConfigTestControlProps) {
+export function SourceConfigTestControl({ running, result, disabled = false, agentHandle, onTest }: SourceConfigTestControlProps) {
   const t = useT();
   return (
     <div className="source-config-test-control">
-      <div className="source-config-test-control-status">
+      <div
+        className="source-config-test-control-status"
+        {...sourceConfigAgentProps(agentHandle, {
+          role: 'status',
+          label: t('Connection test result'),
+          action: 'status',
+        })}
+      >
         {running ? (
           <span className="source-config-test-status is-running" role="status" aria-live="polite">
             {t('Testing…')}
@@ -39,6 +64,7 @@ export function SourceConfigTestControl({ running, result, disabled = false, onT
       <button
         type="button"
         className="source-config-test-button"
+        {...sourceConfigAgentProps(agentHandle, { role: 'button', label: t('Test connection') })}
         onClick={onTest}
         disabled={disabled || running}
       >

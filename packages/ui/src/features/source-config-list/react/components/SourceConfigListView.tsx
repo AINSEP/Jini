@@ -1,4 +1,5 @@
 import { useT } from '../../../i18n/index.js';
+import { sourceConfigAddFormHandle, sourceConfigItemHandles } from '../../agent-handles.js';
 import { isActionPending } from '../../rules.js';
 import type {
   SourceConfigItem,
@@ -29,6 +30,17 @@ export interface SourceConfigListViewProps<TSource extends SourceConfigItem> {
   onTrustChange: (id: string, trust: string) => void;
   onTest: (id: string) => void;
   onUpdate: (id: string, patch: SourceUpdateInput) => void;
+  /**
+   * This whole list's own agent handle — publishes the add form as `<agentHandle>-add` and each
+   * item card as `<agentHandle>-item-<slug of source.id>` (see `../../agent-handles.ts`'s
+   * "list-level scheme" doc). Omit and no `data-agent-*` markup is emitted for either, same as
+   * every other `agentHandle` prop in this feature.
+   *
+   * `addForm.agentHandle`, if the caller already set one explicitly, wins over the derived
+   * `<agentHandle>-add` — this prop is a convenience default for the common case of one base
+   * covering the whole list, not a override of a caller's more specific choice.
+   */
+  agentHandle?: string;
 }
 
 /**
@@ -55,8 +67,14 @@ export function SourceConfigListView<TSource extends SourceConfigItem>({
   onTrustChange,
   onTest,
   onUpdate,
+  agentHandle,
 }: SourceConfigListViewProps<TSource>) {
   const t = useT();
+  // Positionally aligned with `sources` below — computed once per render rather than per card, so
+  // the O(n) suffix-search dedup in `buildAgentListHandles` runs once for the whole list, not once
+  // per item.
+  const itemHandles = agentHandle ? sourceConfigItemHandles(agentHandle, sources.map((source) => source.id)) : undefined;
+  const resolvedAddFormHandle = addForm.agentHandle ?? (agentHandle ? sourceConfigAddFormHandle(agentHandle) : undefined);
 
   return (
     <section className="source-config-list">
@@ -67,7 +85,12 @@ export function SourceConfigListView<TSource extends SourceConfigItem>({
         </div>
       ) : null}
 
-      <SourceConfigAddForm {...addForm} fieldSpecs={fieldSpecs} {...(trustOptions ? { trustOptions } : {})} />
+      <SourceConfigAddForm
+        {...addForm}
+        fieldSpecs={fieldSpecs}
+        {...(trustOptions ? { trustOptions } : {})}
+        {...(resolvedAddFormHandle ? { agentHandle: resolvedAddFormHandle } : {})}
+      />
 
       {loadError ? (
         <div className="source-config-list-error" role="alert">
@@ -83,7 +106,7 @@ export function SourceConfigListView<TSource extends SourceConfigItem>({
         <div className="source-config-list-empty">{emptyMessage ? t(emptyMessage) : t('No sources configured yet.')}</div>
       ) : (
         <div className="source-config-list-items">
-          {sources.map((source) => (
+          {sources.map((source, index) => (
             <SourceConfigItemCard
               key={source.id}
               source={source}
@@ -101,6 +124,7 @@ export function SourceConfigListView<TSource extends SourceConfigItem>({
               onUpdate={(patch) => onUpdate(source.id, patch)}
               {...(trustOptions ? { trustOptions } : {})}
               {...(testResults[source.id] ? { testResult: testResults[source.id] } : {})}
+              {...(itemHandles ? { agentHandle: itemHandles[index] } : {})}
             />
           ))}
         </div>

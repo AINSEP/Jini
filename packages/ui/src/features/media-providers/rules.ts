@@ -193,17 +193,31 @@ export function invalidBaseUrlProviderIds(providers: MediaProviderMap | null | u
  * `SettingsDialog.tsx`), extracted here as a testable pure function instead
  * of living inline in JSX. Generic over `{ id, label }` so callers can pass
  * `MediaProviderOption[]` directly without this module importing that type.
+ *
+ * `pinnedIds` (optional, default none — every pre-existing caller keeps its
+ * exact prior order): ids that must render first, in the order given, ahead
+ * of the configured/alphabetical grouping entirely — a pinned provider stays
+ * first whether or not it is configured. A pinned id absent from `catalog`
+ * is silently skipped rather than fabricating an entry.
  */
 export function sortProvidersByConfigured<T extends { id: string; label: string }>(
   catalog: readonly T[],
   providers: MediaProviderMap | null | undefined,
+  pinnedIds: readonly string[] = [],
 ): readonly T[] {
-  return [...catalog].sort((a, b) => {
-    const aConfigured = isEntryPresent(providers?.[a.id]);
-    const bConfigured = isEntryPresent(providers?.[b.id]);
-    if (aConfigured !== bConfigured) return aConfigured ? -1 : 1;
-    return a.label.localeCompare(b.label);
-  });
+  const pinnedSet = new Set(pinnedIds);
+  const pinned = pinnedIds
+    .map((id) => catalog.find((item) => item.id === id))
+    .filter((item): item is T => item !== undefined);
+  const rest = catalog
+    .filter((item) => !pinnedSet.has(item.id))
+    .sort((a, b) => {
+      const aConfigured = isEntryPresent(providers?.[a.id]);
+      const bConfigured = isEntryPresent(providers?.[b.id]);
+      if (aConfigured !== bConfigured) return aConfigured ? -1 : 1;
+      return a.label.localeCompare(b.label);
+    });
+  return [...pinned, ...rest];
 }
 
 /** How many trailing characters of a key may ever be shown. Matches

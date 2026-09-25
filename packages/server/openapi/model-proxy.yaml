@@ -1,0 +1,312 @@
+openapi: 3.0.3
+info:
+  title: Jini model-proxy HTTP routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for the model-proxy registrar in `@jini-ai/http-kit`
+    (`model-proxy.ts`): thin SSE route wrappers over `@jini-ai/agent-runtime`'s
+    `run{Anthropic,OpenAi,Azure,Google,Ollama}ToolTurn` turn-runners. This
+    package has zero AI-provider wire-protocol knowledge anywhere else in its
+    surface and this module keeps it that way — it only does request parsing,
+    same-origin enforcement, and SSE transport; parsing an Anthropic
+    `content_block_delta`, an OpenAI `tool_calls[].function.arguments`
+    fragment, or a Gemini `candidates[0].content.parts[]` entry is
+    `@jini-ai/agent-runtime`'s job, not this one's.
+
+    PROVIDER STREAM VARIANTS ARE NOT UNIFORM AT THE REQUEST LEVEL. All five
+    share one transport-level envelope (`apiKey`, `model`, `messages`,
+    `baseUrl?`, `temperature?`, `maxToolTurns?`, `extraHeaders?` — validated by
+    a common `parseCommon`), but each provider then narrows differently:
+    Anthropic requires `maxTokens` (positive number) and accepts `apiVersion`/
+    `system`/`tools`; OpenAI only adds optional `tools` (its turn-runner
+    defaults `maxTokens` to 8192 when omitted); Azure additionally REQUIRES
+    `baseUrl` and `apiVersion` (every Azure OpenAI resource has its own
+    endpoint; no sane global default exists at this layer, even though the
+    turn-runner itself has a `'2024-10-21'` fallback); Google uses
+    `maxOutputTokens` instead of `maxTokens` and has no `apiVersion` field;
+    Ollama requires `apiKey` same as every other provider — despite "local
+    install needs no auth" being an earlier, since-corrected assumption: Open
+    Design's default Ollama target is Ollama Cloud, which does require a key
+    (confirmed by a live comparison against a running OD daemon; see
+    `ollama-chat.ts`'s module doc). This fragment models the five request
+    bodies separately rather than as one lax shared schema, on purpose.
+
+    RESPONSE SHAPE IS ALSO NOT UNIFORM AT THE PAYLOAD LEVEL, only at the
+    envelope level. Every provider streams a `SseFrame` (see below) whose
+    `data` field is that provider's own `TurnEvent` union
+    (`AnthropicTurnEvent`/`OpenAiTurnEvent`/`AzureTurnEvent`/`GoogleTurnEvent`/
+    `OllamaTurnEvent`), imported opaque from `@jini-ai/agent-runtime` and not
+    redefined here — same treatment `http-kit-core.yaml` gives
+    `RunProtocolEvent`. `kind` on the frame is always that event's own `type`
+    field, and a frame with `kind: 'end'` always auto-closes the stream: every
+    reachable exit path inside every turn-runner emits exactly one `'end'`-kind
+    event before its promise resolves.
+
+    BYOK, NOT SERVER-HELD CREDENTIALS: every request carries its own `apiKey`
+    (and optional `baseUrl`/`extraHeaders`) in the JSON POST body — this route
+    never stores or reads a server-side credential, matching
+    `@jini-ai/agent-runtime`'s existing BYOK `model-catalog.ts` surface.
+
+    SECURITY-RELEVANT, resolved 2026-08-23 via enforced assumption (owner
+    sign-off; credential stays in the body, not moved to a header — moving it
+    is a breaking wire-contract change for every existing caller and is out
+    of scope): the credential travels in the request body rather than an
+    `Authorization` header, which is only safe because every one of these six
+    routes (`x-jini-require-same-origin: true` below) enforces the same-origin
+    guard (`guardSameOrigin`) *before* the body is ever parsed or `apiKey` is
+    read — confirmed directly, not just by route ordering by inspection: each
+    of the five fixed provider routes plus the `:provider` catch-all has a
+    regression test ("rejects a cross-origin request with 403 before touching
+    fetch") in `packages/http-kit/src/__tests__/model-proxy.test.ts` proving a
+    cross-origin request carrying `apiKey` is rejected before `fetch` is ever
+    called — i.e. before the key could be forwarded anywhere. See
+    `model-proxy.ts`'s `parseCommon` for the paired code comment. This
+    assumption must not be loosened (guard relaxed, or route reused over a
+    non-loopback transport without same-origin enforcement) without first
+    moving `apiKey` to a header — a body-carried credential is not safe to
+    accept cross-origin.
+
+    TOOL EXECUTION IS OUT OF SCOPE for this pass: every `*ExecuteTool` dep is
+    optional and unset by default. With no executor supplied, a turn still
+    streams back any `tool_use`/`tool_calls` the model requests so a caller can
+    act on them itself and start a fresh request with results appended to
+    `messages` — no server-side tool-execution loop runs.
+
+    OPENROUTER IS NOT BUILT — explicitly open, not rejected; flagged in source
+    as awaiting a placement decision (gateway vs. native-provider shape), not
+    yet scheduled.
+
+    THE `:provider` CATCH-ALL vs. THE FIVE FIXED ROUTES: `registerModelProxyRoutes`
+    registers the five literal-path routes first, then
+    `POST /api/proxy/{provider}/stream` last. Express matches registration
+    order, so real traffic to `/api/proxy/anthropic/stream` (etc.) is always
+    served by its own dedicated, strongly-typed handler — the catch-all's
+    lookup-table entry for `anthropic` is real, tested code, but only reachable
+    by a provider name that has no dedicated fixed route (a typo, or a future
+    provider added to the registry before its own literal route lands). This
+    is intentional forward-compatibility, not dead code.
+
+    ERROR SURFACE IS SPLIT BY WHEN THE FAILURE HAPPENS. Same-origin rejection
+    and body-parse failure happen before the SSE channel opens, so those are
+    normal JSON error responses (`403`/`400`). Once the channel is open, a
+    turn-runner promise rejecting outright (e.g. a caller-supplied
+    `executeTool` throwing — every provider/network failure is already
+    converted to an in-stream `'error'`+`'end'` event pair by the turn-runner
+    itself, so this is a genuinely unexpected-exception path) is reported as a
+    SYNTHETIC in-stream `{type:'error', message, code:correlationId}` frame
+    followed by `{type:'end', reason:'error'}`, never as an HTTP 5xx — the
+    response is already committed as `text/event-stream` by then.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/proxy/anthropic/stream:
+    post: &anthropic
+      operationId: stream_anthropic_proxy
+      summary: Proxy one Anthropic Messages API tool-turn as SSE
+      x-jini-require-same-origin: true
+      description: |
+        Enforced via an explicit `guardSameOrigin` call inside the shared
+        `runProxyStream` helper, not the declarative `JsonRouteSpec.requireSameOrigin`
+        flag `http-kit-core.yaml`'s routes use — these are raw `app.post`
+        handlers, not `mountJsonRoute`-mounted, but the enforcement is
+        functionally identical. See the module-level note for how failures
+        split between JSON errors and in-stream frames.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AnthropicProxyRequest' } } }
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects wrapping AnthropicTurnEvent; kind 'end' ends the stream.
+          content: { text/event-stream: { schema: { $ref: '#/components/schemas/SseFrame' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/proxy/openai/stream:
+    post:
+      <<: *anthropic
+      operationId: stream_openai_proxy
+      summary: Proxy one OpenAI Chat Completions tool-turn as SSE
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OpenAiProxyRequest' } } }
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects wrapping OpenAiTurnEvent; kind 'end' ends the stream.
+          content: { text/event-stream: { schema: { $ref: '#/components/schemas/SseFrame' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/proxy/azure/stream:
+    post:
+      <<: *anthropic
+      operationId: stream_azure_proxy
+      summary: Proxy one Azure OpenAI tool-turn as SSE
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AzureProxyRequest' } } }
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects wrapping AzureTurnEvent; kind 'end' ends the stream.
+          content: { text/event-stream: { schema: { $ref: '#/components/schemas/SseFrame' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/proxy/google/stream:
+    post:
+      <<: *anthropic
+      operationId: stream_google_proxy
+      summary: Proxy one Google (Gemini) tool-turn as SSE
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/GoogleProxyRequest' } } }
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects wrapping GoogleTurnEvent; kind 'end' ends the stream.
+          content: { text/event-stream: { schema: { $ref: '#/components/schemas/SseFrame' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/proxy/ollama/stream:
+    post:
+      <<: *anthropic
+      operationId: stream_ollama_proxy
+      summary: Proxy one Ollama tool-turn as SSE
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OllamaProxyRequest' } } }
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects wrapping OllamaTurnEvent; kind 'end' ends the stream.
+          content: { text/event-stream: { schema: { $ref: '#/components/schemas/SseFrame' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/proxy/{provider}/stream:
+    post:
+      operationId: stream_generic_proxy
+      summary: Provider-parameterized catch-all — same behavior as the five fixed routes, dispatched through a lookup table
+      x-jini-require-same-origin: true
+      description: |
+        Real traffic only reaches this handler's own logic for a provider name
+        absent from the five fixed routes above — see the module-level note.
+        An unrecognized `provider` value is `400 BAD_REQUEST` ("unknown
+        provider: {provider}"), returned before the SSE channel opens.
+      parameters:
+        - { name: provider, in: path, required: true, schema: { type: string, enum: [anthropic, openai, azure, google, ollama] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - { $ref: '#/components/schemas/AnthropicProxyRequest' }
+                - { $ref: '#/components/schemas/OpenAiProxyRequest' }
+                - { $ref: '#/components/schemas/AzureProxyRequest' }
+                - { $ref: '#/components/schemas/GoogleProxyRequest' }
+                - { $ref: '#/components/schemas/OllamaProxyRequest' }
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects; schema depends on the resolved provider (see the five fixed routes above).
+          content: { text/event-stream: { schema: { $ref: '#/components/schemas/SseFrame' } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  responses:
+    BadRequest: { description: Invalid request (returned before the SSE channel opens), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin policy rejected the request (returned before the SSE channel opens), content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: 'Internal error before the SSE channel ever opened (e.g. guardSameOrigin itself throwing on a malformed JINI_ALLOWED_ORIGINS entry); once the channel is open, an equivalent failure is reported as an in-stream frame instead — see the module-level note.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    SseFrame:
+      type: object
+      description: |
+        The JSON body of the `data:` SSE field for this stream, as written by
+        the shared `createSseChannel` primitive: the whole wrapped frame, not
+        just the payload. `opaqueCursor` and `kind` are also duplicated
+        verbatim into the frame's own `id:`/`event:` SSE fields.
+      required: [opaqueCursor, kind, data]
+      properties:
+        opaqueCursor: { type: string, description: "Per-connection sequence number as a string; also sent as the frame's id: field." }
+        kind: { type: string, description: "The wrapped turn event's own `type` field (provider-specific — e.g. content_block_delta-equivalent, tool_use, error, end); also sent as the frame's event: field. 'end' always auto-closes the stream." }
+        data:
+          description: The provider's own TurnEvent object, imported opaque from @jini-ai/agent-runtime and not redefined here. On the synthetic internal-error path, this is instead {type:'error', message, code} or {type:'end', reason:'error'}.
+    AnthropicProxyRequest:
+      type: object
+      required: [apiKey, model, messages, maxTokens]
+      properties:
+        apiKey: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        messages: { type: array, minItems: 1, items: {}, description: 'AnthropicMessageParam[] from @jini-ai/agent-runtime; contents are not validated at this layer, only that it is a non-empty array — a malformed message surfaces as a normal provider-rejected in-stream error event.' }
+        maxTokens: { type: number, exclusiveMinimum: 0, description: Required for Anthropic, unlike every other provider here. }
+        baseUrl: { type: string }
+        apiVersion: { type: string }
+        system: { type: string }
+        tools: { type: array, items: {}, description: 'AnthropicToolDef[]; not validated at this layer.' }
+        temperature: { type: number }
+        maxToolTurns: { type: number }
+        extraHeaders: { type: object, additionalProperties: { type: string } }
+    OpenAiProxyRequest:
+      type: object
+      required: [apiKey, model, messages]
+      properties:
+        apiKey: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        messages: { type: array, minItems: 1, items: {}, description: 'OpenAiMessageParam[]; not validated at this layer.' }
+        baseUrl: { type: string }
+        tools: { type: array, items: {}, description: 'OpenAiFunctionToolDef[]; not validated at this layer.' }
+        temperature: { type: number }
+        maxTokens: { type: number, description: Optional here; the turn-runner itself defaults to 8192 when omitted. }
+        maxToolTurns: { type: number }
+        extraHeaders: { type: object, additionalProperties: { type: string } }
+    AzureProxyRequest:
+      type: object
+      required: [apiKey, model, messages, baseUrl, apiVersion]
+      properties:
+        apiKey: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        messages: { type: array, minItems: 1, items: {}, description: 'AzureMessageParam[]; not validated at this layer.' }
+        baseUrl: { type: string, minLength: 1, description: Required for Azure — every Azure OpenAI resource has its own endpoint; no global default exists at this layer. }
+        apiVersion: { type: string, minLength: 1, description: Required for Azure at the HTTP-request-shape level, even though the turn-runner itself has a '2024-10-21' fallback. }
+        tools: { type: array, items: {}, description: 'AzureFunctionToolDef[]; not validated at this layer.' }
+        temperature: { type: number }
+        maxTokens: { type: number }
+        maxToolTurns: { type: number }
+        extraHeaders: { type: object, additionalProperties: { type: string } }
+    GoogleProxyRequest:
+      type: object
+      required: [apiKey, model, messages]
+      description: 'messages carries Gemini''s own contents: [{role, parts}] shape — the HTTP JSON body schema stays uniform across all five providers; only each turn-runner''s own field name for the conversation differs (Google''s turn-runner receives it as contents).'
+      properties:
+        apiKey: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        messages: { type: array, minItems: 1, items: {}, description: 'GoogleContent[]; not validated at this layer.' }
+        baseUrl: { type: string }
+        system: { type: string }
+        tools: { type: array, items: {}, description: 'GoogleToolDef[]; not validated at this layer.' }
+        temperature: { type: number }
+        maxOutputTokens: { type: number, description: Google-specific field name; there is no maxTokens for this provider. }
+        maxToolTurns: { type: number }
+        extraHeaders: { type: object, additionalProperties: { type: string } }
+    OllamaProxyRequest:
+      type: object
+      required: [apiKey, model, messages]
+      description: |
+        apiKey is required here despite Ollama's common "local install needs no
+        auth" reputation — see the module-level note on why an earlier,
+        optional-apiKey version of this route was corrected.
+      properties:
+        apiKey: { type: string, minLength: 1 }
+        model: { type: string, minLength: 1 }
+        messages: { type: array, minItems: 1, items: {}, description: 'OllamaMessageParam[]; not validated at this layer.' }
+        baseUrl: { type: string }
+        tools: { type: array, items: {}, description: 'OllamaFunctionToolDef[]; not validated at this layer.' }
+        temperature: { type: number }
+        maxTokens: { type: number }
+        maxToolTurns: { type: number }
+        extraHeaders: { type: object, additionalProperties: { type: string } }

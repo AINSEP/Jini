@@ -108,6 +108,26 @@ export interface RunLifecycle {
   /** Idempotent terminal transition; a second call while already terminal is a no-op that returns the existing status unchanged. */
   finish(input: FinishRunInput): Promise<RunStatus>;
   resume(runId: string): Promise<ResumeRunResult>;
+  /**
+   * Suspends the slow-run watchdog for `runId` while a daemon-managed operation of legitimately
+   * unbounded duration is in flight (e.g. an auto-resolved tool call the daemon itself awaits) — pair
+   * with {@link RunLifecycle.resumeSlowRunNotice} once that operation concludes. `emit()` is the
+   * *only* other reset signal the watchdog has, and it fires nothing while such an operation is
+   * running (there is no output to stream), so without this call a tool that legitimately runs past
+   * the threshold (an install, a build, a repo-wide scan) is indistinguishable from the exact
+   * CPU-starved-and-silent condition the watchdog exists to catch, and fires a "still working" notice
+   * on a run that never actually stalled. A driver that knows exactly why a run is quiet must say so
+   * rather than leaving the watchdog to guess from silence alone. No-op if `runId` is unknown,
+   * already terminal, or the slow-run notice is disabled kernel-wide (`slowRunThresholdMs: null`).
+   */
+  suspendSlowRunNotice(runId: string): void;
+  /**
+   * Re-arms the slow-run watchdog for `runId` with a fresh timeout window, undoing
+   * {@link RunLifecycle.suspendSlowRunNotice} once the known operation concludes — so a genuinely
+   * stalled stretch starting *after* that point is still caught. No-op under the same conditions as
+   * `suspendSlowRunNotice`.
+   */
+  resumeSlowRunNotice(runId: string): void;
   /** Resolves once `runId` reaches a terminal state; resolves immediately if it already has. */
   waitForTerminal(runId: string): Promise<RunStatus>;
   /**
@@ -142,6 +162,16 @@ interface RunRecord {
   terminalWaiters: Array<(status: RunStatus) => void>;
   terminalEndEntry: EventLogEntry | undefined;
   watchdog: InactivityWatchdog | undefined;
+  /**
+   * Separate, non-terminating timer for the slow-run notice — reuses the same reset-on-activity
+   * primitive as `watchdog` above, but its `onTimeout` emits a `'slow_running'` agent event instead
+   * of finishing the run. Kept as its own field (not folded into `watchdog`) because the two can be
+   * configured, armed, and cancelled independently: `watchdog` requires an explicit per-`start()`
+   * opt-in (`StartRunInput.inactivityTimeoutMs`) and terminates the run on fire, while this one is
+   * armed kernel-wide by default (`CreateRunLifecycleInput.slowRunThresholdMs`) and never terminates
+   * anything. See {@link armSlowRunWatchdogIfConfigured}.
+   */
+  slowRunWatchdog: InactivityWatchdog | undefined;
   /** Pending durable start append; idempotent duplicates wait for it instead of observing a ghost record. */
   startPromise: Promise<void> | undefined;
   /** Serializes concurrent terminal transitions while state remains non-terminal until the end append commits. */
@@ -255,6 +285,7 @@ function rehydratedRunRecord(
       terminalWaiters: [],
       terminalEndEntry: endEntry,
       watchdog: undefined,
+      slowRunWatchdog: undefined,
       startPromise: undefined,
       finishPromise: undefined,
       retentionTimer: undefined,
@@ -344,6 +375,19 @@ export const DEFAULT_TERMINAL_RETENTION_MS = 24 * 60 * 60 * 1000;
 export const DEFAULT_MAX_TERMINAL_RUNS = 1000;
 
 /**
+ * Default wall-clock threshold for the slow-run notice (distinct from the crash/inactivity watchdog
+ * above): how long a run may go with no `emit()` before a `'slow_running'` agent event tells the UI
+ * "this is taking longer than usual," without ever finishing the run. See {@link armSlowRunWatchdogIfConfigured}'s
+ * doc for the full "why a second, non-terminating watchdog" rationale. 45s was picked as long enough
+ * that an ordinary quiet stretch (the agent thinking between tool calls, a slow but healthy model
+ * response) does not trip it on every turn, and short enough that a genuinely stalled run (the
+ * reported symptom: a spawned CLI process alive but starved of CPU under heavy concurrent load, so it
+ * never crashes and never gets caught by anything that only reacts to process exit) is flagged well
+ * before an operator gives up waiting and assumes the product is broken.
+ */
+export const DEFAULT_SLOW_RUN_THRESHOLD_MS = 45_000;
+
+/**
  * How long a just-terminal run should remain retained before its eviction timer fires: `retentionMs`
  * minus however much of that window has already elapsed since `terminalAt`. Floored at `0` so a run
  * that was already past its retention window when this is computed (relevant for `rehydrate()`,
@@ -379,6 +423,25 @@ export function armWatchdogIfConfigured(
 ): void {
   if (timeoutMs === undefined) return;
   record.watchdog = createInactivityWatchdog({ timeoutMs, onTimeout });
+}
+
+/**
+ * Arms `record.slowRunWatchdog` when `timeoutMs` is configured — a no-op otherwise (the kernel-wide
+ * opt-out: `CreateRunLifecycleInput.slowRunThresholdMs: null`). Deliberately a sibling of
+ * {@link armWatchdogIfConfigured} rather than a shared helper: the two watchdogs are configured from
+ * different inputs (a per-`start()` opt-in vs. a kernel-wide default) and their `onTimeout` callbacks
+ * have opposite consequences for the run (terminates it vs. only reports a status), and folding them
+ * into one parameterized function would obscure that asymmetry at every call site for the sake of a
+ * three-line dedup. `record` is typed as a plain `{slowRunWatchdog}` shape for the same exportability
+ * reason {@link armWatchdogIfConfigured} already documents.
+ */
+export function armSlowRunWatchdogIfConfigured(
+  record: { slowRunWatchdog: InactivityWatchdog | undefined },
+  timeoutMs: number | undefined,
+  onTimeout: () => void,
+): void {
+  if (timeoutMs === undefined) return;
+  record.slowRunWatchdog = createInactivityWatchdog({ timeoutMs, onTimeout });
 }
 
 /**
@@ -460,6 +523,7 @@ function buildNewRunRecord(
     terminalWaiters: [],
     terminalEndEntry: undefined,
     watchdog: undefined,
+    slowRunWatchdog: undefined,
     startPromise: undefined,
     finishPromise: undefined,
     retentionTimer: undefined,
@@ -474,10 +538,20 @@ export interface CreateRunLifecycleInput {
   readonly terminalRetentionMs?: number;
   /** Hard cap on concurrently-retained terminal run records. See {@link DEFAULT_MAX_TERMINAL_RUNS}. Defaults to that constant. */
   readonly maxTerminalRuns?: number;
+  /**
+   * How long a run may go with no `emit()` before a `'slow_running'` agent event tells the UI the
+   * turn is taking longer than usual — never a terminating action; see
+   * {@link armSlowRunWatchdogIfConfigured}'s doc. Applies kernel-wide to every `start()`ed run, unlike
+   * `StartRunInput.inactivityTimeoutMs` (which requires a per-call opt-in and none of this codebase's
+   * production callers supply). Defaults to {@link DEFAULT_SLOW_RUN_THRESHOLD_MS} so this reaches
+   * production without any caller change. Pass `null` to disable it entirely for this lifecycle
+   * instance.
+   */
+  readonly slowRunThresholdMs?: number | null;
 }
 
 export interface RunLifecycleInternalErrorContext {
-  readonly source: 'inactivity-timeout';
+  readonly source: 'inactivity-timeout' | 'slow-run-notice';
   readonly runId: string;
   readonly error: unknown;
 }
@@ -496,6 +570,10 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
   const { eventLog } = input;
   const terminalRetentionMs = input.terminalRetentionMs ?? DEFAULT_TERMINAL_RETENTION_MS;
   const maxTerminalRuns = input.maxTerminalRuns ?? DEFAULT_MAX_TERMINAL_RUNS;
+  // `null` is the explicit opt-out; `undefined` (the field simply omitted, true of every production
+  // caller today) resolves to the default so the slow-run notice reaches production with no caller
+  // change required — see `CreateRunLifecycleInput.slowRunThresholdMs`'s own doc.
+  const slowRunThresholdMs = input.slowRunThresholdMs === null ? undefined : (input.slowRunThresholdMs ?? DEFAULT_SLOW_RUN_THRESHOLD_MS);
   const runs = new Map<string, RunRecord>();
   const idempotencyIndex = new Map<string, string>();
   // Terminal runIds in the order they were tracked (oldest first) — the LRU order `enforceTerminalCap`
@@ -684,6 +762,55 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
   }
 
   /**
+   * Fires when a run's slow-run watchdog times out with no intervening `emit()` — the non-terminating
+   * counterpart to {@link handleInactivityTimeout} above. Reports a `'slow_running'` agent event
+   * through the ordinary `emit()` path rather than finishing the run: the run is left exactly as it
+   * was, still `'running'`, so a legitimately slow-but-working turn is never mistaken for a dead one.
+   * `'slow_running'` is its own `RunAgentPayload` variant, not a reuse of the pre-existing `'status'`
+   * one — see that variant's own doc in `@jini-ai/protocol`'s `events.ts` for why: nothing in this
+   * codebase renders `'status'` events today, so reusing it here would have shipped an invisible fix.
+   *
+   * The `!record || isTerminalRunState(...)` guard mirrors {@link handleInactivityTimeout}'s own
+   * (see that function's doc for why it is unreachable-but-kept there); it is reachable here in one
+   * more case worth naming: `finish()` cancels `record.slowRunWatchdog` synchronously before its
+   * `record.status.state` write ever yields, so between this timer firing and `emit()` actually
+   * running there is no window where a normal `finish()` could race it — but `emit()` itself can
+   * still legitimately throw (e.g. a `finishPromise` in flight from a concurrent `cancel()`-driven
+   * finish that started after this callback's own `runs.get()` read but before its `emit()` call
+   * completes its internal `await record.startPromise`), which is exactly what the `try`/`catch`
+   * below contains rather than letting escape as an unhandled rejection.
+   */
+  async function handleSlowRunNotice(runId: string): Promise<void> {
+    const record = runs.get(runId);
+    if (!record || isTerminalRunState(record.status.state)) {
+      return;
+    }
+    try {
+      await lifecycle.emit(runId, {
+        event: 'agent',
+        data: {
+          type: 'slow_running',
+          detail: 'Still working — this turn is taking longer than usual.',
+        },
+      });
+    } catch (error) {
+      const context: RunLifecycleInternalErrorContext = { source: 'slow-run-notice', runId, error };
+      try {
+        if (input.onInternalError) {
+          input.onInternalError(context);
+        } else {
+          // eslint-disable-next-line no-console
+          console.error(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${runId})`, error);
+        }
+      } catch (sinkError) {
+        // Same containment reasoning as `handleInactivityTimeout`'s own catch below it.
+        // eslint-disable-next-line no-console
+        console.error(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${runId})`, sinkError);
+      }
+    }
+  }
+
+  /**
    * Restores one run into the in-memory index from its durable log. Returns what the caller must do
    * about it: `'skipped'` for a run already resident or with no usable log, otherwise whether the
    * restored run was already terminal.
@@ -753,6 +880,9 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       armWatchdogIfConfigured(record, startInput.inactivityTimeoutMs, () => {
         void handleInactivityTimeout(runId);
       });
+      armSlowRunWatchdogIfConfigured(record, slowRunThresholdMs, () => {
+        void handleSlowRunNotice(runId);
+      });
 
       return { run: toPublicStatus(record), started: true };
     },
@@ -817,6 +947,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         );
       }
       record.watchdog?.noteActivity();
+      record.slowRunWatchdog?.noteActivity();
       return appendEvent(runId, record, driverInput.event, driverInput.data);
     },
 
@@ -842,6 +973,7 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         // Commit the in-memory terminal transition only after its durable end entry exists. Until
         // then `finishPromise` reserves the transition and blocks emits/concurrent finishes.
         record.watchdog?.cancel();
+        record.slowRunWatchdog?.cancel();
         record.status.state = finishInput.status;
         record.status.updatedAt = endEntry.recordedAt;
         record.status.endedAt = endEntry.recordedAt;
@@ -879,11 +1011,31 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
       record.cancelRequested = false;
       record.lastCancelRequest = undefined;
       record.terminalEndEntry = undefined;
+      // Mirrors `start()`'s own arm call: a resumed run gets exactly the same fresh slow-run window a
+      // freshly-started one does. Without this, `finish()`'s `record.slowRunWatchdog?.cancel()` (which
+      // never fires again on its own — the underlying timer is one-shot) left the notice permanently
+      // dark for the rest of a resumed run's life, silently disabling a feature the run is otherwise
+      // still eligible for.
+      armSlowRunWatchdogIfConfigured(record, slowRunThresholdMs, () => {
+        void handleSlowRunNotice(runId);
+      });
       // No protocol event is emitted here: none of RunProtocolEvent's six
       // kinds represents "resumed" (extraction-plan scope decision — see
       // source-map.md). The event log's cursor sequence continues
       // unbroken; only RunStatus.state changes.
       return { run: toPublicStatus(record), resumed: true };
+    },
+
+    suspendSlowRunNotice(runId: string): void {
+      const record = runs.get(runId);
+      if (!record || isTerminalRunState(record.status.state)) return;
+      record.slowRunWatchdog?.cancel();
+    },
+
+    resumeSlowRunNotice(runId: string): void {
+      const record = runs.get(runId);
+      if (!record || isTerminalRunState(record.status.state)) return;
+      record.slowRunWatchdog?.noteActivity();
     },
 
     async waitForTerminal(runId: string): Promise<RunStatus> {

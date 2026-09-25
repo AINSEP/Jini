@@ -1,4 +1,10 @@
 export {
+  sourceConfigActionHandle,
+  sourceConfigAgentProps,
+  sourceConfigFieldHandle,
+} from './agent-handles.js';
+export type { SourceConfigAgentPropsOptions } from './agent-handles.js';
+export {
   MASK_CHAR,
   MASKED_VALUE_MIN_MASK_LENGTH,
   MASKED_VALUE_VISIBLE_SUFFIX_LENGTH,

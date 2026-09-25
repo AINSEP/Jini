@@ -43,10 +43,16 @@
 /**
  * Block `type` values a tool result may show the model.
  *
- * `text` only, and deliberately so — see this module's header before adding to it. Anything absent
- * from this list is treated as human-only.
+ * `text` and `image`, deliberately so — see this module's header before adding to it. `image` was
+ * added rather than left to the fail-closed default because it is genuinely model-safe in a way an
+ * MCP-UI resource is not: `ImageContent` is MCP's own vision-input mechanism, defined exactly so a
+ * tool result can put picture bytes in front of the model (`assistant_demo_image`'s whole reason to
+ * exist, in a downstream consuming product, is proving that round trip). That is a different property from "renders a UI a
+ * human clicks" — an image block carries no interactive surface and no host-side secret the way an
+ * embedded confirmation dialog can, so withholding it here would not close a leak, it would just
+ * break the feature. Anything else absent from this list is still treated as human-only.
  */
-export const MODEL_VISIBLE_BLOCK_TYPES: readonly string[] = ['text'];
+export const MODEL_VISIBLE_BLOCK_TYPES: readonly string[] = ['text', 'image'];
 
 /** One entry of an MCP tool result's `content` array. Structure beyond `type` is not this module's business. */
 export type ToolResultBlock = Record<string, unknown>;

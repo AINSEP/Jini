@@ -1,3 +1,4 @@
+import { agentHandleProps } from '@jini-ai/agentic';
 import type { SkillDraft, SkillDraftError } from '../../types.js';
 import { useT } from '../../../i18n/index.js';
 
@@ -32,6 +33,8 @@ export interface SkillDraftFormProps {
   onCancel: () => void;
   onSubmit: () => void;
   labels?: SkillDraftFormLabels | undefined;
+  /** This form's own agent handle — see `SkillsTab`'s `agentHandle` doc. */
+  agentHandle?: string;
 }
 
 /**
@@ -51,6 +54,7 @@ export function SkillDraftForm({
   onCancel,
   onSubmit,
   labels,
+  agentHandle,
 }: SkillDraftFormProps) {
   const t = useT();
   const nameLabel = labels?.nameLabel ?? t('Name');
@@ -91,6 +95,7 @@ export function SkillDraftForm({
             onChange={(event) => onDraftChange((current) => ({ ...current, name: event.target.value }))}
             placeholder={namePlaceholder}
             disabled={isEdit}
+            {...agentHandleProps(agentHandle, { action: 'name', role: 'field', label: nameLabel })}
           />
         </label>
       </div>
@@ -103,6 +108,7 @@ export function SkillDraftForm({
             value={draft.triggers}
             onChange={(event) => onDraftChange((current) => ({ ...current, triggers: event.target.value }))}
             placeholder={triggersPlaceholder}
+            {...agentHandleProps(agentHandle, { action: 'triggers', role: 'field', label: triggersLabel })}
           />
         </label>
       </div>
@@ -115,6 +121,7 @@ export function SkillDraftForm({
             value={draft.description}
             onChange={(event) => onDraftChange((current) => ({ ...current, description: event.target.value }))}
             placeholder={descriptionPlaceholder}
+            {...agentHandleProps(agentHandle, { action: 'description', role: 'field', label: descriptionLabel })}
           />
         </label>
       </div>
@@ -127,6 +134,7 @@ export function SkillDraftForm({
             value={draft.body}
             onChange={(event) => onDraftChange((current) => ({ ...current, body: event.target.value }))}
             placeholder={bodyPlaceholder}
+            {...agentHandleProps(agentHandle, { action: 'body', role: 'field', label: bodyLabel })}
           />
         </label>
       </div>
@@ -138,10 +146,23 @@ export function SkillDraftForm({
       ) : null}
 
       <div className="jini-skills-draft-actions">
-        <button type="button" className="jini-button jini-button-ghost" onClick={onCancel} disabled={saving}>
+        <button
+          type="button"
+          className="jini-button jini-button-ghost"
+          onClick={onCancel}
+          disabled={saving}
+          {...agentHandleProps(agentHandle, { action: 'cancel', role: 'button', label: cancelLabel })}
+        >
           {cancelLabel}
         </button>
-        <button type="button" className="jini-button jini-button-primary" onClick={onSubmit} disabled={saving} data-testid="skills-save">
+        <button
+          type="button"
+          className="jini-button jini-button-primary"
+          onClick={onSubmit}
+          disabled={saving}
+          data-testid="skills-save"
+          {...agentHandleProps(agentHandle, { action: 'submit', role: 'button', label: submitLabel })}
+        >
           {submitLabel}
         </button>
       </div>

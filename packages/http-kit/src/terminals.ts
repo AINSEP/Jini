@@ -38,8 +38,9 @@ import { TERMINAL_CREATE_TOOL_ID } from '@jini-ai/daemon';
 import type { ToolExecutionResult, ToolExecutor } from '@jini-ai/daemon';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
+import { guardSameOrigin } from './origin.js';
 import { validationError } from './request.js';
-import { sendApiError } from './response.js';
+import { sendApiError, statusForError } from './response.js';
 import { createSseChannel, requestedAfterCursor, type SseEvent } from './sse.js';
 import { denyAllWorkspaceRoots, resolveWorkspaceRoot, WorkspaceRootDeniedError, type WorkspaceRootResolver } from './workspace-root.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
@@ -350,9 +351,18 @@ export function createDeferredEndGate(channel: DeferredEndChannel): { markOpened
  * `runs.ts` uses). Adapts `deps.manager.attach`'s push/end
  * `TerminalSseSink` to `sse.ts`'s generic channel, mirroring
  * `registerRunEventStream`'s adaptation of `RunLifecycle.stream`.
+ *
+ * Bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it does not get
+ * `requireSameOrigin` for free the way the JSON routes above do — the guard is applied here
+ * directly, before the SSE channel is opened, so a cross-origin request never gets a stream.
  */
-export function registerTerminalEventStream(app: Express, deps: TerminalsHttpDeps): void {
+export function registerTerminalEventStream(app: Express, deps: TerminalsHttpDeps, adapter: AdapterContext): void {
   app.get('/api/terminals/:id/stream', (req: Request, res: Response) => {
+    const origin = guardSameOrigin(req, adapter);
+    if (!origin.ok) {
+      sendApiError(res, statusForError(origin.error), origin.error);
+      return;
+    }
     const id = req.params.id;
     if (typeof id !== 'string' || id.length === 0) {
       sendApiError(res, 400, createApiError('BAD_REQUEST', 'id must be a non-empty path parameter'));
@@ -406,5 +416,5 @@ export function registerTerminalRoutes(app: Express, deps: TerminalsHttpDeps, ad
   mountJsonRoute(app, terminalResizeRoute, deps, adapter);
   mountJsonRoute(app, terminalKillRoute, deps, adapter);
   mountJsonRoute(app, terminalDeleteRoute, deps, adapter);
-  registerTerminalEventStream(app, deps);
+  registerTerminalEventStream(app, deps, adapter);
 }

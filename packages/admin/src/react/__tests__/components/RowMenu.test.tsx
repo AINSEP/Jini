@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { RowMenu, type RowMenuItem } from '../../components/RowMenu/RowMenu.js';
 
 function items(overrides: Partial<RowMenuItem>[] = []): RowMenuItem[] {
@@ -12,12 +13,26 @@ function items(overrides: Partial<RowMenuItem>[] = []): RowMenuItem[] {
   return base.map((item, i) => ({ ...item, ...(overrides[i] ?? {}) }));
 }
 
-function renderMenu(list: RowMenuItem[] = items()) {
-  render(<RowMenu items={list} triggerLabel='Actions for "My Post"' />);
+function renderMenu(list: RowMenuItem[] = items(), options: { agentHandle?: string } = {}) {
+  render(
+    <RowMenu
+      items={list}
+      triggerLabel='Actions for "My Post"'
+      {...(options.agentHandle === undefined ? {} : { agentHandle: options.agentHandle })}
+    />,
+  );
   return {
     list,
     trigger: () => screen.getByRole('button', { name: 'Actions for "My Post"' }),
   };
+}
+
+/** Every published handle in `root`, in document order — same helper `source-config-list`'s
+ *  `agent-handles.test.tsx` uses for the identical assertion shape. */
+function handlesIn(root: ParentNode): string[] {
+  return Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`)).map(
+    (element) => element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '',
+  );
 }
 
 describe('RowMenu trigger', () => {
@@ -274,5 +289,63 @@ describe('RowMenu hook injection', () => {
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit' }));
     expect(fakeSelectItem).toHaveBeenCalledWith(list[0]?.onSelect);
+  });
+});
+
+describe('RowMenu agent handles', () => {
+  it('emits no data-agent-* markup at all when agentHandle is omitted', () => {
+    const { trigger } = renderMenu();
+    fireEvent.click(trigger());
+    expect(handlesIn(document.body)).toEqual([]);
+  });
+
+  it('publishes the trigger as the base handle, with the accessible name as its label', () => {
+    const { trigger } = renderMenu(items(), { agentHandle: 'post-42' });
+    expect(trigger()).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'post-42');
+    expect(trigger()).toHaveAttribute('data-agent-role', 'button');
+    expect(trigger()).toHaveAttribute('data-agent-label', 'Actions for "My Post"');
+  });
+
+  it('publishes the trigger even while the menu is closed — a caller has to click it to open the menu at all', () => {
+    renderMenu(items(), { agentHandle: 'post-42' });
+    expect(handlesIn(document.body)).toEqual(['post-42']);
+  });
+
+  it('publishes one handle per item under the -item- namespace once the menu opens', () => {
+    const { trigger } = renderMenu(items(), { agentHandle: 'post-42' });
+    fireEvent.click(trigger());
+    expect(handlesIn(document.body)).toEqual([
+      'post-42',
+      'post-42-item-edit',
+      'post-42-item-disable',
+      'post-42-item-delete',
+    ]);
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveAttribute('data-agent-role', 'button');
+    expect(screen.getByRole('menuitem', { name: 'Delete' })).toHaveAttribute('data-agent-label', 'Delete');
+  });
+
+  // The load-bearing case: host-supplied item keys are arbitrary strings, not pre-validated handle
+  // segments, and two different keys can slugify to the same thing. A duplicate handle does not
+  // fail loudly — it makes `page.click` silently resolve to whichever element the DOM reaches
+  // first — so uniqueness has to hold even under adversarial keys, not just the happy path.
+  it('never publishes the same handle twice, even when item keys collide after slugifying', () => {
+    const list = items([{ key: 'Edit' }, { key: 'edit' }, { key: 'EDIT' }]);
+    const { trigger } = renderMenu(list, { agentHandle: 'post-42' });
+    fireEvent.click(trigger());
+    const handles = handlesIn(document.body);
+    expect(new Set(handles).size).toBe(handles.length);
+    expect(handles).toEqual(['post-42', 'post-42-item-edit', 'post-42-item-edit-2', 'post-42-item-edit-3']);
+  });
+
+  it('keeps item handles stable positionally aligned with the rendered items, not reordered by tone', () => {
+    const list = items([{ key: 'first' }, { key: 'second' }, { key: 'third' }]);
+    const { trigger } = renderMenu(list, { agentHandle: 'post-42' });
+    fireEvent.click(trigger());
+    const menuItems = screen.getAllByRole('menuitem');
+    expect(menuItems.map((el) => el.getAttribute(AGENT_ELEMENT_ATTRIBUTE))).toEqual([
+      'post-42-item-first',
+      'post-42-item-second',
+      'post-42-item-third',
+    ]);
   });
 });

@@ -30,6 +30,73 @@ describe('okResult', () => {
   it('JSON-stringifies a non-string payload', () => {
     expect(okResult({ a: 1 })).toEqual({ content: [{ type: 'text', text: JSON.stringify({ a: 1 }, null, 2) }] });
   });
+
+  it('passes a well-formed MCP content envelope through verbatim, preserving a typed image block', () => {
+    // The regression this guards: a tool result carrying a real image block (e.g. from
+    // `execute_delegated_tool` after `delegated-tool.ts`'s `unwrapMcpContentEnvelope`) must reach the
+    // client as an actual `image` content block, not JSON-stringified base64 text.
+    const payload = {
+      content: [
+        { type: 'text', text: 'Generated a swatch.' },
+        { type: 'image', mimeType: 'image/png', data: 'AAAA' },
+      ],
+    };
+    expect(okResult(payload)).toEqual({ content: payload.content });
+  });
+
+  it('still JSON-stringifies a `content` array holding one malformed block — fails closed, does not forward it as protocol output', () => {
+    const payload = { content: [{ type: 'image', mimeType: 'image/png' /* missing data */ }] };
+    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+  });
+
+  it('still JSON-stringifies a `content` array holding a malformed resource block (missing required text/blob)', () => {
+    // `resource` IS a recognized ContentBlock type (see the passthrough tests below) — this block is
+    // rejected for being malformed, not for its `type` being unrecognized. A resource block missing
+    // both `text` and `blob` cannot be carrying withheld payload data in the first place, so falling
+    // back to stringify here is safe: there is nothing sensitive in this shape to leak.
+    const payload = { content: [{ type: 'resource', resource: { uri: 'ui://x' } }] };
+    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+  });
+
+  it('passes a well-formed `resource` content block through verbatim (ADR-053 Decision 5 regression)', () => {
+    // This is the exact shape that leaked in the traced incident: a confirmation token embedded in a
+    // resource block's `text`, alongside an ordinary text acknowledgment. Before this fix, `resource`
+    // was not in okResult()'s hand-rolled allowlist (only `text`/`image`), so the whole envelope fell
+    // to JSON.stringify and the token reached the model as plain text. It must now reach the client as
+    // a real `resource` block instead of being flattened.
+    const payload = {
+      content: [
+        { type: 'text', text: 'Delete queued — confirm in the UI.' },
+        {
+          type: 'resource',
+          resource: { uri: 'ui://confirm-delete', mimeType: 'text/html', text: '<confirm-token>SECRET</confirm-token>' },
+        },
+      ],
+    };
+    expect(okResult(payload)).toEqual({ content: payload.content });
+  });
+
+  it('passes a well-formed `resource_link` content block through verbatim', () => {
+    // Proves the fix recognizes content blocks via the pinned MCP SDK's own `ContentBlockSchema`
+    // rather than a hand-maintained per-type list — `resource_link` was never named in the incident,
+    // but a schema-driven check picks it up for free the same way `resource` is.
+    const payload = { content: [{ type: 'resource_link', uri: 'ui://x', name: 'widget' }] };
+    expect(okResult(payload)).toEqual({ content: payload.content });
+  });
+
+  it('passes a well-formed `audio` content block through verbatim', () => {
+    const payload = { content: [{ type: 'audio', data: 'AAAA', mimeType: 'audio/wav' }] };
+    expect(okResult(payload)).toEqual({ content: payload.content });
+  });
+
+  it('JSON-stringifies a plain object whose `content` field is not an array', () => {
+    const payload = { content: 'just a string field named content' };
+    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+  });
+
+  it('passes through an empty content array as a valid, empty result', () => {
+    expect(okResult({ content: [] })).toEqual({ content: [] });
+  });
 });
 
 describe('errorResult', () => {

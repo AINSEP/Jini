@@ -438,11 +438,12 @@ describe('filesFromDataTransfer', () => {
     expect(result).toEqual([]);
   });
 
-  it('recursively expands a dropped folder entry', async () => {
+  it('recursively expands a dropped folder entry, tagging the nested file with its relative path', async () => {
     const nestedFile = new File(['x'], 'nested.txt');
     const fileEntry = {
       isFile: true,
       isDirectory: false,
+      fullPath: '/my-folder/nested.txt',
       file: (success: (f: File) => void) => success(nestedFile),
     } as unknown as FileSystemEntry;
     let readCalls = 0;
@@ -462,6 +463,53 @@ describe('filesFromDataTransfer', () => {
     } as unknown as DataTransferItem;
     const result = await filesFromDataTransfer({ items: [item], files: [] } as unknown as DataTransfer);
     expect(result).toEqual([nestedFile]);
+    expect((result[0] as { relativePath?: string }).relativePath).toBe('my-folder/nested.txt');
+  });
+
+  it('preserves a two-level folder structure across sibling files and a nested subdirectory', async () => {
+    const rootFile = new File(['x'], 'readme.txt');
+    const rootFileEntry = {
+      isFile: true,
+      isDirectory: false,
+      fullPath: '/project/readme.txt',
+      file: (success: (f: File) => void) => success(rootFile),
+    } as unknown as FileSystemEntry;
+    const nestedFile = new File(['x'], 'a.txt');
+    const nestedFileEntry = {
+      isFile: true,
+      isDirectory: false,
+      fullPath: '/project/sub/a.txt',
+      file: (success: (f: File) => void) => success(nestedFile),
+    } as unknown as FileSystemEntry;
+    let subReadCalls = 0;
+    const subDirEntry = {
+      isFile: false,
+      isDirectory: true,
+      createReader: () => ({
+        readEntries: (success: (entries: FileSystemEntry[]) => void) => {
+          subReadCalls += 1;
+          success(subReadCalls === 1 ? [nestedFileEntry] : []);
+        },
+      }),
+    } as unknown as FileSystemEntry;
+    let rootReadCalls = 0;
+    const rootDirEntry = {
+      isFile: false,
+      isDirectory: true,
+      createReader: () => ({
+        readEntries: (success: (entries: FileSystemEntry[]) => void) => {
+          rootReadCalls += 1;
+          success(rootReadCalls === 1 ? [rootFileEntry, subDirEntry] : []);
+        },
+      }),
+    } as unknown as FileSystemEntry;
+    const item = { kind: 'file', webkitGetAsEntry: () => rootDirEntry } as unknown as DataTransferItem;
+
+    const result = await filesFromDataTransfer({ items: [item], files: [] } as unknown as DataTransfer);
+
+    const byName = new Map(result.map((f) => [f.name, (f as { relativePath?: string }).relativePath]));
+    expect(byName.get('readme.txt')).toBe('project/readme.txt');
+    expect(byName.get('a.txt')).toBe('project/sub/a.txt');
   });
 
   it('falls back to dataTransfer.files when every item entry read rejects', async () => {
@@ -488,10 +536,17 @@ describe('filesFromDataTransfer', () => {
 });
 
 describe('filesFromFileSystemEntry', () => {
-  it('resolves a file entry', async () => {
+  it('resolves a file entry, tagged with its relative path derived from fullPath', async () => {
     const f = new File(['x'], 'x.txt');
-    const entry = { isFile: true, isDirectory: false, file: (success: (f: File) => void) => success(f) } as unknown as FileSystemEntry;
-    await expect(filesFromFileSystemEntry(entry)).resolves.toEqual([f]);
+    const entry = {
+      isFile: true,
+      isDirectory: false,
+      fullPath: '/x.txt',
+      file: (success: (f: File) => void) => success(f),
+    } as unknown as FileSystemEntry;
+    const result = await filesFromFileSystemEntry(entry);
+    expect(result).toEqual([f]);
+    expect((result[0] as { relativePath?: string }).relativePath).toBe('x.txt');
   });
 
   it('returns empty for a directory entry with no createReader', async () => {

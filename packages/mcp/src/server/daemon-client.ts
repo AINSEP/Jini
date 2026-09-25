@@ -33,6 +33,18 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 /** Cap on a daemon response body. Comfortably larger than any real status/run envelope, small enough to bound worst-case memory from a hostile/broken daemon. */
 const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 
+/**
+ * Thrown for a non-2xx daemon response. The message is unchanged from the plain `Error` this used to
+ * be; `status` is what lets a tool tell "this daemon does not serve the route" (404) apart from any
+ * other failure instead of pattern-matching the message.
+ */
+export class DaemonHttpError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+    this.name = 'DaemonHttpError';
+  }
+}
+
 /** Thrown internally when a response exceeds its byte cap; always translated to a plain `Error` before it crosses this module's public functions. */
 export class DaemonResponseTooLargeError extends Error {
   constructor(public readonly limitBytes: number) {
@@ -186,7 +198,7 @@ async function requestDaemonJson(
     }
 
     if (!resp.ok) {
-      throw new Error(formatDaemonHttpError(resp.status, url, data));
+      throw new DaemonHttpError(formatDaemonHttpError(resp.status, url, data), resp.status);
     }
     return data;
   } finally {

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/integrations",
-  "version": "0.1.0",
+  "version": "0.3.6",
   "description": "Third-party vendor integrations, each independently importable: Composio connector catalog/execution (./composio) and a multi-vendor image/video/audio generation gateway (./media-providers).",
   "license": "Apache-2.0",
   "repository": {
@@ -42,9 +42,15 @@
   },
   "typesVersions": {
     "*": {
-      "composio": ["./dist/composio/index.d.ts"],
-      "media-providers": ["./dist/media-providers/index.d.ts"],
-      "media-providers/catalog": ["./dist/media-providers/catalog.d.ts"]
+      "composio": [
+        "./dist/composio/index.d.ts"
+      ],
+      "media-providers": [
+        "./dist/media-providers/index.d.ts"
+      ],
+      "media-providers/catalog": [
+        "./dist/media-providers/catalog.d.ts"
+      ]
     }
   },
   "files": [
@@ -53,7 +59,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",
@@ -71,7 +78,7 @@
     "undici": "^7.25.0"
   },
   "peerDependencies": {
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^13.0.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
@@ -81,7 +88,7 @@
   "devDependencies": {
     "@jini-ai/protocol": "workspace:*",
     "@types/better-sqlite3": "^7.6.11",
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^13.0.0",
     "@vitest/coverage-v8": "^2.1.9"
   }
 }

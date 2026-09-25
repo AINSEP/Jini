@@ -60,7 +60,7 @@ export function useToolTimeline(events: AgentEvent[] | undefined, options: UseTo
         result,
         status,
         expanded: overrides[ev.id] ?? defaultExpanded,
-        renderProps: { status, name: ev.name, args: ev.input, result: result?.content, isError: result?.isError ?? false },
+        renderProps: { status, name: ev.name, args: ev.input, result: result?.content, isError: result?.isError ?? false, media: result?.media },
       });
     }
     return out;

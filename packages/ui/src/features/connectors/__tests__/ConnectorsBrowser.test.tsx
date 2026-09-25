@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
 import { I18nProvider } from '../../i18n/index.js';
 import { ConnectorsBrowser } from '../ConnectorsBrowser.js';
 import { createFakeConnectorsDependencies } from '../dependencies.js';
@@ -372,5 +373,46 @@ describe('ConnectorsBrowser 4-pattern hook override test suite', () => {
 
     expect(screen.getByText('Jira')).toBeInTheDocument();
     expect(screen.queryByText('Slack')).toBeNull();
+  });
+});
+
+describe('ConnectorsBrowser — agentHandle', () => {
+  it('publishes no data-agent-* markup when omitted — additive by default', async () => {
+    const dependencies = createFakeConnectorsDependencies({ connectors: [makeConnector()] });
+    const { container } = render(<ConnectorsBrowser unlocked dependencies={dependencies} />);
+    await waitFor(() => expect(screen.getByText('Slack')).toBeTruthy());
+    expect(container.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`)).toHaveLength(0);
+  });
+
+  it('derives the search bar and each connector card from the one base', async () => {
+    const dependencies = createFakeConnectorsDependencies({
+      connectors: [makeConnector(), makeConnector({ id: 'notion', name: 'Notion' })],
+    });
+    render(<ConnectorsBrowser unlocked dependencies={dependencies} agentHandle="settings-connectors" />);
+    await waitFor(() => expect(screen.getByText('Slack')).toBeTruthy());
+
+    expect(screen.getByTestId('connectors-search-input')).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-connectors-search');
+    expect(screen.getByRole('button', { name: /Open details for Slack/ })).toHaveAttribute(
+      AGENT_ELEMENT_ATTRIBUTE,
+      'settings-connectors-connector-slack',
+    );
+    expect(screen.getByRole('button', { name: /Open details for Notion/ })).toHaveAttribute(
+      AGENT_ELEMENT_ATTRIBUTE,
+      'settings-connectors-connector-notion',
+    );
+  });
+
+  it('derives the detail drawer and its connect/disconnect actions once opened', async () => {
+    const dependencies = createFakeConnectorsDependencies({ connectors: [makeConnector()] });
+    render(<ConnectorsBrowser unlocked dependencies={dependencies} agentHandle="settings-connectors" />);
+    await waitFor(() => expect(screen.getByText('Slack')).toBeTruthy());
+
+    await userEvent.click(screen.getByRole('button', { name: /Open details for Slack/ }));
+    await waitFor(() => expect(screen.getByTestId('connector-drawer')).toBeTruthy());
+    expect(screen.getByTestId('connector-drawer')).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-connectors-detail');
+    expect(within(screen.getByTestId('connector-drawer')).getByRole('button', { name: 'Connect' })).toHaveAttribute(
+      AGENT_ELEMENT_ATTRIBUTE,
+      'settings-connectors-detail-connect',
+    );
   });
 });

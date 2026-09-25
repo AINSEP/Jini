@@ -31,11 +31,12 @@ vi.mock('node:child_process', () => ({
   },
 }));
 
-import { detectAgents, detectAgentsStream } from '../detection.js';
+import { detectAgents, detectAgentsStream, probeAgentModels } from '../detection.js';
 import { agentCapabilities } from '../capabilities.js';
 import { getRememberedLiveModels, rememberLiveModels } from '../models.js';
 import { setAcpModelProbe } from '../acp-model-probe.js';
 import type { AmrProfileResolver } from '../amr-profile-resolver.js';
+import { AGENT_DEFS } from '../registry.js';
 
 function makeExecutable(filePath: string): void {
   writeFileSync(filePath, '#!/bin/sh\necho stub\n', 'utf8');
@@ -91,9 +92,16 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
   // `stripFns` builds its result by spreading `...rest`, so any new
   // `RuntimeAgentDef` field is published into this API response *by default*
   // unless explicitly destructured out. antigravity is the only def declaring
-  // the three spawn-orchestration fields, and two of them carry closures —
-  // `JSON.stringify` would drop the functions but keep their wrappers,
-  // publishing a misleading `{"buffering":"until-close"}` / `{}`.
+  // `needsAgentLogFile`/`stdoutPolicy`, and `stdoutPolicy` carries a closure —
+  // `JSON.stringify` would drop the function but keep its wrapper, publishing
+  // a misleading `{"buffering":"until-close"}`.
+  //
+  // `runtimeLock` is asserted stripped too even though no registered def
+  // currently declares one (antigravity's own model-selection lock was
+  // retired once `agy` gained a real `--model` flag — see `defs/
+  // antigravity.ts`'s own doc): this is `stripFns`' general contract for the
+  // field, not evidence a real closure was exercised here, and it keeps this
+  // test from silently losing coverage if a future def declares one again.
   it("strips antigravity's spawn-orchestration fields out of the registry projection", async () => {
     const results = await detectAgents(scopedEnv(path.join(dir, 'nonexistent-cursor-agent')));
     const antigravity = results.find((a) => a.id === 'antigravity')!;
@@ -402,4 +410,122 @@ describe('detectAgents / detectAgentsStream — full probe pipeline (via the rea
     expect(seenIds).toContain('cursor-agent');
   });
 
+});
+
+
+/**
+ * The end-to-end assertion for the Local-CLI picker's effort list: what `detectAgents()` publishes
+ * is what the "Execution mode" tab renders, verbatim. Codex's static `reasoningOptions` stops at
+ * `xhigh`, so before this wiring `max` and `ultra` were unreachable from the picker even for a model
+ * whose own catalog entry declares them.
+ */
+describe('detectAgents — codex effort options come from the live catalog', () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-codex-effort-test-'));
+    mockState.responses.clear();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    vi.restoreAllMocks();
+  });
+
+  // Trimmed from a live `codex debug models` run (codex-cli 0.153.4).
+  const LIVE_CATALOG = JSON.stringify({
+    models: [
+      {
+        slug: 'gpt-6-astra',
+        display_name: 'GPT-6 Astra',
+        visibility: 'list',
+        supported_reasoning_levels: [
+          { effort: 'low' }, { effort: 'medium' }, { effort: 'high' },
+          { effort: 'xhigh' }, { effort: 'max' }, { effort: 'ultra' },
+        ],
+      },
+      { slug: 'codex-auto-review', visibility: 'hide', supported_reasoning_levels: [{ effort: 'max' }] },
+    ],
+  });
+
+  function codexEnv(bin: string): Record<string, Record<string, string>> {
+    return { codex: { CODEX_BIN: bin } };
+  }
+
+  async function detectCodex(catalogStdout: string) {
+    const bin = path.join(dir, 'codex');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['--version']), { stdout: 'codex-cli 0.153.4\n' });
+    mockState.responses.set(JSON.stringify(['debug', 'models']), { stdout: catalogStdout });
+    mockState.responses.set(JSON.stringify(['login', 'status']), { stdout: 'Logged in' });
+    const results = await detectAgents(codexEnv(bin));
+    return results.find((a) => a.id === 'codex')!;
+  }
+
+  it('publishes `max` and `ultra`, and drops the levels no catalog model supports', async () => {
+    const codex = await detectCodex(LIVE_CATALOG);
+
+    expect(codex.available).toBe(true);
+    expect(codex.modelsSource).toBe('live');
+    // The exact rendered list, not "contains max": asserting containment alone would also pass on a
+    // list that still carried `none`/`minimal`, which no model in the catalog accepts.
+    expect(codex.reasoningOptions?.map((r) => r.id)).toEqual([
+      'default', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra',
+    ]);
+    // And the hidden entry contributed neither a model nor a level.
+    expect(codex.models.map((m) => m.id)).toEqual(['default', 'gpt-6-astra']);
+  });
+
+  it('keeps the static effort list when the catalog is unusable, rather than emptying the picker', async () => {
+    const codex = await detectCodex('not json at all');
+
+    expect(codex.modelsSource).toBe('fallback');
+    expect(codex.reasoningOptions?.map((r) => r.id)).toEqual([
+      'default', 'none', 'minimal', 'low', 'medium', 'high', 'xhigh',
+    ]);
+  });
+
+  it('strips the derive closure from the published shape', async () => {
+    const codex = await detectCodex(LIVE_CATALOG);
+    expect((codex as unknown as { deriveReasoningOptions?: unknown }).deriveReasoningOptions).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(codex))).not.toHaveProperty('deriveReasoningOptions');
+  });
+});
+
+describe('probeAgentModels — the model half of detection, for hosts with their own availability check', () => {
+  let dir: string;
+  const cursorDef = () => AGENT_DEFS.find((def) => def.id === 'cursor-agent')!;
+
+  beforeEach(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'agent-runtime-probe-models-test-'));
+    mockState.responses.clear();
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it('returns the live list (without a --version probe) and remembers it for model validation', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    mockState.responses.set(JSON.stringify(['models']), { stdout: 'gpt-probe-live - GPT Probe\n' });
+
+    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: bin });
+
+    expect(result.source).toBe('live');
+    expect(result.models.some((m) => m.id === 'gpt-probe-live')).toBe(true);
+    expect(getRememberedLiveModels('cursor-agent').some((m) => m.id === 'gpt-probe-live')).toBe(true);
+  });
+
+  it('returns fallbackModels when the binary cannot be found', async () => {
+    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: path.join(dir, 'missing') , PATH: dir });
+    expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
+  });
+
+  it('returns fallbackModels when the model listing fails', async () => {
+    const bin = path.join(dir, 'cursor-agent');
+    makeExecutable(bin);
+    const result = await probeAgentModels(cursorDef(), { CURSOR_AGENT_BIN: bin });
+    expect(result).toEqual({ models: cursorDef().fallbackModels, source: 'fallback' });
+  });
 });

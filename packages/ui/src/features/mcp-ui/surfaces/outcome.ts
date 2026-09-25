@@ -66,7 +66,7 @@ export interface SurfaceOutcomeSpec {
   /**
    * Styles the status line and, when {@link openLinkUrl} is also present, the open-link button.
    * THREE states, not a boolean — matching this package's own callers, which distinguish a genuine
-   * partial outcome (e.g. Tovu's static-publish "uploaded, but not yet confirmed reachable") from
+   * partial outcome (e.g. a downstream product's static-publish "uploaded, but not yet confirmed reachable") from
    * both a plain success and a plain failure specifically so neither is misreported: folding
    * `'partial'` into `'success'` would claim something is live when it may not be reachable yet;
    * folding it into `'failure'` would hide that the operation itself did NOT fail (nothing needs

@@ -2,7 +2,7 @@
  * @module paths
  *
  * Home-relative path expansion for configured env values and file paths.
- * Ported verbatim from OD's `apps/daemon/src/runtimes/core/paths.ts` — no
+ * Ported verbatim from OD's `apps/daemon/src/runtimes/paths.ts` — no
  * product coupling.
  */
 import path from 'node:path';

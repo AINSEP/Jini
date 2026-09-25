@@ -3714,7 +3714,19 @@ While building `useVersionManager`, drafting a test for the source's "restore su
 
 ### What's deferred, and why
 
-Per the `html-viewer` classification above: the sandboxed-iframe/postMessage-bridge core this feature's `resolvePreviewDocument` port is designed to eventually delegate to (`@jini/renderers-react`, currently a stub) does not exist yet. This feature does **not** wait on it — a host without a real sandbox core can implement `resolvePreviewDocument` as an identity function for a plain, unsandboxed preview, or delegate to whatever iframe-rendering mechanism it already has. `FileVersionViewportControls` was not re-ported; the orchestrator binds directly to `features/viewer-shell/`'s already-shipped `ViewportToggleGroup` (confirmed identical `role="group"`/`aria-pressed` shape by reading both source components side by side) rather than shipping a second, competing viewport-toggle primitive.
+Per the `html-viewer` classification above: the sandboxed-iframe/postMessage-bridge core this feature's `resolvePreviewDocument` port is designed to eventually delegate to (`@jini/renderers-react`, currently a stub) does not exist yet. This feature does **not** wait on it — a host without a real sandbox core can implement `resolvePreviewDocument` as an identity function for a plain, unsandboxed preview, or delegate to whatever iframe-rendering mechanism it already has.
+
+**Update (2026-09-02):** this was accurate when written, but the same day
+(2026-07-18) a parallel task landed the real sandboxed-iframe/postMessage
+core (see `packages/ui/src/renderers/source-map.md`'s "sandboxed-iframe
+rendering core" section) — it now exists (`sandbox-bridge.ts`,
+`sandboxed-document.ts`), and the package itself was later folded into
+`@jini/ui` as `src/renderers/` rather than staying a separate
+`@jini/renderers-react` package. The default fake dependency here
+(`features/version-manager/dependencies.ts`) still uses a plain identity
+stub for `resolvePreviewDocument` — that's an intentional default per the
+fake-double convention, not evidence the real core is missing — a host
+wanting the real sandbox behavior wires it to `src/renderers/` itself. `FileVersionViewportControls` was not re-ported; the orchestrator binds directly to `features/viewer-shell/`'s already-shipped `ViewportToggleGroup` (confirmed identical `role="group"`/`aria-pressed` shape by reading both source components side by side) rather than shipping a second, competing viewport-toggle primitive.
 
 ### `src/utils/polygon-selection.ts` — what shipped
 
@@ -5693,3 +5705,45 @@ mentions of the directory were updated to the new name.
 (verified 2026-07-26, referencing `packages/ui/src/features/rich-text-input/`
 by path in prose) mentions the old path and was not edited — `chat-react` is
 owned by a sibling agent concurrently, per this task's scope rule.
+
+**Update (2026-09-02):** `chat-react` no longer exists as a package (it's
+`packages/chat/src/react/` now) and the file itself moved — the doc comment
+in question is at `packages/agentic/src/core/dom/dom-page-driver.ts:620`
+today. That comment still says `packages/ui/src/features/rich-text-input/`
+and still hasn't been updated to `lexical-rich-text-editor/` — the
+underlying item above is still open, just at a different, current path.
+
+## Section: `features/folder-path-drop/` — a folder drop inserts the folder's OS path (2026-09-14)
+
+Consolidated from two identical host copies (a desktop Electron chat pane and
+a web admin chat dock that runs inside that desktop shell): folder detection
+off a raw drop, OS-path recovery through a host port, the text format, and the
+capture-phase swallow-and-insert step.
+
+- `ports.ts` — `FolderPathDropPort` (`getPathForFile`), the host's synchronous
+  path lookup (Electron: `webUtils.getPathForFile`).
+- `rules.ts` — `folderPathsFromDataTransfer`, `formatDroppedFolderPaths` (the
+  only place the text format lives), `captureFolderPathDrop`. Also listed on
+  `./core`, so a DOM-less test runner can import them without React.
+- `react/hooks/useFolderPathDropCapture.ts` — a stable-identity
+  `onDropCapture` handler over `captureFolderPathDrop` (via
+  `useStableHandler`), with an optional `onFolderPaths` host follow-up.
+
+**Not ported (host-owned):** the product-named `window` bridge global and its
+lookup, the preload bridges, and every host effect after the drop (one host
+points a filesystem tool root at the last dropped folder, with notices and
+retry).
+
+**Changed vs. the origin:** `folderPathsFromDataTransfer` takes the port object
+rather than a bare function and calls `getPathForFile` as a method, so a
+class-based port keeps `this`. `captureFolderPathDrop` returns the recovered
+paths, so a host can act on them without re-reading the event. The text
+target is structural (`insertText`), because `ui` cannot import `@jini-ai/chat`'s
+`ChatPaneComposerHandle` (chat depends on ui); that handle fits as-is. Output
+is otherwise unchanged, including the `' '` join — a path containing a space
+is ambiguous in that format, an open question for the host, and a change to it
+belongs in `formatDroppedFolderPaths` alone.
+
+**Tests:** both origin suites' 10 shared detection cases, the desktop suite's 6
+capture cases, and new cases for method binding, the formatter, `./core`
+reachability, and the hook (identity, latest port/callback, pass-through).

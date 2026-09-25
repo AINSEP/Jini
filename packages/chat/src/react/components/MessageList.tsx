@@ -13,6 +13,7 @@
 import { useEffect, useRef } from 'react';
 import type { ChatMessage } from '../../core/index.js';
 import { isTerminalRunStatus } from '../../core/index.js';
+import { useT } from '../hooks/context.js';
 import { MessageRow, type MessageRowProps } from './MessageRow.js';
 
 export interface MessageListProps extends Pick<MessageRowProps, 'projectFileNames' | 'onRequestOpenFile' | 'renderAttachment'> {
@@ -25,6 +26,16 @@ export interface MessageListProps extends Pick<MessageRowProps, 'projectFileName
   activeQuestionFormMessageId?: string | null;
   questionFormSubmittedAnswersByMessageId?: Record<string, Record<string, string | string[]>>;
   onQuestionFormSubmit?: (messageId: string, text: string, answers: Record<string, string | string[]>) => void;
+  /**
+   * A composer-driven turn typed while a run is in flight, mirroring `useChatPane().queuedPrompt` —
+   * rendered as the newest transcript entry (like Claude Code/ChatGPT's own pending-turn UI)
+   * instead of a banner bolted above the composer. Deliberately NOT a `ChatMessage`: it has no
+   * persisted id (nothing here could mint one without risking collision with a real message once
+   * this prompt is actually sent) and is never written to `messages`/storage — purely a rendering
+   * of `useChatPane`'s own in-memory queue slot. `null`/omitted renders nothing, matching the old
+   * strip's "shown only once something is actually queued" behavior.
+   */
+  pendingPrompt?: { text: string; onCancel: () => void } | null;
 }
 
 /** Slack, in px, for treating "close enough to the bottom" as "at the bottom" — a fractional
@@ -46,7 +57,9 @@ export function MessageList({
   projectFileNames,
   onRequestOpenFile,
   renderAttachment,
+  pendingPrompt = null,
 }: MessageListProps) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Whether the transcript was scrolled to its bottom as of the last user scroll or programmatic
   // scroll-to-bottom — read by the ResizeObserver effect below, which only ever sees the DOM AFTER a
@@ -57,9 +70,15 @@ export function MessageList({
   useEffect(() => {
     if (!scrollIntent) return;
     const el = containerRef.current;
-    if (el) {
+    // Gated on `stickToBottomRef`, same as the ResizeObserver effect below: `scrollIntent` turns
+    // true on EVERY streamed event (tool-call chatter included, not just a finished reply — see
+    // `useConversation.applyRunToAssistantMessage`), so scrolling unconditionally here yanked a user
+    // who had deliberately scrolled up to read history back to the bottom on the very next chunk
+    // (owner-reported, 2026-08-30). `stickToBottomRef` already reflects the user's own last scroll
+    // gesture via the `onScroll` handler below, captured BEFORE this content change, so it is safe
+    // to trust here.
+    if (el && stickToBottomRef.current) {
       el.scrollTop = el.scrollHeight;
-      stickToBottomRef.current = true;
     }
     onScrolled?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -118,6 +137,29 @@ export function MessageList({
           />
         );
       })}
+      {pendingPrompt ? (
+        <div
+          className="jini-chat-pane__queued"
+          role="status"
+          aria-label={t('Message queued — not yet sent, will send once the current run finishes')}
+          data-testid="chat-pane-queued"
+          data-agent-element="chat-message-pending"
+          data-agent-role="region"
+          data-agent-label="A message queued to send once the current run finishes"
+        >
+          <div className="jini-chat-pane__queued-text">{pendingPrompt.text}</div>
+          <div className="jini-chat-pane__queued-actions">
+            <button
+              type="button"
+              className="jini-chat-pane__queued-cancel"
+              onClick={pendingPrompt.onCancel}
+              title={t('Cancel queued message')}
+            >
+              {t('Cancel')}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

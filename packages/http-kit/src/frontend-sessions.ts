@@ -33,8 +33,10 @@ import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import type { FrontendSessionHandle, FrontendSessionRegistry } from '@jini-ai/daemon';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
+import { guardSameOrigin } from './origin.js';
 import { createSseResponse } from './raw-sse.js';
 import { validationError } from './request.js';
+import { sendApiError, statusForError } from './response.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
 
 export const FRONTEND_SESSION_STREAM_ROUTE_PATH = '/api/frontend-sessions/stream';
@@ -243,13 +245,25 @@ export const frontendSessionResponseRoute = defineJsonRoute<
   },
 });
 
-/** Mounts both frontend-session routes on `app`. */
+/**
+ * Mounts both frontend-session routes on `app`.
+ *
+ * The stream route bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it
+ * does not get `requireSameOrigin` for free the way `frontendSessionResponseRoute` does — the
+ * guard is applied here directly, before the SSE channel is opened, so a cross-origin request
+ * never gets a stream (and, notably, never mints a session id or `bindToken` either).
+ */
 export function registerFrontendSessionRoutes(
   app: Express,
   deps: FrontendSessionsHttpDeps,
   adapter: AdapterContext,
 ): void {
   app.get(FRONTEND_SESSION_STREAM_ROUTE_PATH, (req: Request, res: Response) => {
+    const origin = guardSameOrigin(req, adapter);
+    if (!origin.ok) {
+      sendApiError(res, statusForError(origin.error), origin.error);
+      return;
+    }
     try {
       handleFrontendSessionStream(req, res, deps);
     } catch (error) {

@@ -2,9 +2,12 @@
 
 Content-model capability for Jini-hosted products.
 
-> **Status: placeholder.** No implementation yet. The package builds, typechecks, and has a green
-> suite so the first port commit lands on working infrastructure rather than discovering it is
-> broken. Created 2026-08-02.
+> **Status: implemented, port in progress.** Created 2026-08-02 as an empty shell; the port has
+> been landing since. Measured 2026-09-05 at `v0.3.4`: 131 non-test source files / 21,718 lines
+> under `src/` (34,938 including tests), 11 domain trees, and 14 public subpath exports wired in
+> `package.json`. Some domain modules named under [Port inventory](#port-inventory) have not moved
+> yet — check `src/` and the `exports` map for what is actually reachable today rather than
+> trusting this paragraph's counts.
 
 ## Layers
 
@@ -48,15 +51,17 @@ the first commit means that failure mode cannot recur here.
 
 ## Port inventory
 
-Not yet moved. Order matters for the first item only.
+The kernel went first — the source repo's `src/core/{ports,commands,events,tools}` — because every
+domain module depends on it. Domain modules followed in no particular order: the source repo's git
+history shows they essentially never co-change with each other, so each ports independently without
+coordination.
 
-**Kernel first** — the source repo's `src/core/{ports,commands,events,tools}` — because every domain module
-depends on it.
+**Landed** (directories under `src/`, each with its own subpath export):
+`core`, `content-types`, `entries`, `identity`, `media`, `navigation`, `presentation`, `settings`,
+`taxonomy`, `workspace`, and the `server` adapter layer.
 
-**Then domain modules, in any order.** The source repo's git history shows domain modules essentially never
-co-change with each other, so each can be ported independently without coordination: `post`,
-`taxonomy`, `entries`, `content-types`, `media`, `seo`, `comments`, `forms`, `navigation`,
-`redirects`, `widgets`, `newsletter`, `members`.
+**Still to move:** `post`, `seo`, `comments`, `forms`, `redirects`, `widgets`, `newsletter`,
+`members`. (`widgets` has an `exports` entry but no `src/widgets/` tree yet.)
 
 **Explicitly not ported:**
 
@@ -74,11 +79,11 @@ pnpm --filter @jini-ai/cms typecheck
 pnpm --filter @jini-ai/cms test
 ```
 
-## Notes for the first real commit
+## Open cleanup
 
-- **Add coverage thresholds.** `vitest.config.ts` deliberately has none — on a placeholder they
-  would be either vacuously true or an immediate blocker. Set them against what the first ported
-  module actually measures. Siblings run 98–100%.
-- **Delete the layer markers.** `CMS_CORE_LAYER` and `CMS_SERVER_LAYER` exist only to give the
-  entry points something real to resolve. They have no purpose once real exports land.
-- **Replace `src/core/__tests__/layers.test.ts`.** It proves the package wiring, not behavior.
+- **Add coverage thresholds.** `vitest.config.ts` still has none. That was a deliberate omission
+  while the package was a placeholder; it no longer is, so the reason has expired. Set them against
+  what the ported modules actually measure — siblings run 98–100%.
+- **Delete `CMS_SERVER_LAYER`** (`src/server/index.ts`). It existed only to give the `/server`
+  entry point something real to resolve, and real exports have since landed. Its `/core`
+  counterpart `CMS_CORE_LAYER` is already gone.

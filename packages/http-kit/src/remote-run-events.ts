@@ -29,6 +29,7 @@ import type { RemoteToolEventRecorder, RunLifecycle } from '@jini-ai/daemon';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
 import { bearerTokenFromHeader, timingSafeTokenMatch } from './api-security-middleware.js';
 import { validationError } from './request.js';
+import { sendApiError, statusForError } from './response.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
 
 export interface RemoteToolBridgeTokenConfig {
@@ -84,19 +85,14 @@ export function requireRemoteToolBridgeToken(deps: {
   return (req: Request, res: Response, next: NextFunction): void => {
     const token = env[tokenEnvVar];
     if (!token) {
-      res.status(503).json({
-        error: {
-          code: 'REMOTE_TOOL_BRIDGE_NOT_CONFIGURED',
-          message: `${tokenEnvVar} is not set — remote run-event ingestion is disabled`,
-        },
-      });
+      const error = createApiError('REMOTE_TOOL_BRIDGE_NOT_CONFIGURED', `${tokenEnvVar} is not set — remote run-event ingestion is disabled`);
+      sendApiError(res, statusForError(error), error);
       return;
     }
     const presented = bearerTokenFromHeader(req.get('authorization'));
     if (presented === null || !timingSafeTokenMatch(presented, token)) {
-      res.status(401).json({
-        error: { code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${tokenEnvVar}> required` },
-      });
+      const error = createApiError('REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', `Authorization: Bearer <${tokenEnvVar}> required`);
+      sendApiError(res, statusForError(error), error);
       return;
     }
     next();

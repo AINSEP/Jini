@@ -1,8 +1,12 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { clearExtEventRenderers, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';
+import {
+  __resetAttachmentPreviewCacheForTests,
+  cacheAttachmentPreviewSource,
+} from '../../hooks/attachment-preview-cache.js';
 import { MessageRow } from '../MessageRow.js';
 
 describe('MessageRow', () => {
@@ -89,6 +93,94 @@ describe('MessageRow', () => {
     const message: ChatMessage = { id: 'u3', role: 'user', content: 'see attached', attachments: [{ path: '/a.png', name: 'a.png', kind: 'image' }] };
     render(<MessageRow message={message} renderAttachment={(a) => <span data-testid="custom-chip">{a.name.toUpperCase()}</span>} />);
     expect(screen.getByTestId('custom-chip')).toHaveTextContent('A.PNG');
+  });
+
+  describe('attachment chip -> preview modal', () => {
+    afterEach(() => __resetAttachmentPreviewCacheForTests());
+
+    it('is inert until clicked, then opens a labeled dialog and restores focus to the chip on close', async () => {
+      const message: ChatMessage = {
+        id: 'u4',
+        role: 'user',
+        content: 'see attached',
+        attachments: [{ path: 'attachment:u4-1', name: 'ai-caps.avif', kind: 'file' }],
+      };
+      render(<MessageRow message={message} />);
+
+      const chip = screen.getByRole('button', { name: 'Open ai-caps.avif' });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+      await userEvent.click(chip);
+      const dialog = screen.getByRole('dialog', { name: 'ai-caps.avif preview' });
+      expect(dialog).toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(chip).toHaveFocus();
+    });
+
+    it('shows an honest filename/type/size fallback when no bytes were cached for this browser session', async () => {
+      const message: ChatMessage = {
+        id: 'u5',
+        role: 'user',
+        content: 'see attached',
+        attachments: [{ path: 'attachment:u5-1', name: 'report.pdf', kind: 'file', size: 2048 }],
+      };
+      render(<MessageRow message={message} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Open report.pdf' }));
+
+      expect(screen.getByText('A preview is not available for this file.')).toBeInTheDocument();
+      expect(screen.getByText('2 KB')).toBeInTheDocument();
+      expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    });
+
+    it('shows cached text content for a text-ish attachment', async () => {
+      cacheAttachmentPreviewSource('attachment:u6-1', new File(['{"ok":true}'], 'data.json'));
+      const message: ChatMessage = {
+        id: 'u6',
+        role: 'user',
+        content: 'see attached',
+        attachments: [{ path: 'attachment:u6-1', name: 'data.json', kind: 'file' }],
+      };
+      render(<MessageRow message={message} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Open data.json' }));
+
+      expect(await screen.findByText('{"ok":true}')).toBeInTheDocument();
+    });
+
+    it('closes on the dialog\'s native cancel event (Escape, in a real browser) without leaving it open', async () => {
+      const message: ChatMessage = {
+        id: 'u7',
+        role: 'user',
+        content: 'see attached',
+        attachments: [{ path: 'attachment:u7-1', name: 'notes.txt', kind: 'file' }],
+      };
+      const { container } = render(<MessageRow message={message} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Open notes.txt' }));
+      const dialog = container.querySelector('dialog.jini-attachment-preview-dialog')!;
+      expect(dialog.hasAttribute('open')).toBe(true);
+
+      fireEvent(dialog, new Event('cancel', { cancelable: true }));
+      expect(dialog.hasAttribute('open')).toBe(false);
+    });
+
+    it('closes on a backdrop click but not on a click inside the dialog surface', async () => {
+      const message: ChatMessage = {
+        id: 'u8',
+        role: 'user',
+        content: 'see attached',
+        attachments: [{ path: 'attachment:u8-1', name: 'notes.txt', kind: 'file' }],
+      };
+      const { container } = render(<MessageRow message={message} />);
+      await userEvent.click(screen.getByRole('button', { name: 'Open notes.txt' }));
+      const dialog = container.querySelector('dialog.jini-attachment-preview-dialog')!;
+
+      fireEvent.click(screen.getByText('notes.txt', { selector: '.jini-attachment-preview-name' }));
+      expect(dialog.hasAttribute('open')).toBe(true);
+
+      fireEvent.click(dialog);
+      expect(dialog.hasAttribute('open')).toBe(false);
+    });
   });
 
   it('renders the agent name badge when the message has one', () => {
@@ -284,6 +376,125 @@ describe('MessageRow', () => {
       expect(screen.getByText('still here')).toBeInTheDocument();
       expect(screen.getByRole('alert')).toHaveTextContent('"a2ui" failed to render: malformed data-model path');
       consoleError.mockRestore();
+    });
+  });
+
+  describe('per-message copy button', () => {
+    // jsdom does not implement the Clipboard API, so each test that exercises the primary
+    // (secure-context) path installs its own `navigator.clipboard` stub and removes it afterward
+    // — a real secure-context host is exactly what this stub stands in for.
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      vi.restoreAllMocks();
+    });
+
+    it('copies a user message’s raw content, right-aligned to match the bubble', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      const message: ChatMessage = { id: 'u1', role: 'user', content: 'hello there' };
+      const { container } = render(<MessageRow message={message} />);
+
+      const row = container.querySelector('.jini-message-actions--user');
+      expect(row).toBeInTheDocument();
+      const button = screen.getByRole('button', { name: 'Copy message' });
+      expect(row).toContainElement(button);
+
+      await userEvent.click(button);
+      expect(writeText).toHaveBeenCalledWith('hello there');
+      expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+      expect(screen.getByText('Copied to clipboard')).toBeInTheDocument();
+    });
+
+    it('copies the raw markdown source of an assistant message, not its rendered/flattened text', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      const markdown = 'Here is **bold** and a fence:\n\n```js\nconst x = 1;\n```\n\n| A | B |\n| - | - |\n| 1 | 2 |';
+      const message: ChatMessage = { id: 'a1', role: 'assistant', content: markdown, runStatus: 'succeeded' };
+      render(<MessageRow message={message} runSucceeded />);
+
+      // Sanity check: the DOM only ever holds the rendered/flattened form (a real <strong>, a
+      // <table>, no visible '**' or '|'), so a naive innerText/textContent read of the message
+      // would already have lost the markdown syntax this test asserts survives the copy.
+      expect(screen.getByText('bold', { selector: 'strong' })).toBeInTheDocument();
+      expect(screen.queryByText('**bold**', { exact: false })).not.toBeInTheDocument();
+
+      await userEvent.click(screen.getByRole('button', { name: 'Copy message' }));
+      expect(writeText).toHaveBeenCalledWith(markdown);
+    });
+
+    it('copies the visible text with a stripped <artifact> block excluded, matching what the message actually renders', async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      const content = 'Here:\n<artifact identifier="x" type="text/html" title="X">\n<h1>hi</h1>\n</artifact>\nDone.';
+      const message: ChatMessage = { id: 'a3', role: 'assistant', content, runStatus: 'succeeded' };
+      render(<MessageRow message={message} runSucceeded />);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Copy message' }));
+      const [copied] = writeText.mock.calls[0] as [string];
+      expect(copied).not.toContain('<artifact');
+      expect(copied).toContain('Here:');
+      expect(copied).toContain('Done.');
+    });
+
+    it('falls back to the execCommand path when the Clipboard API is unavailable (non-secure context)', async () => {
+      const execCommand = vi.fn().mockReturnValue(true);
+      // navigator.clipboard is left undefined by jsdom by default — this stands in for any host
+      // served over plain HTTP, where `navigator.clipboard` does not exist at all.
+      document.execCommand = execCommand;
+      const message: ChatMessage = { id: 'u2', role: 'user', content: 'plain http copy' };
+      render(<MessageRow message={message} />);
+
+      await userEvent.click(screen.getByRole('button', { name: 'Copy message' }));
+      expect(execCommand).toHaveBeenCalledWith('copy');
+      expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+    });
+
+    it('does not render an action row while a message is still pending with no content', () => {
+      const message: ChatMessage = { id: 'a5', role: 'assistant', content: '', runStatus: 'running' };
+      const { container } = render(<MessageRow message={message} runStreaming />);
+      expect(container.querySelector('.jini-message-actions')).not.toBeInTheDocument();
+    });
+
+    it('withholds the copy button while a run is still in progress, even once text has settled and a tool row has already streamed in', () => {
+      // The actual reported symptom: text and a completed tool row are already on screen, but the
+      // run itself (`runStatus`) has not reached a terminal status yet — e.g. a trailing tool call
+      // is still in flight. `isPendingWithNoContent` alone would call this "not pending" (it has
+      // content), so the copy button must not key off that predicate by itself.
+      const message: ChatMessage = {
+        id: 'a12',
+        role: 'assistant',
+        content: "I'll check that.",
+        events: [
+          { kind: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pwd' } },
+          { kind: 'tool_result', toolUseId: 't1', content: '/home', isError: false },
+          { kind: 'tool_use', id: 't2', name: 'Read', input: { file_path: 'x.txt' } },
+        ],
+        runStatus: 'running',
+      };
+      const { container } = render(<MessageRow message={message} runStreaming />);
+      expect(screen.getByText("I'll check that.")).toBeInTheDocument();
+      expect(screen.getByText('Bash')).toBeInTheDocument();
+      expect(container.querySelector('.jini-message-actions')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Copy message' })).not.toBeInTheDocument();
+    });
+
+    it('shows the copy button once a run completes normally', () => {
+      const message: ChatMessage = { id: 'a13', role: 'assistant', content: 'All done.', runStatus: 'succeeded' };
+      render(<MessageRow message={message} runSucceeded />);
+      expect(screen.getByRole('button', { name: 'Copy message' })).toBeInTheDocument();
+    });
+
+    it('shows the copy button once a run ends in an error, so the partial output stays copyable', () => {
+      const message: ChatMessage = { id: 'a14', role: 'assistant', content: 'partial output', runStatus: 'failed' };
+      render(<MessageRow message={message} />);
+      expect(screen.getByText('This turn failed.')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Copy message' })).toBeInTheDocument();
+    });
+
+    it('shows the copy button once a run is cancelled/stopped', () => {
+      const message: ChatMessage = { id: 'a15', role: 'assistant', content: 'stopped early', runStatus: 'canceled' };
+      render(<MessageRow message={message} />);
+      expect(screen.getByRole('button', { name: 'Copy message' })).toBeInTheDocument();
     });
   });
 });

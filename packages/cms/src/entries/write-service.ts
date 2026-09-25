@@ -38,10 +38,24 @@ import type { ActorIdentityInput, EntryRecord, OwningContentType, Result } from 
  * only its read-only `OwningContentType` type shape.
  */
 
+/**
+ * `entityType`/`entityId` are threaded through so `createEntry`/`resolveExistingEntryForTransition`
+ * below can pass `entityType: "entry"` to `deps.authorize()` — matching every fronting HTTP route's
+ * own `entityType: "entry"` pre-check exactly. Before this, this chokepoint's calls omitted
+ * `entityType` entirely, so `identity/authorize.ts`'s evaluator (`resourceType != null &&
+ * resourceType !== context.entityType` never matches a missing `entityType`) denied a principal
+ * holding ONLY an entry-scoped grant with `resource_scope_mismatch`, even though the route's own
+ * pre-check — and any owner/unscoped grant — allowed the identical request. This chokepoint is also
+ * the ONLY authorization check the agent-tool surface ever reaches (see `agent-tools.ts`'s header:
+ * tools call these functions directly, never through an HTTP route), so it must be at least as
+ * expressive as the route, not merely consistent with it.
+ */
 export type AuthorizeFn = (params: {
   principalId: string;
   permission: string;
   workspaceId: string;
+  entityType?: string | undefined;
+  entityId?: string | undefined;
 }) => Promise<{ allowed: boolean; reason: string }>;
 
 export interface EntryRevisionInput {
@@ -126,7 +140,7 @@ export interface CreateEntryRequired {
 export async function createEntry(required: CreateEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId });
+  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId, entityType: "entry" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError(`principal '${input.actorId}' cannot create an entry (${authResult.reason})`) };
   }
@@ -209,7 +223,7 @@ async function resolveExistingEntryForTransition(
   deps: ExistingEntryTransitionDeps,
   input: { workspaceId: string; actorId: string; id: string; expectedVersion: number }
 ): Promise<Result<{ entry: EntryRecord; contentType: OwningContentType | null }, Error>> {
-  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId });
+  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId, entityType: "entry" });
   if (!authResult.allowed) {
     return { ok: false, error: new ForbiddenError(`principal '${input.actorId}' cannot modify entry '${input.id}' (${authResult.reason})`) };
   }

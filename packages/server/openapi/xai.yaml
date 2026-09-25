@@ -1,0 +1,179 @@
+openapi: 3.0.3
+info:
+  title: Jini daemon xAI OAuth + search routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for `xai.ts`'s six routes in `@jini-ai/http-kit` — a
+    loopback-redirect OAuth+PKCE dance against xAI (reusing
+    `@jini-ai/agent-runtime`'s generic OAuth+PKCE machinery, not a bespoke
+    stack) plus one `x_search` Responses-API proxy route gated on having a
+    connected account.
+
+    **The loopback callback port is a singleton.** xAI's PoC `client_id` has
+    its `redirect_uri` locked server-side to `http://127.0.0.1:56121/callback`
+    — only one OAuth dance can be in flight at a time across the whole
+    process, regardless of how many callers hit `oauth/start`. This is
+    process-wide shared state, not per-request — worth flagging to any caller
+    assuming HTTP-request isolation. Concurrent `oauth/start` calls are
+    serialized, not parallelized: the first to be processed claims the
+    listener slot and succeeds; any call arriving while that slot is still
+    claimed (a listener from a prior `start` is bound/waiting) gets a `409
+    OAUTH_FLOW_IN_PROGRESS` instead of silently stopping the existing listener
+    and invalidating the first caller's already-returned `authorizeUrl`. The
+    caller must finish the in-flight flow (`oauth/complete`) or explicitly
+    cancel it (`POST /api/xai/oauth/cancel`) before a new `start` can succeed.
+
+    **Two deliberate, confirmed-live divergences from the reference daemon's
+    exact wire shape, kept as-is:**
+    1. `GET /api/xai/auth/status` when disconnected always returns all three
+       of `expiresAt`/`scope`/`savedAt`, set to `null` — the reference
+       omitted them entirely when disconnected. A stable typed envelope was
+       chosen over matching the old omit-when-absent shape.
+    2. The "state not found or expired"/"state mismatch" `400` message text
+       reads `xai OAuth state ...` (lowercase `xai`, from the generic,
+       shared-across-providers PKCE module) rather than the reference's
+       hardcoded `xAI OAuth state ...` (mixed-case). Purely cosmetic —
+       same `BAD_REQUEST` classification either way.
+
+    **Dropped entitlement gate.** No "does this account actually have an xAI
+    subscription that can call `x_search`" pre-flight check exists — this
+    route only verifies "is an account connected" (`503 NOT_CONFIGURED` if
+    not). An account connected but not entitled gets xAI's own real error from
+    `/responses`, surfaced through the generic `500` path like any other
+    upstream failure.
+
+    **`state`/`code`/`query` are trimmed server-side before use** (not just
+    parsed) — confirmed live that a padded, whitespace-wrapped `state` value
+    still matches the pending-auth cache's stored (untrimmed-at-storage-time)
+    key. `fromDate`/`toDate`/`model` on the search route deliberately do NOT
+    get this trimming.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/xai/oauth/start:
+    post:
+      operationId: start_xai_oauth
+      summary: Begin the xAI OAuth+PKCE dance
+      description: Claims the singleton loopback listener slot. Rejects with `409 OAUTH_FLOW_IN_PROGRESS` if a prior `start`'s listener is still bound/waiting instead of silently stopping it — see fragment description on serialization.
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Authorization URL and PKCE state issued; loopback listener is now armed., content: { application/json: { schema: { $ref: '#/components/schemas/XaiOauthStartResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { description: 'An xAI OAuth flow is already in progress (a listener from a prior `start` is still bound/waiting). Complete it via `oauth/complete`, or cancel it via `POST /api/xai/oauth/cancel`, before starting a new one.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { description: 'Loopback listener failed to bind, or PKCE setup failed. Adapter-generated errors include a correlation requestId in error.details.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/xai/oauth/complete:
+    post:
+      operationId: complete_xai_oauth
+      summary: Complete the dance via a manually pasted-back state/code
+      description: The primary completion path, per xAI's own UX — the loopback redirect commonly shows the user a code to paste rather than following the redirect automatically. On success, also stops any still-listening loopback listener.
+      x-jini-require-same-origin: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/XaiOauthCompleteRequest' } } }
+      responses:
+        '200': { description: Token exchanged and persisted., content: { application/json: { schema: { $ref: '#/components/schemas/XaiOkResponse' } } } }
+        '400': { description: 'Body failed validation, OR the PKCE state was not found/expired/mismatched — a legitimate client-correctable error surfaced verbatim rather than redacted (see fragment/module notes on the SEC-005 carve-out).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { description: 'Token exchange failed for a reason other than PKCE state validation (e.g. upstream network/response failure). Adapter-generated errors include a correlation requestId in error.details; upstream error text is redacted of secrets before being logged (SEC-005).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  /api/xai/oauth/cancel:
+    post:
+      operationId: cancel_xai_oauth
+      summary: Stop the in-flight loopback listener without touching a stored token
+      description: Cancel is non-destructive by design — it only stops listening for the callback; a user canceling mid-reconnect keeps their existing grant. Use `oauth/disconnect` to revoke.
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Listener stopped (or was already idle)., content: { application/json: { schema: { $ref: '#/components/schemas/XaiOkResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /api/xai/auth/status:
+    get:
+      operationId: get_xai_auth_status
+      summary: Read connection status
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: 'Connection status. `expiresAt`/`scope`/`savedAt` are always present, `null` when disconnected — see fragment description''s divergence note 1.', content: { application/json: { schema: { $ref: '#/components/schemas/XaiAuthStatusResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/xai/oauth/disconnect:
+    post:
+      operationId: disconnect_xai_oauth
+      summary: Stop any in-flight listener and delete the stored token
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Disconnected., content: { application/json: { schema: { $ref: '#/components/schemas/XaiOkResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/xai/search:
+    post:
+      operationId: search_xai
+      summary: Run an x_search query via xAI's Responses API
+      description: Requires a connected xAI OAuth account (`oauth/start` first). No entitlement pre-check — see fragment description's "Dropped entitlement gate" note. One 30s deadline covers the request and the response-body read.
+      x-jini-require-same-origin: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/XaiSearchRequest' } } }
+      responses:
+        '200': { description: Extracted answer text and URL citations., content: { application/json: { schema: { $ref: '#/components/schemas/XaiSearchResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { description: 'Credential resolution threw, or the upstream x_search call failed/timed out. Adapter-generated errors include a correlation requestId in error.details; the bearer token is redacted from any logged error text (SEC-005).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '503': { description: No xAI account is connected. A clean, expected state — never an internal error., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+components:
+  securitySchemes:
+    optionalBearer:
+      type: http
+      scheme: bearer
+      description: When the host enables `JINI_API_TOKEN`, the global `/api` middleware requires this token except for health/ready/version probes and permitted direct loopback peers.
+  responses:
+    BadRequest: { description: Body failed field validation., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin guard rejected the request., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; adapter-generated errors include a correlation requestId in error.details., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    XaiOauthStartResponse:
+      type: object
+      required: [authorizeUrl, state, callback]
+      properties:
+        authorizeUrl: { type: string }
+        state: { type: string }
+        callback: { type: object, required: [host, port], properties: { host: { type: string }, port: { type: number } } }
+    XaiOauthCompleteRequest:
+      type: object
+      required: [state, code]
+      properties:
+        state: { type: string, minLength: 1, description: Trimmed server-side before matching. }
+        code: { type: string, minLength: 1, description: Trimmed server-side before use. }
+    XaiOkResponse: { type: object, required: [ok], properties: { ok: { type: boolean, enum: [true] } } }
+    XaiAuthStatusResponse:
+      type: object
+      required: [connected, expiresAt, scope, savedAt, listening]
+      properties:
+        connected: { type: boolean }
+        expiresAt: { type: number, nullable: true, description: Epoch milliseconds. }
+        scope: { type: string, nullable: true }
+        savedAt: { type: number, nullable: true, description: Epoch milliseconds. }
+        listening: { type: boolean, description: Whether a loopback OAuth listener is currently armed. }
+    XaiSearchRequest:
+      type: object
+      required: [query]
+      description: 'camelCase request surface; converted to xAI''s real snake_case wire fields (`allowed_x_handles`, etc.) only when building the upstream call.'
+      properties:
+        query: { type: string, minLength: 1, description: Trimmed server-side. }
+        allowedXHandles: { type: array, items: { type: string } }
+        excludedXHandles: { type: array, items: { type: string } }
+        fromDate: { type: string, description: Not trimmed server-side. }
+        toDate: { type: string, description: Not trimmed server-side. }
+        enableImageUnderstanding: { type: boolean }
+        enableVideoUnderstanding: { type: boolean }
+        model: { type: string, description: 'Defaults to xAI''s grok-4.20-reasoning when omitted. Not trimmed server-side.' }
+    XaiSearchResponse:
+      type: object
+      required: [answer, citations, model]
+      properties:
+        answer: { type: string }
+        citations: { type: array, items: { type: string }, description: Deduplicated URL citations extracted from the Responses-API output annotations. }
+        model: { type: string }

@@ -1,0 +1,366 @@
+openapi: 3.0.3
+info:
+  title: Jini memory HTTP routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for the memory/notes registrar in `@jini-ai/http-kit`
+    (`memory.ts`) — a generic frontmatter-backed note store, an extraction-attempt
+    log, and a verify-outcome log, plus a multiplexed SSE change feed. Ported
+    from Open Design's `apps/daemon/src/routes/memory.ts`; several OD routes are
+    deliberately NOT ported (see "Not implemented" below).
+
+    ARCHITECTURE DRIFT WORTH KNOWING: this module deliberately does NOT depend
+    on `@jini-ai/memory`, even though that package exists in-repo and its
+    `createNoteStore`/`createExtractionLog`/`createVerifyLog` collaborators
+    structurally match every type below field-for-field. `@jini-ai/memory` is
+    listed with `"lockedPackagesMayImport": false` in this repo's root
+    `UNLOCKED.md`, and `@jini-ai/http-kit` is one of the locked packages
+    `scripts/check-engine-boundaries.ts` enforces against it — importing it
+    directly would fail `pnpm guard`'s R7 check. A real `@jini-ai/memory`
+    instance satisfies these local structural-mirror types with zero adapter
+    code today; this is a build-boundary constraint, not an API contract gap.
+
+    Not implemented (OD-PRODUCT or missing-primitive; not present on this daemon):
+    `POST /api/memory/rules/suggest`, `POST /api/memory/connectors/suggest`,
+    `POST /api/memory/connectors/extract`, `POST /api/memory/extract`,
+    `GET /api/memory/system-prompt`. Also absent: the four extra
+    `MemoryConfigPatch` toggles (`chatExtractionEnabled`/`profileEnabled`/
+    `rewriteEnabled`/`verifyEnabled`) and the whole `extraction` LLM-provider
+    config sub-object — `@jini-ai/memory`'s `NoteStoreOptions` only has
+    `{enabled: boolean}`, a real capability gap in the underlying store, not a
+    route-level scoping choice.
+
+    ROUTE ORDERING MATTERS: static sub-resource paths (`/tree`, `/index`,
+    `/config`, `/events`, `/extractions`, `/verifications`) are registered
+    BEFORE the `/api/memory/:id` catch-all routes, so a slug like `index` or
+    `config` can never be shadowed by the `:id` param route — Express matches
+    in registration order, and this fragment lists them in that same order.
+
+    STREAMING NOTE: `GET /api/memory/events` is Server-Sent Events, built on
+    this package's shared `sse.ts` `createSseChannel` primitive (same one
+    `terminals.ts`/`model-proxy.ts` use). That primitive's `data:` SSE field is
+    the JSON-stringified *entire* wrapped frame — `{opaqueCursor, kind, data}`
+    — not just the payload; `opaqueCursor`/`kind` are also duplicated verbatim
+    into the frame's own `id:`/`event:` SSE fields. See `SseFrame` below. No
+    `Last-Event-ID`/reconnect replay is supported on this stream — none of the
+    three underlying `EventEmitter`s (`notes.events`, `extractions.events`,
+    `verifications.events`) buffer history for reconnect, so this is a live
+    tail only.
+
+    SECURITY: `GET /api/memory/events` is registered directly via `app.get`
+    (bypassing `mountJsonRoute`), the same as `frontend-sessions.ts`'s stream
+    route, so it does not get `requireSameOrigin` for free the way every JSON
+    route in this fragment does. Fixed 2026-08-23: the same `guardSameOrigin`
+    check `mountJsonRoute` applies is now called directly at the top of the
+    handler, before the SSE channel opens — a cross-origin request gets a
+    `403` JSON error and never subscribes to the underlying emitters. See
+    `packages/http-kit/src/__tests__/memory.test.ts` for the same-origin/
+    cross-origin regression coverage.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/memory:
+    get:
+      operationId: get_memory_overview
+      summary: Read the memory config, raw index text, and entry summaries
+      responses:
+        '200': { description: Overview, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryOverviewResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: create_memory_entry
+      summary: Create a memory entry
+      x-jini-require-same-origin: true
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemoryEntryInput' } } }
+      responses:
+        '201': { description: Entry created, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryEntryResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/tree:
+    get:
+      operationId: get_memory_tree
+      summary: Read the memory entries as a folder/entry tree
+      responses:
+        '200': { description: Tree, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryTreeResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/tree/{id}:
+    patch:
+      operationId: update_memory_tree_node
+      summary: Patch one tree node's name/description/type/body
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/MemoryId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemoryTreeNodePatch' } } }
+      responses:
+        '200': { description: Updated entry and refreshed tree, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryUpdateTreeNodeResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: 'note not found (the one store error message mapped to 404; every other store error on this route maps to 400)', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/index:
+    put:
+      operationId: write_memory_index
+      summary: Overwrite the raw memory index document
+      x-jini-require-same-origin: true
+      description: |
+        `index` must be present and a string — it is never defaulted. Coercing
+        a missing/malformed field to `''` would let a typo'd body (`{notes:
+        "…"}`) or a serialization accident silently wipe the entire index with
+        a 200. Clearing the index is still supported, just has to be requested
+        explicitly with `{"index": ""}`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [index], properties: { index: { type: string } } } } }
+      responses:
+        '200': { description: Index written, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryIndexResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/config:
+    patch:
+      operationId: update_memory_config
+      summary: Patch the memory store config
+      x-jini-require-same-origin: true
+      description: Only `enabled` is a recognized field today — see the module-level note on the missing `NoteStoreOptions` toggles.
+      requestBody:
+        required: false
+        content: { application/json: { schema: { type: object, properties: { enabled: { type: boolean } } } } }
+      responses:
+        '200': { description: Updated config, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryConfigResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/events:
+    get:
+      operationId: stream_memory_events
+      summary: Stream a multiplexed change/extraction/verify feed as SSE
+      x-jini-require-same-origin: true
+      description: |
+        STREAMING (Server-Sent Events). One connection multiplexing three
+        channels, matching OD's own rationale ("so the browser opens one
+        connection instead of two/three"): `connected` (once, immediately on
+        open), `change` (relayed from the note store's `change` event),
+        `extraction` (relayed from the extraction log's underlying `attempt`
+        event, re-emitted here under the `extraction` kind), and `verify`
+        (relayed from the verify log's `verify` event). See the module-level
+        note for the exact `data:` frame shape and the lack of reconnect
+        replay.
+      responses:
+        '200':
+          description: text/event-stream of SseFrame objects (kind one of connected/change/extraction/verify).
+          content:
+            text/event-stream:
+              schema: { $ref: '#/components/schemas/SseFrame' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/extractions:
+    get:
+      operationId: list_memory_extractions
+      summary: List extraction-attempt history
+      responses:
+        '200': { description: Extraction history, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryExtractionsResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: clear_memory_extractions
+      summary: Clear all extraction-attempt history
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Number removed, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryRemovedResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/extractions/{id}:
+    delete:
+      operationId: remove_memory_extraction
+      summary: Remove one extraction-attempt history entry
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/MemoryId' } ]
+      responses:
+        '200': { description: Number removed (0 or 1), content: { application/json: { schema: { $ref: '#/components/schemas/MemoryRemovedResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/verifications:
+    get:
+      operationId: list_memory_verifications
+      summary: List verify-outcome history
+      responses:
+        '200': { description: Verification history, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryVerificationsResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: clear_memory_verifications
+      summary: Clear all verify-outcome history
+      x-jini-require-same-origin: true
+      responses:
+        '200': { description: Number removed, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryRemovedResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/verifications/{id}:
+    delete:
+      operationId: remove_memory_verification
+      summary: Remove one verify-outcome history entry
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/MemoryId' } ]
+      responses:
+        '200': { description: Number removed (0 or 1), content: { application/json: { schema: { $ref: '#/components/schemas/MemoryRemovedResponse' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /api/memory/{id}:
+    get:
+      operationId: get_memory_entry
+      summary: Read one memory entry
+      parameters: [ { $ref: '#/components/parameters/MemoryId' } ]
+      responses:
+        '200': { description: Entry, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryEntryResponse' } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    put:
+      operationId: update_memory_entry
+      summary: Upsert a memory entry at a known id
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/MemoryId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/MemoryEntryInput' } } }
+      responses:
+        '200': { description: Entry written, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryEntryResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    delete:
+      operationId: delete_memory_entry
+      summary: Delete a memory entry
+      x-jini-require-same-origin: true
+      parameters: [ { $ref: '#/components/parameters/MemoryId' } ]
+      responses:
+        '200': { description: Deleted, content: { application/json: { schema: { $ref: '#/components/schemas/MemoryDeleteEntryResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+components:
+  parameters:
+    MemoryId: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+  responses:
+    BadRequest: { description: Invalid request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    Forbidden: { description: Same-origin policy rejected the request, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    NotFound: { description: Resource not found, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+    InternalError: { description: Internal error; adapter-generated errors include a correlation requestId in error.details, content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    SseFrame:
+      type: object
+      description: |
+        The JSON body of the `data:` SSE field for this stream, as written by
+        the shared `createSseChannel` primitive: the whole wrapped frame, not
+        just the payload. `opaqueCursor` and `kind` are also duplicated
+        verbatim into the frame's own `id:`/`event:` SSE fields.
+      required: [opaqueCursor, kind]
+      properties:
+        opaqueCursor: { type: string, description: "Sequence number as a string; also sent as the frame's id: field." }
+        kind: { type: string, enum: [connected, change, extraction, verify], description: "Also sent as the frame's event: field." }
+        data:
+          description: 'connected: {at: epoch-ms}. change/extraction/verify: the raw relayed EventEmitter payload, shape owned by @jini-ai/memory''s NoteStore/ExtractionLog/VerifyLog collaborators, not redefined here.'
+    MemoryNoteEntrySummary:
+      type: object
+      required: [id, name, description, type, updatedAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        description: { type: string }
+        type: { type: string }
+        updatedAt: { type: number }
+    MemoryNoteEntry:
+      allOf:
+        - { $ref: '#/components/schemas/MemoryNoteEntrySummary' }
+        - type: object
+          required: [body]
+          properties: { body: { type: string } }
+    MemoryTreeNode:
+      type: object
+      required: [id, parentId, path, name, description, kind, type, createdAt, updatedAt, childrenCount]
+      properties:
+        id: { type: string }
+        parentId: { type: string, nullable: true }
+        path: { type: string }
+        name: { type: string }
+        description: { type: string }
+        kind: { type: string, enum: [folder, entry] }
+        type: { type: string }
+        createdAt: { type: string }
+        updatedAt: { type: string }
+        childrenCount: { type: integer }
+    MemoryOverviewResponse:
+      type: object
+      required: [enabled, rootDir, index, entries]
+      properties:
+        enabled: { type: boolean }
+        rootDir: { type: string }
+        index: { type: string }
+        entries: { type: array, items: { $ref: '#/components/schemas/MemoryNoteEntrySummary' } }
+    MemoryTreeResponse:
+      type: object
+      required: [enabled, rootDir, tree]
+      properties:
+        enabled: { type: boolean }
+        rootDir: { type: string }
+        tree: { type: array, items: { $ref: '#/components/schemas/MemoryTreeNode' } }
+    MemoryTreeNodePatch:
+      type: object
+      description: All fields optional; only string values are accepted for any provided field.
+      properties:
+        name: { type: string }
+        description: { type: string }
+        type: { type: string }
+        body: { type: string }
+    MemoryUpdateTreeNodeResponse:
+      type: object
+      required: [entry, tree]
+      properties:
+        entry: { $ref: '#/components/schemas/MemoryNoteEntry' }
+        tree: { type: array, items: { $ref: '#/components/schemas/MemoryTreeNode' } }
+    MemoryIndexResponse:
+      type: object
+      required: [index]
+      properties: { index: { type: string } }
+    MemoryConfigResponse:
+      type: object
+      required: [enabled]
+      properties: { enabled: { type: boolean } }
+    MemoryExtractionsResponse:
+      type: object
+      required: [extractions]
+      properties: { extractions: { type: array, items: {}, description: Opaque entries; shape owned by @jini-ai/memory's ExtractionLog. } }
+    MemoryVerificationsResponse:
+      type: object
+      required: [verifications]
+      properties: { verifications: { type: array, items: {}, description: Opaque entries; shape owned by @jini-ai/memory's VerifyLog. } }
+    MemoryRemovedResponse:
+      type: object
+      required: [removed]
+      properties: { removed: { type: integer, description: Count actually removed (0 or 1 for a single-id delete, N for a clear-all). } }
+    MemoryEntryInput:
+      type: object
+      required: [name, type]
+      description: |
+        Used for both create (POST /api/memory, no id in the body — the parser
+        never reads one) and update (PUT /api/memory/{id}, id comes from the
+        path, not the body).
+      properties:
+        name: { type: string, minLength: 1 }
+        type: { type: string, minLength: 1 }
+        description: { type: string }
+        body: { type: string }
+    MemoryEntryResponse:
+      type: object
+      required: [entry]
+      properties: { entry: { $ref: '#/components/schemas/MemoryNoteEntry' } }
+    MemoryDeleteEntryResponse:
+      type: object
+      required: [ok]
+      properties: { ok: { type: boolean, enum: [true] } }

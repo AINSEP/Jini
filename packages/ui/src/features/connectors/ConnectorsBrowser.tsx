@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
+import { agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../i18n/index.js';
 import {
   AUTHORIZATION_CANCEL_FAILED_MESSAGE,
@@ -41,6 +42,13 @@ export interface ConnectorsBrowserProps {
   useConnectorCatalog?: typeof useConnectorCatalog;
   useConnectorAuthorization?: typeof useConnectorAuthorization;
   useConnectorDetail?: typeof useConnectorDetail;
+  /**
+   * This browser's own agent handle, published by the host. The provider tab bar, the search bar,
+   * every connector card, and the detail drawer all derive their own `data-agent-*` handle from
+   * this ONE base via `agentSubHandle`/`agentHandleProps`. Omit and no `data-agent-*` markup is
+   * emitted anywhere — additive, never a behavior change.
+   */
+  agentHandle?: string;
 }
 
 /**
@@ -64,6 +72,7 @@ export function ConnectorsBrowser({
   useConnectorCatalog: useConnectorCatalogHook = useConnectorCatalog,
   useConnectorAuthorization: useConnectorAuthorizationHook = useConnectorAuthorization,
   useConnectorDetail: useConnectorDetailHook = useConnectorDetail,
+  agentHandle,
 }: ConnectorsBrowserProps) {
   const t = useT();
   const [filter, setFilter] = useState('');
@@ -137,12 +146,14 @@ export function ConnectorsBrowser({
             tabs={providerTabs}
             selectedId={selectedProvider}
             onSelect={handleProviderTabSelect}
+            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'provider') } : {})}
           />
           <ConnectorSearchBar
             value={filter}
             onChange={setFilter}
             disabled={!unlocked}
             onFocus={() => onProviderTabClick?.('search_connectors')}
+            {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'search') } : {})}
           />
         </div>
       </div>
@@ -169,6 +180,7 @@ export function ConnectorsBrowser({
           {...(getCategoryLabel ? { getCategoryLabel } : {})}
           onClearSearch={() => setFilter('')}
           {...(gate ? { gate: { ...gate, onClick: handleGateClick } } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'connector') } : {})}
         />
       )}
 
@@ -194,6 +206,7 @@ export function ConnectorsBrowser({
           onOpenExternalUrl={(url) => void deps.data.openExternalUrl(url)}
           {...(getCategoryLabel ? { getCategoryLabel } : {})}
           {...(getDisplayableAccountLabel ? { getDisplayableAccountLabel } : {})}
+          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'detail') } : {})}
         />
       ) : null}
     </div>

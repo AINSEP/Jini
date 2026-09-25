@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -34,6 +36,23 @@ function baseProps(overrides: Partial<ComponentProps<typeof SourceConfigItemCard
     onUpdate: vi.fn(),
     ...overrides,
   };
+}
+
+/**
+ * The shipped stylesheet, read from source — same technique as
+ * `ByokProviderForm.layout.test.tsx`'s own `CSS`/`ruleBody`. Needed because the Edit/Save/Cancel
+ * text-color regression below is a CSS-cascade defect: jsdom renders the real "Save"/"Cancel" text
+ * nodes regardless (an RTL `getByRole('button', { name: 'Save' })` query is accessible-name-based
+ * and passes whether or not the text is visible), so the only way to catch a MISSING `color`
+ * declaration is to read the rule itself, not the rendered DOM.
+ */
+const CSS = readFileSync(resolve('src/features/settings/dialog/styles/settings-dialog.css'), 'utf8');
+
+/** The declarations of one CSS rule, by selector. */
+function ruleBody(selector: string): string {
+  const at = CSS.indexOf(`${selector} {`);
+  expect(at, `no rule for ${selector} in settings-dialog.css`).toBeGreaterThan(-1);
+  return CSS.slice(at, CSS.indexOf('}', at));
 }
 
 describe('SourceConfigItemCard', () => {
@@ -330,6 +349,18 @@ describe('SourceConfigItemCard', () => {
 
       expect(onUpdate).toHaveBeenCalledWith({ label: '', fields: { url: 'https://b.example' } });
       expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
+    });
+
+    it('declares an explicit text color on the Edit/Save/Cancel toggle buttons, so a host page that resets bare <button> color to its own accent-ink cannot render them invisible', () => {
+      // Regression: `.source-config-item-card-edit-toggle button` shipped with no `color` at all,
+      // unlike its sibling rules (`.source-config-item-card-actions button, select` and
+      // `.source-config-test-button`, both of which set `color: var(--jini-text)`). A host's own admin
+      // design system has a global `button { ...; color: var(--primary-ink); }` base rule (an
+      // off-white ink meant to sit on that rule's own colored `background`) that is MORE specific
+      // than nothing, so it kept applying color even after this rule's `background` override took —
+      // making Edit/Save/Cancel render as blank pills (off-white text on the light panel background)
+      // while every other field on the same card, which DOES set its own color, rendered fine.
+      expect(ruleBody('.source-config-item-card-edit-toggle button')).toMatch(/color:\s*var\(--jini-text\)/);
     });
 
     it('disables Save/Cancel while updating', async () => {

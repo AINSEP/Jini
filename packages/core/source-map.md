@@ -18,12 +18,14 @@ from-scratch implementation of the typed composition contract specified in
 | `src/compose.typecheck.ts` | Compile-time proof: an under-bound `createDaemon` call is expected to fail typecheck (`@ts-expect-error`); if the gate regresses, the unused directive itself fails `pnpm typecheck`. |
 
 Not yet implemented (later tasks per extraction-plan §8): kernel service tokens themselves
-(`RunLifecycle`, `EventLog`/`EventSink`, `AgentExecutor`, `ToolRegistry`/`ToolExecutor`,
-`ProviderRegistry`, `Principal`/`Authorizer` — task 5/6/7), `@jini/node-host`'s zero-interface
+(`RunLifecycle`, `EventLog`/`EventSink`, `AgentExecutor`, `ToolExecutor`,
+`ProviderRegistry` — task 5/7), `@jini/node-host`'s zero-interface
 preset (task 9), and the startup diagnostics wording in §8 task 3 beyond what's here (today's
 diagnostics are thrown `Error`s with legible messages; a structured startup report — e.g. all
 violations collected before exit rather than fail-fast on the first — is a reasonable
-follow-up once a real host has more than one or two packs to compose).
+follow-up once a real host has more than one or two packs to compose). `ToolRegistry` and
+`Principal`/`Authorizer` (task 6) landed in the "Part 3" section below — both are exported
+from `src/index.ts` (`createToolRegistry`, `principal.js`) and are no longer pending.
 
 ## Flat daemon primitives (2026-07-18, port continuation task — Part 2)
 

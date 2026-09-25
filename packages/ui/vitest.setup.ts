@@ -97,6 +97,50 @@ if (typeof HTMLCanvasElement !== 'undefined') {
   };
 }
 
+// jsdom implements zero layout (no `ResizeObserver`, and every element reports 0 for
+// `offsetWidth`/`offsetHeight`/`getBoundingClientRect`). Two `interactive-ui` providers need a
+// real size to draw anything: recharts' `ResponsiveContainer` (bar/line/pie charts) measures its
+// parent via `ResizeObserver` before it will render its children at all, and Radix's `Select`
+// positions its popper content off real trigger/viewport geometry. This fake `ResizeObserver`
+// invokes its callback once, synchronously, with the target's `getBoundingClientRect()` — good
+// enough for both, since neither this package's tests nor its production usage need live
+// resize-tracking, just a non-zero initial measurement. Guarded (not a hard override) so a test
+// that installs its own more specific mock via `vi.stubGlobal` still wins.
+if (typeof globalThis !== 'undefined' && typeof globalThis.ResizeObserver === 'undefined') {
+  class FakeResizeObserver {
+    private readonly callback: ResizeObserverCallback;
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+    }
+    observe(target: Element) {
+      const rect = target.getBoundingClientRect();
+      this.callback(
+        [{ target, contentRect: rect } as ResizeObserverEntry],
+        this as unknown as ResizeObserver,
+      );
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = FakeResizeObserver;
+}
+
+// jsdom defines `HTMLElement.prototype.scrollIntoView`/`hasPointerCapture` inconsistently across
+// versions and throws "Not implemented" when Radix's `Select` calls them during open/scroll —
+// stubbed the same way the canvas `getContext` shim above is: real code paths under test, not a
+// feature this package chooses not to exercise.
+if (typeof window !== 'undefined') {
+  if (!window.HTMLElement.prototype.scrollIntoView) {
+    window.HTMLElement.prototype.scrollIntoView = () => {};
+  }
+  if (!window.HTMLElement.prototype.hasPointerCapture) {
+    window.HTMLElement.prototype.hasPointerCapture = () => false;
+  }
+  if (!window.HTMLElement.prototype.releasePointerCapture) {
+    window.HTMLElement.prototype.releasePointerCapture = () => {};
+  }
+}
+
 // jsdom does not implement `window.matchMedia`. Several features call it
 // unconditionally as part of light/dark theme detection (this package's own
 // `renderers/shiki.ts`'s `isDarkMode`, plus `features/sketch-editor`'s

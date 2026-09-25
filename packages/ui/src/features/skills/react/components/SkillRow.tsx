@@ -1,3 +1,4 @@
+import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import {
   formatSkillFileSize,
   humanizeSkillCategory,
@@ -57,6 +58,8 @@ export interface SkillRowProps {
   onCancelEdit: () => void;
   onSubmitEdit: () => void;
   labels?: SkillRowLabels | undefined;
+  /** This row's own agent handle — `SkillsTab` derives one per skill via `buildAgentListHandles`. */
+  agentHandle?: string;
 }
 
 /**
@@ -92,6 +95,7 @@ export function SkillRow({
   onCancelEdit,
   onSubmitEdit,
   labels,
+  agentHandle,
 }: SkillRowProps) {
   const t = useT();
   const name = localizedSkillName(skill, locale) || skill.id;
@@ -127,6 +131,7 @@ export function SkillRow({
           onClick={onToggleExpanded}
           aria-expanded={expanded}
           title={expanded ? collapseLabel : expandLabel}
+          {...agentHandleProps(agentHandle, { action: 'expand', role: 'button', label: name })}
         >
           <Icon name="puzzle" size={14} aria-hidden="true" />
           <span className="jini-skills-row-summary">
@@ -148,10 +153,21 @@ export function SkillRow({
         <div className="jini-skills-row-actions">
           {canDelete && confirmDelete ? (
             <span className="jini-skills-delete-confirm" role="group">
-              <button type="button" className="jini-button jini-button-danger" onClick={onCommitDelete} data-testid="skills-delete-confirm">
+              <button
+                type="button"
+                className="jini-button jini-button-danger"
+                onClick={onCommitDelete}
+                data-testid="skills-delete-confirm"
+                {...agentHandleProps(agentHandle, { action: 'delete-confirm', role: 'button', label: deleteConfirmLabel })}
+              >
                 {deleteConfirmLabel}
               </button>
-              <button type="button" className="jini-button jini-button-ghost" onClick={onCancelDelete}>
+              <button
+                type="button"
+                className="jini-button jini-button-ghost"
+                onClick={onCancelDelete}
+                {...agentHandleProps(agentHandle, { action: 'delete-cancel', role: 'button', label: cancelLabel })}
+              >
                 {cancelLabel}
               </button>
             </span>
@@ -164,6 +180,7 @@ export function SkillRow({
                 aria-label={builtIn ? overrideCreateLabel : editLabel}
                 title={builtIn ? overrideCreateLabel : editLabel}
                 data-testid="skills-edit"
+                {...agentHandleProps(agentHandle, { action: 'edit', role: 'button', label: builtIn ? overrideCreateLabel : editLabel })}
               >
                 <Icon name="edit" size={13} />
               </button>
@@ -175,6 +192,7 @@ export function SkillRow({
                   aria-label={deleteLabel}
                   title={deleteLabel}
                   data-testid="skills-delete"
+                  {...agentHandleProps(agentHandle, { action: 'delete', role: 'button', label: deleteLabel })}
                 >
                   <Icon name="close" size={13} />
                 </button>
@@ -190,7 +208,13 @@ export function SkillRow({
               track+thumb (`input:checked + .toggle-slider`) had no element to
               attach to and could never render regardless of styling. */}
           <label className="toggle-switch toggle-switch-sm jini-skills-row-enable" title={enableToggleLabel}>
-            <input type="checkbox" checked={enabled} onChange={(event) => onToggleEnabled(event.target.checked)} aria-label={enableToggleLabel} />
+            <input
+              type="checkbox"
+              checked={enabled}
+              onChange={(event) => onToggleEnabled(event.target.checked)}
+              aria-label={enableToggleLabel}
+              {...agentHandleProps(agentHandle, { action: 'enabled', role: 'checkbox', label: enableToggleLabel })}
+            />
             <span className="toggle-slider" />
           </label>
         </div>
@@ -200,10 +224,22 @@ export function SkillRow({
         <div className="jini-empty-card jini-empty-card-warning" role="alert" data-testid="skills-edit-builtin-warning">
           <p>{overrideWarning}</p>
           <div className="jini-skills-draft-actions">
-            <button type="button" className="jini-button jini-button-ghost" onClick={onCancelBuiltInEdit} data-testid="skills-edit-builtin-cancel">
+            <button
+              type="button"
+              className="jini-button jini-button-ghost"
+              onClick={onCancelBuiltInEdit}
+              data-testid="skills-edit-builtin-cancel"
+              {...agentHandleProps(agentHandle, { action: 'builtin-edit-cancel', role: 'button', label: cancelLabel })}
+            >
               {cancelLabel}
             </button>
-            <button type="button" className="jini-button jini-button-primary" onClick={onConfirmBuiltInEdit} data-testid="skills-edit-builtin-confirm">
+            <button
+              type="button"
+              className="jini-button jini-button-primary"
+              onClick={onConfirmBuiltInEdit}
+              data-testid="skills-edit-builtin-confirm"
+              {...agentHandleProps(agentHandle, { action: 'builtin-edit-confirm', role: 'button', label: overrideCreateLabel })}
+            >
               {overrideCreateLabel}
             </button>
           </div>
@@ -252,6 +288,7 @@ export function SkillRow({
           onCancel={onCancelEdit}
           onSubmit={onSubmitEdit}
           labels={labels}
+          {...(agentHandle ? { agentHandle: agentSubHandle(agentHandle, 'edit-form') } : {})}
         />
       ) : null}
     </div>

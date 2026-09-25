@@ -46,7 +46,7 @@ export {
 } from './origin-validation.js';
 
 export type { AdapterContext } from './adapter.js';
-export { defineJsonRoute, mountJsonRoute } from './adapter.js';
+export { ClientFacingError, defineJsonRoute, mountJsonRoute } from './adapter.js';
 
 export type { InstallRouteRegistrationGuardOptions, RouteRegistration } from './route-registration-guard.js';
 export {
@@ -119,9 +119,6 @@ export {
   requireStrictBearerToken,
   timingSafeTokenMatch,
 } from './api-security-middleware.js';
-
-export type { RunStreamDeps, RunStreamEncoder, RunStreamInternalErrorContext } from './run-stream.js';
-export { handleRunStreamRequest, registerRunStreamRoute, RUN_STREAM_ROUTE_PATH } from './run-stream.js';
 
 export {
   isLoopbackHostname,
@@ -283,7 +280,12 @@ export type {
   DelegatedToolsHttpDeps,
   DelegatedToolsInternalErrorContext,
 } from './delegated-tools.js';
-export { delegatedToolExecuteRoute, registerDelegatedToolRoutes } from './delegated-tools.js';
+export {
+  delegatedToolExecuteRoute,
+  readOnlyRefusalMessage,
+  READ_ONLY_UNVERIFIABLE_MESSAGE,
+  registerDelegatedToolRoutes,
+} from './delegated-tools.js';
 export type {
   RemoteRunEventHttpDeps,
   RemoteRunEventResponse,
@@ -439,6 +441,7 @@ export type {
   AttachmentUploadResponse,
   CreateDiskAttachmentStoreOptions,
   ObservedAttachmentIdentity,
+  PendingAttachmentSummary,
   RecordedAttachmentIdentity,
   StoredAttachment,
 } from './attachments.js';

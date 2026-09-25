@@ -18,10 +18,9 @@ The manifest declares **no method or path literals** — every entry is derived 
 it. A paired test mounts each declared family's real registrar and asserts the manifest matches, so the
 one remaining failure mode (a family gains a route nobody lists) fails a test instead of a consumer.
 
-That test earned its keep immediately: it found that the `runs` family mounts **two** spec-less
-streaming routes, `/api/runs/:runId/events` and `/api/runs/:runId/agui-stream`, easy to mistake for one
-another and both needed by a proxy. `RUN_EVENTS_ROUTE_PATH` is now exported alongside the existing
-`RUN_STREAM_ROUTE_PATH` so neither has to be restated as a literal.
+That test earned its keep immediately: it found that the `runs` family mounts a spec-less streaming
+route, `/api/runs/:runId/events`, that a hand-copied proxy list could easily miss. `RUN_EVENTS_ROUTE_PATH`
+is now exported so it never has to be restated as a literal.
 
 Scope is honest: the manifest covers the families a sidecar consumer proxies, not all 19 the package can
 mount. `routeFamilyManifest` returns `undefined` for an undeclared family rather than an empty array, so

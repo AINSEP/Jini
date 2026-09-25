@@ -5,7 +5,7 @@
  * agent CLI is authenticated, and text-based classification of a CLI's raw
  * error output into auth/rate-limit/upstream failure classes.
  *
- * Ported from OD's `apps/daemon/src/runtimes/auth/auth.ts` with one
+ * Ported from OD's `apps/daemon/src/runtimes/auth.ts` with one
  * de-branding change: the five guidance-text functions
  * (`cursorAuthGuidance`, `deepseekAuthGuidance`, `antigravityAuthGuidance`,
  * `antigravityQuotaGuidance`, `reasonixAuthGuidance`, `claudeAuthGuidance`)

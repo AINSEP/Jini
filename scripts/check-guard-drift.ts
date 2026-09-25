@@ -33,6 +33,7 @@ import { checkChatPanePublicSurface } from './check-chatpane-public-surface.js';
 import { checkDriverIsolation } from './check-driver-isolation.js';
 import { checkEngineBoundaries, type Violation } from './check-engine-boundaries.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
+import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
 import { runGuardSelfTest } from './lib/self-test.js';
 
@@ -128,6 +129,7 @@ async function main(): Promise<void> {
     await checkChatPanePublicSurface(),
     await checkExtensionlessImports(),
     await checkDriverIsolation(),
+    await checkModelFallbackFreshness(),
   ];
   const current = results.flat();
 

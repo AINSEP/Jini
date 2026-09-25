@@ -282,6 +282,28 @@ describe('sortProvidersByConfigured', () => {
     sortProvidersByConfigured(catalog, { b: { apiKey: 'sk-1' } });
     expect(catalog).toEqual(original);
   });
+
+  it('a pinned id renders first, ahead of the configured/alphabetical grouping', () => {
+    expect(sortProvidersByConfigured(catalog, {}, ['c']).map((p) => p.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('a pinned id stays first even when a different provider is configured', () => {
+    const providers: MediaProviderMap = { b: { apiKey: 'sk-1' } };
+    expect(sortProvidersByConfigured(catalog, providers, ['c']).map((p) => p.id)).toEqual(['c', 'b', 'a']);
+  });
+
+  it('multiple pinned ids render in the order given, before the rest', () => {
+    expect(sortProvidersByConfigured(catalog, {}, ['b', 'c']).map((p) => p.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('a pinned id absent from the catalog is silently skipped, not fabricated', () => {
+    expect(sortProvidersByConfigured(catalog, {}, ['does-not-exist', 'c']).map((p) => p.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('omitting pinnedIds entirely keeps the exact prior configured-first/alphabetical order', () => {
+    const providers: MediaProviderMap = { b: { apiKey: 'sk-1' } };
+    expect(sortProvidersByConfigured(catalog, providers).map((p) => p.id)).toEqual(['b', 'a', 'c']);
+  });
 });
 
 describe('maskedKeyLabel', () => {

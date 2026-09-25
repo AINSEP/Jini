@@ -6,21 +6,26 @@
  *
  * ## Why this needs computing at all
  *
- * A rendered assistant message draws from two different shapes of the same turn.
+ * A rendered assistant message draws from three different shapes of the same turn.
  * `ChatMessage.content` is a single string — `useConversation.ts` builds it by concatenating every
- * `kind: 'text'` event (`out += ev.text`) — while the tool cards come from `ChatMessage.events`,
- * the ordered array. Rendering `content` and then the tool timeline is the straightforward
- * composition, and it is what `MessageRow.tsx` shipped in v1 (its own header records this as a
- * known deferral pending the `AssistantMessage.tsx` extraction).
+ * `kind: 'text'` event (`out += ev.text`) — tool cards come from `ChatMessage.events`'s `tool_use`
+ * entries, and interactive surfaces (MCP-UI, A2UI) come from that same array's `kind: 'ext'`
+ * entries. Rendering `content`, then the tool timeline, then every `ext` group is the
+ * straightforward composition, and it is what `MessageRow.tsx` shipped in v1 (its own header
+ * records this as a known deferral pending the `AssistantMessage.tsx` extraction).
  *
- * The cost is not merely cosmetic ordering. Because the text runs on either side of a tool call get
- * concatenated with nothing between them, a message reads as
+ * The cost is not merely cosmetic ordering. Because the text runs on either side of a tool call (or
+ * an interactive surface) get concatenated with nothing between them, a message reads as
  * `"I'll look for a tool that changes the site language.Done — the language is now English."` —
- * two separate thoughts, from before and after the tool ran, fused mid-sentence. The reader cannot
- * tell which claims preceded the evidence and which followed it.
+ * two separate thoughts, from before and after the tool ran, fused mid-sentence. Worse for an `ext`
+ * surface specifically: a reply narrating what the human just submitted through an MCP-UI form (a
+ * `text` event that only exists BECAUSE the form's `ext` event was answered) renders ABOVE that
+ * form instead of below it — the answer appears to precede the question. The reader cannot tell
+ * which claims preceded the evidence and which followed it.
  *
  * Since `content` is exactly the concatenation of the text events, the split points are recoverable:
- * walk the events in order, and every tool call marks a boundary in that concatenation.
+ * walk the events in order, and every tool call or ext surface marks a boundary in that
+ * concatenation.
  *
  * ## Refuses rather than guesses
  *
@@ -30,7 +35,8 @@
  * so every check below prefers the former.
  *
  * It refuses when:
- * - there are no events, or no tool rows to interleave (nothing to do — the flat path is identical);
+ * - there are no events, or no tool rows AND no ext events to interleave (nothing to do — the flat
+ *   path is identical);
  * - the concatenated text events do not reproduce `content` byte for byte. This is the load-bearing
  *   check. A message persisted before the events schema settled, one rebuilt by a host that
  *   assembles `content` some other way, or any future divergence between the two, all land here;
@@ -44,11 +50,17 @@ import type { AgentEvent } from '../core/index.js';
 /**
  * One rendered block. Consecutive tool cards are coalesced into a single `tools` block so they keep
  * rendering inside one `.jini-message-tools` container, exactly as the flat layout did — a run of
- * back-to-back calls should stay one visual group, not become N separately-boxed ones.
+ * back-to-back calls should stay one visual group, not become N separately-boxed ones. An `ext`
+ * block marks where a `kind: 'ext'` group of a given `name` (an MCP-UI/A2UI surface, or any other
+ * host-registered ext renderer) belongs in reading order — one block per name, at its FIRST
+ * occurrence, since `MessageRow.tsx`'s `useExtEventGroups` already folds every event sharing that
+ * name (however many arrive, however late) into one evolving render slot; this block only fixes
+ * WHERE that slot sits relative to the surrounding text, not what it renders.
  */
 export type MessageBlock<Row> =
   | { readonly kind: 'text'; readonly text: string; readonly key: string }
-  | { readonly kind: 'tools'; readonly rows: readonly Row[]; readonly key: string };
+  | { readonly kind: 'tools'; readonly rows: readonly Row[]; readonly key: string }
+  | { readonly kind: 'ext'; readonly name: string; readonly key: string };
 
 /**
  * Rebuilds an assistant message as ordered blocks, or returns `null` if that cannot be done
@@ -66,7 +78,9 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
   content: string,
   rows: readonly Row[],
 ): MessageBlock<Row>[] | null {
-  if (!events || events.length === 0 || rows.length === 0) return null;
+  if (!events || events.length === 0) return null;
+  const hasExtEvent = events.some((ev) => ev.kind === 'ext');
+  if (rows.length === 0 && !hasExtEvent) return null;
 
   // The reconstruction is only trustworthy if the text events are demonstrably the source `content`
   // was built from. Anything else and the offsets below are fiction.
@@ -79,6 +93,7 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
   const rowById = new Map(rows.map((row) => [row.id, row]));
   const blocks: MessageBlock<Row>[] = [];
   const emitted = new Set<string>();
+  const emittedExtNames = new Set<string>();
   let buffer = '';
 
   const flushText = (): void => {
@@ -90,6 +105,15 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
   for (const ev of events) {
     if (ev.kind === 'text') {
       buffer += ev.text;
+      continue;
+    }
+    if (ev.kind === 'ext') {
+      // One block per name, at its FIRST occurrence — later events sharing the name fold into the
+      // SAME render slot (`useExtEventGroups`'s job in `MessageRow.tsx`), not a second block.
+      if (emittedExtNames.has(ev.name)) continue;
+      emittedExtNames.add(ev.name);
+      flushText();
+      blocks.push({ kind: 'ext', name: ev.name, key: `ext-${ev.name}` });
       continue;
     }
     if (ev.kind !== 'tool_use') continue;

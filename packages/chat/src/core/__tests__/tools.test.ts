@@ -47,6 +47,22 @@ describe('tools: deriveToolStatus / toRenderProps', () => {
       isError: false,
     });
   });
+
+  it('toRenderProps carries the result\'s media blocks through untouched', () => {
+    const result: Extract<AgentEvent, { kind: 'tool_result' }> = {
+      kind: 'tool_result',
+      toolUseId: 't1',
+      content: 'ok',
+      isError: false,
+      media: [{ type: 'image', mimeType: 'image/png', data: 'AAAA' }],
+    };
+    expect(toRenderProps(use, result, false, true).media).toEqual([{ type: 'image', mimeType: 'image/png', data: 'AAAA' }]);
+  });
+
+  it('toRenderProps.media is undefined (not []) for a result with none', () => {
+    const result: Extract<AgentEvent, { kind: 'tool_result' }> = { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false };
+    expect(toRenderProps(use, result, false, true).media).toBeUndefined();
+  });
 });
 
 describe('tools: dedupeToolUsesById', () => {

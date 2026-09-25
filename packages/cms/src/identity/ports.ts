@@ -84,6 +84,12 @@ export interface PolicyPermissionRepoPort {
    * `policy_permissions` rows only (never a different policy's rows, state.spec §3's `DELETE_POLICY`
    * row). */
   deleteByPolicyId(required: { workspaceId: UUID; policyId: UUID }): Promise<void>;
+  /** OQ-10 — removes ONE permission row by its own id, the inverse of `save`. Deliberately keyed by
+   * `id` alone (plus the workspace scope every port call carries): `removePolicyPermission` proves
+   * the row belongs to the named policy via `listByPolicyId` BEFORE calling this, so a
+   * policy-scoped delete signature here would only duplicate a check the caller has already done
+   * against rows it is holding. */
+  delete(required: { workspaceId: UUID; id: UUID }): Promise<void>;
 }
 
 export interface RolePolicyRepoPort {

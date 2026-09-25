@@ -64,4 +64,15 @@ export const qoderAgentDef = {
     // native CLI mechanism, not a workaround. See
     // `types.ts#RuntimeAgentDef.imageDelivery`'s doc.
     imageDelivery: 'native',
+    // No `externalMcpInjection`: Qoder CLI does support native MCP — `qoder
+    // mcp add -s project` writes to `${project}/.mcp.json`, the same filename
+    // Claude Code reads — but only via that CLI-mutation subcommand; no
+    // explicit `--mcp-config <path>` flag or env-content surface was found,
+    // so `buildArgs` above has nothing to point at a run-scoped file with.
+    // Wiring this as `'claude-mcp-json'` would be wrong: that strategy relies
+    // on an explicit per-spawn flag (see `buildClaudeMcpConfigArgs`'s doc),
+    // and Qoder's only path writes into the *project's real* `.mcp.json` via
+    // a stateful CLI call, not this run's isolated one. Promising follow-up
+    // once auto-discovery's headless trust-prompt behavior is verified live
+    // for this CLI specifically.
 } satisfies RuntimeAgentDef;

@@ -9,6 +9,7 @@ export type {
   ChatPaneAgentSelection,
   ChatPaneAgentToolAction,
   ChatPaneAttachmentUploadOptions,
+  ChatPaneComposerHandle,
   ChatPaneProps,
   ChatPaneRunContext,
   ChatPaneRunContextInput,

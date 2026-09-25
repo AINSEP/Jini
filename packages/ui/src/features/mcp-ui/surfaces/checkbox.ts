@@ -23,6 +23,13 @@ export interface CheckboxProps {
    */
   readonly required?: boolean;
   readonly disabled?: boolean;
+  /**
+   * One extra `data-*` attribute on the `<input>`, escaped like every other value. For a caller
+   * that needs to look the box up by something other than its DOM `name` — e.g. the confirmation
+   * surface's per-choice ids, which are caller data and may contain characters `fieldElementId`'s
+   * `name` validation disallows.
+   */
+  readonly dataAttribute?: { readonly name: string; readonly value: string };
 }
 
 /**
@@ -34,11 +41,16 @@ export interface CheckboxProps {
  */
 export function renderCheckbox(props: CheckboxProps): string {
   const id = fieldElementId(props.name);
+  const dataAttribute =
+    props.dataAttribute === undefined
+      ? ''
+      : ` ${escapeHtml(props.dataAttribute.name)}="${escapeHtml(props.dataAttribute.value)}"`;
   const attributes =
     ` id="${escapeHtml(id)}" name="${escapeHtml(props.name)}"` +
     (props.value === true ? ' checked' : '') +
     (props.required === true ? ' required' : '') +
     (props.disabled === true ? ' disabled' : '') +
+    dataAttribute +
     fieldDescribedBy(props);
   return `<div class="mcpui-field mcpui-field-inline">\n<input class="mcpui-checkbox" type="checkbox"${attributes}>\n<span>${renderFieldLabel(props)}</span>\n</div>`;
 }

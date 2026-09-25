@@ -14,6 +14,12 @@ export const AGENT_ELEMENT_ATTRIBUTE = 'data-agent-element';
 export const AGENT_ROLE_ATTRIBUTE = 'data-agent-role';
 export const AGENT_LABEL_ATTRIBUTE = 'data-agent-label';
 export const AGENT_PAGE_ATTRIBUTE = 'data-agent-page';
+/**
+ * Marks a subtree the page driver must treat as absent: nothing inside it is published, adopted
+ * as a wrapper's control, or counted in any ancestor's text. For a secret the page shows a human
+ * (a revealed key), since a published ancestor's state otherwise reports its whole text content.
+ */
+export const AGENT_PRIVATE_ATTRIBUTE = 'data-agent-private';
 
 /** What verb applies to a tagged element. Mirrors the convention documented in the sample markup. */
 export type AgentElementRole =

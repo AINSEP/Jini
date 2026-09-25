@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/chat",
-  "version": "0.1.0",
+  "version": "0.3.9",
   "description": "Jini's chat/artifact frontend, consolidated into one package with two subpaths: framework-free chat vocabulary and pure parsers in `/core`, headless hooks + presentational components + slots in `/react`. Import only the layer you need.",
   "license": "Apache-2.0",
   "repository": {
@@ -53,7 +53,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",
@@ -67,8 +68,11 @@
   },
   "dependencies": {
     "@jini-ai/agentic": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "@jini-ai/protocol": "workspace:*",
-    "@jini-ai/ui": "workspace:*"
+    "@jini-ai/ui": "workspace:*",
+    "@mcp-ui/client": "7.1.1",
+    "@mcp-ui/server": "6.1.0"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",

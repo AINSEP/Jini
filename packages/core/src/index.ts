@@ -25,5 +25,5 @@ export type {
   ToolRegistration,
   ToolRegistry,
 } from './tool-registry.js';
-export { createToolRegistry } from './tool-registry.js';
+export { createToolRegistry, isReadOnlyTool, ToolInputError } from './tool-registry.js';
 export * from './tool-tokens.js';

@@ -12,6 +12,12 @@ import {
   VIDEO_LENGTHS_SEC,
   VIDEO_MODELS,
 } from '../providers.js';
+// Side-effect import only: `dispatch/engine.js` imports every migrated vendor module
+// (`dispatch/providers/*.js`), and each of those calls `mediaVendorRegistry.register(...)`
+// at module load. Without this import the registry below would be empty regardless of which
+// providers are actually wired, and the adapter-coverage test would be meaningless.
+import '../dispatch/engine.js';
+import { mediaVendorRegistry } from '../dispatch/vendor-registry.js';
 
 /** Every catalogued model's `provider` field must resolve via `findProvider` — the dispatch engine (`dispatch/engine.ts`) relies on this invariant to treat `findProvider(def.provider)` as non-null once `def` itself came from `findMediaModel`, rather than re-guarding a case the catalogue's own construction already rules out. */
 function allCatalogueModels() {
@@ -57,6 +63,29 @@ describe('provider catalogue shape', () => {
     expect(MEDIA_ASPECTS.length).toBeGreaterThan(0);
     expect(VIDEO_LENGTHS_SEC.length).toBeGreaterThan(0);
     expect(AUDIO_DURATIONS_SEC.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Guards `integrated`'s contract (see its doc comment in `types.ts`): a provider marked
+   * `true` must actually resolve to a dispatch adapter, not just claim one in the catalogue.
+   * `hyperframes`/`fal`/`leonardo` all shipped `integrated: true` with zero
+   * `mediaVendorRegistry.register(...)` anywhere — this is the enum-value-granular check
+   * (one assertion per provider id) that `buildDomainRegistrations`'s tool-NAME-granular guard
+   * cannot catch, since these three never registered any tool under any name at all.
+   *
+   * Scoped to providers that actually own a catalogued model (`IMAGE_MODELS`/`VIDEO_MODELS`/
+   * `AUDIO_MODELS_BY_KIND`) — `stub` (the fallback renderer itself, not a real vendor) and
+   * `tavily` (a research tool with its own working request-shape in `@jini-ai/http-kit`, not a
+   * media-generation surface this dispatch engine routes to) are `integrated: true` with no
+   * catalogued model and legitimately no `mediaVendorRegistry` entry either.
+   */
+  it('every integrated provider with a catalogued model has a registered dispatch adapter', () => {
+    const providerIdsWithModels = new Set(allCatalogueModels().map((model) => model.provider));
+    const registeredProviderIds = new Set(mediaVendorRegistry.list().map(([providerId]) => providerId));
+    const claimedButUnregistered = MEDIA_PROVIDERS.filter(
+      (provider) => provider.integrated && providerIdsWithModels.has(provider.id) && !registeredProviderIds.has(provider.id),
+    ).map((provider) => provider.id);
+    expect(claimedButUnregistered).toEqual([]);
   });
 });
 

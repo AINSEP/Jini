@@ -75,6 +75,23 @@ describe('SourceConfigAddForm', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  it('renders no Cancel button when onCancel is omitted', () => {
+    render(<SourceConfigAddForm {...baseProps()} />);
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
+  });
+
+  it('renders a Cancel button when onCancel is given, which calls onCancel and never submits', async () => {
+    const onCancel = vi.fn();
+    const onSubmit = vi.fn();
+    render(<SourceConfigAddForm {...baseProps({ onCancel, onSubmit, agentHandle: 'mcp-add' })} />);
+    const cancel = screen.getByRole('button', { name: 'Cancel' });
+    expect(cancel).toHaveAttribute('type', 'button');
+    expect(cancel).toHaveAttribute('data-agent-element', 'mcp-add-cancel');
+    await userEvent.click(cancel);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it('renders a custom addLabel when given', () => {
     render(<SourceConfigAddForm {...baseProps({ addLabel: 'Add MCP server' })} />);
     expect(screen.getByRole('button', { name: 'Add MCP server' })).toBeInTheDocument();

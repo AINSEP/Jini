@@ -120,6 +120,8 @@ import {
   type OpenAiToolExecutor,
   type OpenAiToolResult,
   type OpenAiTurnEvent,
+  type DnsLookupFn,
+  type PinnedFetch,
 } from '@jini-ai/agent-runtime';
 import { createApiError } from '@jini-ai/protocol';
 import type { AdapterContext } from './adapter.js';
@@ -157,6 +159,25 @@ export interface ModelProxyHttpDeps {
   readonly ollamaExecuteTool?: OllamaToolExecutor;
   /** Host-owned sink for the real exception behind a generic internal-error SSE event (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: ModelProxyInternalErrorContext) => void;
+  /**
+   * Injectable HTTP transport, forwarded verbatim to every provider turn-runner as its own
+   * `fetchImpl` option (`@jini-ai/agent-runtime`'s `AnthropicTurnOptions.fetchImpl`, etc.), which
+   * itself defaults to that package's SSRF-guarded, DNS-pinned `pinnedFetch`. This is the
+   * dependency-injection seam `__tests__/model-proxy.test.ts` uses to supply a fake transport
+   * directly, instead of module-mocking `@jini-ai/agent-runtime`'s `connection-guard.ts` (or, worse,
+   * its compiled `dist/` output, since this package only ever imports that package's single public
+   * barrel). Defaults to unset, i.e. every route keeps using the real, guarded transport — **never
+   * set this in production wiring**; doing so bypasses the SSRF guard entirely for whatever
+   * transport is supplied.
+   */
+  readonly fetchImpl?: PinnedFetch;
+  /**
+   * Injectable DNS resolver, forwarded verbatim to every provider turn-runner as its own
+   * `dnsLookup` option, which itself defaults to `@jini-ai/agent-runtime`'s `node:dns`-backed
+   * `defaultDnsLookup`. Same test-only override rationale as `fetchImpl` — pairs with it so a test
+   * never needs to mock `node:dns` either.
+   */
+  readonly dnsLookup?: DnsLookupFn;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -187,6 +208,18 @@ interface ParsedProxyCommon {
  * have (see module doc). A malformed message/tool shape is instead rejected
  * by the real provider API and surfaces as a normal `'error'` SSE event,
  * exactly like any other upstream rejection.
+ *
+ * SECURITY: `apiKey` travels in this JSON body, not an `Authorization` header
+ * — a deliberate BYOK design choice (see module doc), not an oversight, but
+ * one that only stays safe because every caller of this function is reached
+ * through `runProxyStream`/`registerGenericProxyStreamRoute`, both of which
+ * call `guardSameOrigin` before this parser ever runs (confirmed 2026-08-23;
+ * see the "rejects a cross-origin request with 403 before touching fetch"
+ * regression test per provider, plus the catch-all's own, in
+ * `__tests__/model-proxy.test.ts` — each proves the credential is never
+ * forwarded to `fetch` for a rejected cross-origin request). Do not loosen or
+ * remove that same-origin enforcement without first moving `apiKey` to a
+ * header — a body-carried credential is not safe to accept cross-origin.
  */
 function parseCommon(body: unknown): Result<ParsedProxyCommon> {
   if (!isRecord(body)) return err(validationError('body must be a JSON object'));
@@ -502,6 +535,8 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
           ...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
           ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
           ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+          ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+          ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
           ...(deps.anthropicExecuteTool
             ? { executeTool: (call: AnthropicToolCall): Promise<AnthropicToolResult> => deps.anthropicExecuteTool!(call) }
             : {}),
@@ -521,6 +556,8 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
           ...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
           ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
           ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+          ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+          ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
           ...(deps.openaiExecuteTool
             ? { executeTool: (call: OpenAiToolCall): Promise<OpenAiToolResult> => deps.openaiExecuteTool!(call) }
             : {}),
@@ -541,6 +578,8 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
           ...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
           ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
           ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+          ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+          ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
           ...(deps.azureExecuteTool
             ? { executeTool: (call: AzureToolCall): Promise<AzureToolResult> => deps.azureExecuteTool!(call) }
             : {}),
@@ -561,6 +600,8 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
           ...(parsed.maxOutputTokens !== undefined ? { maxOutputTokens: parsed.maxOutputTokens } : {}),
           ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
           ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+          ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+          ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
           ...(deps.googleExecuteTool
             ? { executeTool: (call: GoogleToolCall): Promise<GoogleToolResult> => deps.googleExecuteTool!(call) }
             : {}),
@@ -580,6 +621,8 @@ function buildProxyProviderRegistry(deps: ModelProxyHttpDeps): Record<string, Pr
           ...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
           ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
           ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+          ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+          ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
           ...(deps.ollamaExecuteTool
             ? { executeTool: (call: OllamaToolCall): Promise<OllamaToolResult> => deps.ollamaExecuteTool!(call) }
             : {}),
@@ -690,6 +733,8 @@ export function registerModelProxyRoutes(app: Express, deps: ModelProxyHttpDeps,
         ...(parsed.temperature !== undefined ? { temperature: parsed.temperature } : {}),
         ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
         ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+        ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+        ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
         ...(deps.anthropicExecuteTool
           ? {
               executeTool: (call: AnthropicToolCall): Promise<AnthropicToolResult> => deps.anthropicExecuteTool!(call),
@@ -717,6 +762,8 @@ export function registerModelProxyRoutes(app: Express, deps: ModelProxyHttpDeps,
         ...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
         ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
         ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+        ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+        ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
         ...(deps.openaiExecuteTool
           ? {
               executeTool: (call: OpenAiToolCall): Promise<OpenAiToolResult> => deps.openaiExecuteTool!(call),
@@ -745,6 +792,8 @@ export function registerModelProxyRoutes(app: Express, deps: ModelProxyHttpDeps,
         ...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
         ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
         ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+        ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+        ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
         ...(deps.azureExecuteTool
           ? {
               executeTool: (call: AzureToolCall): Promise<AzureToolResult> => deps.azureExecuteTool!(call),
@@ -773,6 +822,8 @@ export function registerModelProxyRoutes(app: Express, deps: ModelProxyHttpDeps,
         ...(parsed.maxOutputTokens !== undefined ? { maxOutputTokens: parsed.maxOutputTokens } : {}),
         ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
         ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+        ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+        ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
         ...(deps.googleExecuteTool
           ? {
               executeTool: (call: GoogleToolCall): Promise<GoogleToolResult> => deps.googleExecuteTool!(call),
@@ -800,6 +851,8 @@ export function registerModelProxyRoutes(app: Express, deps: ModelProxyHttpDeps,
         ...(parsed.maxTokens !== undefined ? { maxTokens: parsed.maxTokens } : {}),
         ...(parsed.maxToolTurns !== undefined ? { maxToolTurns: parsed.maxToolTurns } : {}),
         ...(parsed.extraHeaders !== undefined ? { extraHeaders: parsed.extraHeaders } : {}),
+        ...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+        ...(deps.dnsLookup ? { dnsLookup: deps.dnsLookup } : {}),
         ...(deps.ollamaExecuteTool
           ? {
               executeTool: (call: OllamaToolCall): Promise<OllamaToolResult> => deps.ollamaExecuteTool!(call),

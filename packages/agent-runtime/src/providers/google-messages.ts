@@ -94,7 +94,7 @@
  * tool-loop body and its test file's multi-tool-call image test).
  */
 import { createRoleMarkerGuard } from '../role-marker-guard.js';
-import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, redactSecrets, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -220,6 +220,10 @@ export interface GoogleTurnOptions {
   readonly signal?: AbortSignal;
   /** Caller-supplied extra headers — see `anthropic-messages.ts#AnthropicTurnOptions.extraHeaders`'s doc for why this exists and what it fixes. */
   readonly extraHeaders?: Record<string, string>;
+  /** Injectable HTTP transport, defaulting to {@link pinnedFetch} (SSRF-guarded, DNS-pinned). See `anthropic-messages.ts#AnthropicTurnOptions.fetchImpl`'s doc for the seam this exists for and why production wiring must never override it. */
+  readonly fetchImpl?: PinnedFetch;
+  /** Injectable DNS resolver for {@link validateBaseUrlResolved}'s DNS-pinning check, defaulting to {@link defaultDnsLookup}. Same test-only override rationale as `fetchImpl`. */
+  readonly dnsLookup?: DnsLookupFn;
 }
 
 export interface GoogleTurnResult {
@@ -414,7 +418,7 @@ async function openGoogleResponseStream(
 ): Promise<AsyncIterable<Uint8Array | string> | null> {
   const { onEvent } = options;
 
-  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_GOOGLE_BASE_URL, defaultDnsLookup);
+  const baseUrlCheck = await validateBaseUrlResolved(options.baseUrl ?? DEFAULT_GOOGLE_BASE_URL, options.dnsLookup ?? defaultDnsLookup);
   if (baseUrlCheck.error) {
     onEvent({ type: 'error', message: baseUrlCheck.error });
     emitEnd('error');
@@ -423,7 +427,7 @@ async function openGoogleResponseStream(
 
   let response: { ok: boolean; status: number; body: AsyncIterable<Uint8Array | string> | null; text(): Promise<string> };
   try {
-    response = await pinnedFetch(
+    response = await (options.fetchImpl ?? pinnedFetch)(
       googleRequestUrl(options.baseUrl, options.model),
       {
         method: 'POST',

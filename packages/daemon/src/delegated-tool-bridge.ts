@@ -9,6 +9,7 @@
 import type { Principal, RunRef, SurfaceEmission } from '@jini-ai/core';
 import type { RunAgentPayload } from '@jini-ai/protocol';
 import type { RunLifecycle } from './run-lifecycle.js';
+import { extractResultMedia } from './tool-result-media.js';
 import { splitToolResultSurfaces } from './tool-result-surfaces.js';
 import type { ToolExecutionResult, ToolExecutor } from './tool-executor.js';
 
@@ -198,6 +199,21 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
         );
         settled = true;
 
+        // Recognized media blocks (images) are collected here purely to populate the sibling
+        // `media` field the `tool_result` event carries below, for a UI that wants to render one
+        // inline without re-parsing `content` (`ToolCard`'s `<img>`, per `assistant_demo_image`'s
+        // own doc). This does NOT remove the image block from `executed.output` — `image` is one
+        // of `tool-result-surfaces.ts`'s own `MODEL_VISIBLE_BLOCK_TYPES`, so the split below already
+        // keeps it in `modelOutput` on its own. An image reaching the model IS the point
+        // (`assistant_demo_image`/`admin.capture_screenshot` exist to prove exactly that round
+        // trip) — unlike an `mcp-ui` resource, which is genuinely human-only and must never survive
+        // into `modelOutput`. (Earlier this extraction fed its own de-imaged `remainder` into the
+        // surfaces split below and discarded the image from `output` entirely, on the assumption
+        // that the sibling `media` field was the only channel a caller needed — true for a UI
+        // reading the run's event stream, false for `@jini-ai/mcp`'s `execute_delegated_tool`, which
+        // hands the bridge's RETURN VALUE to the model with no access to that event stream at all.)
+        const { media } = extractResultMedia(executed.output);
+
         // THE MODEL/HUMAN FORK. A tool call's return value is definitionally what the model
         // receives, so a UI resource left inside it is model-visible context no matter what any
         // downstream layer does — `@jini-ai/mcp`'s `okResult()` JSON.stringifies the whole result
@@ -208,8 +224,7 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
         // everything else is withheld and emitted for the human. See `tool-result-surfaces.ts` for
         // why that direction is load-bearing.
         const { modelOutput, surfaces } = splitToolResultSurfaces(executed.output);
-        const result: ToolExecutionResult =
-          surfaces.length === 0 ? executed : { ...executed, output: modelOutput };
+        const result: ToolExecutionResult = surfaces.length === 0 ? executed : { ...executed, output: modelOutput };
 
         // Emitted BEFORE `tool_result` so the surface is on screen by the time the transcript shows
         // the call completing — otherwise the human is asked to confirm something not yet visible.
@@ -227,6 +242,7 @@ export function createDelegatedToolBridge(options: CreateDelegatedToolBridgeOpti
             toolUseId,
             content: resultContent(result),
             ...(result.status === 'completed' ? {} : { isError: true }),
+            ...(media.length > 0 ? { media } : {}),
           },
         });
         return result;

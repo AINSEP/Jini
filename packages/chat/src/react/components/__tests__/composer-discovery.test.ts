@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { ComposerDiscoveryGroup, ComposerDiscoveryItem } from '../../slots.js';
 import {
+  composerDiscoveryMenuPosition,
+  composerSlashMenuPosition,
   filterComposerDiscovery,
   parseComposerSlashQuery,
   resolveComposerSlashInvocation,
@@ -165,5 +167,93 @@ describe('resolveComposerSlashInvocation', () => {
       type: 'invoke',
       argument: 'site:example.com/a/b',
     });
+  });
+});
+
+/**
+ * Regression coverage for an owner-reported bug: the "+" discovery menu and the slash palette are
+ * `position: absolute` descendants of `.jini-composer`, which sits inside `.jini-chat-pane__body`
+ * — an ancestor that sets `overflow: hidden` unconditionally, plus whatever clipping box a host's
+ * own dock chrome adds (a host admin's `.admin-chat-dock` is `overflow: hidden` too, and its mobile
+ * "peek" sheet caps the whole dock at 58vh). CSS alone cannot know how much room that leaves above
+ * the composer on a given host — when a popover's natural content is taller than the available
+ * space, the ancestor's hard clip boundary sliced through whichever row sat at the clip line
+ * instead of the popover's own internal scroll doing so, which read as "the list is clipped
+ * mid-item at the top" rather than as a clean scroll boundary.
+ *
+ * `composerDiscoveryMenuPosition`/`composerSlashMenuPosition` fix this the same way
+ * `useAgentRuntimePicker.hooks.ts`'s `runtimePopoverPosition('up', ...)` already fixes the
+ * identical class of bug for the sibling runtime popover: `position: fixed`, computed from the
+ * composer's live viewport rect, with `maxHeight` clamped to the space actually available above
+ * it — so the popover escapes every ancestor's `overflow: hidden` regardless of host layout, and
+ * degrades to an internal scroll (never a mid-row clip) when the composer sits close to the top of
+ * a short viewport.
+ */
+describe('composerDiscoveryMenuPosition / composerSlashMenuPosition', () => {
+  const originalInnerWidth = window.innerWidth;
+  const originalInnerHeight = window.innerHeight;
+
+  function stubViewport(width: number, height: number) {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: width });
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
+  }
+
+  afterEach(() => {
+    stubViewport(originalInnerWidth, originalInnerHeight);
+  });
+
+  it('discovery menu: always renders position: fixed, escaping any overflow: hidden ancestor', () => {
+    stubViewport(1024, 768);
+    const composerRect = { top: 600, left: 40, width: 320 };
+    expect(composerDiscoveryMenuPosition(composerRect)).toMatchObject({
+      position: 'fixed',
+      zIndex: 8,
+    });
+  });
+
+  it('discovery menu: keeps the reference stylesheet\'s left-aligned, width-capped footprint when there is ample room above the composer', () => {
+    stubViewport(1024, 768);
+    // Plenty of vertical room above `top: 600` in a 768px-tall viewport — the clamp should not
+    // engage, so this must match the CSS default exactly: `inset-inline-start: 8px`,
+    // `width: min(280px, 100vw - 32px)`, `bottom: calc(100% + 6px)`.
+    const composerRect = { top: 600, left: 40, width: 320 };
+    const position = composerDiscoveryMenuPosition(composerRect);
+    expect(position.left).toBe(48); // composerRect.left (40) + 8px inset
+    expect(position.width).toBe(280); // under the 1024 - 32 = 992px cap
+    expect(position.bottom).toBe(768 - 600 + 6); // innerHeight - top + gap
+    expect(position.maxHeight).toBe(280); // under the 600 - 6 - 8 = 586px available cap
+  });
+
+  it('discovery menu: clamps maxHeight to the space actually available above the composer instead of clipping into the ancestor', () => {
+    // Reproduces a host admin's mobile "peek" sheet: a short dock where the composer sits close to
+    // the sheet's own top edge. Available space above it is far under the CSS's flat 280px cap.
+    stubViewport(400, 700);
+    const composerRect = { top: 120, left: 8, width: 384 };
+    const position = composerDiscoveryMenuPosition(composerRect);
+    // 120 - 6 (gap) - 8 (margin) = 106px available — must clamp below the 280px default, not
+    // render a 280px-tall box that the ancestor then has to hard-clip.
+    expect(position.maxHeight).toBe(106);
+    expect(position.maxHeight).toBeLessThan(280);
+  });
+
+  it('discovery menu: never asks for a negative maxHeight when the composer has no room above it at all', () => {
+    stubViewport(400, 700);
+    const composerRect = { top: 4, left: 8, width: 384 };
+    expect(composerDiscoveryMenuPosition(composerRect).maxHeight).toBe(0);
+  });
+
+  it('slash palette: always renders position: fixed and spans the composer width minus its 8px insets', () => {
+    stubViewport(1024, 768);
+    const composerRect = { top: 600, left: 40, width: 320 };
+    const position = composerSlashMenuPosition(composerRect);
+    expect(position.position).toBe('fixed');
+    expect(position.left).toBe(48); // composerRect.left (40) + 8px inset
+    expect(position.width).toBe(304); // composerRect.width (320) - 2 * 8px inset
+  });
+
+  it('slash palette: clamps maxHeight the same way the discovery menu does', () => {
+    stubViewport(400, 700);
+    const composerRect = { top: 120, left: 8, width: 384 };
+    expect(composerSlashMenuPosition(composerRect).maxHeight).toBe(106);
   });
 });

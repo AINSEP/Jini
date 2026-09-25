@@ -5,7 +5,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { createApiError } from '@jini-ai/protocol';
+import { createApiError, type ApiError } from '@jini-ai/protocol';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson, statusForError } from './response.js';
 import { guardSameOrigin, type OriginContext } from './origin.js';
@@ -36,6 +36,37 @@ export interface AdapterContext extends OriginContext {
 function defaultInternalErrorSink(context: AdapterInternalErrorContext): void {
   // eslint-disable-next-line no-console
   console.error(`[@jini-ai/http-kit] internal error (${context.method.toUpperCase()} ${context.path}, correlationId=${context.correlationId})`, context.error);
+}
+
+/**
+ * Thrown by a route's `handle` — or by anything it calls, at any depth — to bypass the SEC-005
+ * redaction below with an `ApiError` the throwing code has already decided is safe for the caller
+ * to see. This is the general-purpose version of a carve-out every consuming module of this catch
+ * otherwise hand-rolls for itself: `attachments.ts`'s `AttachmentRejectedError`/
+ * `respondToUploadFailure`, and `delegated-tools.ts`'s `errorKind: 'validation'` split on
+ * `ToolExecutionResult`, both exist because nothing at THIS layer distinguished "the code that threw
+ * already classified this as caller-safe" from "something unanticipated happened" — so a route with
+ * no such local carve-out has no way to disclose even a deliberately-safe failure, and everything it
+ * throws redacts identically to a stray filesystem or driver error.
+ *
+ * Prefer returning `err(apiError)` from `handle` when the failure is anticipated at that point —
+ * that path already reaches the caller with full fidelity and never touches this catch at all. This
+ * class exists for the same kind of failure discovered a level deeper: inside an awaited call
+ * `handle` itself did not (or could not) wrap in its own `try`.
+ *
+ * Not a way to defeat SEC-005: the only way to reach the branch that reads this class is for code to
+ * construct one itself, naming the exact `ApiError` — code and message — it is choosing to disclose.
+ * Any thrown value that is not this class (including a plain `Error` with an actionable-looking
+ * message) still redacts exactly as before; nothing here widens what a route can leak by accident.
+ */
+export class ClientFacingError extends Error {
+  readonly apiError: ApiError;
+
+  constructor(apiError: ApiError) {
+    super(apiError.message);
+    this.name = 'ClientFacingError';
+    this.apiError = apiError;
+  }
 }
 
 /**
@@ -104,6 +135,13 @@ export function mountJsonRoute<Input, Output, Deps>(
       }
       sendJson(res, spec.successStatus ?? 200, result.value);
     } catch (e) {
+      // A route (or something it called) already classified this failure as safe to disclose —
+      // see `ClientFacingError`'s own doc. Sent verbatim, at its own status; never routed to the
+      // SEC-005 sink below, because nothing unanticipated happened.
+      if (e instanceof ClientFacingError) {
+        sendApiError(res, statusForError(e.apiError), e.apiError);
+        return;
+      }
       // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely
       // the path most likely to be holding something private: a driver error naming a database
       // file, a connection string, a credential a provider echoed back. Serializing `e.message`

@@ -3,11 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   defaultChatPaneSelection,
   findChatPaneSendBlocker,
+  isChatPaneApiModeConfigured,
+  isChatPaneQueueableBlocker,
   orderChatPaneAgents,
   resolveChatPaneSelection,
 } from '../rules.js';
-import type { ChatPaneSendability } from '../rules.js';
-import type { ChatPaneAgent } from '../types.js';
+import type { ChatPaneSendability, ChatPaneSendBlocker } from '../rules.js';
+import type { ByokRuntimeSummary, ChatPaneAgent } from '../types.js';
 
 const agents: ChatPaneAgent[] = [
   {
@@ -168,5 +170,92 @@ describe('chat-pane selection rules', () => {
       .toBe('working-directory-invalid');
     expect(findChatPaneSendBlocker({ ...ready, workingDirectoryError: new Error('disk unavailable') }))
       .toBe('working-directory-error');
+  });
+
+  describe('isChatPaneApiModeConfigured', () => {
+    const byokRuntime: ByokRuntimeSummary = { providerLabel: 'Google Gemini', model: 'gemini-2.5-flash-lite' };
+
+    it('is true only once mode, availability, and a chosen model all line up', () => {
+      expect(isChatPaneApiModeConfigured({
+        executionMode: 'api',
+        apiModeAvailable: true,
+        byokRuntime,
+      })).toBe(true);
+    });
+
+    it('is false while a CLI is the active mode, even with a configured BYOK credential', () => {
+      expect(isChatPaneApiModeConfigured({
+        executionMode: 'local',
+        apiModeAvailable: true,
+        byokRuntime,
+      })).toBe(false);
+    });
+
+    it('is false when API mode is not selectable at all', () => {
+      expect(isChatPaneApiModeConfigured({
+        executionMode: 'api',
+        apiModeAvailable: false,
+        byokRuntime,
+      })).toBe(false);
+    });
+
+    it('is false without a chosen model — matching or blank both mean nothing to send to', () => {
+      expect(isChatPaneApiModeConfigured({
+        executionMode: 'api',
+        apiModeAvailable: true,
+        byokRuntime: undefined,
+      })).toBe(false);
+      expect(isChatPaneApiModeConfigured({
+        executionMode: 'api',
+        apiModeAvailable: true,
+        byokRuntime: { providerLabel: 'Google Gemini', model: '   ' },
+      })).toBe(false);
+    });
+  });
+
+  describe('findChatPaneSendBlocker: BYOK/API bypass of the CLI-selection blocker', () => {
+    const ready: ChatPaneSendability = {
+      selectedAgent: undefined,
+      isStreaming: false,
+      activeUploadCount: 0,
+      workingDirectoryPending: false,
+      workingDirectoryInvalid: false,
+      workingDirectoryError: null,
+    };
+
+    it('lets a configured BYOK turn send with zero agents on PATH', () => {
+      // Reproduces the owner-reported bug: a Docker host with no agent CLIs installed could never
+      // use a genuinely working BYOK setup, because the pane gated purely on CLI selection.
+      expect(findChatPaneSendBlocker({ ...ready, apiModeConfigured: true })).toBeNull();
+    });
+
+    it('still blocks local-CLI mode with zero agents on PATH — no regression', () => {
+      expect(findChatPaneSendBlocker({ ...ready, apiModeConfigured: false }))
+        .toBe('no-agent-selected');
+      // `apiModeConfigured` omitted entirely (the pre-existing shape every other test in this file
+      // uses) must behave identically to explicit `false`.
+      expect(findChatPaneSendBlocker(ready)).toBe('no-agent-selected');
+    });
+  });
+
+  describe('isChatPaneQueueableBlocker', () => {
+    it('is true only for the streaming blocker', () => {
+      expect(isChatPaneQueueableBlocker('streaming')).toBe(true);
+    });
+
+    it('is false for null (nothing to queue behind) and every other named blocker', () => {
+      const otherBlockers: readonly ChatPaneSendBlocker[] = [
+        'no-agent-selected',
+        'agent-unavailable',
+        'uploads-pending',
+        'working-directory-pending',
+        'working-directory-invalid',
+        'working-directory-error',
+      ];
+      expect(isChatPaneQueueableBlocker(null)).toBe(false);
+      for (const blocker of otherBlockers) {
+        expect(isChatPaneQueueableBlocker(blocker)).toBe(false);
+      }
+    });
   });
 });

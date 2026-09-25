@@ -51,9 +51,43 @@ export interface ProviderPreset {
   requiresApiKey?: boolean;
   /** Optional "Get key" deep link rendered beside the API-key field. */
   apiKeyConsoleUrl?: string;
+  /**
+   * The literal prefix that positively identifies a pasted key as belonging to THIS provider —
+   * `'AIza'` for Google, `'sk-ant-'` for Anthropic. Omit it for a vendor whose keys carry no
+   * distinguishing prefix (Azure OpenAI's are bare hex) rather than inventing one.
+   *
+   * Read in exactly one direction: to recognise a key as SOMEONE ELSE'S. It is deliberately NOT an
+   * allowlist, and no code may ask "does the selected preset's key match this?" as a validity test.
+   * That is the shape this field replaced, and it shipped a false positive within hours of landing:
+   * a real Google Gemini key in a newer shape than `/^AIza/` was reported to its owner as not
+   * looking like a Google key. Vendors add key formats without telling anyone, so a catalog can
+   * prove a string belongs to vendor X, but never that it belongs to nobody. See
+   * `apiKeyFormatWarning`.
+   *
+   * Data rather than an `if (providerId === …)` chain in the rule, so adding a provider stays a row
+   * in the preset catalog — including for a host that supplies its own `presets` and never touches
+   * this package.
+   */
+  apiKeyPrefix?: string;
   /** The synthetic "Custom" preset. Exactly one may carry this flag; it is
    *  never treated as configured-by-preset and never hides the Base URL. */
   custom?: boolean;
+}
+
+/**
+ * One advisory remark about the API key currently typed into the form, ready to translate.
+ *
+ * `message` is plain English AND its own i18n key (this package's convention — see
+ * `DEFAULT_AGENT_DESCRIPTIONS`), and `vars` fills its `{name}` placeholders. Kept split rather than
+ * pre-composed because the vendor names are runtime values from the catalog: a pre-composed
+ * sentence would be a key no dictionary can contain, and would also freeze English word order for
+ * every locale.
+ *
+ * Advisory by construction — a message, not a validity verdict. See {@link ProviderPreset.apiKeyPrefix}.
+ */
+export interface ApiKeyWarning {
+  message: string;
+  vars: Readonly<Record<string, string>>;
 }
 
 /** One provider's saved credential draft — everything `ByokConfig` carries at
@@ -113,6 +147,20 @@ export interface ExecutionConfig {
 export interface AgentModelOption {
   id: string;
   label: string;
+  /**
+   * The reasoning-effort levels THIS model supports, when the runtime's own catalog reports them
+   * per model rather than uniformly across the agent. Mirrors `@jini-ai/agent-runtime`'s
+   * `RuntimeModelOption.reasoning` field-for-field, for the same reason every other field on this
+   * interface does (see this file's header doc) — Codex's `debug models` catalog reports it, and the
+   * levels genuinely differ between models on the same CLI.
+   *
+   * `undefined` means "nothing model-specific to say" and is read as agent-wide by
+   * `useReasoningControl`'s narrowing rule — it falls back to `DetectedAgent.reasoningOptions`'s
+   * union, the same list every model showed before this field existed. It is NOT a synonym for "zero
+   * levels". An explicit `[]` means the catalog said so outright, and is honored as-is even though it
+   * hides the effort control for that model.
+   */
+  reasoning?: readonly AgentModelOption[] | undefined;
 }
 
 /** Where an agent's model list came from. `'live'` was pulled from the CLI
@@ -166,6 +214,26 @@ export interface DetectedAgent {
    *  choice IS a model-catalog entry, just from a different picker. Absent or
    *  empty means the agent has no reasoning axis to configure. */
   reasoningOptions?: readonly AgentModelOption[] | undefined;
+  /**
+   * Declares that this agent's CLI carries its reasoning-effort choice INSIDE
+   * the model id — as a trailing `-<level>` on the slug — instead of in a flag
+   * of its own, and names which trailing tokens count as levels.
+   *
+   * Mirrors `@jini-ai/agent-runtime`'s `RuntimeReasoningInModelId` field-for-
+   * field, the same way `reasoningOptions` above mirrors its
+   * `RuntimeReasoningOption[]`, and for the same reason (see this interface's
+   * own doc). Present INSTEAD of `reasoningOptions`, never alongside it: a card
+   * carrying both would render two effort controls that disagree about where
+   * the choice goes.
+   *
+   * Only the vocabulary is declared. Which of these levels a given base model
+   * actually has is DERIVED from `models` by `reasoningModelGroups`
+   * (`rules.ts`) — availability is genuinely not uniform (antigravity's
+   * `gemini-3.1-pro` has only high and low, `gpt-oss-120b` only medium,
+   * `claude-sonnet-4-6` none), so a fixed high/medium/low control would offer
+   * slugs the CLI rejects outright.
+   */
+  reasoningInModelId?: { levels: readonly AgentModelOption[] } | undefined;
   /** See `AgentSupportsCustomModel`. `undefined` allows custom input,
    *  matching every adapter's default before this field existed. */
   supportsCustomModel?: AgentSupportsCustomModel | undefined;
@@ -372,6 +440,34 @@ export type AgentTestState =
 export interface AgentExecutableRepair {
   detectedPath: string;
   canUseDetected: boolean;
+}
+
+/**
+ * One base model of a `DetectedAgent.reasoningInModelId` agent, together with the effort levels
+ * that model ACTUALLY has — derived from the agent's own model list by `reasoningModelGroups`
+ * (`rules.ts`), never declared.
+ *
+ * This is the shape the card renders its two controls from: the base picker lists one entry per
+ * group, and the effort picker lists exactly `levels` for whichever group is active. That is what
+ * keeps it from offering a slug the CLI would reject — `gemini-3.1-pro` genuinely has no `-medium`
+ * variant, so `levels` genuinely has no `medium` entry.
+ */
+export interface ReasoningModelGroup {
+  /** The model id with any recognized effort suffix removed (`gemini-3.1-pro`). */
+  baseId: string;
+  /** Display name for the base. The effort qualifier is stripped from the source label only when
+   *  the id it came from carried a real suffix — so `Gemini 3.1 Pro (High)` becomes `Gemini 3.1
+   *  Pro`, while `Claude Sonnet 4.6 (Thinking)` (a suffix-less id) keeps its parenthetical. */
+  label: string;
+  /** The effort levels this base really offers, in the declared vocabulary's order. Empty for a
+   *  base the catalog lists without any suffixed variant. */
+  levels: readonly AgentModelOption[];
+  /** Full model id per level in `levels` — the recombination table, so composing a slug is a
+   *  lookup of something the catalog actually contained rather than string concatenation. */
+  modelIdByLevel: Readonly<Record<string, string>>;
+  /** The suffix-less id, when the catalog lists the base on its own (`claude-sonnet-4-6`,
+   *  `default`). Absent for a base that only ever appears with a suffix. */
+  bareModelId?: string | undefined;
 }
 
 /** Result of a local-CLI rescan, surfaced as an inline status line. */

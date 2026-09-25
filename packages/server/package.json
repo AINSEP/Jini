@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/server",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -48,7 +48,7 @@
     "@jini-ai/http-kit": "workspace:*",
     "@jini-ai/sidecar": "workspace:*",
     "@jini-ai/sqlite": "workspace:*",
-    "better-sqlite3": "^11.10.0",
+    "better-sqlite3": "^13.0.0",
     "express": "^4.21.0"
   },
   "devDependencies": {

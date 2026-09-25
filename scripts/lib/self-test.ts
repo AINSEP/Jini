@@ -17,6 +17,7 @@ import { checkChatPanePublicSurface } from '../check-chatpane-public-surface.js'
 import { checkDriverIsolation } from '../check-driver-isolation.js';
 import { checkEngineBoundaries } from '../check-engine-boundaries.js';
 import { checkExtensionlessImports } from '../check-extensionless-imports.js';
+import { checkModelFallbackFreshness, type LiveProbe } from '../check-model-fallback-freshness.js';
 import { checkProtocolPurity } from '../check-protocol-purity.js';
 
 function write(root: string, relPath: string, content: string): void {
@@ -73,6 +74,35 @@ function writePackageWithEntries(
       2,
     ),
   );
+}
+
+
+/**
+ * Writes an R13 fixture def module — a real, importable TypeScript module, because
+ * `checkModelFallbackFreshness` loads the def rather than scanning its text. If the loader ever
+ * stops seeing the real array, these fixtures stop being flagged and this self-test fails, which is
+ * the fail-closed property that a text-scanning version of the check could not have had.
+ */
+function writeFallbackDefFixture(
+  root: string,
+  name: string,
+  modelIds: readonly string[],
+  assertedAt: string | null,
+): void {
+  const models = modelIds.map((id) => `{ id: '${id}', label: '${id}' }`).join(', ');
+  const marker = assertedAt ? `,\n  fallbackModelsAssertedAt: '${assertedAt}'` : '';
+  write(root, `r13-fixtures/${name}.ts`, `export const fixtureDef = {\n  id: '${name}',\n  fallbackModels: [${models}]${marker},\n};\n`);
+}
+
+/** One guarded-def descriptor pointing at a fixture written by {@link writeFallbackDefFixture}. */
+function fallbackDefTarget(root: string, name: string, exportName = 'fixtureDef') {
+  return {
+    agentId: name,
+    file: `r13-fixtures/${name}.ts`,
+    modulePath: join(root, `r13-fixtures/${name}.ts`),
+    exportName,
+    liveSource: 'codex-catalog' as const,
+  };
 }
 
 export interface SelfTestFailure {
@@ -526,10 +556,71 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       packagesDir: join(root, 'r12-fixtures'),
     });
 
+    // R13 — model-fallback freshness. Every rule gets a known-bad AND a known-good fixture, and the
+    // live probe is INJECTED so these expectations hold identically on a machine with no CLI
+    // installed: the self-test proves the rules, not the environment.
+    writeFallbackDefFixture(root, 'r13-good', ['gpt-a', 'gpt-b'], '2026-09-01');
+    writeFallbackDefFixture(root, 'r13-no-marker', ['gpt-a'], null);
+    writeFallbackDefFixture(root, 'r13-stale', ['gpt-a'], '2020-01-01');
+    writeFallbackDefFixture(root, 'r13-bad-date', ['gpt-a'], 'not-a-date');
+    writeFallbackDefFixture(root, 'r13-drifted', ['gpt-a'], '2026-09-01');
+    writeFallbackDefFixture(root, 'r13-skipped', ['gpt-a'], '2026-09-01');
+    write(root, 'r13-fixtures/r13-renamed.ts', 'export const somethingElse = {};\n');
+
+    const r13Now = new Date('2026-09-05T00:00:00Z');
+    const liveIds = (ids: string[]): LiveProbe => ({ kind: 'ids', ids });
+    const r13Probe = async (target: { agentId: string }): Promise<LiveProbe> => {
+      if (target.agentId === 'r13-skipped') return { kind: 'skipped', reason: 'fixture: no live source' };
+      if (target.agentId === 'r13-drifted') return liveIds(['gpt-a', 'gpt-brand-new']);
+      return liveIds(['gpt-a']);
+    };
+    const fallbackFreshnessViolations = await checkModelFallbackFreshness({
+      guarded: [
+        fallbackDefTarget(root, 'r13-good'),
+        fallbackDefTarget(root, 'r13-no-marker'),
+        fallbackDefTarget(root, 'r13-stale'),
+        fallbackDefTarget(root, 'r13-bad-date'),
+        fallbackDefTarget(root, 'r13-drifted'),
+        fallbackDefTarget(root, 'r13-skipped'),
+        fallbackDefTarget(root, 'r13-renamed'),
+      ],
+      now: r13Now,
+      probeLive: r13Probe,
+      report: () => {},
+    });
+
     const has = (violations: { rule: string; file: string }[], rule: string, fileSuffix: string) =>
       violations.some((v) => v.rule === rule && v.file.endsWith(fileSuffix));
 
     const expectations: Array<[boolean, string]> = [
+      [
+        fallbackFreshnessViolations.some((v) => v.file.endsWith('r13-no-marker.ts') && v.reason.includes('missing `fallbackModelsAssertedAt`')),
+        'R13/MF1 should catch a hardcoded fallback list with no staleness marker',
+      ],
+      [
+        fallbackFreshnessViolations.some((v) => v.file.endsWith('r13-stale.ts') && v.reason.includes('days old')),
+        'R13/MF2 should catch a staleness marker older than the threshold',
+      ],
+      [
+        fallbackFreshnessViolations.some((v) => v.file.endsWith('r13-bad-date.ts')),
+        'R13/MF1 should catch an unparseable staleness marker',
+      ],
+      [
+        fallbackFreshnessViolations.some((v) => v.file.endsWith('r13-drifted.ts') && v.reason.includes('gpt-brand-new')),
+        'R13/MF3 should catch a fallback list missing a model the live source reports, and name it',
+      ],
+      [
+        fallbackFreshnessViolations.some((v) => v.file.endsWith('r13-renamed.ts')),
+        'R13 should FAIL, not silently pass, when the def module no longer exports the expected name — otherwise a rename disables the check',
+      ],
+      [
+        !fallbackFreshnessViolations.some((v) => v.file.endsWith('r13-good.ts')),
+        'R13 must NOT flag a fresh list that matches its live source',
+      ],
+      [
+        !fallbackFreshnessViolations.some((v) => v.file.endsWith('r13-skipped.ts')),
+        'R13 must NOT fail merely because a live source is unavailable — an unreachable source skips, it does not accuse',
+      ],
       [has(engineViolations, 'R1-boundary', 'bad-r1.tsx'), 'R1 should catch a relative import escaping into foundry/ (also proves .tsx sources are scanned)'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-relative.ts'), 'R2 should catch a relative import reaching into another package'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-deep.ts'), 'R2 should catch a deep bare @jini-ai/<name>/<subpath> import'],

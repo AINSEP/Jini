@@ -1,3 +1,4 @@
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../i18n/index.js';
 import type { Connector, ConnectorAction, ConnectorAuthorizationPendingState } from '../types.js';
 import { ConnectorCard } from './ConnectorCard.js';
@@ -23,6 +24,9 @@ export interface ConnectorGridProps {
   emptyNoMatchTitle?: (query: string) => string;
   emptyNoMatchBody?: string;
   emptyNoMatchAction?: string;
+  /** This grid's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. Each card gets its
+   *  own distinct sub-handle, derived from the connector's own stable id. */
+  agentHandle?: string;
 }
 
 /** Card grid + the search-empty-state and locked-gate overlays. */
@@ -46,25 +50,32 @@ export function ConnectorGrid({
   emptyNoMatchTitle,
   emptyNoMatchBody,
   emptyNoMatchAction,
+  agentHandle,
 }: ConnectorGridProps) {
   const t = useT();
   const resolvedEmptyNoMatchTitle =
     emptyNoMatchTitle ?? ((query: string) => t('No connectors match "{query}"', { query }));
   const resolvedEmptyNoMatchBody = emptyNoMatchBody ?? t('Try a different search term.');
   const resolvedEmptyNoMatchAction = emptyNoMatchAction ?? t('Clear search');
+  const cardHandles = agentHandle ? buildAgentListHandles(agentHandle, connectors.map((c) => c.id)) : undefined;
   return (
     <div className={`connector-grid-wrap${locked ? ' is-masked' : ''}`} data-testid="connector-grid-wrap">
       {hasNoResults && !locked ? (
         <div className="tab-empty connectors-empty" role="status" aria-live="polite" data-testid="connectors-empty">
           <p className="connectors-empty-title">{resolvedEmptyNoMatchTitle(searchQuery.trim())}</p>
           <p className="connectors-empty-body">{resolvedEmptyNoMatchBody}</p>
-          <button type="button" className="ghost connectors-empty-action" onClick={onClearSearch}>
+          <button
+            type="button"
+            className="ghost connectors-empty-action"
+            onClick={onClearSearch}
+            {...agentHandleProps(agentHandle, { action: 'clear-search', role: 'button', label: resolvedEmptyNoMatchAction })}
+          >
             {resolvedEmptyNoMatchAction}
           </button>
         </div>
       ) : (
         <div className="connector-grid" aria-hidden={locked || undefined}>
-          {connectors.map((connector) => (
+          {connectors.map((connector, index) => (
             <ConnectorCard
               key={connector.id}
               connector={connector}
@@ -79,6 +90,7 @@ export function ConnectorGrid({
               onOpenDetails={onOpenDetails}
               {...(getCategoryLabel ? { getCategoryLabel } : {})}
               {...(onOpenExternalUrl ? { onOpenExternalUrl } : {})}
+              {...(cardHandles?.[index] ? { agentHandle: cardHandles[index] } : {})}
             />
           ))}
         </div>

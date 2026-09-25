@@ -4,7 +4,7 @@
  * Per-agent install/docs link lookup, surfaced to a Settings-shaped UI when
  * an agent is unavailable.
  *
- * De-branded from OD's `apps/daemon/src/runtimes/core/metadata.ts`: the
+ * De-branded from OD's `apps/daemon/src/runtimes/metadata.ts`: the
  * table is now an injectable parameter (`installMetaForAgent(id, table)`)
  * instead of a module-private constant, and `DEFAULT_AGENT_INSTALL_LINKS`
  * drops the three OD-self-referential entries the origin had for `amr`,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 
 import {
+  createSessionForPrincipal,
   getEffectivePermissions,
   login,
   logout,
@@ -170,6 +171,42 @@ test("EC-05: concurrent sessions for one principal are independent — revoking 
 
   assert.equal(await validateSession({ deps, input: { workspaceId: WORKSPACE, rawToken: first.rawToken } }), null);
   assert.ok(await validateSession({ deps, input: { workspaceId: WORKSPACE, rawToken: second.rawToken } }));
+});
+
+test("2026-09-06 seam: createSessionForPrincipal mints a session with no password, and it authenticates via the SAME validateSession login() uses", async () => {
+  const { deps, repos } = buildDeps("2026-08-01T00:00:00.000Z");
+  const principalId = await seedOneUser(repos, { password: "unused-by-this-path" });
+
+  const { session, rawToken } = await createSessionForPrincipal({
+    deps,
+    input: { workspaceId: WORKSPACE, principalId, ip: "127.0.0.1", userAgent: "boot-launcher/1" },
+  });
+
+  assert.equal(session.principalId, principalId);
+  assert.equal(session.ip, "127.0.0.1");
+  assert.equal(session.userAgent, "boot-launcher/1");
+  assert.ok(rawToken.length > 0);
+
+  const resolved = await validateSession({ deps, input: { workspaceId: WORKSPACE, rawToken } });
+  assert.equal(resolved?.principal.id, principalId);
+
+  // No password was verified and no lastLoginAt write happens for this path — distinct from
+  // login()'s own bookkeeping, since the caller here already proved identity some other way.
+  const userRow = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId });
+  assert.equal(userRow?.lastLoginAt, undefined);
+});
+
+test("2026-09-06 seam: login() and createSessionForPrincipal mint tokens that hash and validate identically (no drift between the two minters)", async () => {
+  const { deps, repos } = buildDeps("2026-08-01T00:00:00.000Z");
+  const principalId = await seedOneUser(repos, { password: "pw-valid-1234" });
+
+  const viaLogin = await login({ deps, input: { workspaceId: WORKSPACE, username: "ed", password: "pw-valid-1234" } });
+  const viaDirect = await createSessionForPrincipal({ deps, input: { workspaceId: WORKSPACE, principalId } });
+
+  // Both raw tokens validate through the exact same lookup path — proves one shared minter, not
+  // two independently-encoded ones that happen to agree today.
+  assert.ok(await validateSession({ deps, input: { workspaceId: WORKSPACE, rawToken: viaLogin.rawToken } }));
+  assert.ok(await validateSession({ deps, input: { workspaceId: WORKSPACE, rawToken: viaDirect.rawToken } }));
 });
 
 test("REQ-07: getEffectivePermissions resolves the union of role + direct grants; empty for a grant-less principal", async () => {

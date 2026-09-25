@@ -49,6 +49,10 @@ export type {
 // Gated destructive operations.
 export type { GatedConfirmResult, GatedOperation, GatedPlanResult } from './gated/types.js';
 
+// Data table sort state — plain data shared with `@jini-ai/admin/react`'s `DataTable`, so a host
+// can hold this shape without importing the React layer just for the type.
+export type { DataTableSortDirection, DataTableSortState } from './data-table/types.js';
+
 // Ports. See `./ports/README.md` for the one port deliberately absent (`execution`).
 export type {
   AdminAnalyticsHit,

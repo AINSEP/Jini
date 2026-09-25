@@ -3,7 +3,7 @@
  * target (Vercel, Cloudflare Pages, and future adapters). None of these
  * types know what a "project" is — the caller (a pack, a tool handler, a
  * CLI command) resolves its own file set and hands over plain
- * `DeployFile[]`. See `packages/deploy/source-map.md` for what was dropped
+ * `DeployFile[]`. See `packages/devops/source-map.md` for what was dropped
  * from the OD origin file to get here.
  */
 

@@ -295,13 +295,17 @@ Only **`daemon.ts`'s status + shutdown pair** was ported this round, as a new
 dependency-injected: caller supplies `getVersion`/`host`/`getPort`/`dataDir`/
 `isShuttingDown`/`requestShutdown`; the OD-specific `installedPlugins`/
 `mediaConfigDir`/`sandboxMode` fields were dropped, not carried over). This directly
-answers `packages/cli/source-map.md`'s daemon status/stop question — **except that
-file does not exist in this repository**: `packages/cli/src/index.ts` is a one-line
-placeholder (`// @jini/cli — placeholder.`) with no source-map.md anywhere under
-`packages/cli/`. There is no "UNCLEAR row" to resolve because no CLI port has
-happened yet on this branch. The finding stands on its own regardless: a generic,
-tested, dependency-injected daemon status+shutdown pair now exists in `@jini/http`
-for whichever task builds `@jini/cli` for real to consume.
+answers `packages/cli/source-map.md`'s daemon status/stop question — at the time this
+paragraph was written that file did not exist and `packages/cli/src/index.ts` was a
+one-line placeholder, so there was no "UNCLEAR row" to resolve yet. **No longer
+true**: `@jini/cli` has since been built out (`packages/cli/source-map.md` exists,
+622 lines; `src/index.ts` is a real barrel) and its own "UNCLEAR" row for
+`daemon status`/`daemon stop` (`packages/cli/source-map.md` line ~81) still describes
+`@jini/http` as "a stub... with no `/status`/`/shutdown` route to call" — that claim
+is itself now stale too, since `daemon-status.ts` exists and is wired into
+`createLocalNodeDaemon` (see `packages/server/source-map.md`). The finding stands on
+its own regardless: a generic, tested, dependency-injected daemon status+shutdown pair
+exists in `@jini/http` for whichever task wires `@jini/cli`'s daemon commands to it.
 
 Everything else classified above — including the other five files the task brief
 named as "plausibly generic" (`chat.ts`, `runs.ts`, `terminal.ts`, `telemetry.ts`,
@@ -336,12 +340,12 @@ This is a partial port by design, not an incomplete one: the 32-file classificat
 above is complete and is this task's primary deliverable regardless of how much
 porting followed it.
 
-## 2026-07-19 addition — `api-security-middleware.ts` + `route-registration-guard.ts` (node-host keystone task)
+## 2026-07-19 addition — `api-security-middleware.ts` + `route-registration-guard.ts` (server keystone task)
 
-Ported as part of `@jini/node-host`'s `createLocalNodeDaemon` keystone task (see
-`packages/node-host/source-map.md`) — these two files are the security/inventory middleware
+Ported as part of `@jini/server`'s `createLocalNodeDaemon` keystone task (see
+`packages/server/source-map.md`) — these two files are the security/inventory middleware
 `createLocalNodeDaemon` assembles onto its Express app, but they live here rather than in
-`node-host` because they are pure `@jini/http` transport concerns (Express middleware, no daemon
+`server` because they are pure `@jini/http` transport concerns (Express middleware, no daemon
 composition logic), consistent with this package's existing role as "HTTP/SSE transport + route-
 pack registrar." Origin: `apps/daemon/src/http/api-security-middleware.ts` and
 `apps/daemon/src/route-registration-guard.ts` on the user's `arch/server-startserver-endgame`
@@ -1238,12 +1242,12 @@ Every symbol a consumer previously imported from the package root (`adapter.ts`,
 `daemon-status.ts`, `local-daemon-request.ts`, `origin.ts`, `request.ts`, `response.ts`,
 `route-registration-guard.ts`, `api-security-middleware.ts`) now lives under `express/` — this is a
 breaking import-path change for any pre-existing caller, accepted deliberately since there is
-exactly one caller of this package in the repo (`@jini/node-host`) and it was updated in the same
+exactly one caller of this package in the repo (`@jini/server`) and it was updated in the same
 change (see that package's own source-map.md).
 
 ### `transport?: 'express' | 'fastify'` — the config surface this enables
 
-`@jini/node-host`'s `createLocalNodeDaemon` is the only consumer today; it takes a
+`@jini/server`'s `createLocalNodeDaemon` is the only consumer today; it takes a
 `transport?: 'express' | 'fastify'` option (default `'express'`) and wires the matching namespace
 off this package's barrel (`http.express.*` / `http.fastify.*`) for the route-registration guard,
 the two `/api` security middlewares, and the daemon-status routes. This package itself has no
@@ -1287,7 +1291,7 @@ throws (surfaced as a 500) if mounted on a raw Fastify instance, since Fastify's
 200 default status). A pack that must run under both transports should branch on the app shape
 itself, or better, be written against this package's own `defineJsonRoute`/`mountJsonRoute` from
 the matching namespace, which does abstract the difference away. Proven concretely by
-`packages/node-host/src/__tests__/create-local-node-daemon.fastify-transport.test.ts`'s own
+`packages/server/src/__tests__/create-local-node-daemon.fastify-transport.test.ts`'s own
 `makePingPack()` fixture doc, which deliberately is NOT the same fixture the Express-transport
 suite uses for exactly this reason.
 
@@ -1298,7 +1302,7 @@ for both `express/` and `fastify/` subtrees plus the shared root — reverified 
 Part A completion task (2026-07-19): `pnpm --filter @jini/http exec vitest run --coverage
 --coverage.include='src/**'` → 337 passed, 100/100/100/100 across every file. No coverage gaps were
 found in this package itself; the gaps closed in this pass were one layer up, in
-`@jini/node-host`'s integration suite — see that package's own source-map.md.
+`@jini/server`'s integration suite — see that package's own source-map.md.
 
 ## 2026-07-19 — SSE primitive + AG-UI run-stream route (Part B.7)
 
@@ -1345,14 +1349,14 @@ deliberate architectural addition: `@jini/http` was previously "HTTP/SSE transpo
 registrar" with no dependency on the run/agent kernel at all; it now also depends on
 `@jini/daemon`'s `RunLifecycle` and `@jini/agui`'s encoder specifically to implement the SSE route
 this task's brief asked for in this package. Whether that coupling should eventually move (e.g. the
-route registrar living in `@jini/node-host`, which already depends on both, mounting a purely
+route registrar living in `@jini/server`, which already depends on both, mounting a purely
 transport-agnostic primitive from `@jini/http`) is a reasonable question for a future architecture
 review — not revisited here since the task brief was explicit that this route belongs in
 `packages/http/src/`, mirroring `daemon-status.ts`'s own registration shape.
 
 ### Not wired into `createLocalNodeDaemon`
 
-`@jini/node-host`'s `createLocalNodeDaemon` does not call `registerRunStreamRoute` today — this
+`@jini/server`'s `createLocalNodeDaemon` does not call `registerRunStreamRoute` today — this
 task built the route inside `@jini/http` (as scoped) but did not extend `createLocalNodeDaemon` to
 mount it automatically, since that wiring wasn't part of this task's brief and doing it without
 being asked would be scope creep into a different package's already-tested assembly path. A future
@@ -1431,7 +1435,7 @@ src/
 ```
 
 **No breaking import-path change, contrary to this file's 2026-07-19 section above:** every
-existing consumer (all ten route packs, `@jini/node-host`) keeps importing from the exact same flat
+existing consumer (all ten route packs, `@jini/server`) keeps importing from the exact same flat
 paths it always did. The `express`/`fastify` namespaces are additive, opt-in surface for a caller
 that specifically wants to pick a transport (today, only `createLocalNodeDaemon`'s `transport`
 option does).
@@ -1505,7 +1509,7 @@ route-pack files they touch (`delegated-tools.ts`, `runs.ts`, `terminals.ts`) ar
 this merge's "Corrected layout" section above kept flat at the package root, not moved into
 `express/`, so every path/import reference below is still accurate post-merge. `media.ts` (new in
 that branch) is likewise flat at the root and barrel-exported the same way. None of these four
-sections needed any correction for the Fastify split; see `node-host/source-map.md`'s own merge note
+sections needed any correction for the Fastify split; see `server/source-map.md`'s own merge note
 for the one piece that did (the six route packs `media.ts` joins are wired Express-only for now,
 deliberately, per this repo's owner's explicit instruction to table Fastify parity for the newly
 merged route packs — tracked as follow-up work, not silently dropped).
@@ -1610,7 +1614,7 @@ like every other route pack's registrar — there is no longer an `express/` sub
 
 **What's now flat that wasn't before:** `installRouteRegistrationGuard`/`getRouteRegistrationInventory`/
 `guardedRouteKey` (previously only reachable via the `express`/`fastify` namespaces, needed directly
-by `@jini/node-host` now that there's only one transport) and `registerRunStreamRoute` (previously
+by `@jini/server` now that there's only one transport) and `registerRunStreamRoute` (previously
 only reachable via `express.registerRunStreamRoute`).
 
 **Preserved, not deleted:** the full removed implementation lives unchanged on the
@@ -1663,7 +1667,7 @@ transport. One JSON route per method across `AuthProvider`/`StorageProvider`/`Pa
 `DbProvider`/`RealtimeProvider` (17 routes; `RealtimeProvider.subscribe` has no route — inherently a
 streaming/websocket concern, out of scope for a request/response pack). Every route checks its one
 required capability slot is configured before doing anything else (`503 NOT_CONFIGURED` otherwise —
-all five slots are independently optional, and `@jini/node-host`'s zero-config default leaves every
+all five slots are independently optional, and `@jini/server`'s zero-config default leaves every
 one unconfigured); every real provider call is wrapped so a raw Stripe/SQL/JWT/WebSocket error never
 reaches the caller (SEC-005, matching `media.ts`/`delegated-tools.ts`'s `reportInternalError`
 precedent). `@jini/capability-providers` added to `package.json` as a `dependencies` entry (matching
@@ -1678,7 +1682,7 @@ Empirically, `npx tsx scripts/check-engine-boundaries.ts` exits 0 for `connector
 why: `UNLOCKED.md`'s manifest keys are the scoped name (`"@jini/capability-providers"`), but R7's
 lookup uses the *unscoped* `targetPackage` (`'capability-providers'`); `'capability-providers' in
 unlocked` is `false` for every single entry in the manifest, so R7 currently never fires for *any*
-package regardless of typeOnly status. `@jini/node-host`'s `create-local-node-daemon.ts` already
+package regardless of typeOnly status. `@jini/server`'s `create-local-node-daemon.ts` already
 relies on this same open gate for a **genuine runtime** (non-type) import of `@jini/media`
 (`createMediaDispatchEngine`/`createSqliteMediaTaskStore`) and `@jini/memory` — both already merged,
 both real precedent. Not fixed here (out of scope for this task); flagged in `connectors.ts`'s own
@@ -1701,7 +1705,7 @@ reported via `onInternalError`, and redacted (`redactSecrets`, reused from `@jin
 `connection-guard.ts` — already reachable through this package's existing `@jini/agent-runtime`
 dependency) before it can reach the HTTP caller.
 
-**`@jini/node-host`'s wiring** (`create-local-node-daemon.ts`): `registerHealthRoutes` is mounted
+**`@jini/server`'s wiring** (`create-local-node-daemon.ts`): `registerHealthRoutes` is mounted
 first — before `installRouteRegistrationGuard`'s route-tracking is followed by `express.json()`/the
 bearer-auth/origin-guard middleware — with a real `checkReadiness` built from
 `verifySqliteIntegrity({db: dbOpsConnection, quick: true})` (reusing the same raw `better-sqlite3`
@@ -1716,7 +1720,7 @@ so wiring research in adds no new boundary surface either way (verified empirica
 re-running `npx tsx scripts/check-engine-boundaries.ts` after the change).
 
 **Verified this session**: `pnpm --dir packages/http exec tsc --noEmit` / `run build` — clean.
-`pnpm --dir packages/node-host exec tsc --noEmit` / `run build` — clean. Repo-root `npx tsx
+`pnpm --dir packages/server exec tsc --noEmit` / `run build` — clean. Repo-root `npx tsx
 scripts/check-engine-boundaries.ts` and `npx tsx scripts/guard.ts` — both clean, re-run after every
 sub-step of this addition. Test files for `health.ts`/`connectors.ts`/`research.ts` follow this
 package's existing `makeApp`/`makeRes`/direct-`.parse()`/`.handle()` unit-test convention (see
@@ -1812,7 +1816,7 @@ mismatch" validation errors are the one deliberate non-redacted exception — su
 `BAD_REQUEST`, since they carry no secret and are a legitimate client-correctable failure, not an
 internal one.
 
-**`@jini/node-host`'s wiring** (`create-local-node-daemon.ts`): `registerXaiRoutes(app, { dataDir:
+**`@jini/server`'s wiring** (`create-local-node-daemon.ts`): `registerXaiRoutes(app, { dataDir:
 config.dataDir }, { resolvedPortRef })`, alongside the `connectors`/`research` zero-config calls —
 `dataDir` is the one default worth overriding at this call site (this preset already has a real,
 trusted `dataDir` for `events.db`/`journal.db`/etc.); every other `XaiHttpDeps` field keeps its own
@@ -1821,8 +1825,8 @@ dance — `/api/xai/search` answers a clean 503 `NOT_CONFIGURED` until then, the
 shape every other route pack added this session already established.
 
 **Verified**: `pnpm --dir packages/http exec tsc --noEmit` / `run build` — clean. `pnpm --dir
-packages/node-host exec tsc --noEmit` — clean (after rebuilding `@jini/http`'s `dist`, which
-`node-host` resolves against). Repo-root `npx tsx scripts/check-engine-boundaries.ts`, `npx tsx
+packages/server exec tsc --noEmit` — clean (after rebuilding `@jini/http`'s `dist`, which
+`server` resolves against). Repo-root `npx tsx scripts/check-engine-boundaries.ts`, `npx tsx
 scripts/guard.ts`, and `npx tsx scripts/check-protocol-purity.ts` — all clean. `src/__tests__/
 xai.test.ts` — direct `.parse()`/`.handle()` unit tests plus `registerXaiRoutes` mount tests,
 matching `research.test.ts`/`connectors.test.ts`'s conventions: real temporary-directory filesystem
@@ -2072,3 +2076,43 @@ default is the real `process.env` **object**, not a snapshot, because `createLoc
 `JINI_BIND_HOST` into it at boot and a copy would stop tracking that.
 
 Verified: `packages/http-kit` 1245/1245 passing, 100/100/100/100 coverage.
+
+## 2026-08-18 — `agui-stream` route removed: zero callers, never published
+
+`run-stream.ts` (`RUN_STREAM_ROUTE_PATH`, `registerRunStreamRoute`, `handleRunStreamRequest`) and its
+test file were deleted outright, not renamed. The route mounted at `/api/runs/:runId/agui-stream` was
+known-misnamed since 2026-07-27 (see `@jini-ai/agentic/src/core/index.ts`'s module doc and that
+package's own source-map) but kept on the assumption an already-deployed client might depend on the
+URL.
+
+An audit turned up zero callers: no client anywhere in this repo or the sibling `Tovu` repo ever
+requested that path — both real SSE consumers (`examples/reference-web/src/daemon-transport.ts`'s
+`streamRun` and `A2uiLab.tsx`'s `streamA2uiRun`) read `/api/runs/:runId/events` instead, a wholly
+separate route (`runs.ts`'s `RUN_EVENTS_ROUTE_PATH`, unaffected by this change). The one real
+reference left in the repo was `examples/reference-web/src/daemon.ts`, which *registered* the route on
+the server; nothing in that same example app's frontend ever called it, so this was a mounted handler
+with no reachable path to it, not a live integration. `@jini-ai/http-kit` has also never been
+published to npm (`npm view @jini-ai/http-kit` returns `E404`), so there is no external consumer this
+could break either.
+
+Removed: the route, its registrar, its handler, its types (`RunStreamDeps`/`RunStreamEncoder`/
+`RunStreamInternalErrorContext`), its barrel exports, `route-manifest.ts`'s entry and the module doc's
+now-stale "single exception" wording (now correctly names `RUN_EVENTS_ROUTE_PATH`, the one spec-less
+route left), `__tests__/run-stream.test.ts` in full, the barrel smoke-test assertion in
+`__tests__/index.test.ts`, and the manifest coverage in `__tests__/route-manifest.test.ts` asserting
+both streaming routes were present (now asserts the one remaining). `raw-sse.ts`'s module doc, which
+cited `run-stream.ts` as `createSseResponse`'s example caller, now cites `frontend-sessions.ts`'s
+`handleFrontendSessionStream` — the primitive's one surviving consumer.
+
+Not touched: `@jini-ai/agentic`'s `gen-ui/` module (the six `GenUi*` event kinds and
+`createGenUiEncoder`) — this route was its only real caller in the repo, but removing the encoder
+itself is a bigger, separate call this change deliberately did not make. Flagged in that package's own
+source-map entry for whoever picks that question up.
+
+## 2026-08-23 — `delegated-tools.ts`: real HTTP status codes instead of always-200
+
+`toolExecutionResultToApiResult` no longer wraps every `ToolExecutionResult.status` in a 200
+response. Only `completed` still returns `200 {result}`; `denied`/`confirmation-denied` now return
+`403 TOOL_OPERATION_DENIED` and `timed-out`/`cancelled`/`failed` now return a SEC-005-redacted `500
+INTERNAL_ERROR`, mirroring `db-ops.ts`'s existing status-mapping convention for the same
+`ToolExecutionResult` union rather than inventing a second one.

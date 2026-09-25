@@ -1,0 +1,141 @@
+openapi: 3.0.3
+info:
+  title: Jini daemon remote run-event ingestion routes
+  version: 0.0.0
+  description: |
+    Code-first fragment for `remote-run-events.ts`'s two routes in
+    `@jini-ai/http-kit` — lets a tool call that executed in a DIFFERENT OS
+    process from the one holding a run's `RunLifecycle` report its outcome
+    back into that run's own event log, so SSE subscribers see it exactly as
+    they would a locally-executed delegated tool call. This does not grant
+    authorization to execute anything: whatever executed the tool remotely
+    already ran it through its OWN `ToolExecutor`/`ToolPolicy` gate first —
+    these routes only let that already-decided outcome be recorded into a run
+    they don't own the process of.
+
+    **Middleware-level gating — read this before the per-route responses
+    below, since it is the actual security boundary, not `requireSameOrigin`.**
+    Both routes are mounted behind a dedicated `requireRemoteToolBridgeToken`
+    middleware (`app.use('/api/runs/:runId/tool-use', gate)` /
+    `app.use('/api/runs/:runId/tool-result', gate)`), applied BEFORE
+    `mountJsonRoute` registers the actual POST handlers. This is deliberately
+    a separate trust boundary from three other gates this API has, all three
+    of which explicitly do NOT apply here:
+    1. **Not `requireSameOrigin`** — neither route sets it (see each
+       operation's `x-jini-require-same-origin: false`). These routes are not
+       meant to be called from a browser at all, only from a host's own
+       trusted backend-to-backend process (e.g. a sidecar tool-execution
+       process), so same-origin is not the relevant property to check.
+    2. **Not the general `optionalBearer`/`JINI_API_TOKEN` gate** documented
+       in every other fragment in this package. That token may legitimately
+       reach browser-adjacent callers depending on deployment and has a
+       "disabled when unset" escape hatch and loopback-peer exemptions.
+    3. **Fails closed, unconditionally.** Unlike the general API token, there
+       is no "unset means open" mode: if `JINI_REMOTE_TOOL_BRIDGE_TOKEN` (the
+       env var name is itself overridable via injected `tokenConfig`) is not
+       configured, every request gets `503 REMOTE_TOOL_BRIDGE_NOT_CONFIGURED`
+       — never silently unauthenticated. A misconfigured host fails loud, not
+       open, because this route grants direct run-event injection into a run
+       it doesn't own — a materially bigger capability than what the general
+       token was designed to gate.
+
+    The 503/401 middleware responses below are sent through this package's
+    shared `sendApiError`/`statusForError` helpers, same as every other route
+    in this API — their `REMOTE_TOOL_BRIDGE_*` codes are registered in the
+    shared `ERROR_STATUS_BY_CODE` table (503 / 401 respectively) so
+    `statusForError` resolves them without the middleware hard-coding a
+    status. Fixed 2026-08-23 for internal consistency; the response bodies
+    are unchanged.
+
+    **Business-outcome status codes are decided by the run's actual current
+    state, not by the caught exception's message text** — a 2026 fix
+    (recorded in `toRemoteEventError`'s own doc) replaced an earlier version
+    that reported every recorder failure as `409 CONFLICT` carrying the raw
+    exception message verbatim, an information-leak-adjacent bug. Now: run
+    gone -> `404`; run terminal -> `409` (message constructed from data this
+    module already owns, never forwarded from the exception); anything else
+    -> SEC-005 `500` with a correlation id. One residual, deliberately
+    accepted imprecision: a genuine storage fault that happens to coincide
+    with an already-terminal run still reports as `409`, not `500` — avoided
+    matching on the exception's message text, which would silently break the
+    next time that string is reworded.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port: { default: '0', description: Resolved host listen port. }
+paths:
+  /api/runs/{runId}/tool-use:
+    post:
+      operationId: record_remote_tool_use
+      summary: Record a remotely-executed tool call's start into a run's event log
+      description: Requires `Authorization Bearer <JINI_REMOTE_TOOL_BRIDGE_TOKEN>` — see fragment description for why this is a distinct gate from same-origin and the general API bearer token.
+      security: [ { remoteToolBridgeBearer: [] } ]
+      x-jini-require-same-origin: false
+      parameters: [ { $ref: '#/components/parameters/RunId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RemoteToolUseRequest' } } }
+      responses:
+        '200': { description: Recorded., content: { application/json: { schema: { $ref: '#/components/schemas/RemoteRunEventResponse' } } } }
+        '400': { description: 'Body is not a JSON object, or `toolUseId`/`toolId` is missing or empty.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/BridgeTokenRequired' }
+        '404': { description: 'The run does not exist — checked before recording, and re-checked if the recorder call itself throws.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: The run is already in a terminal state; no further events can be recorded., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BridgeNotConfigured' }
+  /api/runs/{runId}/tool-result:
+    post:
+      operationId: record_remote_tool_result
+      summary: Record a remotely-executed tool call's result into a run's event log
+      description: Requires `Authorization Bearer <JINI_REMOTE_TOOL_BRIDGE_TOKEN>` — see fragment description. `content` deliberately accepts an empty string (a tool that legitimately produces no output) — only a missing/non-string `content` is rejected, unlike the identifier fields which reject empty.
+      security: [ { remoteToolBridgeBearer: [] } ]
+      x-jini-require-same-origin: false
+      parameters: [ { $ref: '#/components/parameters/RunId' } ]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/RemoteToolResultRequest' } } }
+      responses:
+        '200': { description: Recorded., content: { application/json: { schema: { $ref: '#/components/schemas/RemoteRunEventResponse' } } } }
+        '400': { description: 'Body is not a JSON object, `toolUseId` is missing/empty, `content` is missing/non-string, or `isError` is present but not a boolean.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '401': { $ref: '#/components/responses/BridgeTokenRequired' }
+        '404': { description: 'The run does not exist — checked before recording, and re-checked if the recorder call itself throws.', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '409': { description: The run is already in a terminal state; no further events can be recorded., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+        '500': { $ref: '#/components/responses/InternalError' }
+        '503': { $ref: '#/components/responses/BridgeNotConfigured' }
+components:
+  securitySchemes:
+    remoteToolBridgeBearer:
+      type: http
+      scheme: bearer
+      description: 'A dedicated shared secret, distinct from the general `/api` bearer token — env var `JINI_REMOTE_TOOL_BRIDGE_TOKEN` by default (name is host-overridable). Fails closed (503) if unconfigured; never has a loopback-peer exemption. See fragment description.'
+  parameters:
+    RunId: { name: runId, in: path, required: true, schema: { type: string, minLength: 1 } }
+  responses:
+    BridgeTokenRequired: { description: 'Missing/malformed `Authorization` header, or the presented token does not match (constant-time compared).', content: { application/json: { schema: { $ref: '#/components/schemas/BridgeErrorResponse' } } } }
+    BridgeNotConfigured: { description: '`JINI_REMOTE_TOOL_BRIDGE_TOKEN` (or the host-configured equivalent env var) is not set — remote run-event ingestion is disabled. Fails closed, not open.', content: { application/json: { schema: { $ref: '#/components/schemas/BridgeErrorResponse' } } } }
+    InternalError: { description: 'A recorder failure not attributable to a missing or terminal run (e.g. an event-log write fault). Adapter-generated errors include a correlation requestId in error.details; the real error is never sent to the caller (SEC-005).', content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
+  schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string }, message: { type: string }, details: {} } } }
+    BridgeErrorResponse:
+      type: object
+      description: 'Same `{error: {code, message}}` envelope shape as ErrorResponse, sent through the shared `sendApiError` helper — see fragment description.'
+      required: [error]
+      properties: { error: { type: object, required: [code, message], properties: { code: { type: string, enum: [REMOTE_TOOL_BRIDGE_NOT_CONFIGURED, REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED] }, message: { type: string } } } }
+    RemoteToolUseRequest:
+      type: object
+      required: [toolUseId, toolId]
+      properties:
+        toolUseId: { type: string, minLength: 1 }
+        toolId: { type: string, minLength: 1 }
+        input: { description: Passed through unvalidated., nullable: true }
+    RemoteToolResultRequest:
+      type: object
+      required: [toolUseId, content]
+      properties:
+        toolUseId: { type: string, minLength: 1 }
+        content: { type: string, description: Empty string is a valid, meaningful value here — see operation description. }
+        isError: { type: boolean }
+    RemoteRunEventResponse: { type: object, required: [recorded], properties: { recorded: { type: boolean, enum: [true] } } }

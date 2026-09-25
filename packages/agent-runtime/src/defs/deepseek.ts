@@ -51,4 +51,16 @@ export const deepseekAgentDef = {
     // --auto --model <id>` and any internal quoting.
     maxPromptArgBytes: 30_000,
     streamFormat: 'plain',
+    // No `externalMcpInjection`: CodeWhale (this dispatcher's underlying TUI)
+    // does support native MCP via `DEEPSEEK_MCP_CONFIG=<path>` — an explicit
+    // per-run env override naming an `mcp.json`-shaped file, falling back to
+    // `~/.codewhale/mcp.json` / `~/.deepseek/mcp.json` when unset. That is the
+    // closest of any unwired def here to this package's existing shape
+    // (explicit, run-scoped, no reliance on auto-discovery's interactive
+    // trust prompt), but it is a path-in-an-env-var mechanism — neither
+    // `'claude-mcp-json'` (file path passed as a CLI flag) nor
+    // `'opencode-env-content'`/`'mimo-env-content'` (env var carries the
+    // config *content*, not a path) match it. Cheapest real follow-up
+    // candidate among the 12; needs a 5th strategy, not a stretch of an
+    // existing one.
 } satisfies RuntimeAgentDef;

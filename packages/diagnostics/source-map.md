@@ -66,10 +66,12 @@ unilaterally.
 
 `src/redaction.test.ts`, `src/zip.test.ts`, `src/agent-logs.test.ts` ported
 from `packages/diagnostics/tests/{redaction,zip,agent-logs}.test.ts`
-near-verbatim (all 22 tests), moved beside their source files (this porting
-session's convention — see `@jini/platform`'s per-file test layout) rather
-than kept in a separate `tests/` directory, so no second `tsconfig.tests.json`
-was needed. **Identity-stripped** the two `zip.test.ts` fixture app names
+near-verbatim (22 tests at the time of this port), moved beside their source files
+(this porting session's convention — see `@jini/platform`'s per-file test layout)
+rather than kept in a separate `tests/` directory, so no second
+`tsconfig.tests.json` was needed. (These three files now hold 24 tests —
+`f6d030a9`/`a66fcf3a` added coverage after this porting session; the 22-count
+above describes only the original port.) **Identity-stripped** the two `zip.test.ts` fixture app names
 (`"open-design"` → `"jini-host"`) — fixture data, not tested behavior; the
 assertions were updated to match.
 

@@ -108,7 +108,7 @@ function attachNextRunAt(routine: Routine, scheduler: RoutineScheduler): Routine
 async function checkTargetProjectExists(target: RoutineProjectTarget, deps: RoutineHttpDeps): Promise<ApiError | null> {
   if (target.mode !== 'reuse' || !deps.projectExists) return null;
   const exists = await deps.projectExists(target.projectId);
-  return exists ? null : createApiError('BAD_REQUEST', `target project ${target.projectId} not found`);
+  return exists ? null : createApiError('NOT_FOUND', `target project ${target.projectId} not found`);
 }
 
 function parseRoutineId(input: RouteInputContext): Result<string> {

@@ -22,7 +22,7 @@ export const DEFAULT_MEDIA_PROVIDER_CATALOG: readonly MediaProviderOption[] = [
   },
   {
     id: 'custom-image-api',
-    label: 'Custom Image API',
+    label: 'Custom Media API',
     models: ['gemini-3.1-flash-image-preview'],
   },
   {

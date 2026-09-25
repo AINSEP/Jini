@@ -282,7 +282,7 @@ now, together with the three modules that complete the barrel.
 | `src/db/projects/index.ts` | `apps/daemon/src/db/projects/index.ts` | Verbatim barrel. |
 | `src/db/agent-sessions/agent-sessions.ts` | `apps/daemon/src/db/agent-sessions/agent-sessions.ts` (192 ln) | Verbatim — the upstream CLI resume-identity-guard session cache has no OD-specific fields at all; every column (`session_id`, `stable_prompt_hash`, `model`, `cwd`, `last_message_id`) is generic resume bookkeeping already matched 1:1 by the schema. |
 | `src/db/agent-sessions/index.ts` | `apps/daemon/src/db/agent-sessions/index.ts` | Verbatim barrel. |
-| `src/db/index.ts` | `apps/daemon/src/db/index.ts` (barrel entrypoint) | Re-exports only the four ported concerns' public surface (not the five excluded product tables' modules, which don't exist in this port). |
+| `src/db/index.ts` | `apps/daemon/src/db/index.ts` (barrel entrypoint) | Re-exports the four ported concerns' public surface (not the five excluded product tables' modules, which don't exist in this port). **Stale as of a later addition**: `src/db/index.ts` now also re-exports `tool-catalog/` (`ensureToolCatalogTables`/`reseedToolCatalog`/`getToolCatalogEntry`/`searchToolCatalog`, 151 lines) and `chat-history/` (`CHAT_HISTORY_DDL`/`ensureChatHistoryTables`/`createChatHistoryStore`/`createChatHistoryMaintenance`, 456 lines, an owner-scoped sibling to `conversations/` per that export's own doc comment) — both OD-noun-clean (grep-verified) but with no file-map entry of their own anywhere in this doc; needs a proper provenance write-up from whoever added them. |
 
 ### Design decisions
 

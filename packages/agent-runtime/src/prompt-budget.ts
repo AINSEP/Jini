@@ -6,7 +6,7 @@
  * command-line cap, both before and after the specific quote-escaping a
  * `.cmd`/`.bat` shim vs. a direct `.exe` spawn applies).
  *
- * Ported from OD's `apps/daemon/src/runtimes/prompt/prompt-budget.ts` with
+ * Ported from OD's `apps/daemon/src/runtimes/prompt-budget.ts` with
  * the copy stripped per the task charter: the origin's error messages said
  * "Reduce the selected skills/design-system context…" (OD's own content
  * catalog). Replaced with the generic "selected context" phrasing so the

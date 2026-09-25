@@ -5,6 +5,7 @@ import { test } from "vitest";
 const SEED_OWNER_PASSWORD = "seed-owner-pw";
 
 import { Argon2PasswordHasher } from "../hasher.js";
+import { login } from "../auth-service.js";
 import type { AuthServiceDeps } from "../auth-service.js";
 import {
   attachPolicy,
@@ -22,6 +23,7 @@ import {
   updateRole,
   updateUser,
   writePolicyPermission,
+  removePolicyPermission,
 } from "../admin-crud-service.js";
 import type { IdentityRepos } from "../ports.js";
 import {
@@ -37,6 +39,7 @@ import {
 } from "../repo.memory.js";
 import { seedIdentity } from "../seed.js";
 import {
+  AuthInvalidCredentialsError,
   GrantExceedsIssuerError,
   IdentityConflictError,
   IdentityForbiddenError,
@@ -362,7 +365,13 @@ test("AC-29: RESET_USER_PASSWORD changes the hash and revokes every active sessi
 
   const { user } = await resetUserPassword({
     deps,
-    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: target.id, password: "new-pw-123456" },
+    input: {
+      workspaceId: WORKSPACE,
+      callerPrincipalId: ownerPrincipalId,
+      principalId: target.id,
+      password: "new-pw-123456",
+      seededOwnerPrincipalId: ownerPrincipalId,
+    },
   });
   assert.notEqual(user.passwordHash, before?.passwordHash);
 
@@ -399,7 +408,13 @@ test("AC-29: RESET_USER_PASSWORD is denied for a caller holding only member.mana
     () =>
       resetUserPassword({
         deps,
-        input: { workspaceId: WORKSPACE, callerPrincipalId: "member-only-caller", principalId: target.id, password: "new-pw-123456" },
+        input: {
+          workspaceId: WORKSPACE,
+          callerPrincipalId: "member-only-caller",
+          principalId: target.id,
+          password: "new-pw-123456",
+          seededOwnerPrincipalId: ownerPrincipalId,
+        },
       }),
     IdentityForbiddenError
   );
@@ -414,7 +429,13 @@ test("EC-16: RESET_USER_PASSWORD on a user with zero sessions is a no-op revoke,
 
   const { user } = await resetUserPassword({
     deps,
-    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: target.id, password: "new-pw-123456" },
+    input: {
+      workspaceId: WORKSPACE,
+      callerPrincipalId: ownerPrincipalId,
+      principalId: target.id,
+      password: "new-pw-123456",
+      seededOwnerPrincipalId: ownerPrincipalId,
+    },
   });
   assert.ok(user.passwordHash);
 });
@@ -430,10 +451,129 @@ test("RESET_USER_PASSWORD: rejects a blank password", async () => {
     () =>
       resetUserPassword({
         deps,
-        input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: target.id, password: "" },
+        input: {
+          workspaceId: WORKSPACE,
+          callerPrincipalId: ownerPrincipalId,
+          principalId: target.id,
+          password: "",
+          seededOwnerPrincipalId: ownerPrincipalId,
+        },
       }),
     IdentityValidationError
   );
+});
+
+/**
+ * 2026-09-03 production incident: the admin UI's own reset-password flow reported success, and
+ * afterward NEITHER the old nor the new password could log in. Every existing RESET_USER_PASSWORD
+ * test above only asserts `user.passwordHash` CHANGED (`assert.notEqual(user.passwordHash,
+ * before?.passwordHash)`) — none of them ever drove the new password back through the real login()
+ * path, which is exactly the gap that let a hash-that-doesn't-verify bug ship undetected. This is
+ * the test that should have existed before that incident.
+ */
+test("RESET_USER_PASSWORD: the new password authenticates end-to-end through login() afterward, and the old one no longer does", async () => {
+  const { deps, ownerPrincipalId } = await buildSeededDeps();
+  const { principal: target } = await createUser({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "target10", password: "old-pw-123456" },
+  });
+
+  await resetUserPassword({
+    deps,
+    input: {
+      workspaceId: WORKSPACE,
+      callerPrincipalId: ownerPrincipalId,
+      principalId: target.id,
+      password: "brand-new-pw-998877",
+      seededOwnerPrincipalId: ownerPrincipalId,
+    },
+  });
+
+  const { principal } = await login({
+    deps,
+    input: { workspaceId: WORKSPACE, username: "target10", password: "brand-new-pw-998877" },
+  });
+  assert.equal(principal.id, target.id, "the new password must log in as the SAME principal that was reset");
+
+  await assert.rejects(
+    () => login({ deps, input: { workspaceId: WORKSPACE, username: "target10", password: "old-pw-123456" } }),
+    AuthInvalidCredentialsError,
+    "the pre-reset password must no longer authenticate"
+  );
+});
+
+/**
+ * 2026-09-03 privilege-escalation finding: `user.manage` is independently grantable and NOT
+ * owner-exclusive (`permissions.ts` — "Create/disable operator users and principals"). Before this
+ * fix, a caller holding only that one delegated permission could call RESET_USER_PASSWORD against
+ * the seeded owner's account, set a password of their own choosing, and log in as owner — a full
+ * takeover from a routine delegation. Mirrors `disablePrincipal`'s own "the seeded owner can never
+ * be [transition]ed [by another caller]" proof above.
+ */
+test("SECURITY: RESET_USER_PASSWORD refuses a THIRD-PARTY caller resetting the seeded owner's password, even with user.manage", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+
+  const { policy } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "delegated-user-manage" },
+  });
+  await repos.policyPermissions.save({
+    id: "pp-delegated-user-manage",
+    workspaceId: WORKSPACE,
+    policyId: policy.id,
+    permission: "user.manage",
+    resourceType: null,
+    constraintJson: null,
+  });
+  await seedBarePrincipal(repos, "mid-level-admin");
+  await attachPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: "mid-level-admin", policyId: policy.id },
+  });
+
+  const ownerBefore = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId });
+  assert.ok(ownerBefore);
+
+  await assert.rejects(
+    () =>
+      resetUserPassword({
+        deps,
+        input: {
+          workspaceId: WORKSPACE,
+          callerPrincipalId: "mid-level-admin",
+          principalId: ownerPrincipalId,
+          password: "attacker-chosen-pw-123456",
+          seededOwnerPrincipalId: ownerPrincipalId,
+        },
+      }),
+    OwnerRequiredError
+  );
+
+  const ownerAfter = await repos.users.findByPrincipalId({ workspaceId: WORKSPACE, principalId: ownerPrincipalId });
+  assert.equal(ownerAfter?.passwordHash, ownerBefore?.passwordHash, "a refused reset must not have changed the owner's credential");
+});
+
+/**
+ * The refusal above must NOT break the owner's own credential-rotation/incident-recovery path
+ * (`reset-admin-password-self-verified.ts`'s `callerPrincipalId === principalId` self-caller
+ * convention, driven by the `TOVU_ADMIN_RESET_PASSWORD` boot hook and the
+ * `backfill-reset-admin-password.ts` CLI script) — unlike `disablePrincipal`'s unconditional
+ * refusal, this guard exempts the owner acting on itself.
+ */
+test("RESET_USER_PASSWORD: the seeded owner CAN reset its own password (self-service/recovery is not the escalation this guard blocks)", async () => {
+  const { deps, ownerPrincipalId } = await buildSeededDeps();
+
+  const { user } = await resetUserPassword({
+    deps,
+    input: {
+      workspaceId: WORKSPACE,
+      callerPrincipalId: ownerPrincipalId,
+      principalId: ownerPrincipalId,
+      password: "owner-self-rotated-pw-123456",
+      seededOwnerPrincipalId: ownerPrincipalId,
+    },
+  });
+  assert.ok(user.passwordHash);
 });
 
 // ---------------------------------------------------------------------------
@@ -697,4 +837,190 @@ test("AC-24: WRITE_POLICY_PERMISSION enforces the INV-07 clamp — a non-owner r
       }),
     GrantExceedsIssuerError
   );
+});
+
+// ---------------------------------------------------------------------------
+// REMOVE_POLICY_PERMISSION (OQ-10) — the inverse of WRITE_POLICY_PERMISSION.
+// Before this transition a policy's permission set was append-only: shrinking it meant
+// deletePolicy + recreate, which INV-09 refuses as soon as anything references the policy.
+// ---------------------------------------------------------------------------
+
+test("REMOVE_POLICY_PERMISSION: owner removes one permission and the policy's others survive", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  const { policy } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "shrinkable-policy" },
+  });
+  const { policyPermission: doomed } = await writePolicyPermission({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, policyId: policy.id, permission: "content.write" },
+  });
+  await writePolicyPermission({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, policyId: policy.id, permission: "content.read" },
+  });
+
+  await removePolicyPermission({
+    deps,
+    input: {
+      workspaceId: WORKSPACE,
+      callerPrincipalId: ownerPrincipalId,
+      policyId: policy.id,
+      policyPermissionId: doomed.id,
+    },
+  });
+
+  const rows = await repos.policyPermissions.listByPolicyId({ workspaceId: WORKSPACE, policyId: policy.id });
+  assert.deepEqual(rows.map((row) => row.permission), ["content.read"]);
+});
+
+test("REMOVE_POLICY_PERMISSION is gated by role.manage — a caller with no grants is refused", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  const { policy } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "gated-policy" },
+  });
+  const { policyPermission } = await writePolicyPermission({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, policyId: policy.id, permission: "content.write" },
+  });
+  await seedBarePrincipal(repos, "no-grant-remover");
+
+  await assert.rejects(
+    () =>
+      removePolicyPermission({
+        deps,
+        input: {
+          workspaceId: WORKSPACE,
+          callerPrincipalId: "no-grant-remover",
+          policyId: policy.id,
+          policyPermissionId: policyPermission.id,
+        },
+      }),
+    IdentityForbiddenError
+  );
+
+  const rows = await repos.policyPermissions.listByPolicyId({ workspaceId: WORKSPACE, policyId: policy.id });
+  assert.equal(rows.length, 1, "a refused removal must not have deleted the row");
+});
+
+test("REMOVE_POLICY_PERMISSION refuses a permission id belonging to a DIFFERENT policy", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  const { policy: victim } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "victim-policy" },
+  });
+  const { policy: other } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "other-policy" },
+  });
+  const { policyPermission } = await writePolicyPermission({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, policyId: victim.id, permission: "content.write" },
+  });
+
+  await assert.rejects(
+    () =>
+      removePolicyPermission({
+        deps,
+        input: {
+          workspaceId: WORKSPACE,
+          callerPrincipalId: ownerPrincipalId,
+          policyId: other.id,
+          policyPermissionId: policyPermission.id,
+        },
+      }),
+    (err: unknown) =>
+      err instanceof IdentityNotFoundError &&
+      err.message === `policy permission '${policyPermission.id}' was not found on policy '${other.id}'`
+  );
+
+  assert.equal(
+    (await repos.policyPermissions.listByPolicyId({ workspaceId: WORKSPACE, policyId: victim.id })).length,
+    1,
+    "the cross-policy delete must be a no-op on the real owner's rows"
+  );
+});
+
+test("INV-06: REMOVE_POLICY_PERMISSION refuses a built-in or frozen parent policy", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  await repos.policies.save({
+    id: "frozen-policy-remove",
+    workspaceId: WORKSPACE,
+    name: "frozen",
+    isBuiltin: false,
+    isFrozen: true,
+  });
+
+  await assert.rejects(
+    () =>
+      removePolicyPermission({
+        deps,
+        input: {
+          workspaceId: WORKSPACE,
+          callerPrincipalId: ownerPrincipalId,
+          policyId: "frozen-policy-remove",
+          policyPermissionId: "any-row",
+        },
+      }),
+    (err: unknown) =>
+      err instanceof IdentityValidationError &&
+      err.message === "cannot remove a permission from a built-in or frozen policy (INV-06/AC-26)"
+  );
+});
+
+test("REMOVE_POLICY_PERMISSION is NOT grant-clamped — de-escalation never needs the issuer to hold the permission", async () => {
+  const { deps, repos, ownerPrincipalId } = await buildSeededDeps();
+  const { policy } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "declamped-policy" },
+  });
+  const { policyPermission } = await writePolicyPermission({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, policyId: policy.id, permission: "content.write" },
+  });
+
+  // A caller holding ONLY `role.manage` — deliberately not `content.write`, so writing this same
+  // permission would trip INV-07's GrantExceedsIssuer clamp. Removing it must still succeed:
+  // taking authority away confers nothing, so the clamp does not apply (see the transition's doc).
+  const { policy: managerPolicy } = await createPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, name: "role-manager-only" },
+  });
+  await writePolicyPermission({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, policyId: managerPolicy.id, permission: "role.manage" },
+  });
+  const { principal: manager } = await createUser({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, username: "rolemanager", password: "rolemanager-p4ssw0rd!" },
+  });
+  await attachPolicy({
+    deps,
+    input: { workspaceId: WORKSPACE, callerPrincipalId: ownerPrincipalId, principalId: manager.id, policyId: managerPolicy.id },
+  });
+
+  // Guard against a vacuous pass: prove this caller really IS clamped for `content.write`, so the
+  // removal below is genuinely exercising the "removal is exempt" rule rather than succeeding
+  // because the manager happened to hold the permission all along.
+  await assert.rejects(
+    () =>
+      writePolicyPermission({
+        deps,
+        input: { workspaceId: WORKSPACE, callerPrincipalId: manager.id, policyId: policy.id, permission: "content.write" },
+      }),
+    GrantExceedsIssuerError
+  );
+
+  await removePolicyPermission({
+    deps,
+    input: {
+      workspaceId: WORKSPACE,
+      callerPrincipalId: manager.id,
+      policyId: policy.id,
+      policyPermissionId: policyPermission.id,
+    },
+  });
+
+  assert.deepEqual(await repos.policyPermissions.listByPolicyId({ workspaceId: WORKSPACE, policyId: policy.id }), []);
 });

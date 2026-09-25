@@ -169,10 +169,30 @@ export interface ComposerSlots {
    */
   onDiscoverySelect?: (selection: ComposerDiscoverySelection) => void | ComposerDiscoveryOutcome | Promise<void | ComposerDiscoveryOutcome>;
   mentionSources?: MentionSource[];
-  /** e.g. a SessionModeToggle / DesignSystemSwitchPicker-equivalent. */
+  /**
+   * The composer's pinned-context zone: whatever a host wants pinned above the input — a
+   * SessionModeToggle/DesignSystemSwitchPicker-equivalent, selected plugins, MCP servers, or
+   * anything else a future host adds. Deliberately not typed or named after any one of those; this
+   * package renders and animates the zone (see `CHAT_PANE_STYLES`'s `.jini-composer-leading`
+   * rules) without knowing what a "plugin" or "MCP" is. `undefined`/`null`/absent renders nothing
+   * — no reserved space, no seam, no motion — so an idle composer looks exactly like one with no
+   * such prop at all.
+   *
+   * `ChatPane` consumers: read this through its own top-level `leadingAccessory` prop instead —
+   * `ChatPaneProps['composerSlots']` excludes this key (see that type's doc) because `ChatPane`
+   * always assembles this slot from that prop alone.
+   */
   leadingAccessories?: ReactNode;
   /** Host controls rendered before the send action, such as an agent/model picker. */
   footerAccessories?: ReactNode;
+  /**
+   * Host controls rendered at the START of the footer row, immediately after the attach/discovery
+   * "+" trigger — for a control that belongs with the composer's other action-row buttons (e.g. a
+   * push-to-talk mic button) rather than in {@link leadingAccessories}'s pinned-context zone above
+   * the input, or in {@link footerAccessories}'s trailing slot (reserved for an agent/model picker
+   * and pushed to the row's far end via `margin-left: auto`).
+   */
+  footerLeadingAccessory?: ReactNode;
   onAttach?: (a: ChatAttachment) => void;
   annotationAdapter?: AnnotationAdapter;
 }

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/http-kit",
-  "version": "0.2.1",
+  "version": "0.3.6",
   "description": "Composable Express route packs and JSON-route transport for a @jini-ai/core daemon composition: request parsing, response serialization, same-origin guard, and a route-pack registrar.",
   "license": "Apache-2.0",
   "repository": {
@@ -30,7 +30,8 @@
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",

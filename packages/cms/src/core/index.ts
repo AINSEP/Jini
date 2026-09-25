@@ -64,4 +64,5 @@ export type {
 } from './commands/change-set.js';
 
 export * from './commands/command.js';
+export * from './entity-liveness.js';
 export * from './tools/registration-kit.js';

@@ -1,7 +1,7 @@
 /**
  * @module prompt-augmenter
  *
- * Port replacing OD's `runtimes/prompt/chat-prompt-inputs.ts` (design-system
+ * Port replacing OD's `apps/daemon/src/runtimes/chat-prompt-inputs.ts` (design-system
  * selection resolution — `resolveEffectiveDesignSystemSelection`,
  * `designSystemIdFromPluginSnapshot`, `formatDesignFilesWorkspaceHint`,
  * Codex image-generation prompt overrides, comment-attachment rendering,

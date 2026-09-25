@@ -72,7 +72,8 @@ const FIELD_DEF_SCHEMA = {
     kind: {
       type: "string",
       enum: [...CONTENT_TYPE_FIELD_KINDS],
-      description: "One of the five supported storage kinds. No other value is accepted.",
+      description:
+        "One of the supported storage kinds. No other value is accepted. 'json' is storage-only: it may not be combined with queryable: true.",
     },
     required: { type: "boolean", description: "Whether an entry must supply this field. Must be a real boolean, not a string." },
     queryable: {

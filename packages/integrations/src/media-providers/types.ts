@@ -24,7 +24,15 @@ export interface MediaProvider {
   readonly id: string;
   readonly label: string;
   readonly hint: string;
-  /** Whether this package ships a working request-shape for this provider (vs. a planned/future entry). */
+  /**
+   * Whether this package's dispatch engine has a real adapter/renderer registered for this
+   * provider (vs. a planned/future integration that exists only as this catalogue entry). See
+   * `dispatch/vendor-registry.ts`'s `mediaVendorRegistry` and `dispatch/engine.ts`'s `ROUTES`
+   * table for where that registration actually lives — `providers.test.ts` asserts every
+   * `true` entry with a catalogued model resolves to one, so this flag can't drift from
+   * reality the way it did for `hyperframes`/`fal`/`leonardo` (all three claimed `true` with
+   * no adapter anywhere).
+   */
   readonly integrated: boolean;
   readonly defaultBaseUrl?: string;
   readonly docsUrl?: string;

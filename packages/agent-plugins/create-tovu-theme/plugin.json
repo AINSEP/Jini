@@ -1,0 +1,5 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "create-tovu-theme",
+  "description": "Scaffolds a new Tovu theme against the v2 TARGET folder/manifest structure (development/docs/themes/theme-authoring-guide-v2.md in the Tovu repo) — a settled design that Tovu's live theme loader does not read yet. Tovu-specific: only useful inside a Tovu checkout."
+}

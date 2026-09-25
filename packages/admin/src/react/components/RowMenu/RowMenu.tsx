@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { agentHandle, buildAgentListHandles, type AgentElementRole } from '@jini-ai/agentic';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
 import { useRowMenu } from './RowMenu.hooks.js';
 
@@ -20,6 +21,30 @@ import { useRowMenu } from './RowMenu.hooks.js';
  * Unstyled: `.row-menu-trigger`, `.row-menu-popup`, `.row-menu-popup-above`, and `.row-menu-item`
  * are emitted for the host stylesheet to define. Only the positioning that has to be measured at
  * runtime is set inline.
+ *
+ * ## Agent handles
+ *
+ * Given `agentHandle="post-42"` this publishes, whenever the menu is actually open:
+ *
+ * | element | handle | role |
+ * |---|---|---|
+ * | the trigger button | `post-42` | `button` |
+ * | one dropdown item, keyed by the caller's own `RowMenuItem.key` | `post-42-item-<slug of key>` | `button` |
+ *
+ * Items sit under their own `-item-` namespace, via `@jini-ai/agentic`'s `buildAgentListHandles`,
+ * rather than directly under `<base>` — a host is free to key an item `"edit"`, and nothing should
+ * stop that colliding with a hypothetical future `<base>-edit` action of this component's own, the
+ * same reasoning `source-config-list/agent-handles.ts` documents for its own `-field-`/`-item-`
+ * namespaces. `buildAgentListHandles` also absorbs two host realities this component cannot control:
+ * item keys are arbitrary strings, not pre-validated handle segments, and two different keys can
+ * slugify to the same thing (`"Edit"` and `"edit"`) — both are resolved there once rather than
+ * re-derived here. `agentHandle` itself is NOT sanitized: it is the caller's own explicit choice of
+ * name and a bad one should fail loudly at first render rather than silently answer to a handle the
+ * caller never wrote. Omit `agentHandle` and no `data-agent-*` markup is emitted at all.
+ *
+ * A table renders one `RowMenu` per row, so the caller is responsible for handing each row a
+ * DISTINCT base — two rows under the same base would publish duplicate handles and make every verb
+ * on them ambiguous.
  */
 
 export interface RowMenuItem {
@@ -49,9 +74,31 @@ export interface RowMenuProps {
    *  the real {@link useRowMenu}; a test can pass a fake here to exercise `RowMenu`'s rendering
    *  without driving the real positioning math or DOM measurement. */
   useRowMenu?: typeof useRowMenu;
+  /** This row's own agent handle — see this file's "Agent handles" doc comment for the full
+   *  scheme. Omit and no `data-agent-*` markup is emitted at all. */
+  agentHandle?: string;
 }
 
-export function RowMenu({ useRowMenu: useRowMenuState = useRowMenu, ...props }: RowMenuProps) {
+/**
+ * Builds the `data-agent-*` attribute props for one of this row's sub-elements, or nothing at all
+ * when the row published no base handle — same shape as `source-config-list/agent-handles.ts`'s
+ * `sourceConfigAgentProps`, kept local and unexported here since only this one component needs it.
+ *
+ * @param handle - This sub-element's already-resolved handle, or `undefined` when the caller
+ *   published no `agentHandle` for the row at all.
+ * @param options - Role and stable label for this sub-element.
+ * @returns Spreadable attribute props, or `{}` when `handle` is `undefined`.
+ * @complexity O(1).
+ */
+function rowMenuAgentProps(handle: string | undefined, options: { role: AgentElementRole; label: string }) {
+  return handle === undefined ? {} : agentHandle(handle, options);
+}
+
+export function RowMenu({
+  useRowMenu: useRowMenuState = useRowMenu,
+  agentHandle: baseHandle,
+  ...props
+}: RowMenuProps) {
   const {
     open,
     position,
@@ -64,6 +111,13 @@ export function RowMenu({ useRowMenu: useRowMenuState = useRowMenu, ...props }: 
     selectItem,
   } = useRowMenuState(props.items.length);
 
+  // One base handle per item, positionally aligned with `props.items` — undefined (rather than an
+  // empty array) when the caller published no `agentHandle` at all, so the render below can tell
+  // "opted out" apart from "an empty item list" without a second flag.
+  const itemHandles = baseHandle
+    ? buildAgentListHandles(`${baseHandle}-item`, props.items.map((item) => item.key))
+    : undefined;
+
   return (
     <>
       <button
@@ -75,6 +129,7 @@ export function RowMenu({ useRowMenu: useRowMenuState = useRowMenu, ...props }: 
         aria-expanded={open}
         onClick={onTriggerClick}
         onKeyDown={onTriggerKeyDown}
+        {...rowMenuAgentProps(baseHandle, { role: 'button', label: props.triggerLabel })}
       >
         {/* Three vertical dots — the conventional overflow/"kebab" affordance. Filled circles, not
             stroked outlines, unlike this package's other icons (`Sidebar.tsx`'s stroke-based rail-
@@ -121,6 +176,7 @@ export function RowMenu({ useRowMenu: useRowMenuState = useRowMenu, ...props }: 
                     tabIndex={-1}
                     className={['row-menu-item', toneClass].filter(Boolean).join(' ')}
                     onClick={() => selectItem(item.onSelect)}
+                    {...rowMenuAgentProps(itemHandles?.[index], { role: 'button', label: item.label })}
                   >
                     {item.label}
                   </button>

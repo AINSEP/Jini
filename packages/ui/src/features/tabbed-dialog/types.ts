@@ -1,8 +1,8 @@
 /**
  * Generic "tabbed dialog" shell types.
  *
- * Extracted (2026-08-13) from `SettingsDialogShell` (`../settings/dialog/`) once Tovu was
- * mounting that shell for five different screens — only one of them (`SettingsUi.tsx`)
+ * Extracted (2026-08-13) from `SettingsDialogShell` (`../settings/dialog/`) once a downstream
+ * consumer was mounting that shell for five different screens — only one of them (`SettingsUi.tsx`)
  * was actually Settings; `AgentPlugins.tsx`, `AiAssistant.tsx`, `Authentication.tsx`, and
  * `PlaceholderTabs.tsx` were reusing "the settings dialog" purely for its generic tabbed
  * chrome. `SettingsDialogShell` now composes this module and supplies its own

@@ -396,6 +396,7 @@ describe('SourceConfigList 4-pattern hook override test suite', () => {
       setField: vi.fn(),
       setTrust: vi.fn(),
       submit: vi.fn(),
+      reset: vi.fn(),
     });
 
     render(
@@ -439,6 +440,7 @@ describe('SourceConfigList 4-pattern hook override test suite', () => {
       setField: vi.fn(),
       setTrust: vi.fn(),
       submit: vi.fn(),
+      reset: vi.fn(),
     });
 
     render(
@@ -481,6 +483,7 @@ describe('SourceConfigList 4-pattern hook override test suite', () => {
       setField: vi.fn(),
       setTrust: vi.fn(),
       submit: vi.fn(),
+      reset: vi.fn(),
     });
 
     render(

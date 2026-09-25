@@ -1,6 +1,6 @@
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
-import { DataTable, type DataTableColumn } from '../../components/DataTable.js';
+import { fireEvent, render, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import { DataTable, type DataTableColumn, type DataTableSortState } from '../../components/DataTable.js';
 
 interface Post {
   id: string;
@@ -177,5 +177,168 @@ describe('DataTable optional parts', () => {
       />,
     );
     expect(screen.getAllByRole('cell')[0]).toHaveClass('truncate');
+  });
+});
+
+interface Item {
+  id: string;
+  title: string;
+  updatedAt: string;
+}
+
+const items: Item[] = [
+  { id: 'a', title: 'Banana', updatedAt: '2026-01-01T00:00:00Z' },
+  { id: 'b', title: 'Apple', updatedAt: '2026-03-01T00:00:00Z' },
+  { id: 'c', title: 'Cherry', updatedAt: '2026-02-01T00:00:00Z' },
+];
+
+// Mirrors the shape Posts/Pages hand-rolled per-column before this generalized: a lexicographic
+// column with the default "asc" first click, and a date column that opts into "desc" (newest first)
+// as ITS first click instead, via `defaultDirection`.
+function sortableColumns(): DataTableColumn<Item>[] {
+  return [
+    {
+      key: 'title',
+      header: 'Title',
+      cell: (item) => item.title,
+      sort: {
+        compare: (a, b) => a.title.localeCompare(b.title),
+        label: (direction) =>
+          direction === null
+            ? 'Not sorted by Title. Activate to sort ascending.'
+            : direction === 'asc'
+              ? 'Sorted by Title, ascending. Activate to sort descending.'
+              : 'Sorted by Title, descending. Activate to sort ascending.',
+      },
+    },
+    {
+      key: 'updated',
+      header: 'Updated',
+      cell: (item) => item.updatedAt,
+      sort: {
+        compare: (a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt),
+        defaultDirection: 'desc',
+        label: (direction) =>
+          direction === null
+            ? 'Not sorted by updated date. Activate to sort newest first.'
+            : direction === 'desc'
+              ? 'Sorted by updated date, newest first. Activate to sort oldest first.'
+              : 'Sorted by updated date, oldest first. Activate to sort newest first.',
+      },
+    },
+    { key: 'plain', header: 'Plain', cell: (item) => item.id },
+  ];
+}
+
+function renderSortable(sort: DataTableSortState | null, onSortChange = vi.fn()) {
+  render(<DataTable rows={items} rowKey={(item) => item.id} columns={sortableColumns()} sort={sort} onSortChange={onSortChange} />);
+  return onSortChange;
+}
+
+describe('DataTable sortable headers', () => {
+  it('renders a plain header with no button and no aria-sort when the column declares no sort', () => {
+    renderSortable({ column: 'title', direction: 'asc' });
+    const plainHeader = screen.getAllByRole('columnheader')[2] as HTMLElement;
+    expect(within(plainHeader).queryByRole('button')).toBeNull();
+    expect(plainHeader).not.toHaveAttribute('aria-sort');
+    expect(plainHeader).toHaveTextContent('Plain');
+  });
+
+  it('marks a sortable column aria-sort="none" and shows the neutral caret when it is not the active sort', () => {
+    renderSortable(null);
+    const titleHeader = screen.getAllByRole('columnheader')[0] as HTMLElement;
+    expect(titleHeader).toHaveAttribute('aria-sort', 'none');
+    const button = within(titleHeader).getByRole('button');
+    expect(button).toHaveAccessibleName('Not sorted by Title. Activate to sort ascending.');
+    expect(button.textContent).toContain('⇅');
+  });
+
+  it('marks the active column ascending, with the ▲ caret and matching accessible name', () => {
+    renderSortable({ column: 'title', direction: 'asc' });
+    const titleHeader = screen.getAllByRole('columnheader')[0] as HTMLElement;
+    expect(titleHeader).toHaveAttribute('aria-sort', 'ascending');
+    const button = within(titleHeader).getByRole('button');
+    expect(button).toHaveAccessibleName('Sorted by Title, ascending. Activate to sort descending.');
+    expect(button.textContent).toContain('▲');
+  });
+
+  it('marks the active column descending, with the ▼ caret and matching accessible name', () => {
+    renderSortable({ column: 'title', direction: 'desc' });
+    const titleHeader = screen.getAllByRole('columnheader')[0] as HTMLElement;
+    expect(titleHeader).toHaveAttribute('aria-sort', 'descending');
+    const button = within(titleHeader).getByRole('button');
+    expect(button).toHaveAccessibleName('Sorted by Title, descending. Activate to sort ascending.');
+    expect(button.textContent).toContain('▼');
+  });
+
+  it('clicking a different sortable column switches to it at its own defaultDirection', () => {
+    const onSortChange = renderSortable({ column: 'title', direction: 'asc' });
+    fireEvent.click(within(screen.getAllByRole('columnheader')[1] as HTMLElement).getByRole('button'));
+    expect(onSortChange).toHaveBeenCalledWith({ column: 'updated', direction: 'desc' });
+  });
+
+  it('clicking a different sortable column with no defaultDirection defaults to ascending', () => {
+    const onSortChange = renderSortable({ column: 'updated', direction: 'desc' });
+    fireEvent.click(within(screen.getAllByRole('columnheader')[0] as HTMLElement).getByRole('button'));
+    expect(onSortChange).toHaveBeenCalledWith({ column: 'title', direction: 'asc' });
+  });
+
+  it('clicking the already-active column toggles its direction instead of resetting it', () => {
+    const onSortChange = renderSortable({ column: 'title', direction: 'asc' });
+    fireEvent.click(within(screen.getAllByRole('columnheader')[0] as HTMLElement).getByRole('button'));
+    expect(onSortChange).toHaveBeenCalledWith({ column: 'title', direction: 'desc' });
+  });
+
+  it('clicking a sortable header when there is no active sort at all switches to it at its default', () => {
+    const onSortChange = renderSortable(null);
+    fireEvent.click(within(screen.getAllByRole('columnheader')[1] as HTMLElement).getByRole('button'));
+    expect(onSortChange).toHaveBeenCalledWith({ column: 'updated', direction: 'desc' });
+  });
+});
+
+describe('DataTable sorting behavior', () => {
+  it('sorts rows using the active column comparator, ascending', () => {
+    renderSortable({ column: 'title', direction: 'asc' });
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(within(rows[0] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Apple');
+    expect(within(rows[1] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Banana');
+    expect(within(rows[2] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Cherry');
+  });
+
+  it('sorts rows using the active column comparator, descending', () => {
+    renderSortable({ column: 'title', direction: 'desc' });
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(within(rows[0] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Cherry');
+    expect(within(rows[1] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Banana');
+    expect(within(rows[2] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Apple');
+  });
+
+  it('sorts a date column newest-first when desc, using Date.parse rather than string compare', () => {
+    renderSortable({ column: 'updated', direction: 'desc' });
+    const rows = screen.getAllByRole('row').slice(1);
+    // Newest updatedAt (March) first, then February, then January.
+    expect(within(rows[0] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Apple');
+    expect(within(rows[1] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Cherry');
+    expect(within(rows[2] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Banana');
+  });
+
+  it('leaves rows in their given order when no column is the active sort', () => {
+    renderSortable(null);
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(within(rows[0] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Banana');
+    expect(within(rows[1] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Apple');
+    expect(within(rows[2] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Cherry');
+  });
+
+  it('leaves rows unsorted when sort names a column with no comparator of its own (stale/unknown state)', () => {
+    renderSortable({ column: 'plain', direction: 'asc' });
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(within(rows[0] as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('Banana');
+  });
+
+  it('does not mutate the rows array passed in', () => {
+    const original = [...items];
+    renderSortable({ column: 'title', direction: 'asc' });
+    expect(items).toEqual(original);
   });
 });

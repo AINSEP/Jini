@@ -83,12 +83,6 @@ describe('@jini-ai/http-kit barrel', () => {
     expect(typeof HttpBarrel.createSseResponse).toBe('function');
   });
 
-  it('re-exports the AG-UI run-stream route core and its Express mounting registrar', () => {
-    expect(typeof HttpBarrel.handleRunStreamRequest).toBe('function');
-    expect(typeof HttpBarrel.registerRunStreamRoute).toBe('function');
-    expect(HttpBarrel.RUN_STREAM_ROUTE_PATH).toBe('/api/runs/:runId/agui-stream');
-  });
-
   it('re-exports the workspace-root port', () => {
     expect(typeof HttpBarrel.resolveWorkspaceRoot).toBe('function');
     expect(typeof HttpBarrel.denyAllWorkspaceRoots).toBe('function');

@@ -140,14 +140,67 @@ describe('xaiOauthStartRoute', () => {
     );
   });
 
-  it('stops a pre-existing listener before opening a new one', async () => {
+  it('rejects with a 409 OAUTH_FLOW_IN_PROGRESS conflict when a listener is already bound, instead of silently stopping it and opening a new one', async () => {
+    const staleListener = makeListener();
+    const startCallbackListener = vi.fn(async () => makeListener());
+    const deps = makeDeps({ startCallbackListener, listenerRef: { current: staleListener } });
+    const result = await xaiOauthStartRoute.handle(undefined, deps);
+    expect(result).toEqual({
+      ok: false,
+      error: { code: 'OAUTH_FLOW_IN_PROGRESS', message: expect.stringContaining('already in progress') },
+    });
+    // The pre-existing listener must be left completely untouched — no silent stop-and-replace.
+    expect(staleListener.stop).not.toHaveBeenCalled();
+    expect(startCallbackListener).not.toHaveBeenCalled();
+    expect(deps.listenerRef.current).toBe(staleListener);
+  });
+
+  it('a fresh start succeeds again once the in-flight one is explicitly cancelled', async () => {
     const staleListener = makeListener();
     const newListener = makeListener();
     const startCallbackListener = vi.fn(async () => newListener);
     const deps = makeDeps({ startCallbackListener, listenerRef: { current: staleListener } });
-    await xaiOauthStartRoute.handle(undefined, deps);
-    expect(staleListener.stop).toHaveBeenCalledTimes(1);
+
+    await xaiOauthCancelRoute.handle(undefined, deps);
+    expect(deps.listenerRef.current).toBeNull();
+
+    const result = await xaiOauthStartRoute.handle(undefined, deps);
+    expect(result.ok).toBe(true);
     expect(deps.listenerRef.current).toBe(newListener);
+  });
+
+  // CONCURRENCY REGRESSION: two `oauth/start` calls in flight around the same time used to let the
+  // second silently stop the first's listener and open its own — the first caller had already been
+  // handed an `authorizeUrl` pointing at a callback endpoint that was now dead, with no error ever
+  // surfaced to it. Both calls are issued without awaiting the first, exactly the shape a real
+  // double-click or a retried request would produce.
+  it('CONCURRENCY: a second oauth/start racing the first gets a 409 conflict; the first keeps its live listener untouched', async () => {
+    const firstListener = makeListener();
+    const secondListener = makeListener();
+    let call = 0;
+    const startCallbackListener = vi.fn(async () => {
+      call += 1;
+      return call === 1 ? firstListener : secondListener;
+    });
+    const deps = makeDeps({ startCallbackListener });
+
+    const [first, second] = await Promise.all([
+      xaiOauthStartRoute.handle(undefined, deps),
+      xaiOauthStartRoute.handle(undefined, deps),
+    ]);
+
+    expect(first.ok).toBe(true);
+    if (!first.ok) throw new Error('expected the first start to succeed');
+    expect(second).toEqual({
+      ok: false,
+      error: { code: 'OAUTH_FLOW_IN_PROGRESS', message: expect.stringContaining('already in progress') },
+    });
+
+    // The first caller's authorizeUrl/listener is still exactly what it was handed — never silently
+    // swapped out from under it — and the second call never got far enough to open a listener.
+    expect(deps.listenerRef.current).toBe(firstListener);
+    expect(firstListener.stop).not.toHaveBeenCalled();
+    expect(startCallbackListener).toHaveBeenCalledTimes(1);
   });
 
   it('SEC-005: a listener-bind failure is reported and returns a redacted INTERNAL_ERROR, leaving no listener set', async () => {

@@ -1,3 +1,13 @@
+## Note (2026-08-03) — folded into `@jini-ai/chat`
+
+This package was retired as a standalone publish and consolidated (along with `@jini/chat-react`)
+into `@jini-ai/chat` as the `./core` subpath — see the `feat(chat): consolidate chat-core +
+ui/react/chat into @jini-ai/chat` commit and this file's own current location,
+`packages/chat/src/core/source-map.md`. Every `pnpm --filter @jini/chat-core` command below is
+historical and will fail today (no such package); use the equivalent `pnpm --filter @jini-ai/chat`
+command instead. The provenance/transformation record below predates the fold and is otherwise
+left as the historical account of the original extraction.
+
 # `@jini/chat-core` — provenance
 
 Origin: `nexu-io/open-design` (fork `leonaburime-ucla/open-design`), branch `main`,

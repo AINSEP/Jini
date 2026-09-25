@@ -134,6 +134,7 @@ export type {
   ChatPaneAgentToolInputSchema,
   ChatPaneAgentToolRisk,
   ChatPaneAttachmentUploadOptions,
+  ChatPaneComposerHandle,
   ChatPaneProps,
   ChatPaneRunContext,
   ChatPaneRunContextInput,
@@ -256,6 +257,18 @@ export type {
 } from './hooks/useLatestOperation.js';
 export { definedProps } from './util/defined-props.js';
 export type { DefinedProps } from './util/defined-props.js';
+
+/**
+ * Newly public for the same R10 reason as `definedProps`/`useLatestOperation` above:
+ * `ChatPane`'s `composerHandle.insertText` (see `types.ts`'s `ChatPaneComposerHandle`) joins
+ * inserted text onto the existing draft with `appendComposerDiscovery` — the same joining rule the
+ * "+" discovery menu's own `insertText` items use, so a host writing into the draft from outside
+ * `ChatPane`'s props gets the identical, already-established behavior rather than inventing a
+ * second concatenation rule. Zero `ChatPane`-specific coupling (it operates on a plain draft string
+ * and an insertion string), so a consumer assembling an equivalent external-insertion feature faced
+ * the same problem and could not previously reach this solution either.
+ */
+export { appendComposerDiscovery } from './components/composer-discovery.js';
 
 /**
  * REF-001 §10 (2026-08-05): newly public, same reasoning as `definedProps`/`useLatestOperation`

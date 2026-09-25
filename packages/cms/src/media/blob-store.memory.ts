@@ -15,6 +15,20 @@ export class InMemoryBlobStore implements BlobStorePort {
     return { storageKey };
   }
 
+  /**
+   * Trivially atomic here — single-threaded `Map`, no `await` between the check and the set — but
+   * still a real create-only op from a caller's point of view, matching the other adapters'
+   * contract (`ports.ts`'s `BlobStorePort.putIfAbsent` doc).
+   */
+  async putIfAbsent(input: PutBlobInput): Promise<{ storageKey: string; written: boolean }> {
+    const storageKey = computeBlobStorageKey(input);
+    if (this.bytesByKey.has(storageKey)) {
+      return { storageKey, written: false };
+    }
+    this.bytesByKey.set(storageKey, input.bytes);
+    return { storageKey, written: true };
+  }
+
   async get(input: { storageKey: string }): Promise<Uint8Array> {
     const bytes = this.bytesByKey.get(input.storageKey);
     if (!bytes) {

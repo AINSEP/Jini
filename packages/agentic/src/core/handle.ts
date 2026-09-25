@@ -65,3 +65,63 @@ export function agentHandle(handle: string, options: AgentHandleOptions = {}): A
   if (options.page !== undefined) props[AGENT_PAGE_ATTRIBUTE] = options.page;
   return props as AgentHandleProps;
 }
+
+/**
+ * The handle for one sub-element published under `base` — `<base>-<action>`.
+ *
+ * The one join rule every multi-control component under a single host-supplied base handle needs
+ * (a settings tab, a card, a form), extracted here so each such component imports it rather than
+ * re-deriving the same template literal. First established as `sourceConfigActionHandle` in
+ * `../../features/source-config-list/agent-handles.ts` before this package had a generic version —
+ * that feature's own doc comment explains the naming split this generalizes ("a host names a
+ * component; the component names its own parts").
+ *
+ * @param base - The component's own handle, as published by the host. Must already be a valid
+ *   element handle — callers own that, same as every other `agentHandle()` base.
+ * @param action - The sub-element's name. Always a literal chosen by the component, never host data.
+ * @returns `<base>-<action>`.
+ * @complexity O(1).
+ */
+export function agentSubHandle(base: string, action: string): string {
+  return `${base}-${action}`;
+}
+
+/** What to publish about one sub-element — see {@link agentHandleProps}. */
+export interface AgentHandlePropsOptions extends AgentHandleOptions {
+  /**
+   * The sub-element's name, appended to `base` via {@link agentSubHandle}. Omit when the element
+   * IS `base` — the component's own root.
+   */
+  readonly action?: string;
+}
+
+/**
+ * Builds the `data-agent-*` attribute props for one element of a component that takes a single
+ * OPTIONAL base handle from its host, or nothing at all when the host published no base.
+ *
+ * This is the seam a component with more than one agent-addressable element should use: the host
+ * hands the component ONE base handle (`agentHandle?: string` in that component's own props, named
+ * identically to this function's own `handle.ts` sibling so a caller cannot mistake which handle a
+ * component wants), and the component derives every sub-element's handle from it via `action`,
+ * exactly the "host names a component, the component names its own parts" split
+ * `source-config-list/agent-handles.ts` established first. Returning `{}` rather than throwing on
+ * an `undefined` base is what keeps the host prop opt-in: a host that never passes `agentHandle`
+ * renders exactly the markup it did before this existed — additive, never a behavior change.
+ *
+ * @param base - The component's own handle from the host, or `undefined` when it published none.
+ * @param options - Role, stable label, optional page, and the optional `action` naming this
+ *   sub-element (see {@link AgentHandlePropsOptions}).
+ * @returns Spreadable attribute props, or `{}` when `base` is `undefined`.
+ * @throws If `base` is defined but not a valid element handle — via `agentHandle()`, deliberately
+ *   unguarded so a bad host-supplied base fails loudly at first render rather than silently
+ *   answering to a handle the host never wrote.
+ * @complexity O(1).
+ */
+export function agentHandleProps(
+  base: string | undefined,
+  options: AgentHandlePropsOptions = {},
+): AgentHandleProps | Record<string, never> {
+  if (base === undefined) return {};
+  const { action, ...rest } = options;
+  return agentHandle(action === undefined ? base : agentSubHandle(base, action), rest);
+}

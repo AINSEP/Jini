@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 
 import { InvalidFieldKindError, InvalidFieldNameGrammarError, InvalidKeyGrammarError } from "./errors.js";
-import { CONTENT_TYPE_FIELD_KINDS, type ContentTypeFieldKind, isContentTypeFieldKind } from "./types.js";
+import {
+  INDEXABLE_FIELD_KINDS,
+  type ContentTypeFieldKind,
+  type IndexableFieldKind,
+  isIndexableFieldKind,
+} from "./types.js";
 
 /**
  * @file CIC U-001 — the `kind`->`CAST` fixed lookup table, the identifier grammar
@@ -12,8 +17,34 @@ import { CONTENT_TYPE_FIELD_KINDS, type ContentTypeFieldKind, isContentTypeField
  * THIS IS THE HIGHEST-SECURITY-SEVERITY MODULE IN THE 5-PACKAGE PIPELINE — every value that ends
  * up inside a `CREATE INDEX ... CAST(json_extract(fields,'$.ext.{ns}.{field}') AS {type})`
  * statement is produced here, and only here:
- *   - `mapFieldKindToCast` never interpolates an operator-supplied string — it is a fixed,
- *     hardcoded 5-entry table (U-001-B1).
+ *   - `mapFieldKindToCast` (U-001-B1). STATE THE INVARIANT PRECISELY, because an earlier version
+ *     of this comment did not and the imprecision was itself a hazard: it said "a fixed, hardcoded
+ *     5-entry table", which reads as though the ENTRY COUNT were the defense. It is not. Neither
+ *     the number of keys nor the number of distinct values is the security boundary.
+ *
+ *     THE DEFENSE IS: this function returns a VALUE FROM THE TABLE and never returns, echoes, or
+ *     interpolates its own ARGUMENT. The function has exactly one `return`, and it is a table
+ *     lookup. Therefore the set of strings that can reach a `CAST(... AS {type})` position is
+ *     exactly the set of string literals written into `KIND_TO_CAST_LITERAL` in this source file —
+ *     compile-time constants, every one — no matter what an operator, an agent, or an attacker
+ *     supplies as `kind`. A 50-entry table of literals would be exactly as safe as a 5-entry one.
+ *
+ *     What follows from that, and what a maintainer actually needs to know:
+ *       * Adding a KEY whose value is an existing literal cannot widen the DDL alphabet. It is not
+ *         a security event and does not need to be feared as one. (`relation: "TEXT"` is exactly
+ *         this: `"TEXT"` was already present twice.)
+ *       * Adding a new VALUE does widen it, and must be reviewed as a DDL change.
+ *       * Returning, concatenating, or template-interpolating `kind` itself — or reading the table
+ *         with a fallback such as `?? kind` — BREAKS the invariant outright. That is the edit to
+ *         refuse, and it is the one the old "5-entry" phrasing gave no way to recognise.
+ *     The reachable-value set is pinned executably by `HISTORICAL_DDL_ALPHABET` in
+ *     `__tests__/field-kind-widening.test.ts`, so this claim is a failing test and not only prose.
+ *
+ *     Degraded failure mode, stated so the blast radius is known: if every runtime guard below
+ *     were deleted, a storage-only kind would reach the table and `KIND_TO_CAST_LITERAL["json"]`
+ *     would evaluate to `undefined` — a SQL syntax error and a loud broken feature, never an
+ *     operator-controlled string. Total guard removal degrades this module to unavailable, not to
+ *     injectable. That is the property worth preserving through any future change.
  *   - `validateIdentifierGrammar`/`buildQueryableFieldIndexName` gate every `key`/field name
  *     through `^[a-z][a-z0-9_]{0,63}$` before it can reach an index-name segment or JSON-path
  *     literal (U-001-B2), and join grammar-gated segments with `/` — a delimiter outside the
@@ -22,6 +53,11 @@ import { CONTENT_TYPE_FIELD_KINDS, type ContentTypeFieldKind, isContentTypeField
  *     `(key, field)` pair never collide on index identity.
  *
  * How it relates to the project:
+ * `resolveFieldIndexTransition` deliberately still ACCEPTS a storage-only kind on its `none` and
+ * `teardown` arms while rejecting it on the two provisioning arms. Teardown must stay reachable:
+ * an index left behind by a bypassed or since-added guard has to remain droppable, and a resolver
+ * that refused to look at the kind at all could never order that cleanup.
+ *
  * `write-service.ts`'s `registerContentType`/`updateContentTypeFields` call
  * `resolveFieldIndexTransition` once per field (never two independent kind/queryable branches —
  * CIC U-003-B1) and hand the result to the injected `indexProvisioner` port, which is the only
@@ -58,28 +94,52 @@ export function validateIdentifierGrammar(value: string): boolean {
 /**
  * U-001-B1 — the fixed, hardcoded `kind` -> SQL `CAST` type-token table. Every value here is a
  * plain uppercase SQL type token with no quotes/parens/whitespace; never built by concatenation.
+ *
+ * Keyed by `IndexableFieldKind`, NOT `ContentTypeFieldKind`: a storage-only kind has no CAST
+ * target, and typing the table over the wider union would force one to be invented — which is the
+ * actual hazard this split exists to prevent. The `Record` is what makes exhaustiveness
+ * compiler-enforced: adding a member to `INDEXABLE_FIELD_KINDS` fails the build until an entry
+ * appears here. Do not replace it with a `Partial`, an index signature, or a lookup with a
+ * fallback — each of those converts a build failure into a runtime surprise on the DDL path.
  */
-const KIND_TO_CAST_LITERAL: Record<ContentTypeFieldKind, string> = {
+const KIND_TO_CAST_LITERAL: Record<IndexableFieldKind, string> = {
   text: "TEXT",
   integer: "INTEGER",
   real: "REAL",
   boolean: "BOOLEAN",
   datetime: "TEXT",
+  /**
+   * A foreign entity id, stored with `text`'s storage class. This adds a KEY to the table and no
+   * new VALUE to the DDL alphabet — `"TEXT"` already appears twice above — so the set of strings
+   * reachable from a `CAST(... AS {type})` position is unchanged by its presence.
+   */
+  relation: "TEXT",
 };
 
 /**
- * Maps a closed-enum field `kind` to its fixed `CAST(... AS {type})` type token. Throws
- * {@link InvalidFieldKindError} for anything not exactly one of the 5 enum values — this is a
- * lookup, never a template, so an adversarial payload can never reach the returned string
- * (U-001-B1).
+ * Maps an INDEXABLE field `kind` to its fixed `CAST(... AS {type})` type token. Throws
+ * {@link InvalidFieldKindError} for anything that is not exactly one of `INDEXABLE_FIELD_KINDS` —
+ * including a storage-only kind such as `json`, which is a legal kind to declare but has no CAST
+ * target. This is a lookup, never a template, so an adversarial payload can never reach the
+ * returned string (U-001-B1).
  *
- * @complexity O(1) — a fixed-size object lookup.
+ * The PARAMETER type is deliberately the wider `ContentTypeFieldKind`. Narrowing it would be a
+ * breaking change for `@jini-ai/cms`'s public consumers (`content-types/index.ts` documents this
+ * function as what a host's own DDL provisioner calls, and the host re-exports it), and it would also
+ * make the runtime guard below unreachable-looking to a reader while remaining fully reachable to
+ * an untyped JavaScript caller. The runtime gate — not the signature — is what excludes
+ * storage-only kinds.
+ *
+ * Behavior for the five original scalars is unchanged in every respect: `isIndexableFieldKind` and
+ * `isContentTypeFieldKind` agree on all five, and each still returns the identical literal.
+ *
+ * @complexity O(1) — a fixed-size object lookup behind a fixed-size membership test.
  * @overallScore 100
  */
 export function mapFieldKindToCast(kind: ContentTypeFieldKind): string {
-  if (!isContentTypeFieldKind(kind)) {
+  if (!isIndexableFieldKind(kind)) {
     throw new InvalidFieldKindError(
-      `'${String(kind)}' is not one of the closed field-kind enum (${CONTENT_TYPE_FIELD_KINDS.join("|")}) — U-001-B1`
+      `'${String(kind)}' is not an indexable field kind (${INDEXABLE_FIELD_KINDS.join("|")}) — U-001-B1`
     );
   }
   return KIND_TO_CAST_LITERAL[kind];
@@ -132,8 +192,32 @@ export type FieldIndexState = { kind: ContentTypeFieldKind; queryable: boolean }
 
 export interface FieldIndexTransition {
   action: "none" | "provision" | "teardown" | "reprovision";
-  /** Present only for `provision`/`reprovision` — always the field's POST-call kind. */
-  newKind?: ContentTypeFieldKind;
+  /**
+   * Present only for `provision`/`reprovision` — always the field's POST-call kind, and always
+   * INDEXABLE. A storage-only kind cannot be `queryable` (rejected by `write-service.ts`'s guard
+   * 4b, which runs before any transition is resolved), so it can never reach these two arms.
+   */
+  newKind?: IndexableFieldKind;
+}
+
+/**
+ * Narrows a post-call field kind for the two arms that hand a kind to the index provisioner.
+ *
+ * Expected to be unreachable: `write-service.ts`'s guard chain rejects `queryable: true` on a
+ * storage-only kind before any transition is resolved. Asserted rather than cast away so that a
+ * future caller which bypasses that chain fails loudly here — at the last point before a kind
+ * becomes an index — instead of silently provisioning an index for an unindexable kind.
+ *
+ * @complexity O(1).
+ * @overallScore 100
+ */
+function assertIndexableForProvisioning(kind: ContentTypeFieldKind): IndexableFieldKind {
+  if (!isIndexableFieldKind(kind)) {
+    throw new InvalidFieldKindError(
+      `storage-only kind '${String(kind)}' reached index provisioning; only (${INDEXABLE_FIELD_KINDS.join("|")}) may be queryable — U-001-B1`
+    );
+  }
+  return kind;
 }
 
 /**
@@ -154,9 +238,11 @@ export function resolveFieldIndexTransition(params: {
 
   if (!beforeQueryable && !afterQueryable) return { action: "none" };
   if (beforeQueryable && !afterQueryable) return { action: "teardown" };
-  if (!beforeQueryable && afterQueryable) return { action: "provision", newKind: params.after!.kind };
+  if (!beforeQueryable && afterQueryable) {
+    return { action: "provision", newKind: assertIndexableForProvisioning(params.after!.kind) };
+  }
   if (params.before!.kind !== params.after!.kind) {
-    return { action: "reprovision", newKind: params.after!.kind };
+    return { action: "reprovision", newKind: assertIndexableForProvisioning(params.after!.kind) };
   }
   return { action: "none" };
 }

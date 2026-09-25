@@ -32,4 +32,13 @@ export const qwenAgentDef = {
     },
     promptViaStdin: true,
     streamFormat: 'plain',
+    // No `externalMcpInjection`: Qwen Code (a Gemini CLI fork) does support
+    // native MCP via `mcpServers` in `.qwen/settings.json` (project) /
+    // `~/.qwen/settings.json` (user) — one key alongside unrelated settings,
+    // not a dedicated file — with no confirmed CLI flag to point elsewhere or
+    // force-trust project servers in headless mode. Structurally closest to
+    // the `'opencode-env-content'`/`'mimo-env-content'` merge-into-an-
+    // existing-document pattern, but delivered via a settings *file* at a
+    // fixed relative path rather than an env var, so it doesn't literally fit
+    // either. Needs a new settings.json-merge strategy.
 } satisfies RuntimeAgentDef;

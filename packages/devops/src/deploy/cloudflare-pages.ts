@@ -156,7 +156,7 @@ function normalizeHostname(raw: unknown): string {
  * "raw URL/hostname → bare hostname" normalizer (the same shape
  * `reachability.ts`'s own `normalizeDeploymentUrl` is, and that one earns its
  * keep across many callers) that only happens to have a single, narrowly-shaped
- * caller today. See packages/deploy/source-map.md's 2026-07-22 addition.
+ * caller today. See packages/devops/source-map.md's 2026-07-22 addition.
  */
 function normalizeDeploymentUrlToHostname(raw: unknown): string {
   const trimmed = String(raw || '').trim();
@@ -288,7 +288,7 @@ function isCloudflareCommentError(value: unknown): boolean {
  * the same field) before `config` is ever constructed. Kept as
  * belt-and-suspenders for this URL-builder helper (which has no way to know,
  * from its own signature, that every caller happens to pre-validate) — see
- * packages/deploy/source-map.md's 2026-07-22 addition.
+ * packages/devops/source-map.md's 2026-07-22 addition.
  */
 function cloudflareAccountPagesProjectsUrl(config: ResolvedConfig): string {
   if (!config.accountId) throw new DeployError('Cloudflare account ID is required.', 400);
@@ -301,7 +301,7 @@ function cloudflareAccountPagesProjectsUrl(config: ResolvedConfig): string {
  * doc comment and `publish()`'s own (also-unreachable) guard establish:
  * `config.projectName` is always `deriveCloudflarePagesProjectName(...)`'s
  * result, which can never be empty. Kept as belt-and-suspenders for this
- * shared URL-builder — see packages/deploy/source-map.md's 2026-07-22
+ * shared URL-builder — see packages/devops/source-map.md's 2026-07-22
  * addition.
  */
 function cloudflarePagesProjectUrl(config: ResolvedConfig, suffix = ''): string {
@@ -324,7 +324,7 @@ function cloudflarePagesProjectDomainUrl(config: ResolvedConfig, hostname: strin
  * `publish()` also independently guards `if (!projectName) throw ...` right
  * after deriving it, belt-and-suspenders. Kept for the same
  * general-purpose-helper reasoning documented throughout this file — see
- * packages/deploy/source-map.md's 2026-07-22 addition.
+ * packages/devops/source-map.md's 2026-07-22 addition.
  */
 function cloudflarePagesProductionUrl(config: ResolvedConfig): string {
   return config?.projectName ? `https://${config.projectName}.pages.dev` : '';
@@ -699,7 +699,7 @@ async function ensureCloudflarePagesCnameRecord(input: {
       // `conflicting` object. If `canPatchCloudflarePagesCname` returned `true`, `conflicting.id`
       // is already known-truthy. Kept as belt-and-suspenders since `conflicting.id`'s static type
       // (`unknown`, from `CloudflareDnsRecord`'s index signature) doesn't let TypeScript narrow
-      // that for us. See packages/deploy/source-map.md's 2026-07-22 addition.
+      // that for us. See packages/devops/source-map.md's 2026-07-22 addition.
       if (!conflictingId) throw new DeployError('Cloudflare DNS record id is missing.', 502);
       const patched = await patchCloudflareDnsRecord(config, selection.zoneId, conflictingId, {
         type: 'CNAME',
@@ -754,7 +754,7 @@ async function ensureCloudflarePagesCnameRecord(input: {
  * `domainPrefix` and a validated non-empty, regex-confirmed-DNS-safe
  * `zoneName` — a value `normalizeHostname`'s trim/lowercase/protocol-strip
  * transforms can never reduce to `''`. See
- * packages/deploy/source-map.md's 2026-07-22 addition.
+ * packages/devops/source-map.md's 2026-07-22 addition.
  */
 async function findCloudflarePagesDomain(config: ResolvedConfig, hostname: string): Promise<JsonObject | null> {
   const normalizedHostname = normalizeHostname(hostname);
@@ -819,7 +819,7 @@ async function setupCloudflarePagesCustomDomain(input: {
   // `https://${projectName}.pages.dev` string, so `pagesDevUrl` is never `link.url`. A non-empty,
   // well-formed `https://` URL always yields a real hostname from `hostnameFromUrl`, so its own
   // `|| default` inside `normalizeDeploymentUrlToHostname` is never needed here either. See
-  // packages/deploy/source-map.md's 2026-07-22 addition.
+  // packages/devops/source-map.md's 2026-07-22 addition.
   const pagesTarget = normalizeHostname(hostnameFromUrl(pagesDevUrl) || `${config.projectName}.pages.dev`);
   const marker = cloudflarePagesDnsMarker(config.projectName, pagesTarget);
   const base = {
@@ -842,7 +842,7 @@ async function setupCloudflarePagesCustomDomain(input: {
       // reachable from `ensureCloudflarePagesCnameRecord`'s own call graph (`cloudflareError(...)`,
       // `new DeployError(...)`, or a rethrow of one of those) is a real `Error`/`DeployError`
       // instance — this file never throws a bare string/object anywhere. See
-      // packages/deploy/source-map.md's 2026-07-22 addition.
+      // packages/devops/source-map.md's 2026-07-22 addition.
       statusMessage: err instanceof Error ? err.message : 'Cloudflare DNS record setup failed.',
       errorCode: details.errorCode || 'cloudflare_dns_record_failed',
       dnsOwnership: details.dnsOwnership || 'external',
@@ -859,7 +859,7 @@ async function setupCloudflarePagesCustomDomain(input: {
       ...base,
       status: details.errorCode === 'cloudflare_domain_already_bound' ? 'conflict' : 'failed',
       // Same "every real throw site in this file is a genuine Error/DeployError" reasoning as the
-      // DNS-setup catch above — unreachable fallback, see packages/deploy/source-map.md.
+      // DNS-setup catch above — unreachable fallback, see packages/devops/source-map.md.
       statusMessage: err instanceof Error ? err.message : 'Cloudflare Pages custom domain setup failed.',
       errorCode: details.errorCode || 'cloudflare_domain_setup_failed',
       dnsStatus: dns.dnsStatus,
@@ -910,7 +910,7 @@ function hostnameFromUrl(raw: unknown): string {
  * `new URL(...).hostname`, so `hostnameFromUrl(pagesDevUrl)` never falls
  * through to its own `|| ...pages.dev` default, and `normalizeHostname` of a
  * real hostname never produces `''`. So `pagesTarget` is always truthy by
- * the time it reaches here. See packages/deploy/source-map.md's 2026-07-22
+ * the time it reaches here. See packages/devops/source-map.md's 2026-07-22
  * addition for the full chain.
  */
 function cloudflarePagesDnsMarker(projectName: string, pagesTarget: string): string {
@@ -935,7 +935,7 @@ function aggregateCloudflarePagesStatus(
   // fallbacks below are unreachable because `customDomain` only ever comes from this file's own
   // `setupCloudflarePagesCustomDomain`, whose every return shape sets a real, non-empty
   // `statusMessage` (main flow) or `errorCode` (catch-block flows) — see that function's own return
-  // sites. See packages/deploy/source-map.md's 2026-07-22 addition for the exhaustive case-by-case
+  // sites. See packages/devops/source-map.md's 2026-07-22 addition for the exhaustive case-by-case
   // trace backing all of this.
   if (!customDomain) {
     return { status: pagesDev.status, ...(pagesDev.statusMessage !== undefined ? { statusMessage: pagesDev.statusMessage } : {}) };
@@ -1005,7 +1005,7 @@ export class CloudflarePagesDeployTarget implements DeployTarget {
     // always returns a non-empty string (see its own doc comment) — kept as
     // belt-and-suspenders in case that helper's contract ever changes, same
     // reasoning as `cloudflarePagesProjectUrl`'s identical guard. See
-    // packages/deploy/source-map.md's 2026-07-22 addition.
+    // packages/devops/source-map.md's 2026-07-22 addition.
     if (!projectName) throw new DeployError('Cloudflare Pages project name could not be generated.', 400);
     const config: ResolvedConfig = { ...this.config, projectName };
 
@@ -1045,7 +1045,7 @@ export class CloudflarePagesDeployTarget implements DeployTarget {
     // `cloudflarePagesProductionUrl(config)`, which — per its own doc comment — is always the
     // non-empty `https://${projectName}.pages.dev` string, since `config.projectName` is validated
     // non-empty before `config` is ever constructed above. See
-    // packages/deploy/source-map.md's 2026-07-22 addition.
+    // packages/devops/source-map.md's 2026-07-22 addition.
     const productionUrl = cloudflarePagesProductionUrl(config);
     const link = await waitForReachableDeploymentUrl(productionUrl ? [productionUrl] : [deployment?.url], {
       providerLabel: 'Cloudflare Pages',
@@ -1073,7 +1073,7 @@ export class CloudflarePagesDeployTarget implements DeployTarget {
       // is unreachable: every one of `aggregateCloudflarePagesStatus`'s own return paths sets a
       // real, non-empty `statusMessage` — either a literal, or spread from `pagesDev.statusMessage`,
       // which (per that function's own doc comment) is always defined. See
-      // packages/deploy/source-map.md's 2026-07-22 addition.
+      // packages/devops/source-map.md's 2026-07-22 addition.
       ...(aggregate.statusMessage !== undefined ? { statusMessage: aggregate.statusMessage } : {}),
       ...(link.reachableAt !== undefined ? { reachableAt: link.reachableAt } : {}),
       providerMetadata: {

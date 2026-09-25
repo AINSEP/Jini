@@ -1,5 +1,18 @@
 # `@jini/agentic` — provenance
 
+**Path note (added during a 2026-09-02 doc audit, not by the code's own author):** every `src/...`
+path in the File map and elsewhere below predates a 2026-08-08 restructure
+(`06612923 refactor(agentic): restructure page-driver internals under core/`) that moved
+everything except the root `src/index.ts` one level down, under `src/core/`, and added a new
+`./core` package.json export subpath alongside the existing `.`/`./dom`/`./a2ui` ones (`./dom` and
+`./a2ui` now resolve to `dist/core/dom`/`dist/core/a2ui`). So `src/gen-ui/*` below is actually
+`src/core/gen-ui/*`, `src/capability.ts` is `src/core/capability.ts`, `src/dom/*` is
+`src/core/dom/*`, `src/a2ui/*` is `src/core/a2ui/*`, etc. — the file contents and provenance
+history described are still accurate, only the leading `src/` prefix needs `core/` inserted after
+it. That commit did not update this file; see `src/core/README.md` (new in that commit) for the
+current authoritative statement of what `core/` is and its one hard rule (never import
+`@jini-ai/ui`).
+
 Extracted 2026-07-26 out of `@jini/chat-core` (`src/agentic/*`, minus `chat-capabilities.ts`) and
 `@jini/chat-react` (`src/agent-bridge/dom-page-driver.ts`), per
 `ADS-memory/reports/proposals/PLAN-jini-agentic-extraction-2026-07-26.md` — a decided execution
@@ -620,3 +633,24 @@ catalog security boundary (component whitelist + bidirectional `callableFrom` en
 spec's own named security-relevant surface), and a real, live, adversarially-tested end-to-end
 round trip — was cross-validated against the spec's own official conformance fixtures, not just
 this port's own understanding of the schema text.
+
+## 2026-08-18 — `agui-stream` route removed at the URL level, closing the 2026-07-27 gap
+
+The 2026-07-27 correction above left one thing deliberately unrenamed: `@jini-ai/http-kit`'s route
+path, still `/api/runs/:runId/agui-stream`, on the reasoning that a URL is a wire contract an
+already-deployed client might be calling while a TypeScript symbol rename is free.
+
+An audit found zero callers anywhere — no client in this repo or in the sibling `Tovu` repo ever
+requested that path (`examples/reference-web`'s frontend streams runs over the separate
+`/api/runs/:runId/events` route instead), the daemon composition only *registered* the handler
+without anything ever invoking it, and `@jini-ai/http-kit` has never actually been published to npm
+(`E404` from the real registry), so no external integrator could be depending on it either. With no
+wire contract left to protect, the route, its registrar (`registerRunStreamRoute`), its handler
+(`handleRunStreamRequest`), and the `RUN_STREAM_ROUTE_PATH` constant were removed outright from
+`@jini-ai/http-kit` (see that package's own source-map entry), and `examples/reference-web/src/
+daemon.ts`'s registration of it was removed too.
+
+This `gen-ui/` module itself — `createGenUiEncoder` and the six `GenUi*` event/type exports — was
+left untouched. It remains `@jini-ai/agentic`'s own public export, re-exported from this barrel,
+independent of whether anything mounts it over HTTP. Whether `gen-ui/` itself still earns its keep
+with its one real consumer now gone is a separate, unmade decision.

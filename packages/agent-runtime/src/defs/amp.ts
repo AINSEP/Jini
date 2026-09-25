@@ -61,4 +61,13 @@ export const ampAgentDef = {
   },
   promptViaStdin: true,
   streamFormat: 'claude-stream-json',
+  // No `externalMcpInjection` yet, though Amp does have real native MCP support:
+  // `.amp/settings.json`'s `amp.mcpServers` key (workspace- or global-scoped),
+  // plus an `amp mcp add [--workspace]` CLI mutator. It doesn't fit any of the
+  // four wired strategies — the file/schema differ from `.mcp.json`
+  // (`'claude-mcp-json'`), Amp isn't ACP, and it isn't an env-var-content format
+  // (`'opencode-env-content'`/`'mimo-env-content'`). Workspace MCP servers also
+  // "require explicit approval before they can run" with no confirmed
+  // non-interactive bypass, so a new strategy here would still need that
+  // verified against a live headless `amp -x` run before it's safe to wire.
 } satisfies RuntimeAgentDef;

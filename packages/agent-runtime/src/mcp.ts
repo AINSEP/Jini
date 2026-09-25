@@ -5,7 +5,7 @@
  * agent expects, for agents whose transport discovers MCP servers via
  * `mcpDiscovery === 'mature-acp'`.
  *
- * De-branded from OD's `apps/daemon/src/runtimes/core/mcp.ts`. The origin
+ * De-branded from OD's `apps/daemon/src/runtimes/mcp.ts`. The origin
  * function was hardwired to inject exactly one product feature — a
  * specifically-named, specifically-branded MCP server spawned via that
  * product's own CLI binary, with a fixed args tail baked in (see

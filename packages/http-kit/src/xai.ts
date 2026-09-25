@@ -254,14 +254,15 @@ async function stopListener(listenerRef: { current: OAuthCallbackListener | null
  * Serializes OAuth starts that share one `listenerRef`, keyed by the ref object itself (a
  * `WeakMap`, so a host that discards a registration's deps does not leak an entry here).
  *
- * The loopback callback port is a singleton, and `oauth/start` reaches for it across two `await`s —
- * stop the previous listener, then open a new one. Two starts could interleave there: both cleared
- * the shared ref, the second installed its listener and returned `ok` to its caller, and then the
- * first one's failure path called `stopListener` on that same shared ref and tore down the second's
- * listener. Its caller had already been handed an authorizeUrl whose callback endpoint was now
- * dead, so the sign-in hung with nothing to diagnose. Serializing makes "stop the old one, open a
- * new one" the single indivisible step it always read as, so a start only ever stops a listener
- * that is genuinely finished with.
+ * The loopback callback port is a singleton, and `oauth/start` both checks and claims it
+ * (`listenerRef.current`) across two `await`s (`beginOAuthPkce` then `startCallbackListener`).
+ * Without serializing, two concurrent starts could both observe `listenerRef.current === null`
+ * before either claimed it, both proceed to open a listener, and the second's write would
+ * silently clobber the first's — the first caller would already have been handed an
+ * `authorizeUrl` whose callback endpoint just died, with no error ever surfaced to it. That is
+ * the exact race `xaiOauthStartRoute`'s own `OAUTH_FLOW_IN_PROGRESS` conflict check exists to
+ * reject instead of silently losing. Serializing makes "check the slot, then claim it" the single
+ * indivisible step it always needed to be, so that check can never race with itself.
  */
 const oauthStartQueues = new WeakMap<object, Promise<unknown>>();
 
@@ -384,14 +385,21 @@ export const xaiOauthStartRoute = defineJsonRoute<void, XaiOauthStartResponse, X
   parse: () => ok(undefined),
   handle: async (_input, deps) => {
     const resolved = resolveXaiHttpDeps(deps);
-    // Only one OAuth dance can be in flight at a time — the loopback port is a singleton. Stop
-    // any prior listener (e.g. the user closed the browser tab and clicked "Sign in" again)
-    // before opening a new one, matching OD's origin `oauth/start` handler. The whole stop-then-
-    // start sequence runs under `serializeOauthStart` so two concurrent starts cannot interleave
-    // across its `await`s — see that function's doc for the listener a failing start used to
-    // destroy out from under a successful one.
+    // Only one OAuth dance can be in flight at a time — the loopback port is a singleton. A
+    // second `start` arriving while a listener from a prior `start` is still bound/waiting used
+    // to silently stop that listener and open a new one: the first caller's already-returned
+    // `authorizeUrl` would point at a now-dead callback endpoint with no error ever surfaced to
+    // it. Fail loud instead: reject with a conflict and require the caller to finish
+    // (`oauth/complete`) or explicitly cancel (`POST /api/xai/oauth/cancel`) the in-flight flow
+    // first. The check-then-claim runs under `serializeOauthStart` so two concurrent starts can't
+    // both observe an empty slot — see that function's doc.
     return serializeOauthStart(resolved.listenerRef, async () => {
-      await stopListener(resolved.listenerRef);
+      if (resolved.listenerRef.current !== null) {
+        return err(createApiError(
+          'OAUTH_FLOW_IN_PROGRESS',
+          'an xAI OAuth flow is already in progress — complete it, or cancel it via POST /api/xai/oauth/cancel, before starting a new one',
+        ));
+      }
       try {
         const { authorizeUrl, state } = beginOAuthPkce({
           config: resolved.providerConfig,

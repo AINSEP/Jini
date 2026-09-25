@@ -12,6 +12,19 @@
  */
 
 /**
+ * One tool-result content block a `tool_result` event may carry alongside its flattened `content`
+ * string, for a renderer to display directly. Ported (not imported) from
+ * `@jini-ai/daemon`'s `tool-result-media.ts` — this module's own doc explains why chat-core does
+ * not depend on `@jini-ai/protocol` (or, by the same reasoning, on `@jini-ai/daemon`), the same
+ * "translate the wire, don't import it" posture `assistant-ag-ui.ts` documents for its own port of
+ * this package's vocabulary in the other direction. Keep in sync by hand if the daemon's shape
+ * changes — there are exactly two fields, so drift is easy to spot in review.
+ */
+export type ToolResultMediaBlock =
+  | { readonly type: 'text'; readonly text: string }
+  | { readonly type: 'image'; readonly mimeType: string; readonly data: string };
+
+/**
  * A single renderable unit of agent output. Covers every generic variant a
  * chat surface needs — status/text/thinking/tool lifecycle/usage/raw — plus
  * an `ext` escape hatch so a host can carry its own product-specific event
@@ -23,7 +36,15 @@ export type AgentEvent =
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string }
   | { kind: 'tool_use'; id: string; name: string; input: unknown }
-  | { kind: 'tool_result'; toolUseId: string; content: string; isError: boolean }
+  | {
+      kind: 'tool_result';
+      toolUseId: string;
+      content: string;
+      isError: boolean;
+      /** Typed media (currently just images) a renderer may show directly. Absent for the
+       *  overwhelming majority of tool results, which carry none. */
+      media?: readonly ToolResultMediaBlock[];
+    }
   | {
       kind: 'usage';
       inputTokens?: number;

@@ -128,7 +128,11 @@ export { searchToolsTool, describeToolTool, TOOL_CATALOG_TOOLS } from './server/
 export { searchComponentsTool, describeComponentTool, COMPONENT_CATALOG_TOOLS } from './server/index.js';
 
 // ── server: gap 3's MCP-callback delegated-tool-execution def ──────────────
-export { createExecuteDelegatedToolTool, DEFAULT_DELEGATED_TOOL_TIMEOUT_MS } from './server/index.js';
+export {
+  createExecuteDelegatedToolTool,
+  createExecuteReadonlyDelegatedToolTool,
+  DEFAULT_DELEGATED_TOOL_TIMEOUT_MS,
+} from './server/index.js';
 export type { CreateExecuteDelegatedToolToolOptions } from './server/index.js';
 
 // ── agent-install: register an MCP server into external agents ──────────────

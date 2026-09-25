@@ -279,6 +279,12 @@ export class InMemoryPolicyPermissionRepo implements PolicyPermissionRepoPort {
       (row) => !(row.workspaceId === required.workspaceId && row.policyId === required.policyId)
     );
   }
+
+  async delete(required: { workspaceId: string; id: string }): Promise<void> {
+    this.rows = this.rows.filter(
+      (row) => !(row.workspaceId === required.workspaceId && row.id === required.id)
+    );
+  }
 }
 
 export class InMemoryRolePolicyRepo implements RolePolicyRepoPort {

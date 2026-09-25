@@ -56,7 +56,9 @@
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from './adapter.js';
+import { guardSameOrigin } from './origin.js';
 import { validationError } from './request.js';
+import { sendApiError, statusForError } from './response.js';
 import { createSseChannel, type SseEvent } from './sse.js';
 import { err, ok, type Result, type RouteInputContext } from './types.js';
 
@@ -448,6 +450,7 @@ export const memoryCreateEntryRoute = defineJsonRoute<MemoryEntryInput, MemoryEn
       return err(createApiError('BAD_REQUEST', errorMessage(error)));
     }
   },
+  successStatus: 201,
 });
 
 export const memoryReadEntryRoute = defineJsonRoute<string, MemoryEntryResponse, MemoryHttpDeps>({
@@ -526,9 +529,18 @@ interface MemoryStreamEvent extends SseEvent {
  * no Last-Event-ID replay (unlike `runs.ts`) since none of the three
  * underlying emitters buffer history for reconnect — this mirrors the OD
  * origin's own behavior (a live tail only, no replay).
+ *
+ * Bypasses `mountJsonRoute` (raw `app.get`, for the SSE response shape), so it does not get
+ * `requireSameOrigin` for free the way the JSON routes below do — the guard is applied here
+ * directly, before the SSE channel is opened, so a cross-origin request never gets a stream.
  */
-export function registerMemoryEventStream(app: Express, deps: MemoryHttpDeps): void {
-  app.get('/api/memory/events', (_req: Request, res: Response) => {
+export function registerMemoryEventStream(app: Express, deps: MemoryHttpDeps, adapter: AdapterContext): void {
+  app.get('/api/memory/events', (req: Request, res: Response) => {
+    const origin = guardSameOrigin(req, adapter);
+    if (!origin.ok) {
+      sendApiError(res, statusForError(origin.error), origin.error);
+      return;
+    }
     let seq = 0;
     const channel = createSseChannel<MemoryStreamEvent>(res);
     const emit = (kind: string, data: unknown): void => {
@@ -567,7 +579,7 @@ export function registerMemoryRoutes(app: Express, deps: MemoryHttpDeps, adapter
   mountJsonRoute(app, memoryUpdateTreeNodeRoute, deps, adapter);
   mountJsonRoute(app, memoryWriteIndexRoute, deps, adapter);
   mountJsonRoute(app, memoryWriteConfigRoute, deps, adapter);
-  registerMemoryEventStream(app, deps);
+  registerMemoryEventStream(app, deps, adapter);
   mountJsonRoute(app, memoryListExtractionsRoute, deps, adapter);
   mountJsonRoute(app, memoryClearExtractionsRoute, deps, adapter);
   mountJsonRoute(app, memoryRemoveExtractionRoute, deps, adapter);

@@ -3,7 +3,7 @@
  *
  * Stages a composed prompt to a temp file for adapters that declare
  * `promptViaFile: true`. Ported from OD's
- * `apps/daemon/src/runtimes/prompt/prompt-file.ts` with one de-branding
+ * `apps/daemon/src/runtimes/prompt-file.ts` with one de-branding
  * change: the temp-dir prefix was `od-${def.id}-...`; now
  * `agent-runtime-${def.id}-...`.
  */

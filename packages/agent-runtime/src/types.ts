@@ -8,7 +8,7 @@
  * stream-parsing modules — operates on this type or on `DetectedAgent`, its
  * runtime-probed sibling.
  *
- * Ported from OD's `apps/daemon/src/runtimes/core/types.ts`. Product-neutral
+ * Ported from OD's `apps/daemon/src/runtimes/types.ts`. Product-neutral
  * as found — see `source-map.md` for the full provenance table.
  */
 import type { ExecFileOptions } from 'node:child_process';
@@ -19,11 +19,63 @@ export type RuntimeEnv = NodeJS.ProcessEnv | Record<string, string>;
 export type RuntimeModelOption = {
   id: string;
   label: string;
+  /**
+   * The reasoning-effort levels THIS model supports, when the runtime's own catalog reports them
+   * per model rather than per agent.
+   *
+   * Present only where a live source actually carries the data — Codex's `debug models` catalog
+   * does (`supported_reasoning_levels`), and the levels genuinely differ between models on the same
+   * CLI: verified live against codex-cli 0.153.4, where `gpt-6-astra` offers
+   * low/medium/high/xhigh/max/ultra while `gpt-5.5` stops at `xhigh`. A single agent-level
+   * `RuntimeAgentDef.reasoningOptions` list cannot be correct for both, which is why this is a
+   * property of the model row rather than of the def.
+   *
+   * Consumed by `RuntimeAgentDef.deriveReasoningOptions` to compute the agent-level list a picker
+   * renders. Left `undefined` by every runtime whose effort vocabulary really is uniform, and by
+   * every static fallback list — an absent value means "nothing catalog-specific to say", never
+   * "this model supports no effort levels".
+   */
+  reasoning?: readonly RuntimeReasoningOption[];
 };
 
 export type RuntimeModelSource = 'live' | 'fallback';
 
 export type RuntimeReasoningOption = RuntimeModelOption;
+
+/**
+ * Declares that a runtime carries its reasoning-effort choice INSIDE the model
+ * id — as a trailing `-<level>` on the slug — rather than in a flag of its own.
+ *
+ * The distinction is not cosmetic, and it is why this is a separate field from
+ * `RuntimeAgentDef.reasoningOptions` rather than another shape of it:
+ *
+ *   - A `reasoningOptions` def (claude, codex) has ONE effort vocabulary that
+ *     applies to every model it can run, and the chosen level travels to the
+ *     CLI as its own argv (`--effort high`, `-c model_reasoning_effort="high"`)
+ *     via `RuntimeBuildOptions.reasoning`.
+ *   - A `reasoningInModelId` def (antigravity) has NO effort flag at all. Its
+ *     level is already part of `--model`'s value, so `buildArgs` emits nothing
+ *     extra, and — critically — **the available levels differ per base model**.
+ *     Verified live against `agy models` (v1.1.25): `gemini-3.8-flash` has
+ *     high/medium/low, `gemini-3.1-pro` has ONLY high and low,
+ *     `gpt-oss-120b` has only medium, and `claude-sonnet-4-6` has none.
+ *     `agy --model gemini-3.1-pro-medium` is rejected outright.
+ *
+ * So this field declares only the suffix VOCABULARY — which trailing tokens
+ * are effort levels at all, in the order a picker should offer them. Which of
+ * them exist for a given base model is DERIVED from that runtime's own model
+ * list (live or fallback), never listed here: a hand-written per-model table
+ * would be a second copy of the CLI's catalog, free to drift the moment
+ * upstream adds a variant.
+ *
+ * `levels` doubles as the guard against over-parsing: `claude-opus-4-6-thinking`
+ * ends in `-thinking`, which is NOT an effort level, so it must stay part of
+ * the base id. Only a trailing token that appears in `levels` is a level.
+ */
+export type RuntimeReasoningInModelId = {
+  /** The recognized effort suffixes, in picker display order. */
+  levels: readonly RuntimeReasoningOption[];
+};
 
 export type RuntimeBuildOptions = {
   model?: string | null;
@@ -41,10 +93,33 @@ export type RuntimeBuildOptions = {
   permissionMode?: 'bypass' | 'restricted';
   // Text appended to the spawned CLI's own default system prompt (never replacing it), computed
   // by the caller's `PromptAugmenter.systemOverlay()` (see `prompt-augmenter.ts`) if one is
-  // configured. A def with no system-prompt-append mechanism ignores this field; Claude's def
-  // reads it via its own `--append-system-prompt` flag. `null`/`undefined`/empty means no overlay
-  // for this run — identical to today's behavior.
+  // configured. Delivery is centralized, not per-def: `@jini-ai/daemon`'s
+  // `resolveSystemPromptOverlayDelivery` reads this value directly (not via a def's own `buildArgs`
+  // options argument) and dispatches on the target def's `RuntimeAgentDef.systemPromptDelivery`
+  // declaration — an `'append-flag'` def (e.g. `claude`) gets it as its own native argv flag; every
+  // other def gets it prefixed onto the composed prompt text instead, so no def needs to read this
+  // field itself to receive the overlay. `null`/`undefined`/empty means no overlay for this run —
+  // identical to today's behavior.
   systemPromptOverlay?: string | null;
+  /**
+   * Tool names this run's CLI should refuse to execute, forwarded to whichever def-native flag
+   * expresses a deny-list — today, `claude`'s own `--disallowedTools` (verified against installed
+   * Claude Code 2.1.263: `--disallowedTools, --disallowed-tools <tools...>`, "Comma or
+   * space-separated list of tool names to deny"). This is a `@jini-ai/agent-runtime`-level
+   * *mechanism* only: no product's tool policy is baked in here (not one host's Bash-forbid opinion,
+   * not anyone else's) — the caller decides which names to pass. A def whose CLI has no equivalent
+   * flag simply ignores this field, same as `systemPromptOverlay` on a def with no overlay
+   * delivery. `undefined`/empty means no restriction — byte-identical to today's behavior (every
+   * tool the CLI's own grant already allows stays allowed).
+   */
+  disallowedTools?: readonly string[];
+  /**
+   * Same mechanism as {@link disallowedTools}, for a def-native explicit allow-list flag — today,
+   * `claude`'s own `--allowedTools`. Rarely set alongside `disallowedTools` at once; the underlying
+   * CLI decides how an allow-list and a deny-list interact when both are present.
+   * `undefined`/empty means no restriction, same as today.
+   */
+  allowedTools?: readonly string[];
 };
 
 export type RuntimeContext = {
@@ -64,11 +139,6 @@ export type RuntimeContext = {
   // equivalent flag ignore this field; the caller cleans the file up after
   // reading.
   agentLogFilePath?: string;
-  // Override for an adapter's model-selection settings file path.
-  // Production code leaves this undefined (adapters fall back to their own
-  // default). Tests pass a temp path so unit assertions against buildArgs
-  // do not touch the real home dir.
-  antigravitySettingsPath?: string;
   // Daemon-owned path to a temp file containing the composed prompt.
   // Adapters with `promptViaFile: true` read this instead of receiving the
   // prompt via argv or stdin. The caller creates the file before buildArgs
@@ -251,6 +321,19 @@ export type RuntimeAgentDef = {
   bin: string;
   versionArgs: string[];
   fallbackModels: RuntimeModelOption[];
+  /**
+   * `YYYY-MM-DD` — when this def's hardcoded `fallbackModels` list was last checked against the
+   * vendor's own current list.
+   *
+   * Required (by `scripts/check-model-fallback-freshness.ts`, not by this type) of any def whose
+   * fallback array is what a picker RENDERS when no live source answers. It exists because a
+   * hand-written list of vendor model ids has no other way to fail: it drifts from reality the day
+   * a model ships, and before this marker nothing anywhere went red when it did.
+   *
+   * Bump it only after actually comparing the list against a live source — the guard's MF3 rule
+   * does that comparison for you whenever the relevant CLI is installed.
+   */
+  fallbackModelsAssertedAt?: string;
   buildArgs: (
     prompt: string,
     imagePaths: string[],
@@ -284,6 +367,33 @@ export type RuntimeAgentDef = {
     env: RuntimeEnv,
   ) => Promise<RuntimeModelOption[] | null>;
   reasoningOptions?: RuntimeReasoningOption[];
+  /**
+   * Narrows `reasoningOptions` to what the runtime's LIVE model list actually supports.
+   *
+   * Pure, and deliberately a function of the fetched models rather than a second network/CLI probe:
+   * the data it reads (`RuntimeModelOption.reasoning`) was already parsed out of the same catalog
+   * response `listModels`/`fetchModels` produced, so there is no extra I/O and no second source that
+   * could disagree with the first.
+   *
+   * `detection.ts` calls it once per probe and, when it returns a non-empty list, that list replaces
+   * the def's static `reasoningOptions` on the resulting `DetectedAgent`. Returning `null` (no live
+   * model carried levels — an older CLI, a fallback list, an offline probe) leaves the static list
+   * exactly as declared, so this can only ever ADD accuracy, never take the picker's effort choices
+   * away.
+   *
+   * Stripped from `DetectedAgent` alongside the other closures — see `detection.ts#stripFns`.
+   */
+  deriveReasoningOptions?: (models: readonly RuntimeModelOption[]) => RuntimeReasoningOption[] | null;
+  /**
+   * See {@link RuntimeReasoningInModelId}. Mutually exclusive with
+   * `reasoningOptions` in practice: a def declaring both would tell a picker
+   * that the same choice lives in two different places at once.
+   *
+   * Survives `detection.ts#stripFns` (plain data, no closure), so a UI reading
+   * a `DetectedAgent` off the wire gets the vocabulary it needs to do the
+   * per-base-model derivation itself.
+   */
+  reasoningInModelId?: RuntimeReasoningInModelId;
   /**
    * How this def's CLI/protocol receives user-supplied image attachments.
    * Supersedes the old `supportsImagePaths: boolean` field (which was never
@@ -336,6 +446,52 @@ export type RuntimeAgentDef = {
   //                            `OPENCODE_CONFIG_CONTENT` in the spawn env.
   //   'mimo-env-content'     — same schema as opencode-env-content but
   //                            emitted under MiMo's own env namespace.
+  //   'codex-toml'           — Codex CLI has no per-run `--mcp-config`-shaped
+  //                            flag; its own native MCP config is a
+  //                            `[mcp_servers.<name>]` TOML table under
+  //                            `CODEX_HOME` (`~/.codex/config.toml` by
+  //                            default). The caller relocates `CODEX_HOME`
+  //                            to a fresh, run-scoped scratch directory
+  //                            (never the real one) carrying a TOML config
+  //                            seeded from the real install plus this run's
+  //                            bridge table, and a best-effort copy of the
+  //                            real `auth.json` so the spawned CLI is still
+  //                            logged in. See `@jini-ai/daemon`'s
+  //                            `agent-executor.ts` (`prepareCodexHomeForRun`)
+  //                            for why a relocated `CODEX_HOME` — not
+  //                            `codex mcp add`, which mutates the operator's
+  //                            real global config — is the mechanism, and for
+  //                            the live verification that this never blocks
+  //                            on an interactive trust/login prompt.
+  //   'env-passthrough'      — for a CLI whose MCP client is a GLOBAL,
+  //                            statically pre-registered stdio server (no
+  //                            per-run `--mcp-config` flag, no relocatable
+  //                            home directory), but which DOES inherit its
+  //                            spawning parent's process environment down to
+  //                            that stdio child. There is nothing to write or
+  //                            relocate per run — the operator registers the
+  //                            bridge server once, out of band, into the
+  //                            CLI's own persistent global config (verified
+  //                            live for `agy`/Antigravity: `~/.gemini/
+  //                            config/mcp_config.json`, unrelated to and
+  //                            never touched by this strategy) — so the
+  //                            caller's only per-run job is delivering the
+  //                            bridge entry's `env` (the same
+  //                            `JINI_RUN_ID`/`JINI_DAEMON_URL`/
+  //                            `JINI_DAEMON_TOKEN` triple every other
+  //                            strategy carries) directly onto the spawned
+  //                            CLI's own OS environment, for the CLI's own
+  //                            child to inherit in turn. See `defs/
+  //                            antigravity.ts`'s own doc for the live
+  //                            evidence this inheritance chain actually
+  //                            works end to end (`server/discover` →
+  //                            `initialize` → `tools/list` observed against
+  //                            a real spawn). Distinct from
+  //                            `'opencode-env-content'`/`'mimo-env-content'`:
+  //                            those pack a serialized config *document*
+  //                            into one named env var; this strategy sets
+  //                            the flat credential vars themselves, with no
+  //                            document and no CLI-specific schema.
   //
   // Leave undefined for adapters that have no native MCP transport wired
   // yet.
@@ -343,7 +499,66 @@ export type RuntimeAgentDef = {
     | 'claude-mcp-json'
     | 'acp-merge'
     | 'opencode-env-content'
-    | 'mimo-env-content';
+    | 'mimo-env-content'
+    | 'codex-toml'
+    | 'env-passthrough';
+  // How a caller-supplied `RuntimeBuildOptions.systemPromptOverlay` reaches this def's CLI — same
+  // "declare a strategy, dispatched centrally" shape as `externalMcpInjection` above, keyed off
+  // this field by `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery` (the single dispatch
+  // point; see its own doc), never by `def.id`.
+  //
+  // Leave undefined (the default, and every def's behavior before this field existed) for the
+  // universal fallback: the caller prefixes the overlay directly onto the composed prompt text,
+  // clearly delimited from the user's own request, before `buildArgs` ever sees it — no def code
+  // change needed to receive it. The one thing a def with no declared strategy must still get
+  // right in its own semantics is unaffected: this only changes what `buildArgs`'s `prompt`
+  // argument already contains, not how the def uses it.
+  //
+  //   'append-flag' — the CLI has its own append-only system-prompt argv flag (appends to the
+  //                   CLI's own default instructions, never replaces them — a def whose only
+  //                   native mechanism *replaces* the CLI's baked-in instructions instead should
+  //                   NOT declare this strategy; leave it undefined and take the prefix fallback,
+  //                   which is strictly safer than silently discarding the CLI's own defaults).
+  //                   `flag` names the argv flag. `capabilityKey`, when present, names the
+  //                   `capabilityFlags`/`agentCapabilities` key gating it (an older CLI build
+  //                   rejects an unknown flag with exit 1 — see `defs/claude.ts`'s own doc on this
+  //                   exact hazard); omit it only for a flag already confirmed unconditionally
+  //                   present (e.g. `pi`'s pre-existing, already-in-use `--append-system-prompt`).
+  //   'env-var'     — the CLI reads a dedicated env var as its own system-prompt-append hook
+  //                   (`reasonix`'s `REASONIX_ACP_SYSTEM_APPEND` — see `defs/reasonix.ts`'s own
+  //                   doc for why this shape, distinct from `append-flag`, exists at all: the
+  //                   original OD source read this env var directly and there is no argv
+  //                   equivalent). `varName` is set verbatim to the overlay text — never merged
+  //                   with an existing value, since this is a dedicated single-purpose var, not a
+  //                   shared config channel like `externalMcpInjection`'s env-content strategies.
+  //                   Delivered on every turn like `append-flag` (an env var read at spawn time is
+  //                   no more "stored history" than an argv flag is), and with no capability gate:
+  //                   an unrecognized env var is inert to a CLI, not a fatal "unknown option".
+  //
+  //   'config-instructions-file' — the CLI reads a config document's `instructions` array (file
+  //                   paths or remote URLs — never inline text; confirmed live an inline string is
+  //                   silently ignored) and appends each file's content to its own defaults, never
+  //                   replacing them (`opencode` — see `defs/opencode.ts`'s own doc for the full
+  //                   live-verification transcript: honored, append-not-replace, and coexists with
+  //                   the `mcp` key the same document may already carry, all confirmed against a
+  //                   real installed CLI, not inferred from docs). `varName` names the env var
+  //                   carrying the config document (the SAME var `externalMcpInjection`'s
+  //                   `'*-env-content'` strategies use — duplicated here rather than cross-read from
+  //                   that field, so this strategy stays self-contained: a def wanting this
+  //                   mechanism without also using the MCP env-content strategy needs no unrelated
+  //                   declaration just to make the dispatch work). The daemon stages the overlay to
+  //                   a temp file per run (an inline string will not do — see above) and merges its
+  //                   path into the array, never clobbering an existing entry (`@jini-ai/daemon`'s
+  //                   `mergeEnvContentInstructions`, mirroring `mergeEnvContentMcpConfig`'s "merge,
+  //                   never clobber" discipline for the sibling `mcp` key in the same document).
+  //                   Delivered on every turn like `append-flag`/`env-var` — confirmed live that
+  //                   `instructions` is re-read fresh from the env on every spawn, even a
+  //                   `-s <id>`-resumed turn, so nothing here is ever baked into the CLI's own
+  //                   persisted session state.
+  systemPromptDelivery?:
+    | { readonly strategy: 'append-flag'; readonly flag: string; readonly capabilityKey?: string }
+    | { readonly strategy: 'env-var'; readonly varName: string }
+    | { readonly strategy: 'config-instructions-file'; readonly varName: string };
   installUrl?: string;
   docsUrl?: string;
   // When `false`, a model picker should hide the "Custom (fill below)"
@@ -445,7 +660,15 @@ export type DetectedAgent = Omit<
   | 'buildArgs'
   | 'listModels'
   | 'fetchModels'
+  // A closure like `buildArgs`: `JSON.stringify` would drop the function and leave nothing behind,
+  // and a registry consumer has no models list of its own to feed it. Its RESULT is what ships, in
+  // the `reasoningOptions` field this same type already carries.
+  | 'deriveReasoningOptions'
   | 'fallbackModels'
+  // Build-time provenance about the fallback list, for the freshness guard. The fallback list
+  // itself is stripped one line above, so a registry consumer has nothing to interpret it
+  // against.
+  | 'fallbackModelsAssertedAt'
   | 'helpArgs'
   | 'capabilityFlags'
   | 'fallbackBins'

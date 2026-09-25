@@ -30,11 +30,28 @@
  * claimed attachment must belong to one batch, so the single `batchDirectory` a host grants the
  * agent read access to cannot be widened by mixing batches.
  *
- * **Storage lifetime is daemon-lifetime, not persistent.** `createDiskAttachmentStore` empties its
- * upload directory on construction: files left behind by an interrupted previous process cannot be
- * authenticated against an in-memory registry that no longer exists, so they are removed rather
- * than adopted. Unclaimed uploads also expire by TTL (`pruneExpired`), and a run's claimed files are
- * deleted by `cleanupRun`.
+ * **Ownership is opt-in and host-attached, not self-asserted.** `register()`'s optional `ownerId`
+ * (and `listPendingForOwner`, the discovery method it enables) is never read from anything a
+ * renderer sends — a host wires `AttachmentsHttpDeps.resolveOwnerId` to pull it from a channel IT
+ * already trusts (its own session-verified principal header, say), never from `req` unauthenticated.
+ * A store with no `resolveOwnerId` wired registers every attachment ownerless, and
+ * `listPendingForOwner` never returns an ownerless record for any caller — see that method's own doc
+ * for why an absent `ownerId` must never become a wildcard match.
+ *
+ * **Storage lifetime is daemon-lifetime by default, and opt-in restart-surviving.** With
+ * `retainAcrossRestarts` left off (the default, and this pack's only behavior before that option
+ * existed), `createDiskAttachmentStore` empties its upload directory on construction: files left
+ * behind by an interrupted previous process cannot be authenticated against an in-memory registry
+ * that no longer exists, so they are removed rather than adopted. Unclaimed uploads also expire by
+ * TTL (`pruneExpired`), and a run's claimed files are deleted by `cleanupRun`.
+ *
+ * That default is wrong for any host whose process restarts while a person is still using the
+ * composer. A file-watching dev server restarting the daemon on an unrelated source edit is not a
+ * crash, but the construction wipe cannot tell the two apart, so it destroys uploads the user is
+ * about to send — real data loss, not a tidy-up. `retainAcrossRestarts: true` replaces "wipe
+ * everything, always" with "adopt exactly what can still be authenticated": see
+ * {@link prepareAttachmentStorage} for the whole mechanism and {@link loadPersistedAttachments} for
+ * why an adopted record is no less trusted than one this process registered itself.
  *
  * **This pack does not auto-wire itself into a run's lifecycle**, because no generic hook for that
  * exists — the same deliberate choice `@jini-ai/daemon`'s `createRunScopedContextStore` makes. A
@@ -80,7 +97,7 @@
  * correlation-id-bearing generic `INTERNAL_ERROR`, with the real error reaching a host-owned sink —
  * the same `reportInternalError` shape `media.ts`/`delegated-tools.ts` use.
  */
-import { chmod, lstat, mkdir, open, readdir, realpath, rm, rmdir } from 'node:fs/promises';
+import { chmod, lstat, mkdir, open, readFile, readdir, realpath, rm, rmdir, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, resolve } from 'node:path';
 import type { Express, Request, Response } from 'express';
@@ -224,12 +241,81 @@ export interface AttachmentStore {
     name: string;
     kind: StoredAttachment['kind'];
     size: number;
+    /** See `AttachmentRecord.ownerId`'s own doc. Omitted by a host with no owner concept. */
+    ownerId?: string;
   }) => Promise<StoredAttachment>;
   /** Exchanges capability ids for real paths, exactly once, binding them to `runId`. */
   claim: (
     attachments: readonly StoredAttachment[],
     runId: string,
   ) => Promise<AttachmentClaim>;
+  /**
+   * Resolves ONE still-known attachment to its real path for `runId`, without the "exactly once
+   * across the whole batch" shape `claim()` has — the read-side counterpart for a caller that wants
+   * to look up a single attachment it may or may not already own, rather than atomically reserving a
+   * batch at run start.
+   *
+   * `ref` accepts either identifier a caller may actually be holding: the opaque `attachment:<uuid>`
+   * capability id `register()` returned, or the real absolute path this run was already told about.
+   * Both resolve to the same record. This dual form exists because `@jini-ai/daemon`'s
+   * `image-prompt-delivery.ts` narrates the resolved PATH into the run's prompt text for an
+   * already-claimed attachment — never the id — so a caller built from that prompt has the path, not
+   * the id; a caller with the id (from the original upload response) can still use it directly.
+   *
+   * Ownership is enforced here, which is new: an attachment nobody has claimed yet is claimed for
+   * `runId` on this call (identical effect to `claim()`, same integrity re-check); an attachment
+   * already claimed BY `runId` is simply re-verified and returned again (idempotent — a run may look
+   * this up more than once); an attachment claimed by any OTHER run throws the same
+   * `'attachment-unknown-or-claimed'` rejection `claim()` uses for a genuinely unknown id, so a
+   * caller cannot distinguish "no such attachment" from "a different run owns this" — the same
+   * non-disclosure `claim()` already practices for its own rejections. This is the run-ownership
+   * check `claim()`'s own FIRST reservation does not have (see this module's trust-model doc on the
+   * deliberate capability-bearer model for a brand-new claim); `resolveForRun` adds it for every
+   * lookup made through this method, so a second run/session on this same daemon can never read an
+   * attachment already bound to someone else's run by calling this method with a guessed or
+   * overheard `ref`.
+   *
+   * Returns `undefined` only for a `ref` this store has never heard of (never uploaded, or its
+   * record was already deleted by `cleanupRun`/`pruneExpired`/`dispose`).
+   */
+  resolveForRun: (ref: string, runId: string) => Promise<StoredAttachment | undefined>;
+  /**
+   * Lists every still-unclaimed attachment registered with `ownerId` — the discovery counterpart to
+   * `resolveForRun`'s single-lookup: a caller that does not yet hold a specific ref at all (an
+   * attachment uploaded in an earlier turn, never named in this run's prompt) has no id to look up
+   * with `resolveForRun` in the first place. This is what makes that attachment findable.
+   *
+   * **This is the one method in this port that widens the trust model documented at the top of this
+   * file.** `register()`/`claim()`/`resolveForRun` all work from a caller-supplied opaque id or path
+   * — the "you must already hold the unguessable capability" property that makes an unauthenticated
+   * `claim()` first-reservation safe. A listing necessarily hands back ids the caller never held, so
+   * it can only be safe if it is scoped to something the caller is actually entitled to — here, the
+   * same principal id a host recorded via `register()`'s `ownerId` for the ORIGINAL upload request.
+   *
+   * Two things make that scoping real rather than decorative:
+   * - an attachment registered with NO `ownerId` (a host that never wired `resolveOwnerId`, or any
+   *   attachment from before this method existed) is excluded from every caller's results, never
+   *   just "unscoped" — this method is not callable with `ownerId: undefined`, so there is no input
+   *   that could accidentally match an ownerless record;
+   * - a claimed attachment is excluded outright, whether or not this caller's own `runId` claimed
+   *   it, so this method can never be used to re-discover something already handed to a run — the
+   *   same "runs, not listings, are the reach here" boundary `resolveForRun` draws for a single ref.
+   *
+   * What this does NOT scope by: batch, conversation, or run — none of those are recorded on an
+   * `AttachmentRecord` today. Two different conversations run by the SAME `ownerId` will each see
+   * the other's pending attachments through this method. A host for whom that is too wide needs a
+   * finer-grained id than `ownerId` to pass into `register()` — this method does not itself assume
+   * `ownerId` means "one admin account" rather than "one conversation, one composer, one browser
+   * tab"; it only assumes the host's `ownerId` is something the CALLER of this method is authorized
+   * to see everything under.
+   *
+   * Sorted oldest-first (`createdAt` ascending) — arrival order, matching how a person would expect
+   * to review what is waiting.
+   *
+   * @complexity O(n) in the number of tracked records (bounded by `maxStoredAttachments`), matching
+   * every other method on this port.
+   */
+  listPendingForOwner: (ownerId: string) => Promise<PendingAttachmentSummary[]>;
   /** Deletes the named still-unclaimed uploads, then the batch directory if it is now empty. */
   deleteUnclaimed: (batchId: string, paths: readonly string[]) => Promise<void>;
   /** Deletes everything `runId` claimed. Safe to call for a run that claimed nothing. */
@@ -253,6 +339,18 @@ export interface CreateDiskAttachmentStoreOptions {
   readonly maxStoredBytes?: number;
   /** How long an unclaimed upload survives `pruneExpired`. Defaults to one hour. */
   readonly retentionMs?: number;
+  /**
+   * Adopts the uploads a previous process left behind instead of emptying the directory on
+   * construction, so an attachment staged seconds before a restart is still there — and still
+   * listable — afterwards.
+   *
+   * **Defaults to `false`, which is exactly this pack's pre-existing behavior.** Opting in is a
+   * one-word change at the call site and reverting is deleting it; nothing about a store
+   * constructed without this option differs in any way from before the option existed.
+   *
+   * Adoption is authenticated, not blind: see {@link loadPersistedAttachments}.
+   */
+  readonly retainAcrossRestarts?: boolean;
 }
 
 /**
@@ -262,8 +360,77 @@ export interface CreateDiskAttachmentStoreOptions {
  */
 const BATCH_ID_PATTERN = /^[a-zA-Z0-9-]{8,80}$/u;
 
-/** Bytes of leading signature `detectAttachmentKind` needs (WEBP's marker ends at byte 12). */
-const SIGNATURE_BYTES = 12;
+/**
+ * `true` when `body`'s bytes 4-7 spell `ftyp` — the ISO-BMFF box tag AVIF, HEIC, and MP4 all
+ * share. This says only "some member of the ISO-BMFF family", never "MP4" or "AVIF" on its own:
+ * mirrors `@jini-ai/cms`'s `content-type-sniffer.ts` `isIsoBmffFtyp`, which documents the same
+ * fact for the media route's own sniffer. `detectAttachmentKind` never returns `'image'` for this
+ * tag alone (see that function's doc) — doing so is exactly the 2026-09-06 regression that made an
+ * AVIF render as an unplayable `<video>` when the *media* sniffer briefly had the same bug.
+ */
+function hasIsoBmffFtypTag(body: Uint8Array): boolean {
+  return body.length >= 8 && new TextDecoder().decode(body.slice(4, 8)) === 'ftyp';
+}
+
+/** ISO-BMFF brands that identify AVIF: a still image (`avif`) or an image sequence (`avis`). Kept
+ * identical to `content-type-sniffer.ts`'s `AVIF_BRANDS` so the two sniffers can never disagree on
+ * which brands mean AVIF. */
+const AVIF_FTYP_BRANDS = ['avif', 'avis'] as const;
+const FTYP_MAJOR_BRAND_OFFSET = 8;
+/** Compatible brands follow the major brand (offset 8) and 4-byte minor version (offset 12). */
+const FTYP_COMPATIBLE_BRANDS_OFFSET = 16;
+/** Bound on the compatible-brand list scan — real `ftyp` boxes carry a handful, never dozens. */
+const MAX_SCANNED_COMPATIBLE_BRANDS = 16;
+
+function hasAvifBrandAt(body: Uint8Array, offset: number): boolean {
+  return body.length >= offset + 4
+    && AVIF_FTYP_BRANDS.some((brand) => new TextDecoder().decode(body.slice(offset, offset + 4)) === brand);
+}
+
+/** The `ftyp` box's declared end offset (big-endian size at bytes 0-3), clamped to the bytes
+ * actually present so a truncated or size-inflating file can never push the brand scan past the
+ * captured signature window. */
+function ftypBoxEnd(body: Uint8Array): number {
+  if (body.length < FTYP_MAJOR_BRAND_OFFSET) return 0;
+  const declared = ((body[0]! << 24) | (body[1]! << 16) | (body[2]! << 8) | body[3]!) >>> 0;
+  return Math.min(declared, body.length);
+}
+
+/**
+ * `true` when `body` opens with an ISO-BMFF `ftyp` box whose major brand or compatible-brand list
+ * names AVIF. This is a line-for-line mirror of `@jini-ai/cms`'s `content-type-sniffer.ts`
+ * `isAvif` (no shared dependency exists between `@jini-ai/http-kit` and `@jini-ai/cms` today — see
+ * this module's handoff notes on whether extracting one is worth it): the major brand alone is not
+ * sufficient, because a great many real AVIF files declare the generic `mif1` (HEIF image) major
+ * brand and name `avif` only in the compatible-brand list, so both are checked. HEIC declares
+ * neither and is therefore never matched here — deliberate; nothing downstream of this attachment
+ * store has confirmed it can render a HEIC as an `<img>`, so labelling one `'image'` would risk the
+ * same "sniffed as a type the surface cannot actually display" failure this whole fix addresses.
+ *
+ * Must run before any generic `ftyp` check: {@link hasIsoBmffFtypTag} alone cannot tell AVIF, HEIC,
+ * and MP4 apart, so a brand-blind caller would misclassify every ISO-BMFF file it sees as one type.
+ */
+export function hasAvifSignature(body: Uint8Array): boolean {
+  if (!hasIsoBmffFtypTag(body)) return false;
+  if (hasAvifBrandAt(body, FTYP_MAJOR_BRAND_OFFSET)) return true;
+
+  const boxEnd = ftypBoxEnd(body);
+  for (let index = 0; index < MAX_SCANNED_COMPATIBLE_BRANDS; index++) {
+    const offset = FTYP_COMPATIBLE_BRANDS_OFFSET + index * 4;
+    if (offset + 4 > boxEnd) return false;
+    if (hasAvifBrandAt(body, offset)) return true;
+  }
+  return false;
+}
+
+/**
+ * Bytes of leading signature `detectAttachmentKind` needs. WEBP's marker ends at byte 12; AVIF
+ * needs more — {@link hasAvifSignature}'s compatible-brand scan can read as far as
+ * `FTYP_COMPATIBLE_BRANDS_OFFSET + MAX_SCANNED_COMPATIBLE_BRANDS * 4` (a great many real AVIF
+ * files declare the generic `mif1` major brand and name `avif` only in the compatible-brand list —
+ * see that function's doc), so this is sized to that worst case rather than to the smallest format.
+ */
+const SIGNATURE_BYTES = FTYP_COMPATIBLE_BRANDS_OFFSET + MAX_SCANNED_COMPATIBLE_BRANDS * 4;
 
 export interface AttachmentRecord {
   id: string;
@@ -277,6 +444,27 @@ export interface AttachmentRecord {
   ino: number;
   createdAt: number;
   claimedRunId?: string;
+  /**
+   * The principal a host's `AttachmentsHttpDeps.resolveOwnerId` reported for the request that
+   * registered this attachment. Absent when the host supplies no `resolveOwnerId` (this pack's
+   * behavior before ownership existed), which is why `listPendingForOwner` treats an absent
+   * `ownerId` as "cannot be scoped" rather than as a wildcard match — see that method's own doc.
+   */
+  ownerId?: string;
+}
+
+/**
+ * What `listPendingForOwner` hands back for one still-unclaimed attachment: enough for a caller to
+ * show a person what is waiting, and to name it again (`ref`) to `claim()`/`resolveForRun`.
+ */
+export interface PendingAttachmentSummary {
+  /** The same opaque `attachment:<uuid>` id `register()` returned over the wire. */
+  ref: string;
+  name: string;
+  kind: StoredAttachment['kind'];
+  size: number;
+  /** `Date.now()` at registration — when the file arrived, not when it was looked up. */
+  createdAt: number;
 }
 
 /** What registration recorded about a file, as `isUnchangedAttachment` needs it. */
@@ -461,11 +649,15 @@ const IMAGE_SIGNATURE_MATCHERS: readonly ((body: Uint8Array) => boolean)[] = [
   hasJpegSignature,
   hasGifSignature,
   hasWebpSignature,
+  hasAvifSignature,
 ];
 
 /**
  * Infers `'image'` from the leading bytes rather than from a renderer-controlled MIME type or file
- * extension. PNG, JPEG, GIF87a/89a, and WEBP are recognized; everything else is `'file'`.
+ * extension. PNG, JPEG, GIF87a/89a, WEBP, and AVIF (brand-checked ISO-BMFF, see
+ * {@link hasAvifSignature}) are recognized; everything else is `'file'` — including a plain MP4 or
+ * other non-AVIF ISO-BMFF file, which shares AVIF's `ftyp` tag but is deliberately NOT matched here
+ * (see {@link hasIsoBmffFtypTag}'s doc for why a brand-blind `ftyp` check would be wrong).
  *
  * `kind` decides whether a path is later passed to `AgentExecutor.run()`'s `imagePaths`, so letting
  * a renderer assert it would let a renderer choose how the agent runtime parses the bytes.
@@ -529,6 +721,262 @@ export async function writeBoundedAttachmentBody({
   }
 }
 
+// ---------------------------------------------------------------------------
+// Restart survival (`retainAcrossRestarts`)
+// ---------------------------------------------------------------------------
+
+/**
+ * Directory, directly under the upload root, holding one small JSON sidecar per registered
+ * attachment. This is what makes a restart-surviving store possible at all: the upload path encodes
+ * the batch id and nothing else, so a directory scan alone can never recover an attachment's
+ * display `name`, its sniffed `kind`, its capability `id`, or — the one that decides whether
+ * `listPendingForOwner` can see it again — its `ownerId`. A scan-only "reconstruct from the paths"
+ * design therefore brings the *bytes* back and still shows the user an empty list, which is half a
+ * fix.
+ *
+ * The leading `.` is load-bearing: `BATCH_ID_PATTERN` admits no `.`, so `resolveBatchDirectory` can
+ * never produce this path and a batch can never collide with (or be made to write into) the sidecar
+ * directory. It also sits OUTSIDE every batch directory on purpose — a batch directory is the one
+ * directory a host grants the agent read access to (`AttachmentClaim.batchDirectory`), so sidecars
+ * kept next to their files would hand a run the `ownerId` and capability ids of every other
+ * attachment in the same batch.
+ */
+const SIDECAR_DIRECTORY_NAME = '.records';
+
+/**
+ * One attachment as it is written to its sidecar — `AttachmentRecord` minus two fields, both
+ * omitted deliberately:
+ *
+ * - **`batchDirectory`**, because it is re-derived from the upload root on read rather than trusted.
+ *   A sidecar is a file on disk; if it could name the directory a claim later hands to an agent, a
+ *   forged one would turn this store into an arbitrary-file-read primitive. Re-deriving it through
+ *   the same `BATCH_ID_PATTERN` + `resolve` containment argument `resolveBatchDirectory` uses means
+ *   a forged sidecar can only ever point inside the upload root.
+ * - **`claimedRunId`**, because no run survives the process that owned it. Everything adopted comes
+ *   back unclaimed; a file whose run died is re-listable to its own uploader (never to anyone else
+ *   — `claim`/`resolveForRun` still demand the unguessable id or path) and expires on the normal
+ *   TTL. See {@link loadPersistedAttachments} for the retention consequence that carries.
+ */
+export interface PersistedAttachmentRecord {
+  readonly id: string;
+  readonly filePath: string;
+  readonly name: string;
+  readonly kind: StoredAttachment['kind'];
+  readonly size: number;
+  readonly batchId: string;
+  readonly dev: number;
+  readonly ino: number;
+  readonly createdAt: number;
+  readonly ownerId?: string;
+}
+
+/** Field types a sidecar must carry, checked as data so the validator stays one flat loop. */
+const PERSISTED_FIELD_TYPES: Readonly<Record<string, string>> = {
+  id: 'string',
+  filePath: 'string',
+  name: 'string',
+  kind: 'string',
+  size: 'number',
+  batchId: 'string',
+  dev: 'number',
+  ino: 'number',
+  createdAt: 'number',
+};
+
+function hasPersistedFieldTypes(candidate: Record<string, unknown>): boolean {
+  return Object.entries(PERSISTED_FIELD_TYPES)
+    .every(([field, type]) => typeof candidate[field] === type);
+}
+
+function isPersistedAttachmentShape(raw: unknown): raw is PersistedAttachmentRecord {
+  if (typeof raw !== 'object' || raw === null) return false;
+  const candidate = raw as Record<string, unknown>;
+  if (!hasPersistedFieldTypes(candidate)) return false;
+  if (candidate.ownerId !== undefined && typeof candidate.ownerId !== 'string') return false;
+  return candidate.kind === 'image' || candidate.kind === 'file';
+}
+
+/**
+ * Turns one sidecar's parsed JSON back into an `AttachmentRecord`, or `undefined` for anything that
+ * is not a well-formed record naming a file inside its own batch directory.
+ *
+ * `batchDirectory` is re-derived here and `filePath`'s containment is re-checked against it with
+ * the same parent-equality test `register` uses — the two checks that make an adopted record no
+ * more trusted than one this process registered itself. Pure and exported so both can be exercised
+ * against hostile input directly, without staging files on disk.
+ */
+export function parsePersistedAttachment(
+  raw: unknown,
+  canonicalUploadDirectory: string,
+): AttachmentRecord | undefined {
+  if (!isPersistedAttachmentShape(raw)) return undefined;
+  if (!BATCH_ID_PATTERN.test(raw.batchId)) return undefined;
+  const batchDirectory = resolve(canonicalUploadDirectory, raw.batchId);
+  const filePath = resolve(raw.filePath);
+  if (dirname(filePath) !== batchDirectory) return undefined;
+  return {
+    id: raw.id,
+    filePath,
+    name: raw.name,
+    kind: raw.kind,
+    size: raw.size,
+    batchId: raw.batchId,
+    batchDirectory,
+    dev: raw.dev,
+    ino: raw.ino,
+    createdAt: raw.createdAt,
+    ...(raw.ownerId === undefined ? {} : { ownerId: raw.ownerId }),
+  };
+}
+
+/**
+ * Sidecar filename for a record id. Reduces the id to the same `[a-zA-Z0-9-]` allowlist
+ * `BATCH_ID_PATTERN` uses before appending the extension, so no id — however this store's own id
+ * format later changes — can put a `/`, a `..`, or a second extension into the path. Ids are
+ * `attachment:<uuid>`, so the reduction stays injective in practice: the UUID is what makes it
+ * unique and the UUID survives unchanged.
+ */
+export function attachmentSidecarFileName(id: string): string {
+  return `${id.replaceAll(/[^a-zA-Z0-9-]/gu, '_')}.json`;
+}
+
+async function readPersistedAttachment(
+  sidecarPath: string,
+  canonicalUploadDirectory: string,
+): Promise<AttachmentRecord | undefined> {
+  try {
+    const raw: unknown = JSON.parse(await readFile(sidecarPath, 'utf8'));
+    return parsePersistedAttachment(raw, canonicalUploadDirectory);
+  } catch {
+    // Unreadable, truncated by a kill mid-write, or not JSON at all. Indistinguishable from a
+    // sidecar that never described a real attachment, and handled identically: not adopted.
+    return undefined;
+  }
+}
+
+/**
+ * `true` when the file this record describes is still byte-for-byte the file registration accepted.
+ *
+ * Deliberately `verifyClaimedAttachments` rather than a looser existence check: adoption must apply
+ * the SAME `dev`/`ino`/`size`/`realpath` gate `claim()` applies, or a restart would become the one
+ * moment at which a file swapped underneath the store gets handed to an agent anyway.
+ */
+async function isAdoptableAttachment(record: AttachmentRecord): Promise<boolean> {
+  try {
+    await verifyClaimedAttachments([record]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Rebuilds the record map from the sidecar directory, adopting only records that are (a) well
+ * formed and contained, (b) still within the retention window, and (c) still backed by the exact
+ * file registration accepted. Anything failing any of those is deleted — sidecar first, then the
+ * file it named, and the file ONLY when containment passed, so an unparseable sidecar can never
+ * make this an arbitrary-file-delete primitive for whatever the daemon can unlink.
+ *
+ * **The retention consequence, stated rather than assumed harmless.** Because `claimedRunId` is not
+ * persisted (see {@link PersistedAttachmentRecord}), a file claimed by a run that died with the
+ * process is adopted as unclaimed instead of being wiped, so it now occupies disk and quota for up
+ * to `retentionMs` rather than until the next start. Bounded by the same `maxStoredAttachments` /
+ * `maxStoredBytes` quotas as any live upload, and cleared by the `pruneExpired` every upload
+ * already runs — but it is a real change in when that disk comes back.
+ *
+ * @complexity O(n) in sidecars present, each costing one read and one `lstat`/`realpath` pair.
+ */
+export async function loadPersistedAttachments({
+  canonicalUploadDirectory,
+  retentionMs,
+  now = Date.now(),
+}: {
+  readonly canonicalUploadDirectory: string;
+  readonly retentionMs: number;
+  readonly now?: number;
+}): Promise<Map<string, AttachmentRecord>> {
+  const sidecarDirectory = resolve(canonicalUploadDirectory, SIDECAR_DIRECTORY_NAME);
+  await mkdir(sidecarDirectory, { recursive: true, mode: 0o700 });
+  const adopted = new Map<string, AttachmentRecord>();
+  for (const entry of await readdir(sidecarDirectory)) {
+    const sidecarPath = resolve(sidecarDirectory, entry);
+    const record = await readPersistedAttachment(sidecarPath, canonicalUploadDirectory);
+    if (record && now - record.createdAt < retentionMs && await isAdoptableAttachment(record)) {
+      adopted.set(record.id, record);
+      continue;
+    }
+    await rm(sidecarPath, { force: true });
+    if (record) await rm(record.filePath, { force: true });
+  }
+  return adopted;
+}
+
+/** Deletes everything in one batch directory that no adopted record names, then tidies the
+ *  directory away if that emptied it. A root entry that is not a directory at all is removed
+ *  outright — the store never creates one, so it can only be debris. */
+async function removeUnadoptedBatch(batchDirectory: string, keep: ReadonlySet<string>): Promise<void> {
+  const entries = await readdir(batchDirectory).catch(() => undefined);
+  if (entries === undefined) {
+    await rm(batchDirectory, { force: true });
+    return;
+  }
+  for (const entry of entries) {
+    const filePath = resolve(batchDirectory, entry);
+    if (!keep.has(filePath)) await rm(filePath, { recursive: true, force: true });
+  }
+  await rmdir(batchDirectory).catch(() => undefined);
+}
+
+/**
+ * Removes every upload the sidecar pass did not adopt. Without this, a file whose sidecar was lost
+ * (or was never written, because it predates this option) would survive forever with nothing
+ * tracking it — trading the wipe's data loss for unbounded disk growth, which is not a trade worth
+ * making. This is what keeps "never wipe on construction" bounded.
+ */
+export async function removeUnadoptedUploads(
+  canonicalUploadDirectory: string,
+  adopted: ReadonlyMap<string, AttachmentRecord>,
+): Promise<void> {
+  const keep = new Set([...adopted.values()].map((record) => record.filePath));
+  for (const entry of await readdir(canonicalUploadDirectory)) {
+    if (entry === SIDECAR_DIRECTORY_NAME) continue;
+    await removeUnadoptedBatch(resolve(canonicalUploadDirectory, entry), keep);
+  }
+}
+
+/**
+ * Decides what a newly-constructed store starts holding: nothing (the default — empty the directory
+ * outright, this pack's behavior before `retainAcrossRestarts` existed), or the authenticated
+ * survivors of the previous process.
+ *
+ * Exported so the whole restart decision can be exercised without standing a store up around it.
+ */
+export async function prepareAttachmentStorage({
+  canonicalUploadDirectory,
+  retainAcrossRestarts,
+  retentionMs,
+  now,
+}: {
+  readonly canonicalUploadDirectory: string;
+  readonly retainAcrossRestarts: boolean;
+  readonly retentionMs: number;
+  readonly now?: number;
+}): Promise<Map<string, AttachmentRecord>> {
+  if (!retainAcrossRestarts) {
+    for (const entry of await readdir(canonicalUploadDirectory)) {
+      await rm(resolve(canonicalUploadDirectory, entry), { recursive: true, force: true });
+    }
+    return new Map();
+  }
+  const adopted = await loadPersistedAttachments({
+    canonicalUploadDirectory,
+    retentionMs,
+    ...(now === undefined ? {} : { now }),
+  });
+  await removeUnadoptedUploads(canonicalUploadDirectory, adopted);
+  return adopted;
+}
+
 /**
  * The disk-backed `AttachmentStore` this package ships. Every default matches what a chat composer
  * needs out of the box; a host that wants different quotas passes them rather than reimplementing
@@ -544,17 +992,55 @@ export async function createDiskAttachmentStore({
   maxStoredAttachments = 100,
   maxStoredBytes = 200 * 1024 * 1024,
   retentionMs = 60 * 60 * 1_000,
+  retainAcrossRestarts = false,
 }: CreateDiskAttachmentStoreOptions): Promise<AttachmentStore> {
   await mkdir(uploadDirectory, { recursive: true, mode: 0o700 });
   await chmod(uploadDirectory, 0o700);
   const canonicalUploadDirectory = await realpath(uploadDirectory);
-  // Uploads live only as long as this store does. A file left by an interrupted previous process
-  // has no record to authenticate it against, so it is removed rather than adopted.
-  for (const entry of await readdir(canonicalUploadDirectory)) {
-    await rm(resolve(canonicalUploadDirectory, entry), { recursive: true, force: true });
-  }
+  // Either empties the directory (the default — a file left by an interrupted previous process has
+  // no record to authenticate it against) or adopts the previous process's authenticated survivors.
+  // See `prepareAttachmentStorage`.
+  const records = await prepareAttachmentStorage({
+    canonicalUploadDirectory,
+    retainAcrossRestarts,
+    retentionMs,
+  });
+  const sidecarDirectory = resolve(canonicalUploadDirectory, SIDECAR_DIRECTORY_NAME);
+  const sidecarPathFor = (record: AttachmentRecord): string =>
+    resolve(sidecarDirectory, attachmentSidecarFileName(record.id));
 
-  const records = new Map<string, AttachmentRecord>();
+  /**
+   * Writes one record's sidecar, or does nothing at all when this store was not asked to survive
+   * restarts. A failure rolls the record back out of the map before propagating: a registration
+   * whose sidecar could not be written would otherwise be silently non-surviving, which is the
+   * exact failure mode this whole option exists to remove. `register`'s own `catch` deletes the
+   * file, so the caller sees a failed upload rather than one that quietly evaporates later.
+   */
+  const persistRecord = async (record: AttachmentRecord): Promise<void> => {
+    if (!retainAcrossRestarts) return;
+    const persisted: PersistedAttachmentRecord = {
+      id: record.id,
+      filePath: record.filePath,
+      name: record.name,
+      kind: record.kind,
+      size: record.size,
+      batchId: record.batchId,
+      dev: record.dev,
+      ino: record.ino,
+      createdAt: record.createdAt,
+      ...(record.ownerId === undefined ? {} : { ownerId: record.ownerId }),
+    };
+    try {
+      await writeFile(sidecarPathFor(record), JSON.stringify(persisted), { mode: 0o600 });
+    } catch (error) {
+      records.delete(record.id);
+      throw error;
+    }
+  };
+
+  const forgetRecord = async (record: AttachmentRecord): Promise<void> => {
+    if (retainAcrossRestarts) await rm(sidecarPathFor(record), { force: true });
+  };
 
   const resolveBatchDirectory = (batchId: string): string => {
     if (!BATCH_ID_PATTERN.test(batchId)) {
@@ -580,6 +1066,7 @@ export async function createDiskAttachmentStore({
 
   const deleteRecord = async (record: AttachmentRecord): Promise<void> => {
     records.delete(record.id);
+    await forgetRecord(record);
     await rm(record.filePath, { force: true });
     await removeEmptyBatch(record.batchDirectory);
   };
@@ -676,8 +1163,12 @@ export async function createDiskAttachmentStore({
           dev: info.dev,
           ino: info.ino,
           createdAt: Date.now(),
+          ...(input.ownerId === undefined ? {} : { ownerId: input.ownerId }),
         };
         records.set(id, record);
+        // The first `await` after the synchronous quota window closes, so it cannot reopen the race
+        // the comment above guards. Rolls `records` back itself on failure — see `persistRecord`.
+        await persistRecord(record);
         return { path: id, name: record.name, kind: record.kind, size: record.size };
       } catch (error) {
         // A file this store refused to take ownership of must not be left behind. `rm` is
@@ -713,6 +1204,38 @@ export async function createDiskAttachmentStore({
         for (const record of claimed) delete record.claimedRunId;
         throw error;
       }
+    },
+
+    async resolveForRun(ref, runId) {
+      // Synchronous check-then-reserve, same reasoning as `reserveAttachmentRecords`: nothing may
+      // `await` between reading `claimedRunId` and writing it, or a concurrent call could observe
+      // the same unclaimed record and both believe they reserved it.
+      const record = records.get(ref) ?? [...records.values()].find((candidate) => candidate.filePath === ref);
+      if (!record) return undefined;
+      if (record.claimedRunId !== undefined && record.claimedRunId !== runId) {
+        throw new AttachmentRejectedError('attachment-unknown-or-claimed', 'Attachment is unknown or already claimed');
+      }
+      const reservedNow = record.claimedRunId === undefined;
+      if (reservedNow) record.claimedRunId = runId;
+      try {
+        await verifyClaimedAttachments([record]);
+      } catch (error) {
+        // Mirrors `claim()`'s own rollback: a lookup that fails integrity must not leave a phantom
+        // reservation behind for a record that turned out to be unsafe to hand back.
+        if (reservedNow) delete record.claimedRunId;
+        throw error;
+      }
+      return { path: record.filePath, name: record.name, kind: record.kind, size: record.size };
+    },
+
+    async listPendingForOwner(ownerId) {
+      return [...records.values()]
+        // `record.ownerId !== undefined` first, short-circuiting before the comparison: this is
+        // what makes an ownerless record excluded rather than accidentally matched by a falsy-ish
+        // `ownerId` argument — see this method's own doc on why that must never be a wildcard.
+        .filter((record) => record.claimedRunId === undefined && record.ownerId !== undefined && record.ownerId === ownerId)
+        .sort((a, b) => a.createdAt - b.createdAt)
+        .map((record) => ({ ref: record.id, name: record.name, kind: record.kind, size: record.size, createdAt: record.createdAt }));
     },
 
     async deleteUnclaimed(batchId, paths) {
@@ -782,6 +1305,19 @@ export interface AttachmentsHttpDeps {
   readonly requireSameOrigin?: boolean;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: AttachmentsInternalErrorContext) => void;
+  /**
+   * Resolves the principal id that owns this upload, if any, passed through to `store.register()`'s
+   * `ownerId` (see that field's own doc, and `AttachmentStore.listPendingForOwner`). Optional: a
+   * host with no owner concept omits it and every attachment registers ownerless, matching this
+   * pack's behavior before ownership existed — `listPendingForOwner` simply never returns those.
+   *
+   * A host is expected to read this from a header/context IT ALREADY TRUSTS (e.g. a reverse proxy's
+   * own session-verified principal header, asserted only downstream of that proxy's auth gate) —
+   * this pack has no session concept of its own and never authenticates `req` itself. Returning a
+   * caller-controlled value here (an inbound header nothing has verified) would let any uploader
+   * assert an arbitrary `ownerId` and make its files discoverable by whoever that id names.
+   */
+  readonly resolveOwnerId?: (req: Request) => string | undefined;
 }
 
 export const ATTACHMENTS_ROUTE_PATH = '/api/attachments';
@@ -885,12 +1421,14 @@ export async function handleAttachmentUpload(
       sendApiError(res, 400, createApiError('BAD_REQUEST', 'Attachment is empty'));
       return;
     }
+    const ownerId = deps.resolveOwnerId?.(req);
     const attachment = await deps.store.register({
       batchId,
       path,
       name,
       kind: detectAttachmentKind(upload.signature),
       size: upload.size,
+      ...(ownerId === undefined ? {} : { ownerId }),
     });
     sendJson(res, 201, { attachment } satisfies AttachmentUploadResponse);
   } catch (error) {

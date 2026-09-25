@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../i18n/index.js';
 import { Icon } from '../../../react/components/Icon.js';
 
@@ -11,6 +12,8 @@ export interface ConnectorSearchBarProps {
   placeholder?: string;
   ariaLabel?: string;
   clearAriaLabel?: string;
+  /** This search bar's own agent handle — see `ConnectorsBrowser`'s `agentHandle` doc. */
+  agentHandle?: string;
 }
 
 export function ConnectorSearchBar({
@@ -21,6 +24,7 @@ export function ConnectorSearchBar({
   placeholder,
   ariaLabel,
   clearAriaLabel,
+  agentHandle,
 }: ConnectorSearchBarProps) {
   const t = useT();
   const resolvedPlaceholder = placeholder ?? t('Search connectors');
@@ -53,6 +57,7 @@ export function ConnectorSearchBar({
         aria-label={resolvedAriaLabel}
         disabled={disabled}
         data-testid="connectors-search-input"
+        {...agentHandleProps(agentHandle, { role: 'field', label: resolvedAriaLabel })}
       />
       {hasQuery ? (
         <button
@@ -64,6 +69,7 @@ export function ConnectorSearchBar({
             inputRef.current?.focus();
           }}
           data-testid="connectors-search-clear"
+          {...agentHandleProps(agentHandle, { action: 'clear', role: 'button', label: resolvedClearAriaLabel })}
         >
           <Icon name="close" size={12} />
         </button>

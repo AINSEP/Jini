@@ -10,7 +10,7 @@ import type { TabbedDialogTab } from '../../../react/components/TabbedDialog.js'
 // was already exercising generic shell behavior, not anything settings-specific.
 //
 // Testids still read `settings-dialog-nav-<id>` / `settings-dialog-backdrop`, not
-// `tabbed-dialog-*`: several Tovu Playwright e2e specs hard-code the old prefix and this
+// `tabbed-dialog-*`: several of a downstream consumer's Playwright e2e specs hard-code the old prefix and this
 // package can't see or run that tree to verify a rename, so the component deliberately kept
 // the old strings. See `TabbedDialog.tsx`'s own comment at the `data-testid` prop.
 

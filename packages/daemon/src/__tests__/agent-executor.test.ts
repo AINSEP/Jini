@@ -1,13 +1,13 @@
 import { EventEmitter } from 'node:events';
+import os from 'node:os';
 import path from 'node:path';
 import { promises as fs } from 'node:fs';
 import { spawn as nodeSpawn, type ChildProcess } from 'node:child_process';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RunAgentPayload, RunErrorPayload, RunProtocolEvent } from '@jini-ai/protocol';
 import {
   AGENT_DEFS,
-  _resetAntigravityModelLockForTests,
-  antigravityModelLock,
+  agentCapabilities,
   attachAcpSession,
   attachPiRpcSession,
   getAgentDef,
@@ -16,7 +16,9 @@ import {
   type AcpSessionController,
   type AgentLaunchResolution,
   type PiRpcSession,
+  type PromptAugmenter,
   type RuntimeAgentDef,
+  type RuntimeBuildOptions,
   type RuntimeLock,
   type RuntimeLockAcquireContext,
   type RuntimeLockHandoffContext,
@@ -24,7 +26,7 @@ import {
 import type { Principal, RunRef } from '@jini-ai/core';
 import type { JournalEntry } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../event-log.js';
-import { createRunLifecycle, type RunLifecycle } from '../run-lifecycle.js';
+import { createRunLifecycle, DEFAULT_SLOW_RUN_THRESHOLD_MS, type RunLifecycle } from '../run-lifecycle.js';
 import { createRunByteJournal, type RunByteJournal } from '../continuation/journal.js';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
 import {
@@ -32,17 +34,28 @@ import {
   DEFAULT_BUFFERED_STDOUT_MAX_BYTES,
   assessAgentExecutorCompatibility,
   buildAcpMcpBridgeServers,
+  buildCodexHomeConfigToml,
+  buildCodexMcpServerToml,
   buildMcpBridgeDelivery,
   buildMcpJsonServerEntry,
+  computeChildEnv,
   createAgentExecutor,
   isAgentExecutorSupported,
   isSupportedStreamFormat,
+  mergeEnvContentInstructions,
   mergeEnvContentMcpConfig,
   mergeMcpJsonContent,
+  prepareSystemPromptOverlayFileIfNeeded,
+  resolveSourceClaudeConfigDir,
+  resolveSourceCodexHomeDir,
+  resolveSystemPromptOverlayDelivery,
   translateAgentRuntimeEvent,
   type AgentExecutor,
+  type AgentExecutorErrorCode,
   type ClassifyFailure,
+  type ClaudeConfigDirIsolationOptions,
   type ContinuationOptions,
+  type McpBridgeDelivery,
   type McpJsonInjectionOptions,
 } from '../agent-executor.js';
 
@@ -196,6 +209,10 @@ interface HarnessOptions {
   classifyFailure?: ClassifyFailure;
   /** Gap 3 part 2's spawn-time `.mcp.json` injection — omitted by default, matching `CreateAgentExecutorOptions.mcpJsonInjection`'s own opt-in default. */
   mcpJsonInjection?: McpJsonInjectionOptions;
+  /** Finding 1's `CLAUDE_CONFIG_DIR` staging seams — omitted by default, matching `CreateAgentExecutorOptions.claudeConfigDirIsolation`'s own real-filesystem default. Supplying this alone does NOT stage anything; see `claudeConfigDirIsolationEnabled` below, the actual on/off switch. */
+  claudeConfigDirIsolation?: ClaudeConfigDirIsolationOptions;
+  /** The on/off switch for Finding 1's isolation — omitted by default, matching `CreateAgentExecutorOptions.claudeConfigDirIsolationEnabled`'s own default-`false` (the 2026-09-08 rollback: isolation now requires an explicit opt-in). */
+  claudeConfigDirIsolationEnabled?: boolean;
   /** Ceiling on the `'until-close'` stdout accumulator — omitted by default so the real `DEFAULT_BUFFERED_STDOUT_MAX_BYTES` applies. */
   bufferedStdoutMaxBytes?: number;
 }
@@ -275,6 +292,12 @@ function createHarness(options: HarnessOptions = {}): Harness {
     ...(options.continuation !== undefined ? { continuation: options.continuation } : {}),
     ...(options.classifyFailure !== undefined ? { classifyFailure: options.classifyFailure } : {}),
     ...(options.mcpJsonInjection !== undefined ? { mcpJsonInjection: options.mcpJsonInjection } : {}),
+    ...(options.claudeConfigDirIsolation !== undefined
+      ? { claudeConfigDirIsolation: options.claudeConfigDirIsolation }
+      : {}),
+    ...(options.claudeConfigDirIsolationEnabled !== undefined
+      ? { claudeConfigDirIsolationEnabled: options.claudeConfigDirIsolationEnabled }
+      : {}),
     ...(options.bufferedStdoutMaxBytes !== undefined
       ? { bufferedStdoutMaxBytes: options.bufferedStdoutMaxBytes }
       : {}),
@@ -409,6 +432,42 @@ describe('AgentExecutor — successful run end-to-end', () => {
     await runPromise;
 
     expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, undefined, undefined);
+  });
+
+  it('forwards a host-supplied resumeSessionId into runtimeContext even when nothing else is staged', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-resume-session' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      resumeSessionId: 'sess-from-prior-turn',
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, undefined, { resumeSessionId: 'sess-from-prior-turn' });
+  });
+
+  it('forwards a host-minted newSessionId into runtimeContext even when nothing else is staged', async () => {
+    const buildArgs = vi.fn(() => ['--flag']);
+    const { lifecycle, executor } = createHarness({ def: createFakeDef({ buildArgs }) });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-new-session' });
+
+    const runPromise = executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'do the thing',
+      cwd: '/work',
+      newSessionId: 'freshly-minted-id',
+    });
+    await flushAsync();
+    await runPromise;
+
+    expect(buildArgs).toHaveBeenCalledWith('do the thing', [], undefined, undefined, { newSessionId: 'freshly-minted-id' });
   });
 });
 
@@ -3051,7 +3110,13 @@ describe('AgentExecutor — needsAgentLogFile staging (antigravity)', () => {
   });
 });
 
-describe('AgentExecutor — runtimeLock (antigravity model-selection mutex)', () => {
+// `antigravity`'s own `runtimeLock` (the settings.json-write mutex this generic mechanism was
+// built for) is gone — retired along with the settings.json write once `agy` gained a real
+// `--model` flag (see `defs/antigravity.ts`'s own doc). The mechanism itself stays: it is a
+// generic, still-supported `RuntimeAgentDef` extension point (Phase 7 acquire / Phase 14 handoff
+// watcher in this file), so these tests keep exercising it against synthetic `RuntimeLock`
+// fixtures rather than the now-deleted concrete implementation.
+describe('AgentExecutor — runtimeLock (a def-declared process-global buildArgs mutex hook)', () => {
   /** A `RuntimeLock` whose acquire/handoff/release are fully caller-controlled. */
   function createRecordingLock(options: { waitForHandoff?: boolean } = {}) {
     const events: string[] = [];
@@ -3088,6 +3153,30 @@ describe('AgentExecutor — runtimeLock (antigravity model-selection mutex)', ()
       seen,
       settleHandoff: () => releaseHandoff?.(),
       failHandoff: (err: unknown) => rejectHandoff?.(err),
+    };
+  }
+
+  /**
+   * A `RuntimeLock` backed by a REAL promise chain — each `acquire` awaits the previous hold's
+   * `release` — standing in for a concrete implementation like the now-deleted
+   * `antigravityModelLock` (whose settings.json-write mutex used exactly this shape). Declares no
+   * `waitForHandoff`, so release is governed by the executor's own generic "hold until child exit"
+   * default (already proven by the `'holds until child exit when the def declares a lock with no
+   * waitForHandoff at all'` test above) — this fixture exists to prove genuine cross-run
+   * serialization via a real chain, not to re-prove that default.
+   */
+  function createChainedLock(): RuntimeLock {
+    let chain: Promise<void> = Promise.resolve();
+    return {
+      acquire: async () => {
+        const previous = chain;
+        let release!: () => void;
+        chain = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        await previous;
+        return { release };
+      },
     };
   }
 
@@ -3318,115 +3407,107 @@ describe('AgentExecutor — runtimeLock (antigravity model-selection mutex)', ()
     expect((await lifecycle.get(run.id))?.state).toBe('failed');
   });
 
-  it('leaves the real antigravity lock acquirable by a later run after a buildArgs failure', async () => {
-    // The consequence test for the one above, against the REAL mutex: a wedged
-    // hold is only observable as the NEXT run hanging, which is the actual
-    // production symptom (all later concrete-model runs dead for the daemon's
-    // lifetime).
-    _resetAntigravityModelLockForTests();
-    try {
-      const stager = createFakeLogFileStager();
-      let shouldThrow = true;
-      const def = createLockedDef(antigravityModelLock, {
+  it('leaves a real chained lock acquirable by a later run after a buildArgs failure', async () => {
+    // The consequence test for the one above, against a REAL mutex (not the recording fake): a
+    // wedged hold is only observable as the NEXT run hanging, which is the actual production
+    // symptom a def-declared lock exists to avoid (every later run on that lock dead for the
+    // daemon's lifetime).
+    const lock = createChainedLock();
+    const stager = createFakeLogFileStager();
+    let shouldThrow = true;
+    const def = createLockedDef(lock, {
+      buildArgs: () => {
+        if (shouldThrow) throw new Error('EROFS: read-only file system');
+        return ['-p', '-'];
+      },
+    });
+    const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
+
+    const { run: runA } = await lifecycle.start({ contextRef: 'ctx-a' });
+    await expect(
+      executor.run({ runId: runA.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+
+    shouldThrow = false;
+    const { run: runB } = await lifecycle.start({ contextRef: 'ctx-b' });
+    let bSettled = false;
+    const runBPromise = executor
+      .run({ runId: runB.id, agentId: 'fake-antigravity', prompt: 'y', cwd: '/work', model: 'M' })
+      .then(() => {
+        bSettled = true;
+      });
+    await flushAsync();
+
+    // Without the fix, run A's hold is still outstanding and run B's acquire
+    // never resolves, so this stays false forever.
+    expect(bSettled).toBe(true);
+    await runBPromise;
+
+    child.emit('exit', 0, null);
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(runB.id);
+  });
+
+  it('proves two overlapping runs of a real chained lock genuinely serialize', async () => {
+    // Uses a real promise-chain lock (not the recording fake), driven through two concurrent
+    // executor runs sharing one lock instance — the actual race a def-declared lock exists to
+    // close, reproduced generically now that antigravity no longer needs one of its own.
+    const lock = createChainedLock();
+    const buildOrder: string[] = [];
+    const makeDef = (id: string): RuntimeAgentDef =>
+      createFakeDef({
+        id,
+        streamFormat: 'plain',
+        promptViaStdin: true,
+        needsAgentLogFile: true,
+        runtimeLock: lock,
         buildArgs: () => {
-          if (shouldThrow) throw new Error('EROFS: read-only file system');
+          buildOrder.push(id);
           return ['-p', '-'];
         },
       });
-      const { lifecycle, executor, child } = createHarness({ def, prepareAgentLogFile: stager.prepareAgentLogFile });
 
-      const { run: runA } = await lifecycle.start({ contextRef: 'ctx-a' });
-      await expect(
-        executor.run({ runId: runA.id, agentId: 'fake-antigravity', prompt: 'x', cwd: '/work', model: 'M' }),
-      ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    const defA = makeDef('run-a');
+    const defB = makeDef('run-b');
+    const stagerA = createFakeLogFileStager();
+    const stagerB = createFakeLogFileStager();
+    const harnessA = createHarness({ def: defA, prepareAgentLogFile: stagerA.prepareAgentLogFile });
+    const harnessB = createHarness({ def: defB, prepareAgentLogFile: stagerB.prepareAgentLogFile });
+    const { run: runA } = await harnessA.lifecycle.start({ contextRef: 'ctx-a' });
+    const { run: runB } = await harnessB.lifecycle.start({ contextRef: 'ctx-b' });
 
-      shouldThrow = false;
-      const { run: runB } = await lifecycle.start({ contextRef: 'ctx-b' });
-      let bSettled = false;
-      const runBPromise = executor
-        .run({ runId: runB.id, agentId: 'fake-antigravity', prompt: 'y', cwd: '/work', model: 'M' })
-        .then(() => {
-          bSettled = true;
-        });
-      await flushAsync();
+    const promiseA = harnessA.executor.run({
+      runId: runA.id,
+      agentId: 'run-a',
+      prompt: 'x',
+      cwd: '/work',
+      model: 'model-a',
+    });
+    const promiseB = harnessB.executor.run({
+      runId: runB.id,
+      agentId: 'run-b',
+      prompt: 'x',
+      cwd: '/work',
+      model: 'model-b',
+    });
 
-      // Without the fix, run A's hold is still outstanding and run B's acquire
-      // never resolves, so this stays false forever.
-      expect(bSettled).toBe(true);
-      await runBPromise;
+    await promiseA;
+    // A holds the lock (no waitForHandoff declared, so the executor's generic default holds it
+    // until child exit), so B's buildArgs must not have run yet.
+    await flushAsync();
+    expect(buildOrder).toEqual(['run-a']);
 
-      child.emit('exit', 0, null);
-      child.emit('close', 0, null);
-      await lifecycle.waitForTerminal(runB.id);
-    } finally {
-      _resetAntigravityModelLockForTests();
-    }
-  });
+    // A's process exits, releasing.
+    harnessA.child.emit('exit', 0, null);
+    harnessA.child.emit('close', 0, null);
+    await harnessA.lifecycle.waitForTerminal(runA.id);
 
-  it('proves two overlapping runs of the real antigravity lock genuinely serialize', async () => {
-    // Uses the REAL antigravityModelLock (not a fake), driven through two
-    // concurrent executor runs — the actual race this feature closes.
-    _resetAntigravityModelLockForTests();
-    try {
-      const buildOrder: string[] = [];
-      const makeDef = (id: string): RuntimeAgentDef =>
-        createFakeDef({
-          id,
-          streamFormat: 'plain',
-          promptViaStdin: true,
-          needsAgentLogFile: true,
-          runtimeLock: antigravityModelLock,
-          buildArgs: () => {
-            buildOrder.push(id);
-            return ['-p', '-'];
-          },
-        });
+    await promiseB;
+    expect(buildOrder).toEqual(['run-a', 'run-b']);
 
-      const defA = makeDef('run-a');
-      const defB = makeDef('run-b');
-      const stagerA = createFakeLogFileStager();
-      const stagerB = createFakeLogFileStager();
-      const harnessA = createHarness({ def: defA, prepareAgentLogFile: stagerA.prepareAgentLogFile });
-      const harnessB = createHarness({ def: defB, prepareAgentLogFile: stagerB.prepareAgentLogFile });
-      const { run: runA } = await harnessA.lifecycle.start({ contextRef: 'ctx-a' });
-      const { run: runB } = await harnessB.lifecycle.start({ contextRef: 'ctx-b' });
-
-      const promiseA = harnessA.executor.run({
-        runId: runA.id,
-        agentId: 'run-a',
-        prompt: 'x',
-        cwd: '/work',
-        model: 'Gemini 3.1 Pro (High)',
-      });
-      const promiseB = harnessB.executor.run({
-        runId: runB.id,
-        agentId: 'run-b',
-        prompt: 'x',
-        cwd: '/work',
-        model: 'Claude Opus 4.6 (Thinking)',
-      });
-
-      await promiseA;
-      // A holds the lock (its handoff watcher is polling a log file that will
-      // never contain the line), so B's buildArgs — the settings.json write —
-      // must not have run yet.
-      await flushAsync();
-      expect(buildOrder).toEqual(['run-a']);
-
-      // A's process exits, releasing.
-      harnessA.child.emit('exit', 0, null);
-      harnessA.child.emit('close', 0, null);
-      await harnessA.lifecycle.waitForTerminal(runA.id);
-
-      await promiseB;
-      expect(buildOrder).toEqual(['run-a', 'run-b']);
-
-      harnessB.child.emit('exit', 0, null);
-      harnessB.child.emit('close', 0, null);
-      await harnessB.lifecycle.waitForTerminal(runB.id);
-    } finally {
-      _resetAntigravityModelLockForTests();
-    }
+    harnessB.child.emit('exit', 0, null);
+    harnessB.child.emit('close', 0, null);
+    await harnessB.lifecycle.waitForTerminal(runB.id);
   });
 });
 
@@ -3783,6 +3864,46 @@ describe('AgentExecutor — gap 3 capability-routed continuation (stdin-tool-res
     child.emit('close', 0, null);
     await runPromise;
     await lifecycle.waitForTerminal(run.id);
+  });
+
+  it('does not fire a premature slow-run notice while an auto-resolved tool call is still genuinely executing, past the default threshold (regression: the daemon had no way to tell the watchdog "this silence is expected")', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveExecute!: (result: ToolExecutionResult) => void;
+      const pendingExecute = new Promise<ToolExecutionResult>((resolve) => {
+        resolveExecute = resolve;
+      });
+      const { toolExecutor } = createFakeToolExecutor(() => pendingExecute);
+      const continuation: ContinuationOptions = { toolExecutor, principal: TEST_PRINCIPAL, autonomousToolNames: new Set(['Bash']) };
+      const { lifecycle, executor, child } = createHarness({ def: streamJsonDef(), continuation });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+      // `flushAsync()` (a real `setTimeout(fn, 0)`) never settles once fake timers are engaged —
+      // `vi.advanceTimersByTimeAsync(0)` is this test's fake-timer-safe equivalent: it flushes
+      // microtasks the same way while still driving the fake clock the watchdog reads.
+      const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+      await vi.advanceTimersByTimeAsync(0);
+      child.stdout.emit('data', toolUseTurnEnd('tu-1', 'Bash', { command: 'npm install' }, 'tool_use'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      // The tool call is now in flight — `execute()` has not resolved and nothing has streamed
+      // since. Advance well past the default 45s slow-run threshold: a healthy, still-running tool
+      // call must not be reported as "still working... taking longer than usual."
+      await vi.advanceTimersByTimeAsync(DEFAULT_SLOW_RUN_THRESHOLD_MS + 5_000);
+      const midFlightEvents = await collectEvents(lifecycle, run.id);
+      expect(midFlightEvents.some((event) => event.kind === 'agent' && (event.payload as RunAgentPayload).type === 'slow_running')).toBe(
+        false,
+      );
+
+      resolveExecute({ executionId: 'exec-1', status: 'completed', output: 'done' });
+      await vi.advanceTimersByTimeAsync(0);
+
+      child.emit('close', 0, null);
+      await runPromise;
+      await lifecycle.waitForTerminal(run.id);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('injects an isError tool_result JSONL line when the injected tool execution is denied by policy', async () => {
@@ -4777,6 +4898,123 @@ describe('mergeEnvContentMcpConfig', () => {
   });
 });
 
+describe('buildCodexMcpServerToml', () => {
+  const entry = { command: 'jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
+
+  // Shape verified live against installed Codex CLI 0.151.0 by round-tripping `codex mcp add` /
+  // `codex mcp list` against a scratch CODEX_HOME and reading back the exact TOML it wrote.
+  it('emits the [mcp_servers.jini] table plus a nested .env table', () => {
+    expect(buildCodexMcpServerToml(entry)).toBe(
+      '[mcp_servers.jini]\ncommand = "jini-mcp"\nargs = ["--quiet"]\ntool_timeout_sec = 400\n\n[mcp_servers.jini.env]\nJINI_RUN_ID = "run-1"\nJINI_DAEMON_URL = "http://d"\n',
+    );
+  });
+
+  // The real type always carries JINI_RUN_ID/JINI_DAEMON_URL (buildMcpJsonServerEntry sets both
+  // unconditionally), so an empty `env` is unreachable through production callers — the `as`
+  // below constructs that state directly to exercise this function's own defensive branch.
+  it('omits the .env table entirely when the entry carries no env vars', () => {
+    const noEnv = { ...entry, env: {} } as typeof entry;
+    expect(buildCodexMcpServerToml(noEnv)).toBe('[mcp_servers.jini]\ncommand = "jini-mcp"\nargs = ["--quiet"]\ntool_timeout_sec = 400\n');
+  });
+
+  // Codex's own per-tool default is 60 s. A delegated call parked on a human dialog outlives
+  // that, and Codex then abandons it while the dialog stays answerable. The CLI's deadline must
+  // outlast the bridge's own delegated-call deadline, so the bridge (which drops the daemon request
+  // and so expires the dialog) always gives up first.
+  it('sets tool_timeout_sec past the delegated-call deadline the bridge will use', () => {
+    // 400 s = the bridge's 6 min DEFAULT_DELEGATED_TOOL_TIMEOUT_MS + 40 s.
+    expect(buildCodexMcpServerToml(entry)).toContain('\ntool_timeout_sec = 400\n');
+  });
+
+  it('serialises multiple argv tokens as a comma-separated TOML array', () => {
+    const toml = buildCodexMcpServerToml({ ...entry, args: ['--a', '--b', '--c'] });
+    expect(toml).toContain('args = ["--a", "--b", "--c"]');
+  });
+
+  it('includes JINI_DAEMON_TOKEN in the .env table when the entry carries a resolved credential', () => {
+    const withToken = { ...entry, env: { ...entry.env, JINI_DAEMON_TOKEN: 'run-scoped-secret' } };
+    const toml = buildCodexMcpServerToml(withToken);
+    expect(toml).toContain('JINI_DAEMON_TOKEN = "run-scoped-secret"');
+    // SEC: the credential must land in the env table, never inside the args array (readable via `ps`).
+    expect(toml.split('args = ')[1]!.split('\n')[0]).not.toContain('run-scoped-secret');
+  });
+
+  // Adversarial: a command/arg/env value carrying TOML-significant characters must not break the
+  // file's syntax or let a value escape its own string.
+  it('escapes backslashes, double quotes, and whitespace control characters in every string field', () => {
+    const hostile = {
+      command: 'C:\\bin\\jini-mcp.exe',
+      args: ['--label', 'say "hi"\tthen\nnewline\r'],
+      env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' },
+    };
+    const toml = buildCodexMcpServerToml(hostile);
+    expect(toml).toContain('command = "C:\\\\bin\\\\jini-mcp.exe"');
+    expect(toml).toContain('"say \\"hi\\"\\tthen\\nnewline\\r"');
+  });
+});
+
+describe('buildCodexHomeConfigToml', () => {
+  const entry = { command: 'jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
+
+  it('produces just this run\'s block when there is no existing config (fresh Codex install)', () => {
+    expect(buildCodexHomeConfigToml(undefined, entry)).toBe(buildCodexMcpServerToml(entry));
+  });
+
+  it('appends after existing content that already ends with a newline, with exactly one blank-line separator', () => {
+    const existing = '[sandbox]\nmode = "workspace-write"\n';
+    const result = buildCodexHomeConfigToml(existing, entry);
+    expect(result).toBe(`${existing}\n${buildCodexMcpServerToml(entry)}`);
+  });
+
+  it('finishes a trailing partial line before appending, when existing content has no trailing newline', () => {
+    const existing = '[sandbox]\nmode = "workspace-write"';
+    const result = buildCodexHomeConfigToml(existing, entry);
+    expect(result).toBe(`${existing}\n\n${buildCodexMcpServerToml(entry)}`);
+  });
+
+  // Append-only, never parsed: every pre-existing setting — model choice, sandbox policy, the
+  // operator's own other MCP servers — must survive byte-for-byte, since this driver has no TOML
+  // parser to safely rewrite them with.
+  it('preserves unrelated existing sections byte-for-byte', () => {
+    const existing = '[model]\nselected = "gpt-5.4"\n\n[mcp_servers.supabase]\ncommand = "npx"\n';
+    const result = buildCodexHomeConfigToml(existing, entry);
+    expect(result).toContain(existing);
+    expect(result).toContain('[mcp_servers.jini]');
+  });
+
+  it('treats an empty existing string the same as undefined', () => {
+    expect(buildCodexHomeConfigToml('', entry)).toBe(buildCodexMcpServerToml(entry));
+  });
+});
+
+describe('resolveSourceCodexHomeDir', () => {
+  it('uses hostEnv.CODEX_HOME when set to a non-blank value', () => {
+    expect(resolveSourceCodexHomeDir({ CODEX_HOME: '/custom/codex-home' })).toBe('/custom/codex-home');
+  });
+
+  it('falls back to ~/.codex when CODEX_HOME is unset', () => {
+    expect(resolveSourceCodexHomeDir({})).toBe(path.join(os.homedir(), '.codex'));
+  });
+
+  it('treats a blank/whitespace-only CODEX_HOME the same as unset', () => {
+    expect(resolveSourceCodexHomeDir({ CODEX_HOME: '   ' })).toBe(path.join(os.homedir(), '.codex'));
+  });
+});
+
+describe('resolveSourceClaudeConfigDir', () => {
+  it('uses hostEnv.CLAUDE_CONFIG_DIR when set to a non-blank value', () => {
+    expect(resolveSourceClaudeConfigDir({ CLAUDE_CONFIG_DIR: '/custom/claude-config' })).toBe('/custom/claude-config');
+  });
+
+  it('falls back to ~/.claude when CLAUDE_CONFIG_DIR is unset', () => {
+    expect(resolveSourceClaudeConfigDir({})).toBe(path.join(os.homedir(), '.claude'));
+  });
+
+  it('treats a blank/whitespace-only CLAUDE_CONFIG_DIR the same as unset', () => {
+    expect(resolveSourceClaudeConfigDir({ CLAUDE_CONFIG_DIR: '   ' })).toBe(path.join(os.homedir(), '.claude'));
+  });
+});
+
 describe('buildMcpBridgeDelivery', () => {
   const options: McpJsonInjectionOptions = {
     command: '/usr/bin/jini-mcp',
@@ -4820,14 +5058,49 @@ describe('buildMcpBridgeDelivery', () => {
     });
   });
 
+  // `'codex-toml'` carries no path — unlike `'claude-mcp-json'`'s deterministic `mcpJsonPath`, the
+  // scratch CODEX_HOME directory needs `fs.mkdtemp` (a real, non-deterministic effect), which this
+  // pure, synchronous dispatch cannot perform. `prepareCodexHomeIfNeeded` stages it separately.
+  it('maps codex-toml to a bare serverEntry with no path — the directory is staged separately', () => {
+    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'codex-toml' });
+    expect(delivery).toEqual({
+      kind: 'codex-toml',
+      serverEntry: {
+        command: '/usr/bin/jini-mcp',
+        args: ['--quiet'],
+        env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+      },
+    });
+  });
+
+  // `'env-passthrough'` (antigravity): like `'codex-toml'`, a bare serverEntry — but unlike it,
+  // there is no directory or file to stage at all. The whole delivery IS the env triple; a
+  // consumer applies `serverEntry.env` directly to the child's own environment (see
+  // `computeChildEnv`'s tests below), never to a config document or a named carrier variable.
+  it('maps env-passthrough to a bare serverEntry, carrying no path and no carrier variable', () => {
+    const delivery = buildMcpBridgeDelivery({ ...base, strategy: 'env-passthrough' });
+    expect(delivery).toEqual({
+      kind: 'env-passthrough',
+      serverEntry: {
+        command: '/usr/bin/jini-mcp',
+        args: ['--quiet'],
+        env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+      },
+    });
+  });
+
   it('threads the resolved credential into every mechanism, not just claude-mcp-json', () => {
     const withToken = { ...base, credential: 'run-scoped-secret' };
     const claude = buildMcpBridgeDelivery({ ...withToken, strategy: 'claude-mcp-json' });
     const acp = buildMcpBridgeDelivery({ ...withToken, strategy: 'acp-merge' });
     const env = buildMcpBridgeDelivery({ ...withToken, strategy: 'mimo-env-content' });
+    const codex = buildMcpBridgeDelivery({ ...withToken, strategy: 'codex-toml' });
+    const passthrough = buildMcpBridgeDelivery({ ...withToken, strategy: 'env-passthrough' });
     expect(claude).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
     expect(acp).toMatchObject({ mcpServers: [{ env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } }] });
     expect(env).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
+    expect(codex).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
+    expect(passthrough).toMatchObject({ serverEntry: { env: { JINI_DAEMON_TOKEN: 'run-scoped-secret' } } });
   });
 
   // The registry-level invariant this whole task exists to establish: a def earns a working MCP
@@ -4842,9 +5115,10 @@ describe('buildMcpBridgeDelivery', () => {
     expect(undelivered).toEqual([]);
   });
 
-  it('covers the 8 acp-merge defs the review found getting zero MCP tools', () => {
+  it('covers the 9 acp-merge defs — the 8 the review found getting zero MCP tools, plus amr (a later oversight, same fix)', () => {
     const acpMergeDefs = AGENT_DEFS.filter((def) => def.externalMcpInjection === 'acp-merge');
     expect(acpMergeDefs.map((def) => def.id).sort()).toEqual([
+      'amr',
       'devin',
       'hermes',
       'kilo',
@@ -4861,6 +5135,355 @@ describe('buildMcpBridgeDelivery', () => {
         kind: 'acp-merge',
       });
     }
+  });
+});
+
+describe('resolveSystemPromptOverlayDelivery', () => {
+  const base = {
+    defId: 'fake-agent',
+    systemPromptDelivery: undefined,
+    resumesSessionViaCli: undefined,
+    resumesSessionViaAcpLoad: undefined,
+    overlay: 'Follow the house rules.',
+    prompt: 'What is the weather doing today?',
+    resumeSessionId: undefined,
+  };
+
+  it('passes the prompt through unchanged and appends nothing when there is no overlay', () => {
+    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: undefined })).toEqual({
+      promptPrefix: '',
+      prompt: base.prompt,
+      extraArgs: [],
+      envOverrides: {},
+    });
+    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: null })).toEqual({
+      promptPrefix: '',
+      prompt: base.prompt,
+      extraArgs: [],
+      envOverrides: {},
+    });
+    expect(resolveSystemPromptOverlayDelivery({ ...base, overlay: '' })).toEqual({
+      promptPrefix: '',
+      prompt: base.prompt,
+      extraArgs: [],
+      envOverrides: {},
+    });
+  });
+
+  it("fallback (no declared strategy): prefixes the overlay onto the prompt, clearly delimited", () => {
+    expect(resolveSystemPromptOverlayDelivery(base)).toEqual({
+      // The one strategy that carries the overlay in the prompt text, so the one non-empty
+      // `promptPrefix`. Every transport in `run()` applies this prefix verbatim; asserting `''`
+      // on each of the other cases below is what pins the no-double-delivery invariant.
+      promptPrefix: 'Follow the house rules.\n\n---\n\n',
+      prompt: 'Follow the house rules.\n\n---\n\nWhat is the weather doing today?',
+      extraArgs: [],
+      envOverrides: {},
+    });
+  });
+
+  it('fallback: a def with no session memory gets the prefix on every turn, resumeSessionId or not', () => {
+    const withResumeId = resolveSystemPromptOverlayDelivery({ ...base, resumeSessionId: 'sess-1' });
+    expect(withResumeId.prompt.startsWith('Follow the house rules.')).toBe(true);
+  });
+
+  it('fallback: a resumesSessionViaCli def gets the prefix on its session-creating turn (no resumeSessionId yet)', () => {
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, resumeSessionId: undefined });
+    expect(delivery.prompt.startsWith('Follow the house rules.')).toBe(true);
+  });
+
+  it('fallback: a resumesSessionViaCli def does NOT get the prefix once a resumeSessionId is present — avoids compounding it into the CLI-owned session history', () => {
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, resumeSessionId: 'sess-1' });
+    expect(delivery).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
+  });
+
+  it('fallback: same resume-in-progress skip applies to resumesSessionViaAcpLoad defs (amr)', () => {
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaAcpLoad: true, resumeSessionId: 'acp-sess-1' });
+    expect(delivery).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
+  });
+
+  it("fallback: an empty-string resumeSessionId does not count as 'continuing a session'", () => {
+    const delivery = resolveSystemPromptOverlayDelivery({ ...base, resumesSessionViaCli: true, resumeSessionId: '' });
+    expect(delivery.prompt.startsWith('Follow the house rules.')).toBe(true);
+  });
+
+  it("'append-flag': leaves the prompt untouched and appends the flag + overlay as extra argv", () => {
+    const delivery = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt' },
+    });
+    expect(delivery).toEqual({
+      promptPrefix: '',
+      prompt: base.prompt,
+      extraArgs: ['--append-system-prompt', 'Follow the house rules.'],
+      envOverrides: {},
+    });
+  });
+
+  it("'append-flag': pushed on every turn unconditionally, unlike the fallback — a resumed session still gets it", () => {
+    const delivery = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt' },
+      resumesSessionViaCli: true,
+      resumeSessionId: 'sess-1',
+    });
+    expect(delivery.extraArgs).toEqual(['--append-system-prompt', 'Follow the house rules.']);
+  });
+
+  it("'append-flag' with a capabilityKey: gated on the probed capability, same as claude's own pre-existing behavior", () => {
+    agentCapabilities.set('fake-agent', { appendSystemPrompt: true });
+    const gated = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' },
+    });
+    expect(gated.extraArgs).toEqual(['--append-system-prompt', 'Follow the house rules.']);
+    agentCapabilities.delete('fake-agent');
+  });
+
+  it("'append-flag' with a capabilityKey explicitly false: an older build rejected the probe, so the flag is withheld rather than risking exit 1", () => {
+    agentCapabilities.set('fake-agent', { appendSystemPrompt: false });
+    const gated = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' },
+    });
+    expect(gated).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
+    agentCapabilities.delete('fake-agent');
+  });
+
+  it("'append-flag' with a capabilityKey never probed (agentCapabilities has no entry for this def): allowed by default, matching claude.ts's own pre-existing `agentCapabilities.get(id) || {}` — only an explicit `false` withholds the flag", () => {
+    const gated = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'append-flag', flag: '--append-system-prompt', capabilityKey: 'appendSystemPrompt' },
+    });
+    expect(gated.extraArgs).toEqual(['--append-system-prompt', 'Follow the house rules.']);
+  });
+
+  it("'env-var': leaves the prompt and extraArgs untouched and returns the overlay as an env override keyed by the declared varName", () => {
+    const delivery = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'env-var', varName: 'REASONIX_ACP_SYSTEM_APPEND' },
+    });
+    expect(delivery).toEqual({
+      promptPrefix: '',
+      prompt: base.prompt,
+      extraArgs: [],
+      envOverrides: { REASONIX_ACP_SYSTEM_APPEND: 'Follow the house rules.' },
+    });
+  });
+
+  it("'env-var': pushed on every turn unconditionally, same as 'append-flag' — a resumed session still gets it", () => {
+    const delivery = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'env-var', varName: 'REASONIX_ACP_SYSTEM_APPEND' },
+      resumesSessionViaAcpLoad: true,
+      resumeSessionId: 'acp-sess-1',
+    });
+    expect(delivery.envOverrides).toEqual({ REASONIX_ACP_SYSTEM_APPEND: 'Follow the house rules.' });
+  });
+
+  // The registry-level invariant this whole task exists to establish: every real def gets overlay
+  // delivery one way or another — either it declared `systemPromptDelivery` (native, via argv, env,
+  // or a staged config file), or it falls through to the universal prompt-prefix. Neither path is a
+  // silent no-op for any of the 24 (a def like `reasonix` delivers via `envOverrides` alone,
+  // touching neither `prompt` nor `extraArgs` — the check below has to look at all three channels,
+  // not just two, or it would falsely flag every `'env-var'` def as undelivered).
+  //
+  // `'config-instructions-file'` defs (`opencode` today) are EXCLUDED from this particular check,
+  // not exempted from the invariant itself: that strategy's real delivery happens through a
+  // separate async staging phase (`prepareSystemPromptOverlayFileIfNeeded` +
+  // `computeChildEnv`/`mergeEnvContentInstructions`, since it needs real filesystem I/O this pure
+  // function cannot perform — see its own `'config-instructions-file'` branch's comment), so from
+  // THIS function's point of view alone, a no-op return is the correct, intended result, not a gap.
+  // The registry-wide "does it actually get delivered" coverage for that strategy lives in the
+  // `prepareSystemPromptOverlayFileIfNeeded`/`computeChildEnv` describe blocks below instead.
+  it('every real def in the registry resolves to SOME delivery through this function when an overlay is present — no def is silently dropped, aside from the config-file strategy covered separately below', () => {
+    for (const def of AGENT_DEFS) {
+      if (def.systemPromptDelivery?.strategy === 'config-instructions-file') continue;
+      const delivery = resolveSystemPromptOverlayDelivery({
+        defId: def.id,
+        systemPromptDelivery: def.systemPromptDelivery,
+        resumesSessionViaCli: def.resumesSessionViaCli,
+        resumesSessionViaAcpLoad: def.resumesSessionViaAcpLoad,
+        overlay: 'x',
+        prompt: 'y',
+        resumeSessionId: undefined,
+      });
+      const deliversViaPrompt = delivery.prompt !== 'y';
+      const deliversViaArgs = delivery.extraArgs.length > 0;
+      const deliversViaEnv = Object.keys(delivery.envOverrides).length > 0;
+      expect(deliversViaPrompt || deliversViaArgs || deliversViaEnv, `def "${def.id}" delivered nothing`).toBe(true);
+    }
+  });
+
+  it("'config-instructions-file': resolveSystemPromptOverlayDelivery itself is a deliberate no-op — delivery happens in prepareSystemPromptOverlayFileIfNeeded/computeChildEnv instead", () => {
+    const delivery = resolveSystemPromptOverlayDelivery({
+      ...base,
+      systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'OPENCODE_CONFIG_CONTENT' },
+    });
+    expect(delivery).toEqual({ promptPrefix: '', prompt: base.prompt, extraArgs: [], envOverrides: {} });
+  });
+});
+
+describe('prepareSystemPromptOverlayFileIfNeeded', () => {
+  const configInstructionsFileDef = createFakeDef({
+    systemPromptDelivery: { strategy: 'config-instructions-file', varName: 'FAKE_CONFIG_CONTENT' },
+  });
+  const noStrategyDef = createFakeDef();
+  const failBeforeSpawn = async (_runId: string, code: AgentExecutorErrorCode, message: string): Promise<never> => {
+    throw new AgentExecutorError(code, message);
+  };
+
+  it('returns null (no staging) when the def has no systemPromptDelivery at all', async () => {
+    const result = await prepareSystemPromptOverlayFileIfNeeded(
+      { runId: 'run-1', def: noStrategyDef, overlay: 'Follow the house rules.' },
+      { releaseStagedResources: async () => {}, failBeforeSpawn },
+    );
+    expect(result).toBeNull();
+  });
+
+  it('returns null (no staging) for a def declaring a DIFFERENT strategy', async () => {
+    const result = await prepareSystemPromptOverlayFileIfNeeded(
+      { runId: 'run-1', def: { ...configInstructionsFileDef, systemPromptDelivery: { strategy: 'env-var', varName: 'X' } }, overlay: 'Follow the house rules.' },
+      { releaseStagedResources: async () => {}, failBeforeSpawn },
+    );
+    expect(result).toBeNull();
+  });
+
+  it('returns null (no staging) when there is no overlay to stage', async () => {
+    const result = await prepareSystemPromptOverlayFileIfNeeded(
+      { runId: 'run-1', def: configInstructionsFileDef, overlay: undefined },
+      { releaseStagedResources: async () => {}, failBeforeSpawn },
+    );
+    expect(result).toBeNull();
+  });
+
+  it('stages the overlay text to a real temp file and cleans it up afterward', async () => {
+    const result = await prepareSystemPromptOverlayFileIfNeeded(
+      { runId: 'run-1', def: configInstructionsFileDef, overlay: 'Follow the house rules.' },
+      { releaseStagedResources: async () => {}, failBeforeSpawn },
+    );
+    expect(result).not.toBeNull();
+    const staged = await fs.readFile(result!.path, 'utf8');
+    expect(staged).toBe('Follow the house rules.');
+    await result!.cleanup();
+    await expect(fs.readFile(result!.path, 'utf8')).rejects.toThrow();
+  });
+
+  it('cleanup is safe to call more than once', async () => {
+    const result = await prepareSystemPromptOverlayFileIfNeeded(
+      { runId: 'run-1', def: configInstructionsFileDef, overlay: 'Follow the house rules.' },
+      { releaseStagedResources: async () => {}, failBeforeSpawn },
+    );
+    await result!.cleanup();
+    await expect(result!.cleanup()).resolves.toBeUndefined();
+  });
+});
+
+describe('mergeEnvContentInstructions', () => {
+  it('starts a fresh document when there is no existing value', () => {
+    expect(JSON.parse(mergeEnvContentInstructions(undefined, '/tmp/overlay.md'))).toEqual({
+      instructions: ['/tmp/overlay.md'],
+    });
+  });
+
+  it('appends to, never clobbers, an existing instructions array', () => {
+    const existing = JSON.stringify({ instructions: ['/existing/one.md'] });
+    expect(JSON.parse(mergeEnvContentInstructions(existing, '/tmp/overlay.md'))).toEqual({
+      instructions: ['/existing/one.md', '/tmp/overlay.md'],
+    });
+  });
+
+  it('preserves an existing mcp key untouched, alongside the new instructions entry — the coexistence this whole mechanism depends on', () => {
+    const existing = JSON.stringify({ mcp: { jini: { type: 'local', command: ['node', 'x.mjs'], environment: {}, enabled: true } } });
+    const merged = JSON.parse(mergeEnvContentInstructions(existing, '/tmp/overlay.md'));
+    expect(merged).toEqual({
+      mcp: { jini: { type: 'local', command: ['node', 'x.mjs'], environment: {}, enabled: true } },
+      instructions: ['/tmp/overlay.md'],
+    });
+  });
+
+  it('starts fresh (does not throw) when the existing value is unparseable JSON', () => {
+    expect(JSON.parse(mergeEnvContentInstructions('not json{', '/tmp/overlay.md'))).toEqual({
+      instructions: ['/tmp/overlay.md'],
+    });
+  });
+
+  it('ignores non-string entries in an existing instructions array rather than propagating malformed data', () => {
+    const existing = JSON.stringify({ instructions: ['/existing/one.md', 42, null] });
+    expect(JSON.parse(mergeEnvContentInstructions(existing, '/tmp/overlay.md'))).toEqual({
+      instructions: ['/existing/one.md', '/tmp/overlay.md'],
+    });
+  });
+});
+
+describe('computeChildEnv — stagedInstructionsFile param', () => {
+  it('merges the staged instructions file into the named var, alongside an existing mcp-key value on the same var', () => {
+    const mcpBridge: McpBridgeDelivery = {
+      kind: 'env-content',
+      envVarName: 'OPENCODE_CONFIG_CONTENT',
+      serverEntry: { command: '/usr/bin/jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242' } },
+    };
+    const result = computeChildEnv({}, mcpBridge, undefined, undefined, {
+      varName: 'OPENCODE_CONFIG_CONTENT',
+      path: '/tmp/overlay.md',
+    });
+    expect(JSON.parse(result.OPENCODE_CONFIG_CONTENT!)).toEqual({
+      mcp: {
+        jini: {
+          type: 'local',
+          command: ['/usr/bin/jini-mcp', '--quiet'],
+          environment: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+          enabled: true,
+        },
+      },
+      instructions: ['/tmp/overlay.md'],
+    });
+  });
+
+  it('is a no-op when no instructions file was staged (undefined, the default)', () => {
+    const result = computeChildEnv({ FOO: 'bar' }, null);
+    expect(result).toEqual({ FOO: 'bar' });
+  });
+});
+
+describe("computeChildEnv — 'env-passthrough' kind (antigravity)", () => {
+  it('sets the bridge entry env keys directly on the child env, alongside whatever the host already set', () => {
+    const mcpBridge: McpBridgeDelivery = {
+      kind: 'env-passthrough',
+      serverEntry: {
+        command: '/usr/bin/jini-mcp',
+        args: ['--quiet'],
+        env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242', JINI_DAEMON_TOKEN: 'run-scoped-secret' },
+      },
+    };
+    const result = computeChildEnv({ PATH: '/usr/bin', HOME: '/home/op' }, mcpBridge);
+    // Existing, unrelated spawn env is preserved...
+    expect(result.PATH).toBe('/usr/bin');
+    expect(result.HOME).toBe('/home/op');
+    // ...and the bridge's env lands as flat top-level vars, not nested in any document/carrier var.
+    expect(result.JINI_RUN_ID).toBe('run-1');
+    expect(result.JINI_DAEMON_URL).toBe('http://127.0.0.1:4242');
+    expect(result.JINI_DAEMON_TOKEN).toBe('run-scoped-secret');
+  });
+
+  it('omits JINI_DAEMON_TOKEN when no credential was resolved, matching every other mechanism', () => {
+    const mcpBridge: McpBridgeDelivery = {
+      kind: 'env-passthrough',
+      serverEntry: { command: '/usr/bin/jini-mcp', args: [], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242' } },
+    };
+    const result = computeChildEnv({}, mcpBridge);
+    expect(result.JINI_DAEMON_TOKEN).toBeUndefined();
+  });
+
+  it('is a no-op for every other bridge kind — env-passthrough only applies to its own kind', () => {
+    const claudeBridge: McpBridgeDelivery = {
+      kind: 'claude-mcp-json',
+      mcpJsonPath: '/work/.mcp.jini-run-1.json',
+      serverEntry: { command: '/usr/bin/jini-mcp', args: [], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://127.0.0.1:4242' } },
+    };
+    const result = computeChildEnv({ FOO: 'bar' }, claudeBridge);
+    expect(result).toEqual({ FOO: 'bar' });
+    expect(result.JINI_RUN_ID).toBeUndefined();
   });
 });
 
@@ -5069,6 +5692,527 @@ describe("AgentExecutor — env-content MCP bridge delivery (opencode / mimo)", 
   });
 });
 
+describe("AgentExecutor — 'codex-toml' MCP bridge delivery (Codex CODEX_HOME relocation)", () => {
+  /** Fakes the `'codex-toml'`-only seams (`mkdtemp`/`readFile`/`writeFile`/`removeDir`) — the directory analogue of `createMcpFsSpies` above. `readFile` serves `config.toml`/`auth.json` content by path suffix and ENOENTs everything else; `mkdtemp` returns a fully deterministic `/fake/tmp/<prefix>` directory (no real disk I/O, matching this package's "no real filesystem by default in tests" convention). */
+  function createCodexHomeFsSpies(seed: { existingConfigToml?: string; existingAuthJson?: string } = {}): {
+    mcpJsonInjection: McpJsonInjectionOptions;
+    mkdtempCalls: string[];
+    readCalls: string[];
+    writeCalls: Array<{ path: string; content: string }>;
+    removeDirCalls: string[];
+  } {
+    const mkdtempCalls: string[] = [];
+    const readCalls: string[] = [];
+    const writeCalls: Array<{ path: string; content: string }> = [];
+    const removeDirCalls: string[] = [];
+    const enoent = () => Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    const mcpJsonInjection: McpJsonInjectionOptions = {
+      command: '/usr/bin/jini-mcp',
+      args: ['--quiet'],
+      daemonUrl: 'http://127.0.0.1:4242',
+      mkdtemp: async (prefix: string) => {
+        mkdtempCalls.push(prefix);
+        return `/fake/tmp/${prefix}`;
+      },
+      readFile: async (p: string) => {
+        readCalls.push(p);
+        if (p.endsWith('config.toml')) {
+          if (seed.existingConfigToml === undefined) throw enoent();
+          return seed.existingConfigToml;
+        }
+        if (p.endsWith('auth.json')) {
+          if (seed.existingAuthJson === undefined) throw enoent();
+          return seed.existingAuthJson;
+        }
+        throw enoent();
+      },
+      writeFile: async (p: string, content: string) => {
+        writeCalls.push({ path: p, content });
+      },
+      removeDir: async (p: string) => {
+        removeDirCalls.push(p);
+      },
+    };
+    return { mcpJsonInjection, mkdtempCalls, readCalls, writeCalls, removeDirCalls };
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('spawns normally with no CODEX_HOME set when mcpJsonInjection is unconfigured, even for a codex-toml def', async () => {
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CODEX_HOME).toBeUndefined();
+  });
+
+  it('does not stage CODEX_HOME for a def whose externalMcpInjection is not codex-toml, even when configured', async () => {
+    const { mcpJsonInjection, mkdtempCalls } = createCodexHomeFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'acp-merge' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(mkdtempCalls).toEqual([]);
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CODEX_HOME).toBeUndefined();
+  });
+
+  it('stages a scratch config.toml (real config appended) and sets CODEX_HOME on the spawned env, strictly before spawn', async () => {
+    vi.stubEnv('CODEX_HOME', '/real/codex/home');
+    const { mcpJsonInjection, mkdtempCalls, readCalls, writeCalls } = createCodexHomeFsSpies({
+      existingConfigToml: '[sandbox]\nmode = "workspace-write"\n',
+    });
+    const def = createFakeDef({ id: 'codex', externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'codex', prompt: 'hi', cwd: '/work' });
+
+    expect(mkdtempCalls).toHaveLength(1);
+    expect(mkdtempCalls[0]).toContain(run.id);
+    const stagedDir = `/fake/tmp/${mkdtempCalls[0]}`;
+
+    expect(readCalls).toEqual(expect.arrayContaining(['/real/codex/home/config.toml']));
+    const configWrite = writeCalls.find((c) => c.path === `${stagedDir}/config.toml`);
+    expect(configWrite?.content).toContain('[sandbox]\nmode = "workspace-write"');
+    expect(configWrite?.content).toContain('[mcp_servers.jini]');
+    expect(configWrite?.content).toContain(`JINI_RUN_ID = "${run.id}"`);
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CODEX_HOME).toBe(stagedDir);
+    expect(spawnCalls).toHaveLength(1);
+  });
+
+  it('treats a missing real config.toml (ENOENT) as "start fresh", not a failure', async () => {
+    const { mcpJsonInjection, writeCalls } = createCodexHomeFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const configWrite = writeCalls.find((c) => c.path.endsWith('config.toml'));
+    expect(configWrite?.content).toBe(
+      buildCodexMcpServerToml({
+        command: '/usr/bin/jini-mcp',
+        args: ['--quiet'],
+        env: { JINI_RUN_ID: run.id, JINI_DAEMON_URL: 'http://127.0.0.1:4242' },
+      }),
+    );
+    expect(spawnCalls).toHaveLength(1);
+  });
+
+  it('copies the real auth.json into the scratch CODEX_HOME so the spawned CLI stays logged in', async () => {
+    const { mcpJsonInjection, writeCalls } = createCodexHomeFsSpies({ existingAuthJson: '{"token":"real-login"}' });
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const authWrite = writeCalls.find((c) => c.path.endsWith('auth.json'));
+    expect(authWrite?.content).toBe('{"token":"real-login"}');
+  });
+
+  // Best-effort by design: a real headless spawn against a CODEX_HOME with no auth.json at all was
+  // confirmed (installed Codex CLI 0.151.0) to fail fast with a structured 401, never hang — so a
+  // missing/unreadable credential must not block staging or the run.
+  it('spawns normally with no auth.json staged when the real install has no stored login', async () => {
+    const { mcpJsonInjection, writeCalls } = createCodexHomeFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(writeCalls.some((c) => c.path.endsWith('auth.json'))).toBe(false);
+    expect(spawnCalls).toHaveLength(1);
+  });
+
+  it('fails the run before spawn (never a bare throw) when mkdtemp rejects', async () => {
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const mcpJsonInjection: McpJsonInjectionOptions = {
+      command: '/usr/bin/jini-mcp',
+      daemonUrl: 'http://127.0.0.1:4242',
+      mkdtemp: async () => {
+        throw new Error('ENOSPC: no space left on device');
+      },
+    };
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    expect(spawnCalls).toHaveLength(0);
+    const events = await collectEvents(lifecycle, run.id);
+    expect(events.find((e) => e.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
+  });
+
+  // Adversarial (partial-failure state leak): a failure AFTER mkdtemp succeeds must not leave an
+  // orphaned directory that may already hold a copied credential.
+  it('removes the already-created directory when writing config.toml fails, so a partial stage does not leak', async () => {
+    const removeDirCalls: string[] = [];
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const mcpJsonInjection: McpJsonInjectionOptions = {
+      command: '/usr/bin/jini-mcp',
+      daemonUrl: 'http://127.0.0.1:4242',
+      mkdtemp: async (prefix: string) => `/fake/tmp/${prefix}`,
+      readFile: async () => {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      },
+      writeFile: async () => {
+        throw new Error('EACCES: permission denied');
+      },
+      removeDir: async (p: string) => void removeDirCalls.push(p),
+    };
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    expect(spawnCalls).toHaveLength(0);
+    expect(removeDirCalls).toHaveLength(1);
+    expect(removeDirCalls[0]).toContain(run.id);
+  });
+
+  it('resolves a per-run credential and writes it into the TOML env table, never into spawn argv', async () => {
+    const { mcpJsonInjection, writeCalls } = createCodexHomeFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      mcpJsonInjection: { ...mcpJsonInjection, credential: (runId: string) => `token-for-${runId}` },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const configWrite = writeCalls.find((c) => c.path.endsWith('config.toml'));
+    expect(configWrite?.content).toContain(`JINI_DAEMON_TOKEN = "token-for-${run.id}"`);
+    expect(JSON.stringify(spawnCalls[0]!.args)).not.toContain(`token-for-${run.id}`);
+  });
+
+  it('removes the scratch CODEX_HOME once the child closes, so a copied credential is not left on disk', async () => {
+    const { mcpJsonInjection, writeCalls, removeDirCalls } = createCodexHomeFsSpies();
+    const def = createFakeDef({ streamFormat: 'plain', externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor, child } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+    expect(removeDirCalls).toEqual([]);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const stagedDir = writeCalls.find((c) => c.path.endsWith('config.toml'))!.path.replace('/config.toml', '');
+    expect(removeDirCalls).toEqual([stagedDir]);
+  });
+
+  it('removes the scratch CODEX_HOME on a pre-spawn failure after it was already staged', async () => {
+    const { mcpJsonInjection, writeCalls, removeDirCalls } = createCodexHomeFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor } = createHarness({ def, mcpJsonInjection, spawnThrows: new Error('EACCES') });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+
+    const stagedDir = writeCalls.find((c) => c.path.endsWith('config.toml'))!.path.replace('/config.toml', '');
+    expect(removeDirCalls).toEqual([stagedDir]);
+  });
+
+  // Removal is best-effort cleanup of a directory the run no longer needs. It must not be able to
+  // do what the guarded post-close steps already exist to prevent — see the identical claude-mcp-json
+  // precedent above.
+  it('still finishes the run when removing the scratch CODEX_HOME fails', async () => {
+    const { mcpJsonInjection } = createCodexHomeFsSpies();
+    const def = createFakeDef({ streamFormat: 'plain', externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor, child, onCleanupFailure } = createHarness({
+      def,
+      mcpJsonInjection: {
+        ...mcpJsonInjection,
+        removeDir: async () => {
+          throw new Error('EPERM: operation not permitted');
+        },
+      },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+
+    child.emit('close', 0, null);
+    expect((await lifecycle.waitForTerminal(run.id)).state).toBe('succeeded');
+    expect(onCleanupFailure.mock.calls[0]![0]).toMatchObject({ runId: run.id, phase: 'staged-file-cleanup' });
+  });
+
+  // A run id reaches this driver from a host and lands in a mkdtemp prefix. Anything path-like in
+  // it must not be able to steer the staged directory outside os.tmpdir() — same discipline as
+  // claude-mcp-json's identical run-id-in-a-filename guard above.
+  it('sanitizes a path-like run id out of the mkdtemp prefix', async () => {
+    const { mcpJsonInjection, mkdtempCalls } = createCodexHomeFsSpies();
+    const def = createFakeDef({ externalMcpInjection: 'codex-toml' });
+    const { lifecycle, executor } = createHarness({ def, mcpJsonInjection });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1', runId: '../../etc/evil' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(mkdtempCalls[0]).not.toContain('..');
+    expect(mkdtempCalls[0]).not.toContain('/');
+  });
+});
+
+describe("AgentExecutor — Finding 1 (SEC-assistant-env-isolation-2026-09-07): claude CLAUDE_CONFIG_DIR isolation", () => {
+  /** Fakes the Claude-config-dir-only seams (`mkdtemp`/`readFile`/`writeFile`/`removeDir`) — the directory analogue of `createCodexHomeFsSpies` above. `readFile` serves `.credentials.json` content and ENOENTs everything else; `mkdtemp` returns a fully deterministic `/fake/tmp/<prefix>` directory. */
+  function createClaudeConfigDirFsSpies(seed: { existingCredentialsJson?: string } = {}): {
+    claudeConfigDirIsolation: ClaudeConfigDirIsolationOptions;
+    mkdtempCalls: string[];
+    readCalls: string[];
+    writeCalls: Array<{ path: string; content: string }>;
+    removeDirCalls: string[];
+  } {
+    const mkdtempCalls: string[] = [];
+    const readCalls: string[] = [];
+    const writeCalls: Array<{ path: string; content: string }> = [];
+    const removeDirCalls: string[] = [];
+    const enoent = () => Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    const claudeConfigDirIsolation: ClaudeConfigDirIsolationOptions = {
+      mkdtemp: async (prefix: string) => {
+        mkdtempCalls.push(prefix);
+        return `/fake/tmp/${prefix}`;
+      },
+      readFile: async (p: string) => {
+        readCalls.push(p);
+        if (p.endsWith('.credentials.json')) {
+          if (seed.existingCredentialsJson === undefined) throw enoent();
+          return seed.existingCredentialsJson;
+        }
+        throw enoent();
+      },
+      writeFile: async (p: string, content: string) => {
+        writeCalls.push({ path: p, content });
+      },
+      removeDir: async (p: string) => {
+        removeDirCalls.push(p);
+      },
+    };
+    return { claudeConfigDirIsolation, mkdtempCalls, readCalls, writeCalls, removeDirCalls };
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('does not stage CLAUDE_CONFIG_DIR for a def whose id is not "claude", even when the seams are configured and isolation is enabled', async () => {
+    const { claudeConfigDirIsolation, mkdtempCalls } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({ id: 'fake-agent' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    expect(mkdtempCalls).toEqual([]);
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CLAUDE_CONFIG_DIR).toBeUndefined();
+  });
+
+  // 2026-09-08 rollback (see CreateAgentExecutorOptions.claudeConfigDirIsolationEnabled's own doc):
+  // isolation now requires an explicit opt-in. Without it, a "claude"-id def with seams configured
+  // must NOT stage anything — this is the default the assistant's own Local CLI runtime ships with,
+  // specifically so the operator's real Keychain login is visible to the spawned CLI.
+  it('does not stage CLAUDE_CONFIG_DIR for a "claude"-id def by default (claudeConfigDirIsolationEnabled omitted), even when the seams are configured', async () => {
+    const { claudeConfigDirIsolation, mkdtempCalls } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({ id: 'claude' });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, claudeConfigDirIsolation });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    expect(mkdtempCalls).toEqual([]);
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CLAUDE_CONFIG_DIR).toBeUndefined();
+  });
+
+  it('stages a scratch, empty-by-default CLAUDE_CONFIG_DIR and sets it on the spawned env for a "claude"-id def once isolation is explicitly enabled (no mcpJsonInjection required)', async () => {
+    const { claudeConfigDirIsolation, mkdtempCalls, writeCalls } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({ id: 'claude' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    expect(mkdtempCalls).toHaveLength(1);
+    expect(mkdtempCalls[0]).toContain(run.id);
+    const stagedDir = `/fake/tmp/${mkdtempCalls[0]}`;
+
+    // Deliberately empty by default — no config.json/settings.json written, unlike Codex's
+    // config.toml copy. See prepareClaudeConfigDirForRun's own doc for why this is the fix, not a
+    // gap: the operator's real skills/plugins/agents/memory index must not carry over implicitly.
+    expect(writeCalls).toEqual([]);
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CLAUDE_CONFIG_DIR).toBe(stagedDir);
+    expect(spawnCalls).toHaveLength(1);
+  });
+
+  it("does NOT leak the operator's real HOME-derived config dir — HOME itself is untouched, but CLAUDE_CONFIG_DIR overrides where claude actually resolves its config", async () => {
+    const { claudeConfigDirIsolation } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({ id: 'claude' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CLAUDE_CONFIG_DIR).not.toBe(path.join(os.homedir(), '.claude'));
+    expect(env.CLAUDE_CONFIG_DIR).toMatch(/^\/fake\/tmp\//);
+  });
+
+  it('copies the real .credentials.json into the scratch dir so a file-based login (Linux/Windows/Keychain-locked-macOS-fallback) is preserved', async () => {
+    const { claudeConfigDirIsolation, writeCalls } = createClaudeConfigDirFsSpies({
+      existingCredentialsJson: '{"claudeAiOauth":{"accessToken":"real-login"}}',
+    });
+    const def = createFakeDef({ id: 'claude' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    const credentialsWrite = writeCalls.find((c) => c.path.endsWith('.credentials.json'));
+    expect(credentialsWrite?.content).toBe('{"claudeAiOauth":{"accessToken":"real-login"}}');
+  });
+
+  // Verified live (2026-09-07, installed Claude Code 2.1.263, macOS): a scratch CLAUDE_CONFIG_DIR
+  // with nothing staged reports `loggedIn: false` via `claude auth status` — this is a real,
+  // accepted, documented trade-off (see prepareClaudeConfigDirForRun's own doc), not a bug this test
+  // is missing. Mirrors Codex's identical accepted outcome for a missing auth.json.
+  it('spawns normally with no .credentials.json staged when the real config dir has no file-based login (the common macOS-Keychain-only case)', async () => {
+    const { claudeConfigDirIsolation, writeCalls } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({ id: 'claude' });
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    expect(writeCalls.some((c) => c.path.endsWith('.credentials.json'))).toBe(false);
+    expect(spawnCalls).toHaveLength(1);
+  });
+
+  it('fails the run before spawn (never a bare throw) when mkdtemp rejects', async () => {
+    const def = createFakeDef({ id: 'claude' });
+    const claudeConfigDirIsolation: ClaudeConfigDirIsolationOptions = {
+      mkdtemp: async () => {
+        throw new Error('ENOSPC: no space left on device');
+      },
+    };
+    const { lifecycle, executor, spawnCalls } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(
+      executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' }),
+    ).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    expect(spawnCalls).toHaveLength(0);
+  });
+
+  it('removes the scratch CLAUDE_CONFIG_DIR once the child closes, so a copied credential is not left on disk', async () => {
+    const { claudeConfigDirIsolation, mkdtempCalls, removeDirCalls } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({ id: 'claude', streamFormat: 'plain' });
+    const { lifecycle, executor, child } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const runPromise = executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+    await flushAsync();
+    await runPromise;
+    expect(removeDirCalls).toEqual([]);
+
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal(run.id);
+
+    const stagedDir = `/fake/tmp/${mkdtempCalls[0]}`;
+    expect(removeDirCalls).toEqual([stagedDir]);
+  });
+
+  it('sanitizes a path-like run id out of the mkdtemp prefix', async () => {
+    const { claudeConfigDirIsolation, mkdtempCalls } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({ id: 'claude' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      claudeConfigDirIsolation,
+      claudeConfigDirIsolationEnabled: true,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1', runId: '../../etc/evil' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    expect(mkdtempCalls[0]).not.toContain('..');
+    expect(mkdtempCalls[0]).not.toContain('/');
+  });
+
+  // Independence proof for the assistant's default Local CLI runtime (2026-09-08): the tool
+  // restriction (AgentExecutorRunInput.disallowedTools, Finding 2) and CLAUDE_CONFIG_DIR isolation
+  // (Finding 1, gated by claudeConfigDirIsolationEnabled above) are two unrelated mechanisms —
+  // disallowedTools flows through buildAgentBuildArgsOptions into the def's own buildArgs/argv,
+  // while isolation flows through prepareClaudeConfigDirIfNeeded into the spawned env. Nothing in
+  // either path reads the other's flag. This run exercises both in one real `.run()` call, with
+  // isolation left at its default (disabled), to prove the host's own tool restriction is not
+  // collateral damage of the 2026-09-08 default-off rollback.
+  it('still applies disallowedTools to a "claude"-id def\'s argv when CLAUDE_CONFIG_DIR isolation is left at its default (disabled)', async () => {
+    const { claudeConfigDirIsolation, mkdtempCalls } = createClaudeConfigDirFsSpies();
+    const def = createFakeDef({
+      id: 'claude',
+      // Mirrors @jini-ai/agent-runtime's real claude.ts buildArgs handling of
+      // RuntimeBuildOptions.disallowedTools (see that file's own '--disallowedTools' push) closely
+      // enough to prove this driver forwards the value through to argv — createFakeDef's own
+      // default buildArgs ignores its options entirely, which would prove nothing here.
+      buildArgs: (_prompt, _imagePaths, _extraAllowedDirs, options?: RuntimeBuildOptions) =>
+        options?.disallowedTools && options.disallowedTools.length > 0
+          ? ['--disallowedTools', ...options.disallowedTools]
+          : ['--flag'],
+    });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, claudeConfigDirIsolation });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({
+      runId: run.id,
+      agentId: 'claude',
+      prompt: 'hi',
+      cwd: '/work',
+      disallowedTools: ['Bash', 'Edit', 'Write'],
+    });
+
+    // Isolation stayed off (the default) ...
+    expect(mkdtempCalls).toEqual([]);
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.CLAUDE_CONFIG_DIR).toBeUndefined();
+    // ... yet the tool restriction still reached the spawned CLI's own argv.
+    expect(spawnCalls[0]!.args).toEqual(['--disallowedTools', 'Bash', 'Edit', 'Write']);
+  });
+});
+
 describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () => {
   const SENTINEL_KEY = 'JINI_TEST_SECRET_TOKEN';
 
@@ -5181,13 +6325,16 @@ describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
   // Antigravity was the one registered def this predicate rejected. It is now
   // accepted, and its two former blockers are met by def fields the driver
   // reads generically — asserted here from the *real registry def*, not a fake,
-  // so the def and the driver cannot drift apart silently.
-  it('accepts the real antigravity def, which declares all three spawn-orchestration fields', () => {
+  // so the def and the driver cannot drift apart silently. It no longer
+  // declares `runtimeLock`: that was the settings.json-write mutex, retired
+  // once `agy` gained a real `--model` flag (see `defs/antigravity.ts`'s own
+  // doc) — `isAgentExecutorSupported` never required it in the first place.
+  it('accepts the real antigravity def, which declares both spawn-orchestration fields it still needs', () => {
     const def = defOf('antigravity');
     expect(def.needsAgentLogFile).toBe(true);
     expect(def.stdoutPolicy?.buffering).toBe('until-close');
     expect(def.stdoutPolicy?.buffering === 'until-close' && typeof def.stdoutPolicy.sanitize).toBe('function');
-    expect(typeof def.runtimeLock?.acquire).toBe('function');
+    expect(def.runtimeLock).toBeUndefined();
     expect(isAgentExecutorSupported(def)).toBe(true);
   });
 
@@ -5267,3 +6414,369 @@ describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// System-prompt overlay — ACTUAL DELIVERY through every prompt transport.
+//
+// WHAT THE `resolveSystemPromptOverlayDelivery` BLOCK ABOVE COVERS, AND WHY IT
+// IS NOT ENOUGH. That block tests the pure resolver in isolation: given a def's
+// declared strategy, what does the function RETURN. Its registry-wide
+// "no def is silently dropped" case is a necessary invariant but a VACUOUS
+// proof of delivery — a def with no declared strategy always falls through to
+// the universal prompt prefix, so `delivery.prompt !== prompt` is
+// unconditionally true for it, and that assertion would keep passing with
+// `writePromptToStdin` deleted outright. It measures what the resolver
+// returns, never what the child process receives.
+//
+// WHAT THIS BLOCK COVERS. The other half: whether the overlay reaches the bytes
+// the child actually gets, on each of the four channels `run()` can use to
+// carry a prompt —
+//   1. stdin                (`writePromptToStdin`)   e.g. qwen, codex
+//   2. the ACP session      (`runAcpDispatch`)       e.g. kimi, kiro
+//   3. the pi-rpc session   (`runPiRpcDispatch`)     pi
+//   4. a staged prompt file (`stagePromptFile`)      grok-build
+// — and, just as importantly, that it reaches EXACTLY ONE of them per def, so a
+// def already served by `--append-system-prompt`, an env var, or a config file
+// never also gets it inline. Every case drives a REAL registry def through the
+// real `run()`; only the process, the transports, and the staging are faked.
+// ---------------------------------------------------------------------------
+
+const OVERLAY_TEXT = 'HOUSE-RULES-OVERLAY: always call the credential tool before curl.';
+const OVERLAY_USER_PROMPT = 'summarize the repo';
+
+/** A `PromptAugmenter` whose only job is to return `OVERLAY_TEXT` from `systemOverlay()`. */
+function createOverlayAugmenter(overlay: string | null = OVERLAY_TEXT): PromptAugmenter {
+  return {
+    contextKinds: () => [],
+    augmentUserRequest: ({ basePrompt }) => basePrompt,
+    systemOverlay: () => overlay,
+  };
+}
+
+/** Every channel a prompt (and therefore an overlay) can actually reach the child on, captured from one real `run()`. */
+interface OverlayDeliveryProbe {
+  /** argv as handed to `spawn` — carries `--append-system-prompt` / `--message` / `-p` style delivery. */
+  readonly argv: readonly string[];
+  /** The spawn env — carries `'env-var'` delivery (reasonix) and `'config-instructions-file'` content (opencode). */
+  readonly env: Readonly<Record<string, string | undefined>>;
+  /** Everything written to the child's stdin, concatenated. */
+  readonly stdin: string;
+  /** The prompt string handed to `attachAcpSession`, or `undefined` for a non-ACP def. */
+  readonly acpPrompt: string | undefined;
+  /** The prompt string handed to `attachPiRpcSession`, or `undefined` for a non-pi-rpc def. */
+  readonly piRpcPrompt: string | undefined;
+  /** The bytes `stagePromptFile` wrote, or `undefined` for a def without `promptViaFile`. */
+  readonly promptFile: string | undefined;
+  /**
+   * The bytes `prepareSystemPromptOverlayFileIfNeeded` staged for a `'config-instructions-file'`
+   * def (opencode), read back through the very path its env var advertises — the fifth and last
+   * channel an overlay can reach a CLI on. Read via the env var rather than by intercepting the
+   * stager so the assertion covers the whole chain (stage the file, merge its path into the config
+   * document, hand that document to the child), not just the write.
+   */
+  readonly configInstructionsFile: string | undefined;
+}
+
+/**
+ * Drives one REAL registry def through the real `run()` with a `promptAugmenter` configured, and
+ * returns every channel the prompt could have travelled on. No real subprocess, no real ACP/pi-rpc
+ * handshake, and no real disk: the prompt-file and log-file stagers are faked so a `promptViaFile`
+ * def's staged bytes can be read back without touching `os.tmpdir()`.
+ *
+ * @param def - A def from the live registry, passed verbatim. Deliberately not a `createFakeDef`
+ * replica: the whole class of bug this block guards against is a real def's `buildArgs` discarding
+ * its prompt argument, which a fake with a hand-written `buildArgs` cannot reproduce.
+ * @complexity O(1) per call — one fake spawn, no I/O.
+ */
+async function probeOverlayDelivery(
+  def: RuntimeAgentDef,
+  options: { readonly overlay?: string | null; readonly resumeSessionId?: string } = {},
+): Promise<OverlayDeliveryProbe> {
+  const eventLog = createInMemoryEventLog();
+  const lifecycle = createRunLifecycle({ eventLog });
+  const child = createFakeChild(7100);
+  const spawnCalls: SpawnCall[] = [];
+  let acpPrompt: string | undefined;
+  let piRpcPrompt: string | undefined;
+  let promptFile: string | undefined;
+
+  const fakeSpawn = ((command: string, args: readonly string[], spawnOptions: unknown) => {
+    spawnCalls.push({ command, args: [...args], options: spawnOptions as SpawnCall['options'] });
+    queueMicrotask(() => child.emit('spawn'));
+    return child as unknown as ChildProcess;
+  }) as unknown as typeof nodeSpawn;
+
+  const executor = createAgentExecutor({
+    lifecycle,
+    getAgentDef: (id: string) => (def.id === id ? def : null),
+    resolveAgentLaunch: () =>
+      ({
+        selectedPath: '/fake/bin',
+        pathResolvedPath: '/fake/bin',
+        configuredOverridePath: null,
+        launchPath: '/fake/bin',
+        launchKind: 'selected',
+        childPathPrepend: [],
+        diagnostic: null,
+      }) as AgentLaunchResolution,
+    applyAgentLaunchEnv: (env) => env,
+    spawn: fakeSpawn,
+    promptAugmenter: createOverlayAugmenter(options.overlay === undefined ? OVERLAY_TEXT : options.overlay),
+    preparePromptFileForAgent: (async (promptFileDef: RuntimeAgentDef | null | undefined, prompt: string) => {
+      if (!promptFileDef?.promptViaFile) return null;
+      promptFile = prompt;
+      return { path: '/fake/staged/prompt.md', cleanup: async () => {} };
+    }) as unknown as typeof preparePromptFileForAgent,
+    prepareAgentLogFile: (async (logFileDef: RuntimeAgentDef | null | undefined) =>
+      logFileDef?.needsAgentLogFile
+        ? { path: '/fake/staged/agent.log', cleanup: async () => {} }
+        : null) as unknown as typeof prepareAgentLogFile,
+    attachAcpSession: ((attachOptions: { prompt: string }) => {
+      acpPrompt = attachOptions.prompt;
+      return {
+        hasFatalError: () => false,
+        getDurableSessionId: () => null,
+        completedSuccessfully: () => true,
+        abort: vi.fn(),
+      } as AcpSessionController;
+    }) as unknown as typeof attachAcpSession,
+    attachPiRpcSession: ((attachOptions: { prompt: string }) => {
+      piRpcPrompt = attachOptions.prompt;
+      return { hasFatalError: () => false, getLastSessionPath: () => null, abort: vi.fn() } as PiRpcSession;
+    }) as unknown as typeof attachPiRpcSession,
+    listProcessSnapshots: async () => [{ pid: child.pid ?? 0, ppid: 1, command: 'fake-bin' }],
+    stopProcesses: async () => ({ alreadyStopped: true, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
+    onCleanupFailure: vi.fn(),
+  });
+
+  const { run } = await lifecycle.start({ contextRef: `ctx-overlay-${def.id}` });
+  const runPromise = executor.run({
+    runId: run.id,
+    agentId: def.id,
+    prompt: OVERLAY_USER_PROMPT,
+    cwd: '/work',
+    ...(options.resumeSessionId !== undefined ? { resumeSessionId: options.resumeSessionId } : {}),
+  });
+  await flushAsync();
+  await runPromise;
+
+  const env = (spawnCalls[0]?.options.env ?? {}) as Record<string, string | undefined>;
+
+  return {
+    argv: spawnCalls[0]?.args ?? [],
+    env,
+    stdin: (child.stdin?.writes ?? []).join(''),
+    acpPrompt,
+    piRpcPrompt,
+    promptFile,
+    configInstructionsFile: await readConfigInstructionsFile(def, env),
+  };
+}
+
+/**
+ * Reads back the overlay file a `'config-instructions-file'` def's spawn env points at, then removes
+ * it. The real stager is not injectable, so this is genuine disk I/O; the run's own cleanup only
+ * fires when the child closes, which this probe deliberately never does, so the file is still there
+ * and would otherwise leak a temp directory per probed def.
+ *
+ * @returns The staged overlay text, or `undefined` for any def not using that strategy.
+ */
+async function readConfigInstructionsFile(
+  def: RuntimeAgentDef,
+  env: Readonly<Record<string, string | undefined>>,
+): Promise<string | undefined> {
+  const delivery = def.systemPromptDelivery;
+  if (delivery?.strategy !== 'config-instructions-file') return undefined;
+  const raw = env[delivery.varName];
+  if (raw === undefined) return undefined;
+  const parsed: unknown = JSON.parse(raw);
+  const instructions = isStringArray((parsed as { instructions?: unknown }).instructions)
+    ? (parsed as { instructions: string[] }).instructions
+    : [];
+  const filePath = instructions.at(-1);
+  if (filePath === undefined) return undefined;
+  const content = await fs.readFile(filePath, 'utf8');
+  await fs.rm(path.dirname(filePath), { recursive: true, force: true });
+  return content;
+}
+
+/** Narrow an unknown JSON field to `string[]`. */
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((entry) => typeof entry === 'string');
+}
+
+/** How many times `OVERLAY_TEXT` appears in `haystack`; `indexOf`-based, so an overlapping match is impossible. */
+function countOverlayOccurrences(haystack: string | undefined): number {
+  if (haystack === undefined) return 0;
+  let count = 0;
+  let from = 0;
+  for (let at = haystack.indexOf(OVERLAY_TEXT, from); at !== -1; at = haystack.indexOf(OVERLAY_TEXT, from)) {
+    count += 1;
+    from = at + OVERLAY_TEXT.length;
+  }
+  return count;
+}
+
+/**
+ * Total overlay copies across EVERY channel of one probe — the single number the no-double-delivery
+ * invariant is stated in. argv is joined with a space so an overlay split across two adjacent argv
+ * tokens can never be miscounted as one delivery.
+ */
+function totalOverlayDeliveries(probe: OverlayDeliveryProbe): number {
+  const envValues = Object.values(probe.env).filter((value): value is string => typeof value === 'string');
+  return (
+    countOverlayOccurrences(probe.argv.join(' ')) +
+    countOverlayOccurrences(envValues.join(' ')) +
+    countOverlayOccurrences(probe.stdin) +
+    countOverlayOccurrences(probe.acpPrompt) +
+    countOverlayOccurrences(probe.piRpcPrompt) +
+    countOverlayOccurrences(probe.promptFile) +
+    countOverlayOccurrences(probe.configInstructionsFile)
+  );
+}
+
+/** Looks a def up in the live registry, failing loudly rather than silently testing a fake. */
+function registryDef(id: string): RuntimeAgentDef {
+  const def = getAgentDef(id);
+  if (!def) throw new Error(`test setup: no def registered for "${id}"`);
+  return def;
+}
+
+describe('AgentExecutor — system-prompt overlay reaches the bytes each transport actually sends', () => {
+  // Transport 1 of 4: stdin. These 8 defs' `buildArgs` declares `_prompt` and discards it, so argv can
+  // never carry the overlay for them; the stdin write is the only channel there is.
+  it.each(['amp', 'codebuddy', 'codex', 'copilot', 'cursor-agent', 'mimo', 'qoder', 'qwen'])(
+    'stdin transport (%s): the overlay is in the bytes written to the child stdin, ahead of the user prompt',
+    async (id) => {
+      const probe = await probeOverlayDelivery(registryDef(id));
+
+      expect(probe.stdin).toContain(OVERLAY_TEXT);
+      expect(probe.stdin).toContain(OVERLAY_USER_PROMPT);
+      expect(probe.stdin.indexOf(OVERLAY_TEXT)).toBeLessThan(probe.stdin.indexOf(OVERLAY_USER_PROMPT));
+      expect(totalOverlayDeliveries(probe)).toBe(1);
+    },
+  );
+
+  // Transport 2 of 4: the ACP JSON-RPC session. `runAcpDispatch` hands `attachAcpSession` its own
+  // prompt string; these 8 defs' `buildArgs` returns a bare `['acp']` with no prompt argv at all.
+  it.each(['amr', 'devin', 'hermes', 'kilo', 'kimi', 'kiro', 'trae-cli', 'vibe'])(
+    'ACP transport (%s): the overlay is in the prompt handed to attachAcpSession',
+    async (id) => {
+      const probe = await probeOverlayDelivery(registryDef(id));
+
+      expect(probe.acpPrompt).toContain(OVERLAY_TEXT);
+      expect(probe.acpPrompt).toContain(OVERLAY_USER_PROMPT);
+      expect(probe.acpPrompt!.indexOf(OVERLAY_TEXT)).toBeLessThan(probe.acpPrompt!.indexOf(OVERLAY_USER_PROMPT));
+      expect(totalOverlayDeliveries(probe)).toBe(1);
+    },
+  );
+
+  // Transport 3 of 4: a staged prompt file. grok-build's `buildArgs` passes only the PATH
+  // (`--prompt-file <path>`), so the overlay has to be in the staged bytes or it is nowhere.
+  it('prompt-file transport (grok-build): the overlay is in the staged file bytes, and only the path reaches argv', async () => {
+    const probe = await probeOverlayDelivery(registryDef('grok-build'));
+
+    expect(probe.promptFile).toContain(OVERLAY_TEXT);
+    expect(probe.promptFile).toContain(OVERLAY_USER_PROMPT);
+    expect(probe.argv).toContain('--prompt-file');
+    expect(probe.argv).toContain('/fake/staged/prompt.md');
+    // grok-build declares `promptViaStdin: false`. stdin is still written and closed (this driver
+    // always spawns with piped stdio and the CLI needs the EOF), but it must NOT carry a second
+    // copy of the overlay on top of the staged file's.
+    expect(probe.stdin).not.toContain(OVERLAY_TEXT);
+    expect(totalOverlayDeliveries(probe)).toBe(1);
+  });
+
+  // Transport 4 of 4: pi-rpc. pi declares `'append-flag'`, so this doubles as a control — the
+  // overlay must ride argv and the RPC prompt must stay clean.
+  it('pi-rpc transport (pi): declares append-flag, so the overlay rides argv and the RPC prompt stays clean', async () => {
+    const probe = await probeOverlayDelivery(registryDef('pi'));
+
+    expect(probe.argv).toContain('--append-system-prompt');
+    expect(probe.argv).toContain(OVERLAY_TEXT);
+    expect(probe.piRpcPrompt).toBe(OVERLAY_USER_PROMPT);
+    expect(totalOverlayDeliveries(probe)).toBe(1);
+  });
+
+  // ---- No-double-delivery controls: defs that ALREADY worked before this fix. Each has a real,
+  // non-prompt delivery channel; every assertion below exists to prove that threading the decision
+  // out to the prompt transports did not ALSO start prefixing their prompt text.
+
+  it('no double delivery (aider): the overlay rides the --message argv exactly once, and stdin does not repeat it', async () => {
+    const probe = await probeOverlayDelivery(registryDef('aider'));
+
+    const messageIndex = probe.argv.indexOf('--message');
+    expect(messageIndex).toBeGreaterThanOrEqual(0);
+    const messageValue = probe.argv[messageIndex + 1]!;
+    expect(messageValue).toContain(OVERLAY_TEXT);
+    expect(messageValue).toContain(OVERLAY_USER_PROMPT);
+    expect(countOverlayOccurrences(messageValue)).toBe(1);
+    // aider does not declare `promptViaStdin`: its prompt is argv-bound, so the stdin write this
+    // driver always performs must stay overlay-free.
+    expect(probe.stdin).not.toContain(OVERLAY_TEXT);
+    expect(totalOverlayDeliveries(probe)).toBe(1);
+  });
+
+  it('no double delivery (claude): the append-flag argv carries the overlay and the stdin prompt stays clean', async () => {
+    const probe = await probeOverlayDelivery(registryDef('claude'));
+
+    expect(probe.argv).toContain('--append-system-prompt');
+    expect(probe.argv).toContain(OVERLAY_TEXT);
+    expect(probe.stdin).not.toContain(OVERLAY_TEXT);
+    expect(probe.stdin).toContain(OVERLAY_USER_PROMPT);
+    expect(totalOverlayDeliveries(probe)).toBe(1);
+  });
+
+  it('no double delivery (reasonix): the env-var strategy carries the overlay and the ACP prompt stays clean', async () => {
+    const probe = await probeOverlayDelivery(registryDef('reasonix'));
+
+    expect(Object.values(probe.env)).toContain(OVERLAY_TEXT);
+    expect(probe.acpPrompt).toBe(OVERLAY_USER_PROMPT);
+    expect(totalOverlayDeliveries(probe)).toBe(1);
+  });
+
+  it('no double delivery (opencode): the staged config-instructions file carries the overlay and the stdin prompt stays clean', async () => {
+    const probe = await probeOverlayDelivery(registryDef('opencode'));
+
+    expect(probe.configInstructionsFile).toBe(OVERLAY_TEXT);
+    expect(probe.stdin).not.toContain(OVERLAY_TEXT);
+    expect(probe.stdin).toContain(OVERLAY_USER_PROMPT);
+    expect(totalOverlayDeliveries(probe)).toBe(1);
+  });
+
+  it('no overlay configured: nothing is prefixed anywhere, byte-identical to no promptAugmenter at all', async () => {
+    const probe = await probeOverlayDelivery(registryDef('qwen'), { overlay: null });
+
+    expect(probe.stdin).toBe(OVERLAY_USER_PROMPT);
+    expect(totalOverlayDeliveries(probe)).toBe(0);
+  });
+
+  // THE registry-wide delivery guard, and the one this task exists to establish. Unlike the pure
+  // resolver's own registry loop above, this drives every registered def through the real `run()`
+  // and looks at the channels a child process would actually read. `toBe(1)` — not
+  // `toBeGreaterThan(0)` — so one assertion catches both failure directions at once: a def that
+  // receives no overlay (the bug this fixes) and a def that receives two (the hazard that threading
+  // one decision through four transports introduces).
+  it('every registered def receives the overlay on exactly one real channel, never zero and never twice', async () => {
+    for (const def of AGENT_DEFS) {
+      const probe = await probeOverlayDelivery(def);
+      expect(totalOverlayDeliveries(probe), `def "${def.id}" (streamFormat ${def.streamFormat})`).toBe(1);
+    }
+  });
+
+  // The deliberate exception documented on `resolveSystemPromptOverlayDelivery`'s fallback branch:
+  // a resume-capable def continuing an EXISTING session must not be re-prefixed, or the overlay
+  // compounds in that CLI's own persisted history turn after turn. Asserted here through the real
+  // transport rather than the resolver, because the transport is where the compounding would
+  // actually happen.
+  it('a resume-capable fallback def continuing an existing session is not re-prefixed on any channel', async () => {
+    const codex = registryDef('codex');
+    expect(codex.resumesSessionViaCli === true || codex.resumesSessionViaAcpLoad === true).toBe(true);
+
+    const probe = await probeOverlayDelivery(codex, { resumeSessionId: 'sess-existing-1' });
+
+    expect(probe.stdin).not.toContain(OVERLAY_TEXT);
+    expect(totalOverlayDeliveries(probe)).toBe(0);
+  });
+});
+

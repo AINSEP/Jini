@@ -367,7 +367,8 @@ threshold gate but no `test:coverage` script in `package.json` to actually invok
 this repo's standard per-package verification command — added (`vitest run --coverage`, matching
 every other package's convention) plus the `@vitest/coverage-v8` devDependency it needs.
 
-**`note-store.ts:170-171`** (`assertSafeSubdir`'s final guard,
+**`note-store.ts:188-190`** (now the exported `isMultiSegmentOrAbsoluteWin32Path` helper called
+from `assertSafeSubdir`'s final guard,
 `path.basename(subdir) !== subdir || path.isAbsolute(subdir)`): re-investigated rather than
 trusted from the prior comment's own "unreachable on this host, verified analytically" claim.
 That claim was *correct* for the platform-bound `path` import specifically — but re-deriving it
@@ -403,6 +404,6 @@ raised from 99/99/99/99 to 100/100/100/100 to lock this in.
 
 The repaired R7 guard showed that `@jini/node-host` directly instantiated this still-incubating
 package. The host now exposes a neutral HTTP-extension seam instead. `examples/reference-web` owns
-the generic note/extraction/verification stores and registers `@jini/http`'s memory routes at the
-composition root. This named workspace example does not satisfy `UNLOCKED.md`'s external
+the generic note/extraction/verification stores and registers `@jini-ai/http-kit`'s memory routes at
+the composition root. This named workspace example does not satisfy `UNLOCKED.md`'s external
 packed-consumer promotion requirement.

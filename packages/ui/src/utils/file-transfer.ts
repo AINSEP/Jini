@@ -9,8 +9,34 @@
  * reuses the exact same directory-walking algorithm instead of a third
  * near-duplicate. `asset-tree-browser/rules.ts` re-exports these names
  * unchanged for its own existing callers/tests.
+ *
+ * `filesFromFileSystemEntry`'s recursive directory walk returns a flat `File[]` — a `File` carries
+ * no writable path of its own, so without extra work every file dropped as part of a folder comes
+ * out indistinguishable from a same-named file dropped loose, and the folder structure is gone. Each
+ * file resolved through the `FileSystemEntry` API (i.e. every file this module attaches a path to —
+ * see {@link FileWithRelativePath}) tags itself with a `relativePath` derived from that entry's own
+ * `fullPath`, which the browser already tracks per-entry regardless of nesting depth — so the walk
+ * needs no manual path-joining or extra parameter threading to recover it. Callers that only read
+ * `File[]` (`useFileDropTarget`'s `onUploadFiles: (files: File[]) => void`, for one) are unaffected;
+ * `relativePath` is an additional own property, not a change to `File`'s existing shape.
+ *
+ * True OS absolute paths are explicitly out of scope here: browsers never expose them (`File` has no
+ * `.path` by design, for the obvious reason it would leak local filesystem layout to any page with
+ * upload access). An Electron host can recover one via `webUtils.getPathForFile()`, but that is a
+ * separate, desktop-only integration point — not something a browser-facing utility module can do.
  */
 import { createFileSystemReadError } from './file-system-errors.js';
+
+/**
+ * A `File` resolved through the `FileSystemEntry` API, tagged with its path relative to the drop
+ * root (e.g. `'sub/a.txt'` for a file nested inside a dropped folder named `sub`, or `'a.txt'` for a
+ * file/folder dropped directly). `File`'s own members are otherwise untouched, so a caller that only
+ * declares `File[]` keeps working unmodified — this only adds a property, it never removes or
+ * reshapes one.
+ */
+export interface FileWithRelativePath extends File {
+  relativePath: string;
+}
 
 // --- clipboard-paste ---------------------------------------------------
 
@@ -42,6 +68,7 @@ export function extensionForMimeType(mimeType: string): string {
   if (mimeType === 'image/jpeg') return '.jpg';
   if (mimeType === 'image/gif') return '.gif';
   if (mimeType === 'image/webp') return '.webp';
+  if (mimeType === 'image/avif') return '.avif';
   if (mimeType === 'image/svg+xml') return '.svg';
   if (mimeType === 'text/html') return '.html';
   if (mimeType === 'text/plain') return '.txt';
@@ -118,11 +145,21 @@ export async function filesFromFileSystemEntry(entry: FileSystemEntry): Promise<
   return files;
 }
 
-function fileFromEntry(entry: FileSystemFileEntryWithFile): Promise<File> {
+/** Strips `FileSystemEntry.fullPath`'s leading slash (e.g. `/sub/a.txt` -> `sub/a.txt`) — the
+ * browser already roots this path at the dropped entry, so no manual joining across recursive
+ * `filesFromFileSystemEntry` calls is needed to make it relative to the drop root. */
+function relativePathFromEntry(entry: FileSystemEntry): string {
+  return entry.fullPath.replace(/^\/+/u, '');
+}
+
+function fileFromEntry(entry: FileSystemFileEntryWithFile): Promise<FileWithRelativePath> {
   return new Promise((resolve, reject) => {
-    entry.file(resolve, (error) => {
-      reject(createFileSystemReadError('Could not read dropped file', error));
-    });
+    entry.file(
+      (file) => resolve(Object.assign(file, { relativePath: relativePathFromEntry(entry) })),
+      (error) => {
+        reject(createFileSystemReadError('Could not read dropped file', error));
+      },
+    );
   });
 }
 

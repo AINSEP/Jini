@@ -66,7 +66,17 @@ function parseSearchInput(input: RouteInputContext): Result<{ query: string; lim
   return ok({ query: rawQuery, limit: Math.min(parsed, MAX_SEARCH_LIMIT) });
 }
 
-/** `GET /api/components/search?q=...&limit=...` — ranked candidates only, never schemas. */
+/**
+ * `GET /api/components/search?q=...&limit=...` — ranked candidates only, never schemas.
+ *
+ * `requireSameOrigin` on a read-only `GET` is deliberately stricter than most other read-only
+ * `GET`s in this API (which generally leave `GET`s open). This one is closer to `db-ops.ts`'s
+ * "even `inspect` alone discloses information" reasoning than to a generic content-read `GET`:
+ * it discloses the installed interactive-UI component/capability inventory this daemon can
+ * mount — information a third-party origin embedding this daemon's port has no legitimate need
+ * to enumerate. Decided 2026-08-23: keep the guard, do not loosen it to match the looser
+ * "GETs are open" pattern elsewhere.
+ */
 export const componentCatalogSearchRoute = defineJsonRoute<
   { query: string; limit: number },
   { hits: readonly ComponentCatalogSearchHit[] },
@@ -87,7 +97,15 @@ function parseDescribeInput(input: RouteInputContext): Result<{ id: string }> {
   return ok({ id });
 }
 
-/** `GET /api/components/:id` — full descriptor (propsSchema included). An unknown id is 404, matching `tool-catalog.ts`'s describe route. */
+/**
+ * `GET /api/components/:id` — full descriptor (propsSchema included). An unknown id is 404,
+ * matching `tool-catalog.ts`'s describe route.
+ *
+ * `requireSameOrigin` here is intentional for the same reason as `componentCatalogSearchRoute`
+ * above (see that route's comment) — this one discloses even more (the full `propsSchema` per
+ * component), so it inherits the same stricter posture rather than the general "GETs are open"
+ * pattern.
+ */
 export const componentCatalogDescribeRoute = defineJsonRoute<{ id: string }, ComponentCatalogEntry, ComponentCatalogHttpDeps>({
   method: 'get',
   path: '/api/components/:id',

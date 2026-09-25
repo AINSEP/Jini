@@ -16,3 +16,29 @@ import '@testing-library/jest-dom/vitest';
 afterEach(() => {
   cleanup();
 });
+
+// jsdom implements zero layout (no `ResizeObserver`, and every element reports 0 for
+// `offsetWidth`/`offsetHeight`/`getBoundingClientRect`). `A2uiSurfaceCard` can now resolve
+// registry components (`buildA2uiCatalogFromRegistry`), including recharts' bar/line/pie charts —
+// their `ResponsiveContainer` measures its parent via `ResizeObserver` before it will render its
+// children at all. This fake invokes its callback once, synchronously, with the target's
+// `getBoundingClientRect()` — good enough since neither this package's tests nor its production
+// usage need live resize-tracking, just a non-zero initial measurement. Mirrors `@jini-ai/ui`'s
+// own identical polyfill (same reasoning, same shape) since this package pulls in the same
+// recharts providers via `DEFAULT_INTERACTIVE_UI_REGISTRY`. Guarded (not a hard override) so a
+// test that installs its own more specific mock via `vi.stubGlobal` still wins.
+if (typeof globalThis !== 'undefined' && typeof globalThis.ResizeObserver === 'undefined') {
+  class FakeResizeObserver {
+    private readonly callback: ResizeObserverCallback;
+    constructor(callback: ResizeObserverCallback) {
+      this.callback = callback;
+    }
+    observe(target: Element) {
+      const rect = target.getBoundingClientRect();
+      this.callback([{ target, contentRect: rect } as ResizeObserverEntry], this as unknown as ResizeObserver);
+    }
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = FakeResizeObserver;
+}

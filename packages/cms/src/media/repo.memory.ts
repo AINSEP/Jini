@@ -35,6 +35,14 @@ export class InMemoryMediaRepo implements MediaRepoPort {
     );
   }
 
+  async findBySlug(required: { workspaceId: UUID; slug: string }): Promise<MediaRecord | null> {
+    return (
+      this.rows.find(
+        (row) => row.workspaceId === required.workspaceId && row.slug === required.slug
+      ) ?? null
+    );
+  }
+
   async list(required: { workspaceId: UUID }): Promise<MediaRecord[]> {
     return this.rows.filter((row) => row.workspaceId === required.workspaceId);
   }

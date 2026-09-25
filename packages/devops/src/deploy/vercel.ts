@@ -121,7 +121,7 @@ export class VercelDeployTarget implements DeployTarget {
       // `JsonObject | string | undefined` — not `null` — so this coalesce is
       // a compile-time-required null-to-undefined conversion that TypeScript's
       // control-flow analysis cannot narrow away just from the optional-chained
-      // comparison above. See packages/deploy/source-map.md's 2026-07-22
+      // comparison above. See packages/devops/source-map.md's 2026-07-22
       // addition for the full re-derivation.
       throw new DeployError((readyError?.message as string | undefined) || 'Vercel deployment failed.', 502, ready ?? undefined);
     }

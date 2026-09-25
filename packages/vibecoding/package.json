@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/vibecoding",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Conversational artifact authoring: a target-agnostic edit loop — addressable parts, validated replace, operation-level undo/redo, and per-turn snapshot/rewind. Framework-free in `/core`; tagged-region HTML documents behind ./html; filesystem targets behind ./node and the chat/preview surface behind ./react.",
   "license": "Apache-2.0",
   "repository": {

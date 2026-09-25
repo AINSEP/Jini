@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
+import { EntityNotLiveError } from "../../core/entity-liveness.js";
 import { VersionConflictError } from "../errors.js";
 import { updateContentTypeFields } from "../write-service.js";
 
@@ -25,7 +26,7 @@ const clock = { nowIso: () => NOW };
 const ids = { newId: () => "unused-id" };
 const alwaysAllow = async () => ({ allowed: true, reason: "matched" });
 
-function existingContentType(overrides: Partial<{ fields: Array<{ name: string; kind: "text" | "integer" | "real" | "boolean" | "datetime"; required: boolean; queryable: boolean }>; version: number }> = {}) {
+function existingContentType(overrides: Partial<{ fields: Array<{ name: string; kind: "text" | "integer" | "real" | "boolean" | "datetime"; required: boolean; queryable: boolean }>; version: number; status: "active" | "deprecated" | "tombstone"; tombstonedAt: string | null }> = {}) {
   return {
     workspaceId: "ws-1",
     key: "recipe",
@@ -168,4 +169,57 @@ test("a well-formed update with a matching expectedVersion and non-empty fields 
   assert.equal(repo.revisions.length, 1);
   const revision = repo.revisions[0] as { op: string };
   assert.equal(revision.op, "field-change");
+});
+
+test("an update submitting two fields with the same name is rejected with VALIDATION_ERROR(fields_duplicate_name), schema and version unchanged", async () => {
+  const seed = existingContentType({ version: 3 });
+  const repo = fakeRepo(seed);
+
+  const result = await updateContentTypeFields({
+    deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: fakeIndexProvisioner(), outbox },
+    input: {
+      workspaceId: "ws-1",
+      actorId: "user-1",
+      key: "recipe",
+      fields: [
+        { name: "a", kind: "text", required: false, queryable: false },
+        { name: "a", kind: "integer", required: false, queryable: false },
+      ],
+      expectedVersion: 3,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.message, "field name 'a' appears more than once");
+    assert.deepEqual((result.error as { details?: unknown }).details, { reason: "fields_duplicate_name" });
+  }
+  assert.deepEqual(repo.getStored().fields, seed.fields);
+  assert.equal(repo.getStored().version, 3);
+});
+
+test("S9/row 15: updateContentTypeFields against a tombstoned type is rejected with ENTITY_TOMBSTONED, and the index provisioner is not called", async () => {
+  const seed = existingContentType({ version: 3, status: "tombstone", tombstonedAt: "2026-07-14T00:00:00.000Z" });
+  const repo = fakeRepo(seed);
+  const indexProvisioner = fakeIndexProvisioner();
+
+  const result = await updateContentTypeFields({
+    deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner, outbox },
+    input: {
+      workspaceId: "ws-1",
+      actorId: "user-1",
+      key: "recipe",
+      fields: [{ name: "a", kind: "text", required: false, queryable: false }],
+      expectedVersion: 3,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.ok(result.error instanceof EntityNotLiveError);
+    assert.equal(result.error.message, "ENTITY_TOMBSTONED: content type 'recipe' was permanently deleted and can't be changed.");
+  }
+  assert.equal(indexProvisioner.calls.length, 0, "the index provisioner must not be reached for a tombstoned type");
+  assert.deepEqual(repo.getStored().fields, seed.fields);
+  assert.equal(repo.getStored().version, 3);
 });

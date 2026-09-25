@@ -26,18 +26,12 @@
  *   - `confirm()` structurally refuses an agent: `gateway.ts`'s own body — "if (principalKind ===
  *     'agent') throw new ForbiddenError('agent principals may not confirm a gated mutation', ...)"
  *     — before any permission check even runs. No `taxonomy_confirm_merge_term`-equivalent tool
- *     exists in this catalog, and no description below may even imply that step (mirrors
- *     `features/recovery/agent-tools.ts`'s own discipline for `backup_execute_restore`: "the
- *     human confirmation step is exactly the one act the gated-mutations gateway reserves for
- *     kind='user'/api_key principals").
- *   - `execute()` needs a confirmation token a human already minted through the admin UI's own
- *     ceremony (`server/routes/admin/taxonomy/merge-term.ts`'s `/merge/confirm` route) — the same
- *     `confirmer-must-equal-own-delegatedBy` actor-class rule `database_execute_migrate_forward`/
- *     `backup_execute_restore` carry, which `assistant/tool-registration-kit.ts`'s
- *     `ACTOR_CLASS_RULES_REQUIRING_CONFIRMATION_TRANSPORT` refuses to build regardless of this
- *     catalog's own choice, because the host's `ToolExecutor` has no confirmation transport wired.
- *     `taxonomy_execute_merge_term` is declared here (so the exclusion is a structural build-time
- *     refusal, not just an absent handler) but is NEVER wired by `tool-registrations.ts`.
+ *     exists in this catalog.
+ *   - `taxonomy_execute_merge_term` (2026-09-24) asks the human in chat before it runs: the host
+ *     wires it with the kit's `humanConfirmedHandler`, which shows a confirm dialog and only on the
+ *     human's own click confirms as that human (`kind='user'`) and executes as the agent acting for
+ *     them — the `confirmer-must-equal-own-delegatedBy` rule. The model never sees or supplies a
+ *     token. A merge deletes the source term's assignments with no Trash or undo, so it is gated.
  *
  * Naming: `taxonomy_*`, matching this package's own name — distinct from `features/content-types`'
  * `collections_*` prefix (a different pairing) and from `features/entries`' own
@@ -48,12 +42,16 @@
  * `ToolRegistration`s.
  *
  * Architectural role:
- * `features/taxonomy` domain declaration. Imports only `TAXONOMY_ALLOWED_CONTENT_TYPES` from its
- * own `write-service.ts`, so the published `contentType` enum cannot drift from what the domain
- * actually accepts.
+ * `features/taxonomy` domain declaration. As of A2 (taxonomy plan) it imports nothing from its own
+ * `write-service.ts` — `contentType` is published as an open string (see `CONTENT_TYPE_SCHEMA`
+ * below), since Collections entries widened the set of legal values past the fixed `post`/`page`
+ * allow-list this file used to mirror as an `enum`.
  */
 
-import { TAXONOMY_ALLOWED_CONTENT_TYPES } from "./write-service.js";
+// A2 (taxonomy plan) — no longer imported: `CONTENT_TYPE_SCHEMA` used to build its `enum` from
+// this set, which would reject a Collection key (any `contentType` other than `post`/`page`) at
+// the agent's own input-schema validation, before the write-service's `contentTypeTaxonomyPolicy`
+// ever gets a chance to decide eligibility. See `CONTENT_TYPE_SCHEMA`'s doc comment below.
 
 export type AgentToolSideEffect = "none" | "mutates-durable-state" | "mints-token";
 
@@ -68,7 +66,7 @@ export interface AgentToolDefinition {
   /**
    * JSON Schema for this tool's `input`, published to the model via `ToolDescriptor.inputSchema`
    * (`assistant/tool-registration-kit.ts`'s `buildDomainRegistrations`, which refuses to wire any
-   * tool lacking one). Optional — `taxonomy_execute_merge_term` is never wired, so it carries none.
+   * tool lacking one).
    */
   inputSchema?: Readonly<Record<string, unknown>>;
 }
@@ -85,13 +83,18 @@ const TERM_ID_SCHEMA = {
   description: "A term id, as returned by taxonomy_create_term or taxonomy_list.",
 } as const;
 
+/** A2 (taxonomy plan) — an open string, not an `enum` of `TAXONOMY_ALLOWED_CONTENT_TYPES`. `post`
+ * and `page` are always eligible; a Collection key (e.g. `'recipes'`) is eligible when that
+ * Collection's own content-type policy allows it — a call the write-service's
+ * `contentTypeTaxonomyPolicy` makes, not this schema. An `enum` here would reject a valid
+ * Collection key before the request ever reached that check. */
 const CONTENT_TYPE_SCHEMA = {
   type: "string",
-  enum: [...TAXONOMY_ALLOWED_CONTENT_TYPES],
-  description: "The content kind the target row actually is. Only 'post' and 'page' are eligible for term assignment (a permanent allow-list) — any other value is rejected before anything is written.",
+  minLength: 1,
+  description: "'post', 'page', or a Collection key (entries of that Collection).",
 } as const;
 
-/** The Taxonomy domain's fixed agent-tool catalog: 6 wired (1 read, 4 ordinary writes, 1 gated-plan
+/** The Taxonomy domain's fixed agent-tool catalog: 7 wired (1 read, 5 ordinary writes, 1 gated-plan
  * read) + 1 declared-but-never-wired destructive tool — see this file's header for the full
  * `mergeTerm` safety analysis. */
 export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
@@ -154,8 +157,8 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
     name: "taxonomy_assign_terms",
     description:
       "Assigns one or more existing terms to a piece of content (the same <TermPicker> operation the Collections editor and the Categories & " +
-      "Tags screen both use). Additive only — this call ADDS assignments; it never removes a term not present in termIds, and calling it twice " +
-      "with the same term is a no-op (idempotent). Every termId is validated (must exist; its taxonomy must be applicable to contentType) " +
+      "Tags screen both use). This call ADDS assignments; calling it twice with the same term is a no-op (idempotent). Use " +
+      "taxonomy_unassign_terms to remove an assignment. Every termId is validated (must exist; its taxonomy must be applicable to contentType) " +
       "before ANY row is written, so a bad id in the list rejects the whole call rather than partially assigning.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.taxonomy.manage" },
@@ -165,8 +168,27 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       required: ["contentType", "contentId", "termIds"],
       properties: {
         contentType: CONTENT_TYPE_SCHEMA,
-        contentId: { type: "string", minLength: 1, description: "The id of the post/page row to assign terms to." },
+        contentId: { type: "string", minLength: 1, description: "The id of the content row to assign terms to." },
         termIds: { type: "array", items: { type: "string" }, description: "Term ids to assign. May be empty (a no-op)." },
+      },
+    },
+  },
+  {
+    name: "taxonomy_unassign_terms",
+    description:
+      "Removes one or more previously-assigned terms from a piece of content. Idempotent — removing a term that isn't currently assigned is a " +
+      "no-op, not an error. Every termId is validated the same way taxonomy_assign_terms validates them (must exist; its taxonomy must be " +
+      "applicable to contentType) before anything is removed.",
+    sideEffects: "mutates-durable-state",
+    authorization: { permission: "admin.taxonomy.manage" },
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["contentType", "contentId", "termIds"],
+      properties: {
+        contentType: CONTENT_TYPE_SCHEMA,
+        contentId: { type: "string", minLength: 1, description: "The id of the content row to unassign terms from." },
+        termIds: { type: "array", items: { type: "string" }, description: "Term ids to unassign. May be empty (a no-op)." },
       },
     },
   },
@@ -176,9 +198,7 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
       "Previews merging one term into another: recomputes and returns the current overlap-loss disclosure (how many pieces of content are " +
       "already assigned to BOTH terms, whose duplicate assignment would be silently lost by the merge's own dedup step) plus a planId/planHash " +
       "a human can use in the admin UI's own merge confirmation ceremony. Read-only — performs no merge. Rejects immediately if fromTermId " +
-      "equals intoTermId, before computing anything. This tool can only PLAN a merge; actually executing one requires a human to confirm " +
-      "through the admin UI — no tool in this catalog can do that step (by design: merges are destructive and irreversible for the merged-away " +
-      "term's own identity).",
+      "equals intoTermId, before computing anything. To actually merge, call taxonomy_execute_merge_term, which asks the user to confirm first.",
     sideEffects: "none",
     authorization: { permission: "admin.taxonomy.manage" },
     inputSchema: {
@@ -192,13 +212,23 @@ export const taxonomyAgentToolCatalog: AgentToolDefinition[] = [
     },
   },
   {
-    // EXCLUDED BY DESIGN, never wired: see this file's header. Token-gated; `core/gated-mutations`'s
-    // own confirm() step structurally refuses an agent principal, and no confirmation transport
-    // exists for an agent to be handed a human-minted token through anyway.
+    // Asks the human first — see this file's header.
     name: "taxonomy_execute_merge_term",
-    description: "Executes a previously confirmed term merge using a human-minted confirmation token. NEVER agent-callable — see file header.",
+    description:
+      "Merges one term into another: every piece of content tagged with fromTermId is re-tagged with intoTermId, and fromTermId is " +
+      "deprecated. Shows the user a confirm dialog first and only merges if they confirm. The merge can't be undone. Call " +
+      "taxonomy_plan_merge_term first to see how many items are affected.",
     sideEffects: "mutates-durable-state",
     authorization: { permission: "admin.taxonomy.manage" },
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["fromTermId", "intoTermId"],
+      properties: {
+        fromTermId: { ...TERM_ID_SCHEMA, description: "The term to merge away. It is deprecated after the merge." },
+        intoTermId: { ...TERM_ID_SCHEMA, description: "The term that receives every assignment." },
+      },
+    },
     actorClassRule: "confirmer-must-equal-own-delegatedBy",
   },
 ];

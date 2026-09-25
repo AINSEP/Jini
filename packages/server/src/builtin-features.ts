@@ -567,6 +567,12 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
             {
               lifecycle: services.context.kernel.lifecycle,
               toolExecutor: services.context.kernel.toolExecutor,
+              // The same registry `toolExecutor` was built over, so a `requireReadOnly` call (the
+              // daemon-side half of `@jini-ai/mcp`'s `execute_readonly_delegated_tool`) is checked
+              // against the descriptor that will actually run. Omitting it would not weaken the
+              // gate — an unverifiable constraint is refused, never waived — it would just make the
+              // read-only gateway refuse everything, so a kernel host gets it wired by default.
+              toolRegistry: services.context.kernel.registry,
               // `DelegatedToolsHttpDeps.resolvePrincipal` documents itself as MANDATORY — "there is
               // no safe default identity this package could assume on a host's behalf" — and this
               // line supplied one anyway, silently. The default stays (removing it is a breaking

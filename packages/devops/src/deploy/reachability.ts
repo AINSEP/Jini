@@ -125,7 +125,7 @@ async function requestDeploymentUrl(
     // `err.message`) because `err` is typed `unknown`, and a future edit to
     // this function's own throw sites, or to `assertSafePublicUrl`'s, could
     // reintroduce a non-Error throw without this file changing at all — see
-    // packages/deploy/source-map.md's 2026-07-22 addition for the full
+    // packages/devops/source-map.md's 2026-07-22 addition for the full
     // re-derivation.
     return {
       reachable: false,
@@ -136,7 +136,7 @@ async function requestDeploymentUrl(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   // Real refactor, not a padded test: this used to be `try { ... } catch {
   // ... } finally { clearTimeout(timer); }`. A throwaway local repro (see
-  // packages/deploy/source-map.md's 2026-07-22 addition) proved that V8's own
+  // packages/devops/source-map.md's 2026-07-22 addition) proved that V8's own
   // coverage instrumentation for a `try/catch/finally` where the `catch`
   // always returns (never rethrows) emits a synthetic branch, at the
   // `finally` keyword's own position, that no test can ever satisfy — a
@@ -219,7 +219,7 @@ export async function checkDeploymentUrl(
     // remaining `reachable: false` shape (`status: 'protected'`) is already
     // excluded by the `get.status === 'protected'` check just above. So the
     // `: head` fallback branch could never actually be selected — see
-    // packages/deploy/source-map.md's 2026-07-22 addition for the exhaustive
+    // packages/devops/source-map.md's 2026-07-22 addition for the exhaustive
     // case-by-case proof this was re-derived from.
     return get;
   }
@@ -287,7 +287,7 @@ export async function waitForReachableDeploymentUrl(
       // handled by the two `return`s directly above this line, so neither
       // can reach here. `|| lastMessage` (falling back to the *previous*
       // sweep's message) could therefore never actually be selected — see
-      // packages/deploy/source-map.md's 2026-07-22 addition for the proof.
+      // packages/devops/source-map.md's 2026-07-22 addition for the proof.
       // Non-null assertion (not `||`/`??`, which would just reintroduce the
       // same dead branch): the type is `string | undefined` because
       // `DeploymentUrlCheck.statusMessage` is optional in general, but this

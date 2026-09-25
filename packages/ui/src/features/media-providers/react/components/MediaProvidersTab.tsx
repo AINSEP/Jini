@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import type { MediaProvidersPort } from '../../ports.js';
@@ -55,7 +56,15 @@ export interface MediaProvidersTabProps {
   /** Host-persisted local edits from before this tab mounted. See
    *  `useMediaProvidersTab`'s doc for how this feeds the first-load merge. */
   initialProviders?: MediaProviderMap;
+  /** Provider ids that must render first, in the order given, ahead of the
+   *  usual configured/alphabetical grouping — see `sortProvidersByConfigured`'s
+   *  own doc. Optional; omitted (every pre-existing caller) keeps the prior
+   *  configured-first/alphabetical order unchanged. */
+  pinnedProviderIds?: readonly string[];
   labels?: MediaProvidersTabLabels;
+  /** This tab's own agent handle. One distinct sub-handle per provider card, derived from the
+   *  provider's own catalog id via `buildAgentListHandles`. */
+  agentHandle?: string;
 }
 
 /**
@@ -71,7 +80,9 @@ export function MediaProvidersTab({
   port,
   catalog = DEFAULT_MEDIA_PROVIDER_CATALOG,
   initialProviders,
+  pinnedProviderIds,
   labels,
+  agentHandle,
 }: MediaProvidersTabProps) {
   const t = useT();
   const { providers, load, save, hasAnyConfigured, pendingProviderIds, updateProvider, clearProvider, saveChanges, reload } =
@@ -116,7 +127,15 @@ export function MediaProvidersTab({
     });
   };
 
-  const orderedCatalog = sortProvidersByConfigured(catalog, providers);
+  const orderedCatalog = sortProvidersByConfigured(catalog, providers, pinnedProviderIds);
+  const providerHandles = agentHandle
+    ? buildAgentListHandles(agentHandle, orderedCatalog.map((option) => option.id))
+    : undefined;
+  // Membership check against the ALREADY-ORDERED result, not `pinnedProviderIds` directly: a
+  // pinned id absent from `catalog` never appears in `orderedCatalog` either (see
+  // `sortProvidersByConfigured`'s own "silently skipped" doc), so this stays correct without
+  // re-deriving which pinned ids actually resolved to a real card.
+  const pinnedIdSet = new Set(pinnedProviderIds ?? []);
   const hasPendingChanges = pendingProviderIds.size > 0;
   // Save writes every provider at once, so ONE unacceptable endpoint blocks the
   // whole button rather than being silently persisted alongside the good ones.
@@ -134,6 +153,7 @@ export function MediaProvidersTab({
           className="jini-button jini-button-ghost"
           onClick={reload}
           disabled={load.status === 'loading'}
+          {...agentHandleProps(agentHandle, { action: 'reload', role: 'button', label: reloadLabel })}
         >
           <Icon name="refresh" size={13} />
           <span>{load.status === 'loading' ? reloadingLabel : reloadLabel}</span>
@@ -149,7 +169,7 @@ export function MediaProvidersTab({
       {!hasAnyConfigured ? <p className="jini-hint">{emptyStateLabel}</p> : null}
 
       <div className="jini-media-provider-list">
-        {orderedCatalog.map((option) => {
+        {orderedCatalog.map((option, index) => {
           const entry = providers[option.id] ?? {};
           const clearable = isEntryPresent(entry);
           const saved = isMarkerOnlyEntry(entry);
@@ -162,9 +182,18 @@ export function MediaProvidersTab({
           const effectiveBaseUrl = resolveProviderBaseUrl(entry, option.defaultBaseUrl);
           const baseUrlInvalid = isProviderBaseUrlInvalid(entry);
           const modelListId = `jini-media-provider-models-${option.id}`;
+          // A divider renders once, directly above the first UNpinned card — i.e. exactly at the
+          // pinned/rest boundary `sortProvidersByConfigured` produced. Never renders above index 0
+          // (nothing pinned, or the pinned card IS index 0 with no boundary yet) and never when
+          // every card is pinned (no "rest" to separate from).
+          const previousOption = index > 0 ? orderedCatalog[index - 1] : undefined;
+          const showDividerBefore = !pinnedIdSet.has(option.id) && previousOption !== undefined && pinnedIdSet.has(previousOption.id);
+          const providerHandle = providerHandles?.[index];
 
           return (
-            <div className="jini-media-provider-card" key={option.id}>
+            <Fragment key={option.id}>
+              {showDividerBefore ? <hr className="jini-media-provider-divider" /> : null}
+              <div className="jini-media-provider-card">
               <div className="jini-media-provider-card-head">
                 <strong>{option.label}</strong>
                 {saved ? (
@@ -183,12 +212,17 @@ export function MediaProvidersTab({
                   <input
                     className="jini-input"
                     type={keyVisible ? 'text' : 'password'}
-                    autoComplete="off"
+                    /* `new-password`, NOT `"off"` — Chrome deliberately ignores `off` on
+                       credential-shaped fields, which is how a saved password gets autofilled into
+                       an API-key box. Same defect, same fix, same reasoning as
+                       `ByokProviderForm`'s own API-key input; see its comment. */
+                    autoComplete="new-password"
                     spellCheck={false}
                     placeholder={saved ? maskedLabel! : apiKeyPlaceholder}
                     aria-label={`${option.label} ${apiKeyLabel}`}
                     value={entry.apiKey ?? ''}
                     onChange={(event) => updateProvider(option.id, { apiKey: event.target.value })}
+                    {...agentHandleProps(providerHandle, { action: 'api-key', role: 'field', label: `${option.label} ${apiKeyLabel}` })}
                   />
                   <button
                     type="button"
@@ -196,6 +230,7 @@ export function MediaProvidersTab({
                     aria-pressed={keyVisible}
                     aria-label={`${option.label} ${keyVisible ? hideKeyLabel : showKeyLabel}`}
                     onClick={() => toggleKeyVisible(option.id)}
+                    {...agentHandleProps(providerHandle, { action: 'reveal-key', role: 'button', label: `${option.label} ${showKeyLabel}` })}
                   >
                     <Icon name={keyVisible ? 'eye-off' : 'eye'} size={14} />
                   </button>
@@ -213,6 +248,7 @@ export function MediaProvidersTab({
                     value={rawBaseUrl}
                     aria-invalid={baseUrlInvalid || undefined}
                     onChange={(event) => updateProvider(option.id, { baseUrl: event.target.value })}
+                    {...agentHandleProps(providerHandle, { action: 'base-url', role: 'field', label: `${option.label} ${baseUrlLabel}` })}
                   />
                 </label>
 
@@ -227,6 +263,7 @@ export function MediaProvidersTab({
                       aria-label={`${option.label} ${modelLabel}`}
                       value={entry.model ?? ''}
                       onChange={(event) => updateProvider(option.id, { model: event.target.value })}
+                      {...agentHandleProps(providerHandle, { action: 'model', role: 'field', label: `${option.label} ${modelLabel}` })}
                     />
                     <datalist id={modelListId}>
                       {option.models.map((model) => (
@@ -242,6 +279,7 @@ export function MediaProvidersTab({
                   disabled={!clearable}
                   aria-label={`${option.label} ${clearLabel}`}
                   onClick={() => clearProvider(option.id)}
+                  {...agentHandleProps(providerHandle, { action: 'clear', role: 'button', label: `${option.label} ${clearLabel}` })}
                 >
                   {clearLabel}
                 </button>
@@ -254,7 +292,8 @@ export function MediaProvidersTab({
               ) : !rawBaseUrl.trim() && effectiveBaseUrl ? (
                 <span className="jini-field-hint">{t(baseUrlDefaultHintTemplate, { url: effectiveBaseUrl })}</span>
               ) : null}
-            </div>
+              </div>
+            </Fragment>
           );
         })}
       </div>
@@ -265,6 +304,7 @@ export function MediaProvidersTab({
           className="jini-button"
           onClick={saveChanges}
           disabled={save.status === 'saving' || !hasPendingChanges || blockedByInvalidBaseUrl}
+          {...agentHandleProps(agentHandle, { action: 'save', role: 'button', label: saveChangesLabel })}
         >
           {save.status === 'saving' ? savingLabel : saveChangesLabel}
         </button>

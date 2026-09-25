@@ -2,12 +2,68 @@ export type { InteractiveComponentManifest } from './types.js';
 export { InteractiveUiRegistry, type InteractiveComponentEntry } from './registry.js';
 
 export { nativeDataTableManifest, nativeDataTablePropsSchema, DataTable as NativeDataTable } from './providers/native/index.js';
-export { shadcnDataTableManifest, shadcnDataTablePropsSchema, DataTable as ShadcnDataTable } from './providers/shadcn/index.js';
+export {
+  shadcnDataTableManifest,
+  shadcnDataTablePropsSchema,
+  DataTable as ShadcnDataTable,
+  shadcnButtonManifest,
+  shadcnButtonPropsSchema,
+  ActionButton,
+  shadcnCheckboxManifest,
+  shadcnCheckboxPropsSchema,
+  CheckboxField,
+  shadcnRadioGroupManifest,
+  shadcnRadioGroupPropsSchema,
+  RadioGroupField,
+  shadcnTextInputManifest,
+  shadcnTextInputPropsSchema,
+  TextInputField,
+  shadcnSelectManifest,
+  shadcnSelectPropsSchema,
+  SelectField,
+  shadcnCardManifest,
+  shadcnCardPropsSchema,
+  ContentCard,
+} from './providers/shadcn/index.js';
+export {
+  rechartsBarChartManifest,
+  rechartsBarChartPropsSchema,
+  BarChart,
+  rechartsLineChartManifest,
+  rechartsLineChartPropsSchema,
+  LineChart,
+  rechartsPieChartManifest,
+  rechartsPieChartPropsSchema,
+  PieChart,
+} from './providers/recharts/index.js';
 
 import type { ComponentType } from 'react';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from './registry.js';
 import { nativeDataTableManifest, DataTable as NativeDataTable } from './providers/native/index.js';
-import { shadcnDataTableManifest, DataTable as ShadcnDataTable } from './providers/shadcn/index.js';
+import {
+  shadcnDataTableManifest,
+  DataTable as ShadcnDataTable,
+  shadcnButtonManifest,
+  ActionButton,
+  shadcnCheckboxManifest,
+  CheckboxField,
+  shadcnRadioGroupManifest,
+  RadioGroupField,
+  shadcnTextInputManifest,
+  TextInputField,
+  shadcnSelectManifest,
+  SelectField,
+  shadcnCardManifest,
+  ContentCard,
+} from './providers/shadcn/index.js';
+import {
+  rechartsBarChartManifest,
+  BarChart,
+  rechartsLineChartManifest,
+  LineChart,
+  rechartsPieChartManifest,
+  PieChart,
+} from './providers/recharts/index.js';
 
 /**
  * Every provider currently registered, shadcn preferred over the dependency-free native fallback
@@ -27,4 +83,13 @@ import { shadcnDataTableManifest, DataTable as ShadcnDataTable } from './provide
 export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry([
   { ...shadcnDataTableManifest, Component: ShadcnDataTable as unknown as ComponentType<Record<string, unknown>> },
   { ...nativeDataTableManifest, Component: NativeDataTable as unknown as ComponentType<Record<string, unknown>> },
+  { ...shadcnButtonManifest, Component: ActionButton as unknown as ComponentType<Record<string, unknown>> },
+  { ...shadcnCheckboxManifest, Component: CheckboxField as unknown as ComponentType<Record<string, unknown>> },
+  { ...shadcnRadioGroupManifest, Component: RadioGroupField as unknown as ComponentType<Record<string, unknown>> },
+  { ...shadcnTextInputManifest, Component: TextInputField as unknown as ComponentType<Record<string, unknown>> },
+  { ...shadcnSelectManifest, Component: SelectField as unknown as ComponentType<Record<string, unknown>> },
+  { ...shadcnCardManifest, Component: ContentCard as unknown as ComponentType<Record<string, unknown>> },
+  { ...rechartsBarChartManifest, Component: BarChart as unknown as ComponentType<Record<string, unknown>> },
+  { ...rechartsLineChartManifest, Component: LineChart as unknown as ComponentType<Record<string, unknown>> },
+  { ...rechartsPieChartManifest, Component: PieChart as unknown as ComponentType<Record<string, unknown>> },
 ] satisfies InteractiveComponentEntry[]);

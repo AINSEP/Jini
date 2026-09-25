@@ -1,5 +1,6 @@
 import {
   createToolRegistry,
+  ToolInputError,
   type AuthorizationDecision,
   type Principal,
   type RunRef,
@@ -604,8 +605,24 @@ describe('@jini-ai/daemon — ToolExecutor — timeout, cancellation, output tru
     const result = await executor.execute(principal, run, 'flaky', {});
     expect(result.status).toBe('failed');
     expect(result.error).toBe('boom');
+    expect(result.errorKind).toBe('internal');
     const audit = executor.getAuditRecord(result.executionId);
     expect(audit?.events.at(-1)).toMatchObject({ phase: 'failed', detail: 'boom' });
+  });
+
+  it("tags errorKind 'validation' when the handler throws ToolInputError — the caller's input was the problem, not the server", async () => {
+    const registry = registryWith({
+      descriptor: { id: 'picky' },
+      handler: async () => {
+        throw new ToolInputError("'themeId' (non-empty string) is required");
+      },
+      policy: allowAll(),
+    });
+    const executor = createToolExecutor({ registry });
+    const result = await executor.execute(principal, run, 'picky', {});
+    expect(result.status).toBe('failed');
+    expect(result.error).toBe("'themeId' (non-empty string) is required");
+    expect(result.errorKind).toBe('validation');
   });
 
   it('stringifies a non-Error throw', async () => {

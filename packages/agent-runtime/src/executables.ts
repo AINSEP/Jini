@@ -5,7 +5,7 @@
  * (including user-toolchain bin dirs), a resource-root-relative packaged
  * binary, and (macOS only) a well-known app-bundle install.
  *
- * Ported from OD's `apps/daemon/src/runtimes/core/executables.ts` with two
+ * Ported from OD's `apps/daemon/src/runtimes/executables.ts` with two
  * changes:
  *
  * 1. `wellKnownUserToolchainBins` now comes from `@jini-ai/platform` instead of

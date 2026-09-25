@@ -68,12 +68,12 @@ consumer-adoption pass — see each package's own `source-map.md` for the day-by
 | `@jini-ai/server` (ex-`node-host`) | `better-sqlite3` | Transitive, via its `@jini-ai/sqlite` dependency | Same requirement as `@jini-ai/sqlite`, inherited. |
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |
-| `@jini-ai/media` | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `@jini-ai/media` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
+| `@jini-ai/integrations` (`./media-providers`) | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `./media-providers` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
 | `@jini-ai/daemon` | `node-pty` | `peerDependencies` (optional) + dynamically imported (`await import('node-pty')`) inside `loadRealSpawnPty` only | The rest of the package (agent execution, tool registry, etc.) boots fine with `node-pty` absent — only an actual terminal-session spawn fails, cleanly. Install `node-pty` yourself if you want terminals. **This also means every transitive consumer (`@jini-ai/http-kit`, `@jini-ai/server`) stops paying a native compile just to mount one JSON route.** |
 
-Everything else in the workspace (`shiki` in `@jini-ai/renderers-react`, the various vendor SDKs in
-`@jini-ai/media`'s dispatch providers) is pure JS — no native compile step, no Electron ABI
-concern, regardless of how heavy the package is on disk.
+Everything else in the workspace (`shiki` in `@jini-ai/ui`'s `./renderers` subpath, the various
+vendor SDKs in `@jini-ai/integrations`'s `./media-providers` dispatch providers) is pure JS — no
+native compile step, no Electron ABI concern, regardless of how heavy the package is on disk.
 
 ### Optional peer dependencies — the convention
 
@@ -91,10 +91,12 @@ barrel then costs nothing extra, and the subpath tells you exactly what to add i
 | `@jini-ai/registry` | `better-sqlite3` | `DatabaseRegistryBackend` |
 | `@jini-ai/daemon` | `node-pty` | Terminal sessions (`loadRealSpawnPty`) |
 
-`react` and `react-dom` are peers of every React package (`@jini-ai/ui`, `@jini-ai/chat-react`,
-`@jini-ai/renderers-react`) — **not** optional, and never `dependencies`. A React library that
-declares React as a normal dependency can get a second copy installed under itself, which breaks
-hooks at runtime in ways that are hard to diagnose. The declared range is `^18.3.0 || ^19.0.0`.
+`react` and `react-dom` are peers of every React package (`@jini-ai/ui`, whose `./renderers` subpath
+covers what was once planned as a separate `renderers-react` package, and `@jini-ai/chat`, whose
+`./react` subpath covers what was once planned as a separate `chat-react` package) — declared as
+`peerDependenciesMeta`-optional, never `dependencies`. A React library that declares React as a
+normal dependency can get a second copy installed under itself, which breaks hooks at runtime in
+ways that are hard to diagnose. The declared range is `^18.3.0 || ^19.0.0`.
 
 ### ESM only
 
@@ -108,8 +110,8 @@ oversight in any one package.
 
 - `description` — every package carries a real one-line description. Keep it accurate when scope
   changes; it is the first thing an adopter reads on npm.
-- `sideEffects` — `false` on every package except `@jini-ai/media`, which lists the exact files
-  (`./dist/dispatch/engine.js`, `./dist/dispatch/providers/*.js`) whose module-eval vendor
-  self-registration a bundler must not tree-shake away.
+- `sideEffects` — `false` on every package except `@jini-ai/integrations`, which lists the exact
+  files (`./dist/media-providers/dispatch/engine.js`, `./dist/media-providers/dispatch/providers/*.js`)
+  whose module-eval vendor self-registration a bundler must not tree-shake away.
 - `jini.admission` — **removed 2026-07-28.** The locked/incubating/admitted tier is gone and
   nothing validates the field; do not reintroduce it.
