@@ -104,6 +104,10 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://github.com/block/goose',
     docsUrl: 'https://block.github.io/goose/',
   },
+  auggie: {
+    installUrl: 'https://github.com/augmentcode/auggie',
+    docsUrl: 'https://docs.augmentcode.com/cli/overview',
+  },
 };
 
 function sanitizeHttpsUrl(value: string | undefined): string | undefined {

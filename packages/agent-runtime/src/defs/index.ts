@@ -10,6 +10,7 @@ export * from './aider.js';
 export * from './amp.js';
 export * from './amr.js';
 export * from './antigravity.js';
+export * from './auggie.js';
 export * from './claude.js';
 export * from './cline.js';
 export * from './codebuddy.js';

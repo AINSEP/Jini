@@ -30,6 +30,7 @@ import type { RuntimeAgentDef } from './types.js';
 const AGENT_BIN_ENV_KEYS = new Map<string, string>([
   ['amr', 'VELA_BIN'],
   ['aider', 'AIDER_BIN'],
+  ['auggie', 'AUGGIE_BIN'],
   ['claude', 'CLAUDE_BIN'],
   ['cline', 'CLINE_BIN'],
   ['codebuddy', 'CODEBUDDY_BIN'],
