@@ -31,6 +31,7 @@ import {
   deepseekAgentDef,
   devinAgentDef,
   geminiAgentDef,
+  gooseAgentDef,
   grokBuildAgentDef,
   hermesAgentDef,
   kiloAgentDef,
@@ -74,6 +75,7 @@ export const BASE_AGENT_DEFS: RuntimeAgentDef[] = [
   codebuddyAgentDef,
   mimoAgentDef,
   clineAgentDef,
+  gooseAgentDef,
 ];
 
 export const AGENT_DEFS: RuntimeAgentDef[] = [...BASE_AGENT_DEFS];

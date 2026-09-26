@@ -100,6 +100,10 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://cline.bot/cli',
     docsUrl: 'https://docs.cline.bot/cline-cli/overview',
   },
+  goose: {
+    installUrl: 'https://github.com/block/goose',
+    docsUrl: 'https://block.github.io/goose/',
+  },
 };
 
 function sanitizeHttpsUrl(value: string | undefined): string | undefined {

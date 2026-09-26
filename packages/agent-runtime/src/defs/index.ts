@@ -19,6 +19,7 @@ export * from './cursor-agent.js';
 export * from './gemini.js';
 export * from './deepseek.js';
 export * from './devin.js';
+export * from './goose.js';
 export * from './grok-build.js';
 export * from './hermes.js';
 export * from './kilo.js';
