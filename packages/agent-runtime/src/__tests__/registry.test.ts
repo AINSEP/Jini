@@ -107,7 +107,7 @@ describe('registry', () => {
         .sort();
 
       expect(toolLess).toEqual(
-        ['aider', 'amp', 'copilot', 'cursor-agent', 'deepseek', 'gemini', 'grok-build', 'pi', 'qoder', 'qwen'].sort(),
+        ['aider', 'amp', 'copilot', 'crush', 'cursor-agent', 'deepseek', 'gemini', 'grok-build', 'pi', 'qoder', 'qwen'].sort(),
       );
       expect(toolCapable.length).toBe(BASE_AGENT_DEFS.length - toolLess.length);
       expect(toolCapable).toContain('claude');

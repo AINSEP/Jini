@@ -108,6 +108,10 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://github.com/augmentcode/auggie',
     docsUrl: 'https://docs.augmentcode.com/cli/overview',
   },
+  crush: {
+    installUrl: 'https://github.com/charmbracelet/crush',
+    docsUrl: 'https://github.com/charmbracelet/crush',
+  },
 };
 
 function sanitizeHttpsUrl(value: string | undefined): string | undefined {

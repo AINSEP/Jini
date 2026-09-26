@@ -16,6 +16,7 @@ export * from './cline.js';
 export * from './codebuddy.js';
 export * from './codex.js';
 export * from './copilot.js';
+export * from './crush.js';
 export * from './cursor-agent.js';
 export * from './gemini.js';
 export * from './deepseek.js';
