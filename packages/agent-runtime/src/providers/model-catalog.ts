@@ -51,7 +51,7 @@ function missingApiKeyResponse(startedAt: number): ProviderModelsResponse {
     ok: false,
     kind: 'auth_failed',
     latencyMs: Date.now() - startedAt,
-    detail: 'No API key — model discovery needs the key from this browser.',
+    detail: 'No API key saved. Save one to load models.',
   };
 }
 const BEDROCK_MODEL_OPTIONS: ProviderModelOption[] = [

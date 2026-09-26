@@ -339,7 +339,7 @@ export async function testProviderConnection(input: ProviderConnectionTestInput)
       kind: 'auth_failed',
       latencyMs: Date.now() - start,
       model,
-      detail: 'No API key — connection test needs the key from this browser.',
+      detail: 'No API key saved. Save one to test the connection.',
     };
   }
 

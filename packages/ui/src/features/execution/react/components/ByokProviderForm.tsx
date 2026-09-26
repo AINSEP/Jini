@@ -416,7 +416,7 @@ export function ByokProviderForm({
         // identity host suites locate it by — only its parent changed.
         <span className="jini-field-hint is-error" role="status">
           {/* The inner message goes through `t()` too: a host-side refusal such as the runtime's
-              "No API key — model discovery needs the key from this browser." is a fixed English
+              "No API key saved. Save one to load models." is a fixed English
               sentence the shipped dictionaries carry. A provider's free-form error is not a key,
               so `t()` returns it verbatim — English output is unchanged either way. */}
           {t('Could not load live models: {message}', { message: t(modelDiscovery.message) })}
@@ -432,7 +432,7 @@ export function ByokProviderForm({
             role={connectionTest.status === 'error' ? 'alert' : 'status'}
           >
             {/* Host-reported messages route through `t()` so fixed runtime sentences (e.g.
-                "No API key — connection test needs the key from this browser.") translate; any
+                "No API key saved. Save one to test the connection.") translate; any
                 message not in the dictionary — a provider's own error text — renders verbatim. */}
             {connectionTest.status === 'ok'
               ? (connectionTest.message !== undefined ? t(connectionTest.message) : t('Connection succeeded'))
