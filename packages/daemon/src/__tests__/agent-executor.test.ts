@@ -5115,11 +5115,14 @@ describe('buildMcpBridgeDelivery', () => {
     expect(undelivered).toEqual([]);
   });
 
-  it('covers the 9 acp-merge defs — the 8 the review found getting zero MCP tools, plus amr (a later oversight, same fix)', () => {
+  it('covers every acp-merge def — the 8 the review found getting zero MCP tools, amr (a later oversight, same fix), and the auggie/cline/goose ACP defs', () => {
     const acpMergeDefs = AGENT_DEFS.filter((def) => def.externalMcpInjection === 'acp-merge');
     expect(acpMergeDefs.map((def) => def.id).sort()).toEqual([
       'amr',
+      'auggie',
+      'cline',
       'devin',
+      'goose',
       'hermes',
       'kilo',
       'kimi',
@@ -6338,24 +6341,24 @@ describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
     expect(isAgentExecutorSupported(def)).toBe(true);
   });
 
-  // All 24 registered defs are now driveable. A def added later that this
+  // All 30 registered defs are now driveable. A def added later that this
   // driver cannot actually run should fail *here*, at the point someone can
   // still decide what to do about it, rather than at a user's first run.
-  it('accepts every one of the 24 registered defs', () => {
+  it('accepts every one of the 30 registered defs', () => {
     const rejected = AGENT_DEFS.filter((def) => !isAgentExecutorSupported(def)).map((def) => def.id);
     expect(rejected).toEqual([]);
-    expect(AGENT_DEFS).toHaveLength(24);
+    expect(AGENT_DEFS).toHaveLength(30);
   });
 
   // The three new fields must stay opt-in: exactly one def declares them, and
-  // the other 23 keep their pre-existing behavior by declaring none.
-  it('leaves the other 23 defs — including the 4 other plain-format ones — declaring none of the three new fields', () => {
+  // the other 29 keep their pre-existing behavior by declaring none.
+  it('leaves the other 29 defs — including the 6 other plain-format ones — declaring none of the three new fields', () => {
     const withNewFields = AGENT_DEFS.filter(
       (def) => def.needsAgentLogFile !== undefined || def.stdoutPolicy !== undefined || def.runtimeLock !== undefined,
     ).map((def) => def.id);
     expect(withNewFields).toEqual(['antigravity']);
 
-    for (const id of ['grok-build', 'aider', 'deepseek', 'qwen']) {
+    for (const id of ['grok-build', 'aider', 'deepseek', 'qwen', 'crush', 'droid']) {
       const def = defOf(id);
       expect(def.streamFormat).toBe('plain');
       // No `stdoutPolicy` at all — so `wireChildLifecycle` takes the live path,
