@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it, afterEach } from 'vitest';
 import { setAcpModelProbe, noopAcpModelProbe, detectAcpModels, type AcpModelProbe } from '../acp-model-probe.js';
 import { noopAmrProfileResolver, type AmrProfileResolver } from '../amr-profile-resolver.js';
@@ -28,8 +31,11 @@ describe('port satisfaction: AmrProfileResolver', () => {
         return env.MY_PROFILE ?? 'unscoped';
       },
     };
-    // No agent CLIs are installed in this sandbox, so every def resolves
-    // to unavailable — this exercises the real detectAgents() code path
+    // PATH and the toolchain-dir search are scoped to an empty fake home
+    // (the same sandbox `detection.test.ts` uses), so every def resolves
+    // to unavailable on any machine — without it, a dev machine with real
+    // CLIs installed spawns their version/help/model probes and this test
+    // runs past its timeout. This exercises the real detectAgents() code path
     // (registry iteration, launch resolution, diagnostics) end-to-end
     // with the injected resolver wired in, without requiring a live vela
     // binary. `calls` may legitimately stay 0 here (the amr def's
@@ -37,10 +43,20 @@ describe('port satisfaction: AmrProfileResolver', () => {
     // returns zero models AND the agent is available) — the behavioral
     // claim under test is that passing a custom resolver does not throw
     // and every agent still gets classified.
-    const results = await detectAgents({}, stub);
-    expect(results.length).toBeGreaterThan(20);
-    expect(results.every((agent) => typeof agent.available === 'boolean')).toBe(true);
-    expect(calls).toBeGreaterThanOrEqual(0);
+    const dir = mkdtempSync(path.join(tmpdir(), 'ports-detect-'));
+    const originalPath = process.env.PATH;
+    process.env.AGENT_RUNTIME_HOME = dir;
+    process.env.PATH = dir;
+    try {
+      const results = await detectAgents({}, stub);
+      expect(results.length).toBeGreaterThan(20);
+      expect(results.every((agent) => typeof agent.available === 'boolean')).toBe(true);
+      expect(calls).toBeGreaterThanOrEqual(0);
+    } finally {
+      process.env.PATH = originalPath;
+      delete process.env.AGENT_RUNTIME_HOME;
+      rmSync(dir, { recursive: true, force: true });
+    }
     // Explicit generous timeout: this exercises detectAgents() over the full
     // 24+ item registry (real PATH/launch-resolution work per def), which
     // takes ~3s in isolation but can exceed vitest's 5000ms default under
