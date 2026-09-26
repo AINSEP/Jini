@@ -112,6 +112,10 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://github.com/charmbracelet/crush',
     docsUrl: 'https://github.com/charmbracelet/crush',
   },
+  droid: {
+    installUrl: 'https://factory.ai/product/cli',
+    docsUrl: 'https://docs.factory.ai/droid-exec/overview',
+  },
 };
 
 function sanitizeHttpsUrl(value: string | undefined): string | undefined {
