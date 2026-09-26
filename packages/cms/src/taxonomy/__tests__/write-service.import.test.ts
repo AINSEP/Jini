@@ -8,6 +8,7 @@ import {
   importTerm,
 } from "../write-service.js";
 import { ForbiddenError } from "../../core/commands/command.js";
+import { HierarchyCycleDetectedError } from "../validation-chain.js";
 import type { Taxonomy, Term } from "../write-service.js";
 
 /**
@@ -254,4 +255,71 @@ test("an unauthorized principal cannot import a term — FORBIDDEN, no write", a
       return true;
     }
   );
+});
+
+// ---------------------------------------------------------------------------
+// importTerm — reparent-cycle refusal against an EXISTING destination tree
+// ---------------------------------------------------------------------------
+
+function hierarchicalTree(): { taxonomies: ReturnType<typeof fakeTaxonomiesRepo>; terms: ReturnType<typeof fakeTermsRepo> } {
+  const taxonomies = fakeTaxonomiesRepo([{ id: "tax-h", name: "Cuisine", hierarchical: true, status: "active", updatedAt: NOW, version: 1 }]);
+  const term = (id: string, parentId: string | null): Term => ({ id, taxonomyId: "tax-h", parentId, name: id, status: "active", updatedAt: NOW, version: 1 });
+  // a -> b -> c (c's parent is b, b's parent is a), plus an unrelated root d.
+  const terms = fakeTermsRepo([term("a", null), term("b", "a"), term("c", "b"), term("d", null)]);
+  return { taxonomies, terms };
+}
+
+test("importTerm refuses to reparent an existing term under its own grandchild — a 3-hop cycle, exact text, no write", async () => {
+  const { taxonomies, terms } = hierarchicalTree();
+  const { deps, revisions, outboxEvents } = baseDeps({ taxonomies, terms });
+
+  await assert.rejects(
+    importTerm({ deps, principalId: "user-1", id: "a", taxonomyId: "tax-h", name: "a", parentId: "c", expectedVersion: 1 }),
+    (err: unknown) => {
+      assert.ok(err instanceof HierarchyCycleDetectedError);
+      assert.equal(err.message, "assigning 'c' as parent would create a hierarchy cycle");
+      return true;
+    }
+  );
+  assert.equal(terms.rows.get("a")?.parentId, null, "the existing row must be untouched on a refused cycle");
+  assert.equal(terms.rows.get("a")?.version, 1);
+  assert.equal(revisions.length, 0);
+  assert.equal(outboxEvents.length, 0);
+});
+
+test("importTerm refuses to make an existing term its own parent", async () => {
+  const { taxonomies, terms } = hierarchicalTree();
+  const { deps } = baseDeps({ taxonomies, terms });
+
+  await assert.rejects(
+    importTerm({ deps, principalId: "user-1", id: "b", taxonomyId: "tax-h", name: "b", parentId: "b", expectedVersion: 1 }),
+    (err: unknown) => {
+      assert.ok(err instanceof HierarchyCycleDetectedError);
+      assert.equal(err.message, "assigning 'b' as parent would create a hierarchy cycle");
+      return true;
+    }
+  );
+  assert.equal(terms.rows.get("b")?.parentId, "a");
+});
+
+test("importTerm allows reparenting an existing term under a non-descendant", async () => {
+  const { taxonomies, terms } = hierarchicalTree();
+  const { deps } = baseDeps({ taxonomies, terms });
+
+  const moved = await importTerm({ deps, principalId: "user-1", id: "b", taxonomyId: "tax-h", name: "b", parentId: "d", expectedVersion: 1 });
+
+  assert.equal(moved.parentId, "d");
+  assert.equal(terms.rows.get("b")?.parentId, "d");
+});
+
+test("importTerm's ancestor walk terminates on a pre-existing malformed loop above the candidate parent", async () => {
+  const taxonomies = fakeTaxonomiesRepo([{ id: "tax-h", name: "Cuisine", hierarchical: true, status: "active", updatedAt: NOW, version: 1 }]);
+  const term = (id: string, parentId: string | null): Term => ({ id, taxonomyId: "tax-h", parentId, name: id, status: "active", updatedAt: NOW, version: 1 });
+  // x <-> y already loop (corrupt data); z is unrelated to that loop and becomes x's child.
+  const terms = fakeTermsRepo([term("x", "y"), term("y", "x"), term("z", null)]);
+  const { deps } = baseDeps({ taxonomies, terms });
+
+  const moved = await importTerm({ deps, principalId: "user-1", id: "z", taxonomyId: "tax-h", name: "z", parentId: "x", expectedVersion: 1 });
+
+  assert.equal(moved.parentId, "x");
 });

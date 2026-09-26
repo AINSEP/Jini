@@ -1,5 +1,5 @@
 import { ForbiddenError } from "../core/commands/command.js";
-import { validateContentJoin, validateHierarchyAssignment } from "./validation-chain.js";
+import { validateContentJoin, validateHierarchyAssignment, wouldCreateCycle } from "./validation-chain.js";
 // Type-only — `list.ts` imports `Taxonomy`/`Term` back from this file, so a value-level import
 // here would be circular. `DeleteTaxonomyRequired.deps.terms` needs `TermListPort.listByTaxonomy`
 // to enumerate a taxonomy's member terms for the cascade guard below; erased at compile time, so
@@ -404,6 +404,25 @@ export interface ImportableTermRepoPort {
   findByIdFull(id: string): Promise<Term | null>;
 }
 
+/**
+ * Loads `startId`'s ancestor chain (`termId -> parentId`, `startId` included) so the synchronous,
+ * certified `wouldCreateCycle` walk can run over the destination's REAL tree. Stops at a root, a
+ * missing row, or an already-seen id — the last bounds the loop against pre-existing malformed
+ * parent data, mirroring `wouldCreateCycle`'s own `visited` guard.
+ *
+ * @complexity O(d) repo reads for a chain of depth `d`.
+ */
+async function loadAncestorChain(terms: ImportableTermRepoPort, startId: string): Promise<Map<string, string | null>> {
+  const chain = new Map<string, string | null>();
+  let current: string | null = startId;
+  while (current !== null && !chain.has(current)) {
+    const parentId: string | null = (await terms.findByIdFull(current))?.parentId ?? null;
+    chain.set(current, parentId);
+    current = parentId;
+  }
+  return chain;
+}
+
 export interface ImportTermRequired {
   deps: WriteServiceDeps & { terms: TermRepoPort & ImportableTermRepoPort };
   principalId: string;
@@ -421,16 +440,13 @@ export interface ImportTermRequired {
  * `(taxonomyId, parentId)`) uniqueness is the publish factory's own precheck, not this function's
  * job — same split as `importTaxonomy`/`importEntry`.
  *
- * Reparent-cycle detection against an EXISTING destination term (an import-as-update that also
- * moves `parentId`) is a disclosed gap, not silently skipped: `createTerm`'s own doc comment
- * already discloses the identical gap ("not yet built — no certified test in this slice exercises
- * it") for the same reason — building the ancestor-chain `TermTreeLookup` wiring this needs is out
- * of scope for J1, whose job is the import write path, not a new cycle-detection capability. A
- * fresh import-as-create cannot be a cycle source (no descendants exist yet), so `wouldCreateCycle`
- * is `() => false` here exactly as it is in `createTerm`.
+ * Unlike `createTerm`, an import can MOVE an existing term (an import-as-update with a new
+ * `parentId`), so the destination's real ancestor chain is loaded first (`loadAncestorChain`) and
+ * handed to the certified `wouldCreateCycle` walk — a publish must never write a parent loop into
+ * live taxonomy, where every tree walk over it would spin forever.
  *
- * @complexity O(1) — one taxonomy lookup, one id lookup, one optional parent lookup, one
- * insert-or-update, one revision append.
+ * @complexity O(d) — one taxonomy lookup, one id lookup, one optional parent lookup, `d` ancestor
+ * lookups (the candidate parent's depth), one insert-or-update, one revision append.
  */
 export async function importTerm(
   required: ImportTermRequired,
@@ -464,13 +480,14 @@ export async function importTerm(
     const parentTerm = await deps.terms.findById(candidateParentId);
     resolvedParent = parentTerm ? { id: parentTerm.id, taxonomyId: parentTerm.taxonomyId } : null;
   }
+  const ancestors = candidateParentId === null ? new Map<string, string | null>() : await loadAncestorChain(deps.terms, candidateParentId);
 
   validateHierarchyAssignment({
     childTaxonomyId: taxonomyId,
     taxonomyIsHierarchical: taxonomy.hierarchical,
     candidateParentId,
     resolvedParent,
-    wouldCreateCycle: () => false,
+    wouldCreateCycle: (parent) => wouldCreateCycle({ termId: id, candidateParentId: parent, tree: { getParentId: (termId) => ancestors.get(termId) ?? null } }),
     termId: existing ? id : "__new__",
   });
 
