@@ -90,6 +90,18 @@ export interface DelegatedToolsHttpDeps {
    * waived. Unconstrained calls behave identically with or without it.
    */
   readonly toolRegistry?: ToolRegistry;
+  /**
+   * Host opt-in: returns `true` for a `failed` result whose `error` text the HOST has already made
+   * safe to show the model — secret values blanked, an error id minted — so this route answers it
+   * with `422 TOOL_EXECUTION_FAILED` carrying that text, not the SEC-005-redacted 500. The model then
+   * sees why the tool failed (e.g. "no frontend is bound…") instead of an opaque INTERNAL_ERROR.
+   *
+   * Only consulted for `status: 'failed'` with a non-empty `error`; every other outcome, and every
+   * failure it returns `false` for, keeps the existing mapping. Omitted (the default), nothing
+   * changes — a host that has no redaction layer must not wire this, because this route does no
+   * redaction of its own on this path.
+   */
+  readonly isModelSafeToolFailure?: (result: ToolExecutionResult) => boolean;
 }
 
 /**
@@ -337,7 +349,9 @@ function parseDelegatedToolExecute(input: RouteInputContext): Result<DelegatedTo
  * actionable message (the same one a model reads to retry correctly), not redacted. Everything else
  * (`'internal'`, or no `errorKind` at all — e.g. an older `ToolExecutor` build) stays the SEC-005
  * redacted 500 path, because a handler that threw for a reason OTHER than "your input was bad" can
- * embed exactly the kind of internal detail that path exists to keep off the wire.
+ * embed exactly the kind of internal detail that path exists to keep off the wire — unless the host
+ * vouches for this exact result via `deps.isModelSafeToolFailure` (it has already redacted the text
+ * itself), in which case it is a `422 TOOL_EXECUTION_FAILED` carrying the host's text verbatim.
  */
 function toolExecutionResultToApiResult(
   deps: DelegatedToolsHttpDeps,
@@ -358,6 +372,9 @@ function toolExecutionResultToApiResult(
     case 'failed':
       if (result.errorKind === 'validation') {
         return err(createApiError('BAD_REQUEST', result.error ?? 'invalid tool input'));
+      }
+      if (result.error && deps.isModelSafeToolFailure?.(result) === true) {
+        return err(createApiError('TOOL_EXECUTION_FAILED', result.error));
       }
       return err(reportInternalError(deps, 'delegated-tool-execute', result.error ?? result.status, runId, toolId));
   }
