@@ -472,6 +472,10 @@ export async function importTerm(
     if (existing.version !== expectedVersion) {
       throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for term '${id}', found ${existing.version}`);
     }
+    // A cross-taxonomy move would leave the term's children parented across taxonomies.
+    if (existing.taxonomyId !== taxonomyId) {
+      throw new TaxonomyVersionConflictError(`term '${id}' belongs to taxonomy '${existing.taxonomyId}', not '${taxonomyId}'; an import cannot move a term between taxonomies`);
+    }
   }
 
   const candidateParentId = parentId ?? null;

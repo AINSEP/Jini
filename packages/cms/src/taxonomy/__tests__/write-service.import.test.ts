@@ -323,3 +323,23 @@ test("importTerm's ancestor walk terminates on a pre-existing malformed loop abo
 
   assert.equal(moved.parentId, "x");
 });
+
+test("an import-as-update cannot move an existing term to another taxonomy — version conflict, exact text, no write", async () => {
+  const taxonomies = fakeTaxonomiesRepo([
+    { id: "tax-1", name: "Cuisine", hierarchical: false, status: "active", updatedAt: NOW, version: 1 },
+    { id: "tax-2", name: "Diet", hierarchical: false, status: "active", updatedAt: NOW, version: 1 },
+  ]);
+  const terms = fakeTermsRepo([{ id: "src-term-1", taxonomyId: "tax-1", parentId: null, name: "Mexican", status: "active", updatedAt: NOW, version: 1 }]);
+  const { deps, revisions } = baseDeps({ taxonomies, terms });
+
+  await assert.rejects(
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-2", name: "Mexican", parentId: null, expectedVersion: 1 }),
+    (err: unknown) => {
+      assert.ok(err instanceof TaxonomyVersionConflictError);
+      assert.equal(err.message, "term 'src-term-1' belongs to taxonomy 'tax-1', not 'tax-2'; an import cannot move a term between taxonomies");
+      return true;
+    }
+  );
+  assert.equal(terms.rows.get("src-term-1")?.taxonomyId, "tax-1");
+  assert.equal(revisions.length, 0);
+});

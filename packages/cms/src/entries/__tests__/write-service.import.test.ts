@@ -281,3 +281,30 @@ test("a successful import enqueues exactly one entry.imported outbox event", asy
   assert.equal(events.length, 1);
   assert.equal((events[0] as { name: string }).name, "entry.imported");
 });
+
+test("an import-as-update cannot change an existing entry's type — version conflict, exact text, no write", async () => {
+  const existing: EntryRecord = {
+    id: "src-entry-1", workspaceId: "ws-1", type: "article", slug: "chili", status: "draft", title: "Chili",
+    bodyJson: null, fieldsJson: { ext: { site: {} } }, publishedAt: null, createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z", version: 3,
+  };
+  const entryRepo = fakeEntryRepo([existing]);
+  const contentTypeRepo = fakeContentTypeRepo(activeContentType());
+
+  const result = await importEntry({
+    deps: { entryRepo, contentTypeRepo, clock, authorize: alwaysAllow, outbox },
+    input: {
+      workspaceId: "ws-1", actorId: "user-1", id: "src-entry-1", type: "recipe", slug: "chili", title: "Chili",
+      status: "draft", fieldsJson: { ext: { site: {} } }, publishedAt: null, expectedVersion: 3,
+    },
+  });
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.ok(result.error instanceof VersionConflictError);
+    assert.equal(result.error.message, "entry 'src-entry-1' is of type 'article', not 'recipe'; an import cannot change an entry's type");
+  }
+  assert.equal(entryRepo.rows[0]!.type, "article");
+  assert.equal(entryRepo.rows[0]!.version, 3);
+  assert.equal(entryRepo.revisions.length, 0);
+});

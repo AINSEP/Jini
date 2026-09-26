@@ -417,6 +417,11 @@ export async function importEntry(required: ImportEntryRequired): Promise<Result
     if (existing.version !== input.expectedVersion) {
       return { ok: false, error: new VersionConflictError(`expected version ${input.expectedVersion} for entry '${input.id}', found ${existing.version}`) };
     }
+    // Same id, different type means this is not the row the caller's plan was made against; a
+    // silent type move would also dodge the REQ-28 tombstone check on the entry's REAL type.
+    if (existing.type !== input.type) {
+      return { ok: false, error: new VersionConflictError(`entry '${input.id}' is of type '${existing.type}', not '${input.type}'; an import cannot change an entry's type`) };
+    }
   }
 
   const now = deps.clock.nowIso();
