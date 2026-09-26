@@ -37,10 +37,12 @@ import {
   claudeAuthGuidance,
   cursorAuthGuidance,
   deepseekAuthGuidance,
+  geminiAuthGuidance,
   isAntigravityAuthFailureText,
   isClaudeAuthFailureText,
   isCursorAuthFailureText,
   isDeepSeekAuthFailureText,
+  isGeminiAuthFailureText,
   isReasonixAuthFailureText,
   probeAgentAuthStatus,
   reasonixAuthGuidance,
@@ -93,6 +95,13 @@ describe('auth guidance de-branding', () => {
     expect(message).toContain("Acme Studio's daemon process");
     expect(message).toContain('If Acme Studio is launched outside an interactive shell');
   });
+
+  it('geminiAuthGuidance threads hostName and points at an API key, not a re-login', () => {
+    const message = geminiAuthGuidance('Acme Studio');
+    expect(message).toContain("Acme Studio's process environment");
+    expect(message).toContain('GEMINI_API_KEY');
+    expect(geminiAuthGuidance()).toContain("the host application's process environment");
+  });
 });
 
 describe('auth failure text classifiers', () => {
@@ -139,6 +148,23 @@ describe('auth failure text classifiers', () => {
     expect(isReasonixAuthFailureText('DEEPSEEK_API_KEY not set, auth required')).toBe(true);
     expect(isReasonixAuthFailureText('')).toBe(false);
     expect(isReasonixAuthFailureText('unrelated text')).toBe(false);
+  });
+
+  it('isGeminiAuthFailureText matches the no-auth-method and ineligible-tier failures', () => {
+    // Verbatim stderr of `gemini` 0.58.0 headless runs.
+    expect(
+      isGeminiAuthFailureText(
+        'Please set an Auth method in your /Users/x/.gemini/settings.json or specify one of the following environment variables before running: GEMINI_API_KEY, GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_GENAI_USE_GCA',
+      ),
+    ).toBe(true);
+    expect(
+      isGeminiAuthFailureText(
+        'Error authenticating: IneligibleTierError: This client is no longer supported for Gemini Code Assist for individuals.',
+      ),
+    ).toBe(true);
+    expect(isGeminiAuthFailureText('API key not valid. Please pass a valid API key.')).toBe(true);
+    expect(isGeminiAuthFailureText('')).toBe(false);
+    expect(isGeminiAuthFailureText('unrelated text about gemini')).toBe(false);
   });
 
   it('isClaudeAuthFailureText returns false for empty/whitespace text', () => {
@@ -190,6 +216,7 @@ describe('classifyAgentAuthFailure', () => {
     expect(classifyAgentAuthFailure('deepseek', 'all good')).toBeNull();
     expect(classifyAgentAuthFailure('antigravity', 'all good')).toBeNull();
     expect(classifyAgentAuthFailure('reasonix', 'all good')).toBeNull();
+    expect(classifyAgentAuthFailure('gemini', 'all good')).toBeNull();
   });
 
   it('returns a missing-status result with guidance for each tailored agent', () => {
@@ -198,6 +225,7 @@ describe('classifyAgentAuthFailure', () => {
     expect(classifyAgentAuthFailure('deepseek', 'KEY=<your-key>')?.status).toBe('missing');
     expect(classifyAgentAuthFailure('antigravity', 'authentication timed out')?.status).toBe('missing');
     expect(classifyAgentAuthFailure('reasonix', 'DEEPSEEK_API_KEY not set, auth required')?.status).toBe('missing');
+    expect(classifyAgentAuthFailure('gemini', 'Please set an Auth method in your settings.json')?.status).toBe('missing');
   });
 
   it('threads a custom hostName into the returned message', () => {

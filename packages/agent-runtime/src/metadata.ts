@@ -53,6 +53,10 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://cursor.com/docs/cli/overview',
     docsUrl: 'https://docs.cursor.com/en/cli/overview',
   },
+  gemini: {
+    installUrl: 'https://github.com/google-gemini/gemini-cli',
+    docsUrl: 'https://geminicli.com/docs/',
+  },
   qwen: {
     installUrl: 'https://github.com/QwenLM/qwen-code',
     docsUrl: 'https://qwenlm.github.io/qwen-code-docs/en/index',

@@ -78,6 +78,18 @@ function claudeAuthGuidanceText(hostName: string): string {
   return `Claude Code is installed but is not authenticated. Run \`claude auth login\` or open \`claude\` and complete login in a terminal, then rescan. If ${hostName} was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.`;
 }
 
+// Gemini CLI has two distinct sign-in failures, and one fix covers both. With no auth method
+// configured, headless mode exits with "Please set an Auth method in your <settings.json> or
+// specify one of the following environment variables before running: GEMINI_API_KEY,
+// GOOGLE_GENAI_USE_VERTEXAI, GOOGLE_GENAI_USE_GCA". With "Login with Google" on a free / Google AI
+// Pro / Ultra account it dies with `IneligibleTierError: This client is no longer supported for
+// Gemini Code Assist for individuals` (Google stopped serving those tiers on 2026-06-18; API keys,
+// Vertex AI and Code Assist licenses still work). Signing in again cannot fix the second one, so
+// the guidance points at an API key or Antigravity instead of a re-login.
+function geminiAuthGuidanceText(hostName: string): string {
+  return `Gemini CLI is installed but has no usable sign-in. Google no longer serves Gemini CLI's "Login with Google" for free, Google AI Pro or Ultra accounts. Use a Gemini API key instead: run \`gemini\` in a terminal, type /auth, choose "Use Gemini API key", and make GEMINI_API_KEY available to ${hostName}'s process environment (or configure Vertex AI). Google's replacement for individual accounts is Antigravity (\`agy\`), which you can pick here instead.`;
+}
+
 export function cursorAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
   return cursorAuthGuidanceText(hostName);
 }
@@ -100,6 +112,10 @@ export function reasonixAuthGuidance(hostName: string = DEFAULT_HOST_NAME): stri
 
 export function claudeAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
   return claudeAuthGuidanceText(hostName);
+}
+
+export function geminiAuthGuidance(hostName: string = DEFAULT_HOST_NAME): string {
+  return geminiAuthGuidanceText(hostName);
 }
 
 export function isCursorAuthFailureText(text: string): boolean {
@@ -181,6 +197,18 @@ export function isClaudeAuthFailureText(text: string): boolean {
   );
 }
 
+export function isGeminiAuthFailureText(text: string): boolean {
+  const value = String(text || '');
+  if (!value.trim()) return false;
+  return (
+    /please set an auth method/i.test(value) ||
+    /IneligibleTierError/.test(value) ||
+    /no longer supported for gemini code assist/i.test(value) ||
+    /error authenticating/i.test(value) ||
+    /api key not valid/i.test(value)
+  );
+}
+
 export function classifyAgentAuthFailure(
   agentId: string,
   text: string,
@@ -205,6 +233,10 @@ export function classifyAgentAuthFailure(
   if (agentId === 'reasonix') {
     if (!isReasonixAuthFailureText(text)) return null;
     return { status: 'missing', message: reasonixAuthGuidance(hostName) };
+  }
+  if (agentId === 'gemini') {
+    if (!isGeminiAuthFailureText(text)) return null;
+    return { status: 'missing', message: geminiAuthGuidance(hostName) };
   }
   return null;
 }
@@ -306,7 +338,7 @@ function genericAuthGuidance(agentName: string, hostName: string): string {
 // regex (e.g. cursor-agent's healthy `status` output mentions "login" in
 // ways the generic matcher would misread). The generic classifier is only a
 // fallback for adapters with no tailored classifier of their own.
-const TAILORED_AUTH_AGENTS = new Set(['claude', 'cursor-agent', 'deepseek', 'antigravity', 'reasonix']);
+const TAILORED_AUTH_AGENTS = new Set(['claude', 'cursor-agent', 'deepseek', 'antigravity', 'reasonix', 'gemini']);
 
 function hasNonEmptyEnv(env: RuntimeEnv, keys: string[]): boolean {
   return keys.some((key) => {
