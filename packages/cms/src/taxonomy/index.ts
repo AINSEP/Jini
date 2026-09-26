@@ -42,6 +42,7 @@ export {
   TermHasAssignedContentError,
   TermHasChildTermsError,
   TaxonomyHasAssignedContentError,
+  TaxonomyVersionConflictError,
   createTaxonomy,
   createTerm,
   renameTerm,
@@ -50,6 +51,8 @@ export {
   deleteTerm,
   deleteTaxonomy,
   onContentDeleted,
+  importTaxonomy,
+  importTerm,
   type AuthorizeFn,
   type Taxonomy,
   type Term,
@@ -77,6 +80,10 @@ export {
   type TransactionalRepoPort,
   type EntryTermsCleanupPort,
   type OnContentDeletedRequired,
+  type ImportableTaxonomyRepoPort,
+  type ImportableTermRepoPort,
+  type ImportTaxonomyRequired,
+  type ImportTermRequired,
 } from "./write-service.js";
 
 export {

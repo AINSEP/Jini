@@ -120,7 +120,7 @@ export interface TaxonomyRevisionRow {
    * `"deprecate"` (that ceremony's own header explains why widening this union was out of its
    * scope), a delete has no honest fit among the other four ops, so this widens the union rather
    * than overloading an existing member. */
-  op: "create" | "rename" | "reparent" | "deprecate" | "delete";
+  op: "create" | "rename" | "reparent" | "deprecate" | "delete" | "import";
   previousState: Record<string, unknown> | null;
   actorId: string;
   recordedAt: string;
@@ -179,6 +179,21 @@ export class ContentRecordNotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "ContentRecordNotFoundError";
+  }
+}
+
+/**
+ * J1 (plan-publish-all-types-2026-09-25.md) — `importTaxonomy`/`importTerm`'s optimistic-concurrency
+ * rejection. Neither `Taxonomy` nor `Term` had a version-checked write before this slice
+ * (`createTaxonomy`/`createTerm` always insert a fresh row; `renameTerm` doesn't check a caller-
+ * supplied version either), so this is a new class rather than a reused one — `content-types`' and
+ * `entries`' own `VersionConflictError`s are each that package's own, per this file's header's
+ * "catch the one it actually called into" rule.
+ */
+export class TaxonomyVersionConflictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TaxonomyVersionConflictError";
   }
 }
 
@@ -290,6 +305,200 @@ export async function createTerm(
   await deps.revisions.insert({ taxonomyId, op: "create", previousState: null, actorId: principalId, recordedAt: now });
   deps.stampWatermark();
   await deps.outbox.enqueue({ name: "taxonomy.term_created", termId: term.id, actorId: principalId, occurredAt: now });
+
+  return term;
+}
+
+/**
+ * Additive capability beyond the certified `TaxonomyRepoPort` — `findById`'s narrow return
+ * (`{id, hierarchical, allowList?}`) doesn't carry `version`/`name`/`status`/`updatedAt`, which
+ * `importTaxonomy`'s CAS check and update-in-place both need, and `insert`-only leaves no way to
+ * write an existing row back. Same beyond-the-certified-port precedent as `DeletableTaxonomyRepoPort`.
+ */
+export interface ImportableTaxonomyRepoPort {
+  findByIdFull(id: string): Promise<Taxonomy | null>;
+  update(row: Taxonomy): Promise<unknown>;
+}
+
+export interface ImportTaxonomyRequired {
+  deps: WriteServiceDeps & { taxonomies: TaxonomyRepoPort & ImportableTaxonomyRepoPort };
+  principalId: string;
+  /** The source's own id, preserved verbatim — unlike `createTaxonomy`, which always mints a fresh
+   * one. Anything referencing this taxonomy by id (its member terms) needs it to survive a publish
+   * round trip unchanged. */
+  id: string;
+  name: string;
+  hierarchical: boolean;
+  /** Same three-way CAS contract as `importEntry`'s `expectedVersion`: `undefined` means "this id
+   * must not already exist" (import-as-create); a number means "a row at exactly this version must
+   * exist" (import-as-update). Either mismatch is a `TaxonomyVersionConflictError`, never a silent
+   * overwrite or a silent no-op. */
+  expectedVersion: number | undefined;
+}
+
+/**
+ * Slice J1 — the publish-content import chokepoint for `taxonomies`. Address (name) uniqueness is
+ * deliberately not checked here: the publish factory's own `address` precheck (F1's
+ * `config.address`) owns that refusal before this is ever called, mirroring `importEntry`'s
+ * identical split from slug-uniqueness.
+ *
+ * @complexity O(1) — one id lookup, one insert-or-update, one revision append, all outside a
+ * transaction (this package has no SQLite adapter to open one against yet — see `repo.memory.ts`'s
+ * header).
+ */
+export async function importTaxonomy(
+  required: ImportTaxonomyRequired,
+  _optional: Record<string, never> = {}
+): Promise<Taxonomy> {
+  const { deps, principalId, id, name, hierarchical, expectedVersion } = required;
+  await authorizeTaxonomyManage(deps, principalId);
+
+  const existing = await deps.taxonomies.findByIdFull(id);
+  if (expectedVersion === undefined) {
+    if (existing) {
+      throw new TaxonomyVersionConflictError(`taxonomy '${id}' already exists, but no expectedVersion was supplied for import`);
+    }
+  } else {
+    if (!existing) {
+      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for taxonomy '${id}', but no such taxonomy exists`);
+    }
+    if (existing.version !== expectedVersion) {
+      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for taxonomy '${id}', found ${existing.version}`);
+    }
+  }
+
+  const now = deps.clock.nowIso();
+  const taxonomy: Taxonomy = {
+    id,
+    name,
+    hierarchical,
+    status: "active",
+    updatedAt: now,
+    version: existing ? existing.version + 1 : 1,
+  };
+
+  if (existing) {
+    await deps.taxonomies.update(taxonomy);
+  } else {
+    await deps.taxonomies.insert(taxonomy);
+  }
+  await deps.revisions.insert({
+    taxonomyId: taxonomy.id,
+    op: "import",
+    previousState: existing ? { name: existing.name, hierarchical: existing.hierarchical } : null,
+    actorId: principalId,
+    recordedAt: now,
+  });
+  deps.stampWatermark();
+  await deps.outbox.enqueue({ name: "taxonomy.imported", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now });
+
+  return taxonomy;
+}
+
+/**
+ * Additive capability beyond the certified `TermRepoPort` — `findById`'s narrow return
+ * (`{id, taxonomyId, name?}`) doesn't carry `version`, which `importTerm`'s CAS check needs.
+ * `TermRepoPort` already has `update`, unlike taxonomies, so no additive `update` is needed here.
+ */
+export interface ImportableTermRepoPort {
+  findByIdFull(id: string): Promise<Term | null>;
+}
+
+export interface ImportTermRequired {
+  deps: WriteServiceDeps & { terms: TermRepoPort & ImportableTermRepoPort };
+  principalId: string;
+  /** The source's own id, preserved verbatim — unlike `createTerm`, which always mints a fresh one. */
+  id: string;
+  taxonomyId: string;
+  name: string;
+  parentId?: string | null | undefined;
+  /** Same three-way CAS contract as `importTaxonomy.expectedVersion`. */
+  expectedVersion: number | undefined;
+}
+
+/**
+ * Slice J1 — the publish-content import chokepoint for `terms`. Address (name within
+ * `(taxonomyId, parentId)`) uniqueness is the publish factory's own precheck, not this function's
+ * job — same split as `importTaxonomy`/`importEntry`.
+ *
+ * Reparent-cycle detection against an EXISTING destination term (an import-as-update that also
+ * moves `parentId`) is a disclosed gap, not silently skipped: `createTerm`'s own doc comment
+ * already discloses the identical gap ("not yet built — no certified test in this slice exercises
+ * it") for the same reason — building the ancestor-chain `TermTreeLookup` wiring this needs is out
+ * of scope for J1, whose job is the import write path, not a new cycle-detection capability. A
+ * fresh import-as-create cannot be a cycle source (no descendants exist yet), so `wouldCreateCycle`
+ * is `() => false` here exactly as it is in `createTerm`.
+ *
+ * @complexity O(1) — one taxonomy lookup, one id lookup, one optional parent lookup, one
+ * insert-or-update, one revision append.
+ */
+export async function importTerm(
+  required: ImportTermRequired,
+  _optional: Record<string, never> = {}
+): Promise<Term> {
+  const { deps, principalId, id, taxonomyId, name, parentId, expectedVersion } = required;
+  await authorizeTaxonomyManage(deps, principalId);
+
+  const taxonomy = await deps.taxonomies.findById(taxonomyId);
+  if (!taxonomy) {
+    throw new TaxonomyRecordNotFoundError(`taxonomy '${taxonomyId}' was not found`);
+  }
+
+  const existing = await deps.terms.findByIdFull(id);
+  if (expectedVersion === undefined) {
+    if (existing) {
+      throw new TaxonomyVersionConflictError(`term '${id}' already exists, but no expectedVersion was supplied for import`);
+    }
+  } else {
+    if (!existing) {
+      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for term '${id}', but no such term exists`);
+    }
+    if (existing.version !== expectedVersion) {
+      throw new TaxonomyVersionConflictError(`expected version ${expectedVersion} for term '${id}', found ${existing.version}`);
+    }
+  }
+
+  const candidateParentId = parentId ?? null;
+  let resolvedParent: { id: string; taxonomyId: string } | null | "not-applicable" = "not-applicable";
+  if (candidateParentId !== null) {
+    const parentTerm = await deps.terms.findById(candidateParentId);
+    resolvedParent = parentTerm ? { id: parentTerm.id, taxonomyId: parentTerm.taxonomyId } : null;
+  }
+
+  validateHierarchyAssignment({
+    childTaxonomyId: taxonomyId,
+    taxonomyIsHierarchical: taxonomy.hierarchical,
+    candidateParentId,
+    resolvedParent,
+    wouldCreateCycle: () => false,
+    termId: existing ? id : "__new__",
+  });
+
+  const now = deps.clock.nowIso();
+  const term: Term = {
+    id,
+    taxonomyId,
+    parentId: candidateParentId,
+    name,
+    status: "active",
+    updatedAt: now,
+    version: existing ? existing.version + 1 : 1,
+  };
+
+  if (existing) {
+    await deps.terms.update(term);
+  } else {
+    await deps.terms.insert(term);
+  }
+  await deps.revisions.insert({
+    taxonomyId,
+    op: "import",
+    previousState: existing ? { name: existing.name, parentId: existing.parentId } : null,
+    actorId: principalId,
+    recordedAt: now,
+  });
+  deps.stampWatermark();
+  await deps.outbox.enqueue({ name: "taxonomy.term_imported", termId: term.id, actorId: principalId, occurredAt: now });
 
   return term;
 }

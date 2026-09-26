@@ -20,6 +20,19 @@ export class InMemoryTaxonomyRepo implements TaxonomyRepoPort, TaxonomyListPort 
     return row ? { id: row.id, hierarchical: row.hierarchical } : null;
   }
 
+  /** `ImportableTaxonomyRepoPort` — additive capability for `importTaxonomy`'s CAS check and
+   * update-in-place, see `write-service.ts`'s doc comment on that interface. */
+  async findByIdFull(id: string): Promise<Taxonomy | null> {
+    const row = this.rows.get(id);
+    return row ? { ...row } : null;
+  }
+
+  /** `ImportableTaxonomyRepoPort` — writes an existing row back in place, preserving its id. */
+  async update(row: Taxonomy): Promise<unknown> {
+    this.rows.set(row.id, { ...row });
+    return row;
+  }
+
   async list(): Promise<Taxonomy[]> {
     return [...this.rows.values()].map((row) => ({ ...row }));
   }
@@ -67,6 +80,13 @@ export class InMemoryTermRepo implements TermRepoPort, TermListPort {
   async findById(id: string): Promise<{ id: string; taxonomyId: string; name?: string | undefined } | null> {
     const row = this.rows.get(id);
     return row ? { id: row.id, taxonomyId: row.taxonomyId, name: row.name } : null;
+  }
+
+  /** `ImportableTermRepoPort` — additive capability for `importTerm`'s CAS check, see
+   * `write-service.ts`'s doc comment on that interface. */
+  async findByIdFull(id: string): Promise<Term | null> {
+    const row = this.rows.get(id);
+    return row ? { ...row } : null;
   }
 
   async listByTaxonomy(params: { taxonomyId: string }): Promise<Term[]> {

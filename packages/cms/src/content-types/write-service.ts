@@ -296,6 +296,15 @@ export interface UpdateContentTypeFieldsRequired {
     key: string;
     fields: ContentTypeFieldDef[];
     expectedVersion: number;
+    /**
+     * J1 (plan-publish-all-types-2026-09-25.md §0.2) — optional and additive. Before this, no
+     * write path could ever change `label` after `registerContentType`, so a publish that carried
+     * an imported `label` change hashed it (the planned publish factory's `transferred` field) but
+     * had nothing to call that would apply it — a permanent false "still changed" on every
+     * subsequent plan. Omitted, the current label is kept unchanged, exactly as before this field
+     * existed.
+     */
+    label?: string | undefined;
   };
 }
 
@@ -370,7 +379,7 @@ export async function updateContentTypeFields(
   const before = current.fields;
   const after = input.fields;
   const now = deps.clock.nowIso();
-  const updated: ContentTypeRecord = { ...current, fields: after, version: current.version + 1 };
+  const updated: ContentTypeRecord = { ...current, fields: after, label: input.label ?? current.label, version: current.version + 1 };
 
   await deps.repo.transaction(async () => {
     await deps.repo.save(updated);

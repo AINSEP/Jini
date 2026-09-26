@@ -65,8 +65,9 @@ export type {
   CreateEntryRequired,
   UpdateEntryRequired,
   PublishUnpublishEntryRequired,
+  ImportEntryRequired,
 } from "./write-service.js";
-export { createEntry, updateEntry, publishEntry, unpublishEntry } from "./write-service.js";
+export { createEntry, updateEntry, publishEntry, unpublishEntry, importEntry } from "./write-service.js";
 
 /**
  * The in-memory repository. Exported for the same reason `navigation` exports its own: a host's

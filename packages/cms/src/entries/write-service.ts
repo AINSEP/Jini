@@ -9,7 +9,7 @@ import {
   VersionConflictError,
 } from "./errors.js";
 import { validateFieldsAgainstSchema } from "./field-validation.js";
-import type { ActorIdentityInput, EntryRecord, OwningContentType, Result } from "./types.js";
+import type { ActorIdentityInput, EntryRecord, EntryStatus, OwningContentType, Result } from "./types.js";
 
 /**
  * @file The `entries` write chokepoint: `createEntry`,
@@ -327,6 +327,132 @@ export async function updateEntry(required: UpdateEntryRequired): Promise<Result
   await deps.outbox.enqueue({ name: "entry.updated", payload: { workspaceId: input.workspaceId, entryId: current.id } });
 
   return { ok: true, value: { entry: updated } };
+}
+
+export interface ImportEntryRequired {
+  deps: {
+    entryRepo: EntryRepoPort;
+    contentTypeRepo: ContentTypeLookupPort;
+    clock: ClockPort;
+    authorize: AuthorizeFn;
+    outbox: OutboxPort;
+    watermark?: WatermarkPort;
+    onWritten?: (entry: EntryRecord) => Promise<void>;
+  };
+  input: ActorIdentityInput & {
+    workspaceId: string;
+    /** The source's own id, preserved verbatim — unlike `createEntry`, which always mints a fresh
+     * one. Anything referencing this entry by id (widgets, term assignments) needs it to survive
+     * a publish round trip unchanged (plan-publish-all-types-2026-09-25.md §0.3 "Identity"). */
+    id: string;
+    type: string;
+    slug: string;
+    title: string;
+    /** Caller-given, unlike `createEntry`'s forced `"draft"` — an import carries the source's real
+     * status across. */
+    status: EntryStatus;
+    fieldsJson: unknown;
+    bodyJson?: unknown;
+    /** Caller-given, unlike `createEntry`'s forced `null`. */
+    publishedAt: string | null;
+    /**
+     * The publish factory's three-way CAS contract: `undefined` means "no row with this id may
+     * already exist" (an import-as-create); a number means "a row with this id must exist and be
+     * at exactly this version" (an import-as-update). Both cases end in `VersionConflictError` on
+     * mismatch, never a silent create-over-existing or a silent no-op.
+     */
+    expectedVersion: number | undefined;
+    /** The `ext` sub-key `fieldsJson` is namespaced under. Defaults to `"site"` — see `field-validation.ts`'s `validateFieldsAgainstSchema`. */
+    owner?: string | undefined;
+  };
+}
+
+/**
+ * Slice J1 (plan-publish-all-types-2026-09-25.md) — the publish-content import chokepoint for
+ * `entries`. Combines `createEntry`'s owning-type/field-validation guards with `updateEntry`'s
+ * version-CAS discipline, but preserves the caller's own `id`/`status`/`publishedAt` instead of
+ * minting a fresh id and forcing `draft`/`null` — the two behaviors a straight `createEntry` call
+ * cannot produce, and the reason this is a new function rather than a wider `createEntry`.
+ *
+ * A tombstoned owning type refuses the import (mirrors `resolveExistingEntryForTransition`'s
+ * REQ-28 rule); unlike `createEntry`'s REQ-10, a `deprecated` owning type does NOT block an
+ * import — REQ-10 exists to stop new manual authoring against a type an operator is winding down,
+ * not to stop a publish run from keeping an already-existing entry's already-existing type in
+ * sync. Slug uniqueness is deliberately not checked here: the publish factory's own `address`
+ * precheck (config.address, F1) owns that refusal before `importEntry` is ever called.
+ *
+ * @complexity O(1) plus one content-type read, one field-validation pass, one id lookup, and one
+ * same-tx write pair.
+ */
+export async function importEntry(required: ImportEntryRequired): Promise<Result<{ entry: EntryRecord }, Error>> {
+  const { deps, input } = required;
+
+  const authResult = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId, entityType: "entry" });
+  if (!authResult.allowed) {
+    return { ok: false, error: new ForbiddenError(`principal '${input.actorId}' cannot import entry '${input.id}' (${authResult.reason})`) };
+  }
+
+  const contentType = await deps.contentTypeRepo.findByKey({ workspaceId: input.workspaceId, key: input.type });
+  if (!contentType || contentType.workspaceId !== input.workspaceId) {
+    return { ok: false, error: new ContentTypeNotFoundError(`content type '${input.type}' was not found in workspace '${input.workspaceId}'`) };
+  }
+  if (contentType.status === "tombstone") {
+    return { ok: false, error: new ContentTypeNotActiveError(`content type '${input.type}' is tombstoned; entries cannot be imported into it`) };
+  }
+
+  const validation = validateFieldsAgainstSchema({ schema: contentType.fields, fieldsJson: input.fieldsJson, owner: input.owner });
+  if (!validation.valid) {
+    return { ok: false, error: new EntryFieldValidationError(validation.fieldErrors) };
+  }
+
+  const existing = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
+  if (input.expectedVersion === undefined) {
+    if (existing) {
+      return { ok: false, error: new VersionConflictError(`entry '${input.id}' already exists in workspace '${input.workspaceId}', but no expectedVersion was supplied for import`) };
+    }
+  } else {
+    if (!existing) {
+      return { ok: false, error: new VersionConflictError(`expected version ${input.expectedVersion} for entry '${input.id}', but no such entry exists`) };
+    }
+    if (existing.version !== input.expectedVersion) {
+      return { ok: false, error: new VersionConflictError(`expected version ${input.expectedVersion} for entry '${input.id}', found ${existing.version}`) };
+    }
+  }
+
+  const now = deps.clock.nowIso();
+  const entry: EntryRecord = {
+    id: input.id,
+    workspaceId: input.workspaceId,
+    type: input.type,
+    slug: input.slug,
+    status: input.status,
+    title: input.title,
+    bodyJson: input.bodyJson ?? null,
+    fieldsJson: input.fieldsJson,
+    publishedAt: input.publishedAt,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+    version: existing ? existing.version + 1 : 1,
+  };
+
+  await deps.entryRepo.transaction(async () => {
+    await deps.entryRepo.save(entry);
+    await deps.entryRepo.appendRevision({
+      entryId: entry.id,
+      workspaceId: input.workspaceId,
+      op: existing ? "update" : "create",
+      stateJson: entry,
+      actorId: input.actorId,
+      ...delegationFields(input),
+      recordedAt: now,
+    });
+    if (deps.watermark) await deps.watermark.stampWatermark({ workspaceId: input.workspaceId });
+    if (deps.onWritten) await deps.onWritten(entry);
+  });
+
+  await deps.outbox.enqueue({ name: "entry.imported", payload: { workspaceId: input.workspaceId, entryId: entry.id, type: input.type, slug: input.slug } });
+
+  return { ok: true, value: { entry } };
 }
 
 export interface PublishUnpublishEntryRequired {

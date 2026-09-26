@@ -223,3 +223,51 @@ test("S9/row 15: updateContentTypeFields against a tombstoned type is rejected w
   assert.deepEqual(repo.getStored().fields, seed.fields);
   assert.equal(repo.getStored().version, 3);
 });
+
+/**
+ * J1 (plan-publish-all-types-2026-09-25.md §0.2) — `label` was hashed by the publish factory's
+ * planned config but never accepted by `updateContentTypeFields`, so an imported `label` change
+ * silently never applied: the destination kept its old label forever, byte-identical `contentHash`
+ * notwithstanding. `input.label` is optional and additive — every existing caller that omits it
+ * keeps updating fields only, byte-for-byte unaffected.
+ */
+
+test("J1: an updateContentTypeFields call that supplies label replaces it, alongside the field replace", async () => {
+  const seed = existingContentType({ version: 3 });
+  const repo = fakeRepo(seed);
+
+  const result = await updateContentTypeFields({
+    deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: fakeIndexProvisioner(), outbox },
+    input: {
+      workspaceId: "ws-1",
+      actorId: "user-1",
+      key: "recipe",
+      label: "Recipe (Imported)",
+      fields: [{ name: "a", kind: "text", required: false, queryable: false }],
+      expectedVersion: 3,
+    },
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.value.contentType.label, "Recipe (Imported)");
+  assert.equal(repo.getStored().label, "Recipe (Imported)");
+});
+
+test("J1: an updateContentTypeFields call that omits label leaves the current label unchanged", async () => {
+  const seed = existingContentType({ version: 3 });
+  const repo = fakeRepo(seed);
+
+  const result = await updateContentTypeFields({
+    deps: { repo, clock, ids, authorize: alwaysAllow, indexProvisioner: fakeIndexProvisioner(), outbox },
+    input: {
+      workspaceId: "ws-1",
+      actorId: "user-1",
+      key: "recipe",
+      fields: [{ name: "a", kind: "text", required: false, queryable: false }],
+      expectedVersion: 3,
+    },
+  });
+
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.value.contentType.label, "Recipe", "omitting label must not clobber the existing one");
+});
