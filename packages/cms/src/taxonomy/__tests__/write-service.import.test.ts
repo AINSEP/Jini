@@ -8,7 +8,7 @@ import {
   importTerm,
 } from "../write-service.js";
 import { ForbiddenError } from "../../core/commands/command.js";
-import { HierarchyCycleDetectedError } from "../validation-chain.js";
+import { HierarchyCycleDetectedError, TaxonomyNotHierarchicalError } from "../validation-chain.js";
 import type { Taxonomy, Term } from "../write-service.js";
 
 /**
@@ -342,4 +342,35 @@ test("an import-as-update cannot move an existing term to another taxonomy — v
   );
   assert.equal(terms.rows.get("src-term-1")?.taxonomyId, "tax-1");
   assert.equal(revisions.length, 0);
+});
+
+test("importTerm: expectedVersion mismatched against the current row is a version conflict, no write", async () => {
+  const terms = fakeTermsRepo([{ id: "src-term-1", taxonomyId: "tax-1", parentId: null, name: "Mexican", status: "active", updatedAt: NOW, version: 4 }]);
+  const { deps, revisions } = baseDeps({ terms });
+
+  await assert.rejects(
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Renamed", parentId: null, expectedVersion: 2 }),
+    (err: unknown) => {
+      assert.ok(err instanceof TaxonomyVersionConflictError);
+      assert.equal(err.message, "expected version 2 for term 'src-term-1', found 4");
+      return true;
+    }
+  );
+  assert.equal(terms.rows.get("src-term-1")?.name, "Mexican", "the existing row must be untouched on a version conflict");
+  assert.equal(revisions.length, 0);
+});
+
+test("importTerm runs the hierarchy chain: a parentId in a non-hierarchical taxonomy is refused", async () => {
+  const terms = fakeTermsRepo([{ id: "p", taxonomyId: "tax-1", parentId: null, name: "p", status: "active", updatedAt: NOW, version: 1 }]);
+  const { deps } = baseDeps({ terms });
+
+  await assert.rejects(
+    importTerm({ deps, principalId: "user-1", id: "src-term-1", taxonomyId: "tax-1", name: "Mexican", parentId: "p", expectedVersion: undefined }),
+    (err: unknown) => {
+      assert.ok(err instanceof TaxonomyNotHierarchicalError);
+      assert.equal(err.message, "taxonomy 'tax-1' is not hierarchical; parentId must be null");
+      return true;
+    }
+  );
+  assert.equal(terms.rows.has("src-term-1"), false);
 });
