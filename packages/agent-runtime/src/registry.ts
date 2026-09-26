@@ -23,6 +23,7 @@ import {
   amrAgentDef,
   antigravityAgentDef,
   claudeAgentDef,
+  clineAgentDef,
   codebuddyAgentDef,
   codexAgentDef,
   copilotAgentDef,
@@ -72,6 +73,7 @@ export const BASE_AGENT_DEFS: RuntimeAgentDef[] = [
   reasonixAgentDef,
   codebuddyAgentDef,
   mimoAgentDef,
+  clineAgentDef,
 ];
 
 export const AGENT_DEFS: RuntimeAgentDef[] = [...BASE_AGENT_DEFS];

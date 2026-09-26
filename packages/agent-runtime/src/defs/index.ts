@@ -11,6 +11,7 @@ export * from './amp.js';
 export * from './amr.js';
 export * from './antigravity.js';
 export * from './claude.js';
+export * from './cline.js';
 export * from './codebuddy.js';
 export * from './codex.js';
 export * from './copilot.js';

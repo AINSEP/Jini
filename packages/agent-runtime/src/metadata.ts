@@ -96,6 +96,10 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://www.codebuddy.cn',
     docsUrl: 'https://www.codebuddy.cn/docs/workbuddy/Overview',
   },
+  cline: {
+    installUrl: 'https://cline.bot/cli',
+    docsUrl: 'https://docs.cline.bot/cline-cli/overview',
+  },
 };
 
 function sanitizeHttpsUrl(value: string | undefined): string | undefined {
