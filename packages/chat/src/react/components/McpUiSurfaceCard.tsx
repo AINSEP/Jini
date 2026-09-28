@@ -70,7 +70,7 @@ import {
   type McpUiToolCallHandler,
   type UIResource,
 } from '@jini-ai/ui/mcp-ui';
-import { registerExtEventRenderer, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
+import { registerExtEventRenderer, type ExtEventCall, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 
 /** The `kind: 'ext'` event name this renderer claims. */
@@ -154,10 +154,50 @@ function PendingSurfaceMirror({ uri, plan, t }: { uri: string; plan: McpUiAction
   );
 }
 
+/** Words in a finished call's result that mean nobody answered in time. */
+const UNANSWERED_RESULT = /\b(expired|abandoned|did not respond|run ended)\b/i;
+
+/**
+ * Why a card can no longer be answered, or `undefined` while it still can.
+ *
+ * A held-open question (the tool shows the card and waits) is over once its tool call returns, and
+ * dead once its run ends without that return. Its first document stays on screen either way, so
+ * without this an expired, answered or orphaned question still looked answerable (Tovu stuck-chat
+ * investigation, 2026-09-27). Only a card still showing that FIRST document closes: a tool that sent
+ * a follow-up document for the same `ui://` URI (an outcome after the answer) keeps showing it.
+ *
+ * The labels are read from the call's result text, so they are a best guess for a producer this
+ * package has not seen; the card is closed either way, which is the property that matters.
+ */
+function closedLabel(
+  t: ReturnType<typeof useT>,
+  call: ExtEventCall | undefined,
+  runStreaming: boolean,
+  documentsForUri: number,
+): string | undefined {
+  if (call === undefined || documentsForUri > 1) return undefined;
+  if (call.result === undefined) return runStreaming ? undefined : t('This question expired');
+  return UNANSWERED_RESULT.test(call.result.content) ? t('This question expired') : t('Answered');
+}
+
+/** A closed card: the question's title, when the call gave one, and why it is closed. */
+function ClosedSurface({ call, label }: { call: ExtEventCall | undefined; label: string }) {
+  const title = (call?.input as { title?: unknown } | undefined)?.title;
+  return (
+    <div className="mcpui-surface-card mcpui-surface-card-closed" role="status">
+      {typeof title === 'string' && title.trim() !== '' ? `${title}: ${label}` : label}
+    </div>
+  );
+}
+
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
-export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight }: McpUiSurfaceCardProps) {
+export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming }: McpUiSurfaceCardProps) {
   const t = useT();
   const resources = useMemo(() => latestResourcesByUri(events), [events]);
+  // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
+  // that card. A group holding several URIs has no single call to judge them by, and stays live.
+  const closed = resources.length === 1 ? closedLabel(t, call, runStreaming, events.length) : undefined;
+  if (closed !== undefined) return <ClosedSurface call={call} label={closed} />;
 
   if (resources.length === 0) {
     // Visible rather than silent: an `ext` event named `mcp-ui` that carries no parseable resource

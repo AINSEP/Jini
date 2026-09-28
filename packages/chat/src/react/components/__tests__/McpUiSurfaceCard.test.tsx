@@ -41,6 +41,54 @@ afterEach(() => {
 });
 
 describe('McpUiSurfaceCard', () => {
+  describe('a question nobody can answer any more is shown closed, not answerable', () => {
+    const card = [resourceEvent('ui://tovu/ask-choice/x/1', '<form>pick one</form>')];
+    const askCall = { name: 'assistant_ask_choice', input: { title: 'Pick a plan' } };
+
+    it('shows "Answered" once its tool call has the answer, with no live frame', () => {
+      const { container, getByRole } = render(
+        <McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={{ ...askCall, result: { content: '{"submitted":true,"choice":"Alpha"}', isError: false } }} />,
+      );
+      expect(getByRole('status').textContent).toBe('Pick a plan: Answered');
+      expect(container.querySelector('iframe')).toBeNull();
+    });
+
+    it('shows "This question expired" when the call ended without an answer', () => {
+      const { container, getByRole } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          runStreaming
+          events={card}
+          call={{ ...askCall, result: { content: '{"submitted":false,"reason":"expired","note":"The administrator did not respond before the form expired."}', isError: false } }}
+        />,
+      );
+      expect(getByRole('status').textContent).toBe('Pick a plan: This question expired');
+      expect(container.querySelector('iframe')).toBeNull();
+    });
+
+    it('shows "This question expired" when the run ended while the question was still open', () => {
+      const { container, getByRole } = render(<McpUiSurfaceCard {...BASE_PROPS} runStreaming={false} events={card} call={askCall} />);
+      expect(getByRole('status').textContent).toBe('Pick a plan: This question expired');
+      expect(container.querySelector('iframe')).toBeNull();
+    });
+
+    it('stays live while the run is streaming and the call is waiting', async () => {
+      const { container } = render(<McpUiSurfaceCard {...BASE_PROPS} runStreaming events={card} call={askCall} />);
+      await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
+    });
+
+    it('keeps showing an outcome the tool sent back for the same card after the answer', async () => {
+      const { container } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          events={[...card, resourceEvent('ui://tovu/ask-choice/x/1', '<p>Saved.</p>')]}
+          call={{ ...askCall, result: { content: '{"saved":true}', isError: false } }}
+        />,
+      );
+      await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
+    });
+  });
+
   it('renders one real sandboxed iframe per resource, pointed at the given sandbox proxy URL', async () => {
     const { container } = render(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>one</p>')]} />);
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));

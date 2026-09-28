@@ -12,6 +12,7 @@
  */
 import { useMemo } from 'react';
 import type { AgentEvent } from '../../core/index.js';
+import type { ExtEventCall } from '../ext-event-renderer-registry.js';
 
 export interface ExtEventGroup {
   name: string;
@@ -21,6 +22,8 @@ export interface ExtEventGroup {
    */
   slot: string;
   events: unknown[];
+  /** The tool call open when this group's first event arrived — see `ExtEventCall`. */
+  call?: ExtEventCall;
 }
 
 /**
@@ -34,7 +37,21 @@ export function useExtEventGroups(
   return useMemo(() => {
     const order: ExtEventGroup[] = [];
     const bySlot = new Map<string, ExtEventGroup>();
+    // Calls still open at this point in the stream, in the order they opened; the newest open one
+    // is the call an ext event arrived inside.
+    const openCalls = new Map<string, { name: string; input: unknown }>();
+    const ownerOf = new Map<ExtEventGroup, { id: string; name: string; input: unknown }>();
+    const results = new Map<string, { content: string; isError: boolean }>();
     for (const ev of events ?? []) {
+      if (ev.kind === 'tool_use') {
+        openCalls.set(ev.id, { name: ev.name, input: ev.input });
+        continue;
+      }
+      if (ev.kind === 'tool_result') {
+        openCalls.delete(ev.toolUseId);
+        results.set(ev.toolUseId, { content: ev.content, isError: ev.isError });
+        continue;
+      }
       if (ev.kind !== 'ext') continue;
       const slot = slotOf(ev.name, ev.data);
       let group = bySlot.get(slot);
@@ -42,8 +59,16 @@ export function useExtEventGroups(
         group = { name: ev.name, slot, events: [] };
         bySlot.set(slot, group);
         order.push(group);
+        const owner = [...openCalls].at(-1);
+        if (owner !== undefined) ownerOf.set(group, { id: owner[0], ...owner[1] });
       }
       group.events.push(ev.data);
+    }
+    for (const group of order) {
+      const owner = ownerOf.get(group);
+      if (owner === undefined) continue;
+      const result = results.get(owner.id);
+      group.call = { name: owner.name, input: owner.input, ...(result === undefined ? {} : { result }) };
     }
     return order;
   }, [events, slotOf]);

@@ -20,6 +20,18 @@
 import type { ReactNode } from 'react';
 
 /** Render-prop payload for one `name` group of `kind: 'ext'` events belonging to a message. */
+/**
+ * The tool call that was still open when a group's first ext event arrived: the call that emitted
+ * the surface. For a held-open question (a tool that shows a card and waits for the answer), the
+ * call's `result` is the exchange ending: answered, expired or dismissed. Absent `result` means
+ * the call is still waiting, or its run ended before it returned.
+ */
+export interface ExtEventCall {
+  readonly name: string;
+  readonly input: unknown;
+  readonly result?: { readonly content: string; readonly isError: boolean };
+}
+
 export interface ExtEventRenderProps {
   name: string;
   /** Every matching event's `data`, in arrival order. Never empty. */
@@ -29,6 +41,8 @@ export interface ExtEventRenderProps {
   runSucceeded: boolean;
   /** The owning message's `ChatMessage.runId`, if known — a renderer that needs to send something back to this specific run (e.g. an A2UI action) needs this; omitted (`undefined`) for a message with no run association. */
   runId: string | undefined;
+  /** See {@link ExtEventCall}. Absent when the group's first event arrived outside any tool call. */
+  call?: ExtEventCall;
 }
 
 /**

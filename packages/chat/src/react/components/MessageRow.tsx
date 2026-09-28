@@ -268,7 +268,14 @@ export function MessageRow({
   const renderExtGroup = (group: ExtEventGroup) => {
     const renderer = getExtEventRenderer(group.name);
     if (!renderer) return null;
-    const node = renderer({ name: group.name, events: group.events, runStreaming, runSucceeded, runId: message.runId });
+    const node = renderer({
+      name: group.name,
+      events: group.events,
+      runStreaming,
+      runSucceeded,
+      runId: message.runId,
+      ...(group.call === undefined ? {} : { call: group.call }),
+    });
     if (!node) return null;
     return (
       // `key` includes the event count so a group that failed on an earlier, shorter event list
