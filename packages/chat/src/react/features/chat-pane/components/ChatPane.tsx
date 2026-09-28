@@ -71,6 +71,9 @@ function chatPaneClassName(variant: ChatPaneVariant, className: string | undefin
 interface ChatPaneRuntimeView {
   agents: readonly ChatPaneAgent[];
   scanningAgents: boolean;
+  /** No successful inventory answer yet and the last attempt failed — see
+   *  `UseChatPaneRuntimeInventoryResult.connectingAgents`. Always `false` for injected agents. */
+  connectingAgents: boolean;
   daemonOnline: boolean;
   rescanAgents: (() => void) | undefined;
 }
@@ -84,11 +87,12 @@ function resolveRuntimeAccessView(
   inventory: UseChatPaneRuntimeInventoryResult,
 ): ChatPaneRuntimeView {
   if (runtimeAccess === undefined) {
-    return { agents: injectedAgents, scanningAgents, daemonOnline, rescanAgents: onRescanAgents };
+    return { agents: injectedAgents, scanningAgents, connectingAgents: false, daemonOnline, rescanAgents: onRescanAgents };
   }
   return {
     agents: inventory.agents,
     scanningAgents: inventory.scanningAgents,
+    connectingAgents: inventory.connectingAgents,
     daemonOnline: inventory.daemonOnline,
     rescanAgents: () => void inventory.rescanAgents(),
   };
@@ -174,6 +178,7 @@ function ChatPaneNoUsableCliMessage({
 interface ChatPaneStatusMessagesProps {
   unavailable: boolean;
   scanningAgents: boolean;
+  connectingAgents: boolean;
   executionMode: 'local' | 'api';
   apiModeAvailable: boolean;
   onExecutionModeChange: ((mode: 'local' | 'api') => void) | undefined;
@@ -192,6 +197,7 @@ interface ChatPaneStatusMessagesProps {
 function ChatPaneStatusMessages({
   unavailable,
   scanningAgents,
+  connectingAgents,
   executionMode,
   apiModeAvailable,
   onExecutionModeChange,
@@ -210,8 +216,15 @@ function ChatPaneStatusMessages({
           usable" — both present as `selectedAgent === undefined`. `scanningAgents` is the signal
           that tells them apart, mirroring the `workingDirectoryPending`/`workingDirectoryInvalid`
           pair below: a pending detection is a `status`, only a *finished* detection that found
-          nothing is an `alert`. */}
-      {unavailable && scanningAgents ? (
+          nothing is an `alert`. `connectingAgents` is a third state: the inventory could not be
+          read at all (the host is unreachable, typically a daemon restart) and a retry is
+          pending — a plain status too, never "No usable CLI", which only a SUCCESSFUL answer can
+          establish. */}
+      {unavailable && connectingAgents ? (
+        <div className="jini-chat-pane__status" role="status">
+          {t('Connecting to the assistant…')}
+        </div>
+      ) : unavailable && scanningAgents ? (
         <div className="jini-chat-pane__status" role="status">
           {t('Loading available CLIs')}
         </div>
@@ -244,7 +257,8 @@ function ChatPaneStatusMessages({
           {t('Working directory is unavailable.')}
         </div>
       ) : null}
-      {runtimeInventoryError ? (
+      {/* While connecting, the transport error is transient noise the retry is already handling. */}
+      {runtimeInventoryError && !connectingAgents ? (
         <div className="jini-chat-pane__error" role="alert">
           {runtimeInventoryError.message}
         </div>
@@ -630,6 +644,7 @@ export function ChatPane({
           <ChatPaneStatusMessages
             unavailable={unavailable}
             scanningAgents={runtimeView.scanningAgents}
+            connectingAgents={runtimeView.connectingAgents}
             executionMode={executionMode}
             apiModeAvailable={apiModeAvailable}
             onExecutionModeChange={onExecutionModeChange}

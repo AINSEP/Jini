@@ -349,13 +349,45 @@ describe('ChatPane', () => {
     const statusTexts = screen.getAllByRole('status').map((el) => el.textContent);
     expect(statusTexts).toContain('Checking working directory…');
     expect(statusTexts).toContain('Loading available CLIs');
-    expect(await screen.findByText('inventory unavailable')).toBeInTheDocument();
     await act(async () => resolveExists(false));
     expect(await screen.findByText('Working directory is unavailable.')).toBeInTheDocument();
-    // `listAgents` rejected above, so detection is finished (not loading) and found nothing —
-    // now the genuine terminal case, which is the one case that should render as an `alert`.
-    expect(await screen.findByText('No usable CLI is selected.')).toBeInTheDocument();
+    // `listAgents` REJECTED above: that is no answer yet (a daemon mid-restart), not a finished
+    // detection that found nothing — so a plain "connecting" status while the pane retries, never
+    // the red "No usable CLI" alert or the raw transport error (2026-09-28).
+    expect(await screen.findByText('Connecting to the assistant…')).toBeInTheDocument();
+    expect(screen.getByText('Connecting to the assistant…')).toHaveAttribute('role', 'status');
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+    expect(screen.queryByText('inventory unavailable')).not.toBeInTheDocument();
     expect(screen.queryByText('Loading available CLIs')).not.toBeInTheDocument();
+  });
+
+  it('recovers from a failed CLI inventory without a reload once the daemon comes back', async () => {
+    let online = false;
+    const listAgents = vi
+      .fn<() => Promise<ChatPaneAgent[]>>()
+      .mockRejectedValueOnce(new Error('GET /api/agents answered 500'))
+      .mockResolvedValue(agents);
+    const transport = createFakeChatTransport();
+    render(
+      <ChatPane
+        transport={transport}
+        initialSelection={{ agentId: 'codex' }}
+        runtimeStatusPollMs={20}
+        runtimeAccess={{
+          listAgents,
+          rescanAgents: async () => [],
+          daemonOnline: async () => online,
+        }}
+      />,
+    );
+
+    expect(await screen.findByText('Connecting to the assistant…')).toBeInTheDocument();
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+
+    online = true;
+    await waitFor(() => expect(screen.queryByText('Connecting to the assistant…')).not.toBeInTheDocument());
+    expect(screen.queryByText('No usable CLI is selected.')).not.toBeInTheDocument();
+    expect(listAgents).toHaveBeenCalledTimes(2);
   });
 
   it('shows a loading status while CLI detection is in flight, not the red unavailable banner', async () => {
