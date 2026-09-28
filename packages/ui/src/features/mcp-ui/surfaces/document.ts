@@ -68,6 +68,20 @@ body {
 }
 .mcpui-details dt { color: var(--jini-mcpui-text-soft); font-weight: 500; }
 .mcpui-details dd { margin: 0; overflow-wrap: anywhere; color: var(--jini-mcpui-text); }
+.mcpui-code {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 16em;
+  overflow: auto;
+  font-family: var(--jini-mcpui-font-mono);
+  font-size: 12.5px;
+  line-height: 1.45;
+  padding: 6px 8px;
+  border: 1px solid var(--jini-mcpui-border);
+  border-radius: var(--jini-mcpui-radius-sm);
+  background: var(--jini-mcpui-bg);
+}
 .mcpui-warning {
   margin: 14px 0 0;
   padding: 9px 11px;
@@ -227,6 +241,12 @@ export function renderSurfaceHeader(spec: { title: string; description?: string 
 export interface SurfaceDetail {
   readonly label: string;
   readonly value: string;
+  /**
+   * `code` renders the value in a monospace `<pre>` that keeps its line breaks and scrolls inside
+   * its own box past a fixed height, so a long SQL statement or JSON argument stays readable without
+   * stretching the dialog past its frame. Omitted (or `text`) keeps the plain inline value.
+   */
+  readonly format?: 'text' | 'code';
 }
 
 /**
@@ -238,7 +258,11 @@ export interface SurfaceDetail {
 export function renderDetailList(details: readonly SurfaceDetail[]): string {
   if (details.length === 0) return '';
   const rows = details
-    .map((detail) => `  <dt>${escapeHtml(detail.label)}</dt><dd>${escapeHtml(detail.value)}</dd>`)
+    .map((detail) => {
+      const value = escapeHtml(detail.value);
+      const body = detail.format === 'code' ? `<pre class="mcpui-code">${value}</pre>` : value;
+      return `  <dt>${escapeHtml(detail.label)}</dt><dd>${body}</dd>`;
+    })
     .join('\n');
   return `<dl class="mcpui-details">\n${rows}\n</dl>`;
 }

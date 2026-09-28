@@ -53,6 +53,19 @@ export interface ConfirmationToolAction {
   readonly params: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * A further affirmative button beside confirm, such as "Allow for this chat" next to "Allow" — see
+ * {@link ConfirmationSurfaceSpec.alternatives}.
+ */
+export interface ConfirmationAlternative extends ConfirmationToolAction {
+  /**
+   * The button's `data-mcpui-action` handle. A lowercase `[a-z0-9]+(-[a-z0-9]+)*` handle, unique,
+   * and never `confirm` or `cancel`: the script dispatches on it, and an agent driving the frame
+   * finds the button by it (`mcpui-action-<id>`).
+   */
+  readonly id: string;
+}
+
 /** One row of an optional per-item checkbox list — see {@link ConfirmationSurfaceSpec.choices}. */
 export interface ConfirmationChoice {
   /**
@@ -90,6 +103,14 @@ export interface ConfirmationSurfaceSpec {
   /** Styles the affirmative button as destructive. Affects presentation only; it changes no behavior. */
   readonly danger?: boolean;
   readonly confirm: ConfirmationToolAction;
+  /**
+   * Further affirmative buttons, rendered after confirm and before cancel, each calling its own tool
+   * with its own params. Every one is held to exactly what confirm is held to: disabled until the
+   * dwell has run, only a trusted click counts, one call locks the whole dialog, and ticked
+   * {@link choices} ride along on it the way they ride on confirm. With none, the dialog renders and
+   * behaves exactly as the two-button one does.
+   */
+  readonly alternatives?: readonly ConfirmationAlternative[];
   /** Omit for a dialog whose cancel only dismisses. Give it a tool to burn a pending token server-side. */
   readonly cancel?: ConfirmationToolAction | { readonly label: string };
   /** Runtime strings. Partially overridable; anything omitted keeps its English default. */
@@ -110,6 +131,21 @@ export interface ConfirmationSurfaceSpec {
 export const CONFIRM_DWELL_MS = 1500;
 
 const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-confirmation', appVersion: '1' };
+
+const ALTERNATIVE_ID_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** Refuses an alternative id the script or a driver could confuse with another button. */
+function assertAlternativeIds(alternatives: readonly ConfirmationAlternative[]): void {
+  const seen = new Set<string>(['confirm', 'cancel']);
+  for (const alternative of alternatives) {
+    if (!ALTERNATIVE_ID_PATTERN.test(alternative.id) || seen.has(alternative.id)) {
+      throw new Error(
+        `Confirmation alternative ids must be unique lowercase handles other than "confirm" and "cancel"; ${JSON.stringify(alternative.id)} is not.`,
+      );
+    }
+    seen.add(alternative.id);
+  }
+}
 
 function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is ConfirmationToolAction {
   return action !== undefined && 'toolName' in action;
@@ -167,6 +203,7 @@ function renderChoices(choices: readonly ConfirmationChoice[]): string {
 function confirmationActions(spec: ConfirmationSurfaceSpec): SurfaceAction[] {
   const actions: SurfaceAction[] = [
     { id: 'confirm', label: spec.confirm.label, variant: spec.danger === true ? 'danger' : 'primary' },
+    ...(spec.alternatives ?? []).map((alternative): SurfaceAction => ({ id: alternative.id, label: alternative.label, variant: 'neutral' })),
   ];
   if (spec.cancel !== undefined) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
   return actions;
@@ -180,7 +217,16 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
   if ((spec.choices ?? []).length > 0 && Object.prototype.hasOwnProperty.call(spec.confirm.params, choicesParam)) {
     throw new Error(`choicesParam ${JSON.stringify(choicesParam)} collides with a key already in confirm.params.`);
   }
+  for (const alternative of (spec.choices ?? []).length > 0 ? (spec.alternatives ?? []) : []) {
+    if (Object.prototype.hasOwnProperty.call(alternative.params, choicesParam)) {
+      throw new Error(`choicesParam ${JSON.stringify(choicesParam)} collides with a key already in the params of alternative ${JSON.stringify(alternative.id)}.`);
+    }
+  }
+  const alternatives = spec.alternatives ?? [];
+  assertAlternativeIds(alternatives);
   const actions = confirmationActions(spec);
+  // Every affirmative button starts disabled and waits out the dwell; only cancel is live at once.
+  const affirmative = new Set(['confirm', ...alternatives.map((alternative) => alternative.id)]);
 
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
   const bodyHtml = [
@@ -191,7 +237,7 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
     renderChoices(spec.choices ?? []),
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
-    renderActions(actions.map((action) => (action.id === 'confirm' ? { ...action, disabled: true } : action))),
+    renderActions(actions.map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action))),
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')
@@ -203,6 +249,9 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
   const plan: Record<string, { toolName: string; params: Readonly<Record<string, unknown>> } | null> = {
     confirm: { toolName: spec.confirm.toolName, params: spec.confirm.params },
   };
+  for (const alternative of alternatives) {
+    plan[alternative.id] = { toolName: alternative.toolName, params: alternative.params };
+  }
   if (spec.cancel !== undefined) {
     plan['cancel'] = isToolAction(spec.cancel)
       ? { toolName: spec.cancel.toolName, params: spec.cancel.params }
@@ -216,6 +265,10 @@ ${SURFACE_SCRIPT_PRELUDE}
   var TEXT = ${escapeJsValue(text)};
   var DWELL_MS = ${CONFIRM_DWELL_MS};
   var CHOICES_PARAM = ${escapeJsValue(choicesParam)};
+  var AFFIRMATIVE = ${escapeJsValue([...affirmative])};
+  function isAffirmative(action) {
+    return AFFIRMATIVE.indexOf(action) !== -1;
+  }
 
   // Monotonic where available: a wall clock set backwards would otherwise stretch the dwell.
   function now() {
@@ -229,14 +282,18 @@ ${SURFACE_SCRIPT_PRELUDE}
   // has not been seen, so its dwell starts when it is shown, and restarts each time it is shown again.
   var visibleSince = null;
   var dwellTimer = null;
-  var confirmButton = document.querySelector('[data-mcpui-action="confirm"]');
+  var affirmativeButtons = actionButtons.filter(function (node) {
+    return isAffirmative(node.getAttribute("data-mcpui-action"));
+  });
 
   function dwellDone() {
     return visibleSince !== null && now() - visibleSince >= DWELL_MS;
   }
-  // Confirm is enabled exactly when the dwell has run out and no call holds the dialog.
+  // Confirm (and every alternative) is enabled exactly when the dwell has run out and no call holds
+  // the dialog.
   function syncConfirm() {
-    if (confirmButton !== null && !locked) confirmButton.disabled = !dwellDone();
+    if (locked) return;
+    for (var b = 0; b < affirmativeButtons.length; b++) affirmativeButtons[b].disabled = !dwellDone();
   }
   // Re-checks rather than trusts the timer: setTimeout and now() are different clocks, and a timer
   // that fired a hair early must not leave confirm disabled for good.
@@ -310,7 +367,7 @@ ${SURFACE_SCRIPT_PRELUDE}
     var step = PLAN[action];
     if (step === undefined) return;
     // Cancel is exempt: backing out early is never the harm this guards against.
-    if (action === "confirm" && !dwellDone()) return;
+    if (isAffirmative(action) && !dwellDone()) return;
     locked = true;
     setChoicesDisabled(true);
     if (step === null) {
@@ -322,7 +379,7 @@ ${SURFACE_SCRIPT_PRELUDE}
     // Choices ride only on confirm, and only when this document has any -- with none, \`params\` stays
     // the exact \`step.params\` reference PLAN was built from, byte-identical to before this existed.
     var params = step.params;
-    if (action === "confirm" && choiceInputs.length > 0) {
+    if (isAffirmative(action) && choiceInputs.length > 0) {
       var merged = {};
       var key;
       for (key in step.params) if (Object.prototype.hasOwnProperty.call(step.params, key)) merged[key] = step.params[key];

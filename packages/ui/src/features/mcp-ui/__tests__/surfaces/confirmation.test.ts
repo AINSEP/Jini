@@ -535,6 +535,109 @@ describe('choices', () => {
   });
 });
 
+describe('alternatives', () => {
+  const APPROVE = {
+    title: 'Run execute_sql on Supabase?',
+    details: [{ label: 'query', value: 'select 1' }],
+    confirm: { label: 'Allow', toolName: 'mcp__supabase__execute_sql', params: { __exchangeId: 'x1', decision: 'confirm' } },
+    alternatives: [
+      {
+        id: 'allow-chat',
+        label: 'Allow for this chat',
+        toolName: 'mcp__supabase__execute_sql',
+        params: { __exchangeId: 'x1', decision: 'confirm', remember: 'chat' },
+      },
+      {
+        id: 'allow-always',
+        label: 'Always allow',
+        toolName: 'mcp__supabase__execute_sql',
+        params: { __exchangeId: 'x1', decision: 'confirm', remember: 'always' },
+      },
+    ],
+    cancel: { label: 'Cancel', toolName: 'mcp__supabase__execute_sql', params: { __exchangeId: 'x1', decision: 'cancel' } },
+  } as const;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('renders the buttons in order: confirm, each alternative, then cancel', () => {
+    const { doc } = mountSurface(renderConfirmationDocument(APPROVE));
+    expect([...doc.querySelectorAll('button[data-mcpui-action]')].map((node) => [node.getAttribute('data-mcpui-action'), node.textContent])).toEqual([
+      ['confirm', 'Allow'],
+      ['allow-chat', 'Allow for this chat'],
+      ['allow-always', 'Always allow'],
+      ['cancel', 'Cancel'],
+    ]);
+  });
+
+  it('holds every alternative behind the same dwell as confirm, and leaves cancel usable throughout', () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    expect(surface.disabledActions()).toEqual([true, true, true, false]);
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS - 1);
+    surface.trustedClick('allow-always');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(surface.disabledActions()).toEqual([false, false, false, false]);
+  });
+
+  it('sends exactly the clicked alternative’s own params, once', () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    humanClick(surface, 'allow-chat');
+    surface.trustedClick('allow-always');
+    surface.trustedClick('confirm');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+    expect(surface.api.callTool).toHaveBeenCalledWith('mcp__supabase__execute_sql', { __exchangeId: 'x1', decision: 'confirm', remember: 'chat' });
+    expect(surface.disabledActions()).toEqual([true, true, true, true]);
+  });
+
+  it('sends nothing for a synthetic alternative click, however late it lands', () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS * 4);
+    surface.click('allow-always');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+  });
+
+  it('keeps the alternatives disabled after a failed early cancel until the dwell has run out', async () => {
+    const surface = mountSurface(renderConfirmationDocument(APPROVE));
+    surface.trustedClick('cancel');
+    await surface.settle('reject', new Error('offline'));
+    expect(surface.disabledActions()).toEqual([true, true, true, false]);
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    expect(surface.disabledActions()).toEqual([false, false, false, false]);
+  });
+
+  it('writes the alternatives into the action plan in the same order the frame renders them', () => {
+    const resource = buildConfirmationSurface({ ...APPROVE, uri: 'ui://example-host/x/3' });
+    const plan = resource.resource._meta?.[MCP_UI_ACTION_PLAN_META_KEY] as { actions: unknown[] };
+    expect(plan.actions).toEqual([
+      { id: 'confirm', label: 'Allow', variant: 'primary' },
+      { id: 'allow-chat', label: 'Allow for this chat', variant: 'neutral' },
+      { id: 'allow-always', label: 'Always allow', variant: 'neutral' },
+      { id: 'cancel', label: 'Cancel', variant: 'neutral' },
+    ]);
+  });
+
+  it('refuses an alternative id that is reserved, repeated or not a plain handle', () => {
+    for (const id of ['confirm', 'cancel', 'Allow Chat', '']) {
+      expect(() => renderConfirmationDocument({ ...APPROVE, alternatives: [{ ...APPROVE.alternatives[0], id }] })).toThrow(
+        `Confirmation alternative ids must be unique lowercase handles other than "confirm" and "cancel"; ${JSON.stringify(id)} is not.`,
+      );
+    }
+    expect(() => renderConfirmationDocument({ ...APPROVE, alternatives: [APPROVE.alternatives[0], APPROVE.alternatives[0]] })).toThrow(
+      'Confirmation alternative ids must be unique lowercase handles other than "confirm" and "cancel"; "allow-chat" is not.',
+    );
+  });
+
+  it('renders exactly the two-button dialog when alternatives is omitted or empty', () => {
+    const { alternatives: _alternatives, ...plain } = APPROVE;
+    expect(renderConfirmationDocument({ ...plain, alternatives: [] })).toBe(renderConfirmationDocument(plain));
+  });
+});
+
 describe('buildConfirmationSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource', () => {
     const resource = buildConfirmationSurface({ ...DELETE_POST, uri: 'ui://example-host/content-post-delete/p1/3' });
