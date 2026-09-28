@@ -153,7 +153,7 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
  * other block the pinned SDK's `ContentBlockSchema` recognizes — reaches the client as a real content
  * block rather than flattened text (see this module's own doc for the bug this closes). Every other
  * payload keeps the original behavior: a string passes through as one text block; anything else is
- * JSON-stringified into one.
+ * JSON-stringified (compact, no indentation) into one.
  *
  * @complexity O(n) in the number of content-array entries, only when `payload` already looks like an
  * envelope; O(1) otherwise.
@@ -162,7 +162,10 @@ export function okResult(payload: unknown): CallToolResult {
   if (isMcpContentEnvelope(payload)) {
     return { content: payload.content as CallToolResult['content'] };
   }
-  const text = typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2);
+  // Compact on the wire: indentation made nested results ~2.5x larger for the model to read. A view
+  // that shows a result to a person re-indents it at render time (`@jini-ai/chat`'s
+  // `formatToolOutputForDisplay`).
+  const text = typeof payload === 'string' ? payload : JSON.stringify(payload);
   return { content: [{ type: 'text', text }] };
 }
 

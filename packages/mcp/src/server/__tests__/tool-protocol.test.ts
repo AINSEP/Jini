@@ -27,8 +27,8 @@ describe('okResult', () => {
     expect(okResult('hello')).toEqual({ content: [{ type: 'text', text: 'hello' }] });
   });
 
-  it('JSON-stringifies a non-string payload', () => {
-    expect(okResult({ a: 1 })).toEqual({ content: [{ type: 'text', text: JSON.stringify({ a: 1 }, null, 2) }] });
+  it('JSON-stringifies a non-string payload compactly — no indentation on the wire (a person-facing view pretty-prints at render time)', () => {
+    expect(okResult({ a: 1, b: { c: [1, 2] } })).toEqual({ content: [{ type: 'text', text: '{"a":1,"b":{"c":[1,2]}}' }] });
   });
 
   it('passes a well-formed MCP content envelope through verbatim, preserving a typed image block', () => {
@@ -46,7 +46,7 @@ describe('okResult', () => {
 
   it('still JSON-stringifies a `content` array holding one malformed block — fails closed, does not forward it as protocol output', () => {
     const payload = { content: [{ type: 'image', mimeType: 'image/png' /* missing data */ }] };
-    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
   });
 
   it('still JSON-stringifies a `content` array holding a malformed resource block (missing required text/blob)', () => {
@@ -55,7 +55,7 @@ describe('okResult', () => {
     // both `text` and `blob` cannot be carrying withheld payload data in the first place, so falling
     // back to stringify here is safe: there is nothing sensitive in this shape to leak.
     const payload = { content: [{ type: 'resource', resource: { uri: 'ui://x' } }] };
-    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
   });
 
   it('passes a well-formed `resource` content block through verbatim (ADR-053 Decision 5 regression)', () => {
@@ -91,7 +91,7 @@ describe('okResult', () => {
 
   it('JSON-stringifies a plain object whose `content` field is not an array', () => {
     const payload = { content: 'just a string field named content' };
-    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }] });
+    expect(okResult(payload)).toEqual({ content: [{ type: 'text', text: JSON.stringify(payload) }] });
   });
 
   it('passes through an empty content array as a valid, empty result', () => {

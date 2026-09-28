@@ -21,7 +21,7 @@
  */
 import { useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
-import { isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
+import { formatToolOutputForDisplay, isTodoWriteToolName, parseTodoWriteInput, toRenderProps } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { getToolRenderer } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
@@ -173,7 +173,7 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
             <pre className="op-command">{JSON.stringify(args ?? {})}</pre>
-            {result?.content ? <pre className="op-output">{truncate(result.content, 2000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 2000)}</pre> : null}
             <ToolResultMedia result={result} />
           </div>
         </div>
@@ -201,7 +201,7 @@ function SearchToolsCard({ input, result, runStreaming, runSucceeded }: CardProp
       <div className={`accordion-collapsible${open ? ' open' : ''}`}>
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
-            {result?.content ? <pre className="op-output">{truncate(result.content, 2000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 2000)}</pre> : null}
           </div>
         </div>
       </div>
@@ -228,7 +228,7 @@ function DescribeToolCard({ input, result, runStreaming, runSucceeded }: CardPro
       <div className={`accordion-collapsible${open ? ' open' : ''}`}>
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
-            {result?.content ? <pre className="op-output">{truncate(result.content, 2000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 2000)}</pre> : null}
           </div>
         </div>
       </div>
@@ -387,7 +387,7 @@ function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
         <div className="accordion-collapsible-inner">
           <div className="op-card-detail">
             <pre className="op-command">{truncate(command, 400)}</pre>
-            {result?.content ? <pre className="op-output">{truncate(result.content, 4000)}</pre> : null}
+            {result?.content ? <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 4000)}</pre> : null}
           </div>
         </div>
       </div>
@@ -532,7 +532,7 @@ function ToolResultMedia({ result }: { result?: ToolResultEvent | undefined }) {
 
 function FileErrorDetail({ result }: { result?: ToolResultEvent | undefined }) {
   if (!result?.isError || !result.content.trim()) return null;
-  return <pre className="op-output">{truncate(result.content, 1200)}</pre>;
+  return <pre className="op-output">{truncate(formatToolOutputForDisplay(result.content), 1200)}</pre>;
 }
 
 function describeInput(input: unknown): string {

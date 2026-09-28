@@ -191,7 +191,7 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
     // zod parse, not from the transport: see this module's "Known limit" note.)
     expect(seenArgs).toEqual(sentArgs);
     expect(seenArgs).not.toBe(sentArgs);
-    expect(result.content).toEqual([{ type: 'text', text: JSON.stringify({ received: sentArgs }, null, 2) }]);
+    expect(result.content).toEqual([{ type: 'text', text: JSON.stringify({ received: sentArgs }) }]);
     await closeDown(runPromise);
   });
 

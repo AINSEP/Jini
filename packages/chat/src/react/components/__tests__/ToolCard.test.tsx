@@ -697,7 +697,7 @@ describe('ToolCard', () => {
       expect(document.querySelector('.accordion-collapsible.open')).toBeNull();
       await userEvent.click(screen.getByRole('button'));
       expect(document.querySelector('.accordion-collapsible.open')).not.toBeNull();
-      expect(document.querySelector('.op-output')?.textContent).toBe('{"inputSchema":{"type":"object"}}');
+      expect(document.querySelector('.op-output')?.textContent).toBe(JSON.stringify({ inputSchema: { type: 'object' } }, null, 2));
     });
 
     it('omits the describe_tool output block entirely when the result carried no content', () => {
@@ -735,4 +735,16 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-card')?.lastElementChild?.textContent).toBe('unknown tool "page.nope"');
     });
   });
+
+  it('shows a compact JSON tool result re-indented for a person to read (the wire stays compact)', () => {
+    render(
+      <ToolCard
+        use={{ kind: 'tool_use', id: 'st1', name: 'mcp__jini__search_tools', input: { query: 'posts' } }}
+        result={{ kind: 'tool_result', toolUseId: 'st1', content: '{"tools":[{"id":"content_post_list"}]}', isError: false }}
+        runSucceeded
+      />,
+    );
+    expect(document.querySelector('.op-output')?.textContent).toBe(JSON.stringify({ tools: [{ id: 'content_post_list' }] }, null, 2));
+  });
 });
+
