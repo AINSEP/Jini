@@ -103,6 +103,7 @@ import {
   createCopilotStreamHandler,
   createJsonEventStreamHandler,
   createQoderStreamHandler,
+  ensureAgentCapabilities,
   getAgentDef,
   resolveAgentLaunch,
   attachAcpSession,
@@ -2694,6 +2695,8 @@ export interface CreateAgentExecutorOptions {
   readonly getAgentDef?: typeof getAgentDef;
   /** @default the real `@jini-ai/agent-runtime` launch resolver */
   readonly resolveAgentLaunch?: typeof resolveAgentLaunch;
+  /** @default the real `@jini-ai/agent-runtime` once-per-binary `--help` capability probe */
+  readonly ensureAgentCapabilities?: typeof ensureAgentCapabilities;
   /** @default the real `@jini-ai/agent-runtime` PATH-env composer */
   readonly applyAgentLaunchEnv?: typeof applyAgentLaunchEnv;
   /** @default the real `@jini-ai/platform` cross-platform invocation builder */
@@ -2846,6 +2849,7 @@ type FailBeforeSpawn = (runId: string, code: AgentExecutorErrorCode, message: st
 interface ResolvedAgentRuntimeDeps {
   readonly getAgentDef: typeof getAgentDef;
   readonly resolveAgentLaunch: typeof resolveAgentLaunch;
+  readonly ensureAgentCapabilities: typeof ensureAgentCapabilities;
   readonly applyAgentLaunchEnv: typeof applyAgentLaunchEnv;
   readonly attachAcpSession: typeof attachAcpSession;
   readonly attachPiRpcSession: typeof attachPiRpcSession;
@@ -2866,6 +2870,7 @@ function resolveAgentRuntimeDeps(options: CreateAgentExecutorOptions): ResolvedA
   return {
     getAgentDef: options.getAgentDef ?? getAgentDef,
     resolveAgentLaunch: options.resolveAgentLaunch ?? resolveAgentLaunch,
+    ensureAgentCapabilities: options.ensureAgentCapabilities ?? ensureAgentCapabilities,
     applyAgentLaunchEnv: options.applyAgentLaunchEnv ?? applyAgentLaunchEnv,
     attachAcpSession: options.attachAcpSession ?? attachAcpSession,
     attachPiRpcSession: options.attachPiRpcSession ?? attachPiRpcSession,
@@ -3828,6 +3833,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
   const {
     getAgentDef: getAgentDefFn,
     resolveAgentLaunch: resolveAgentLaunchFn,
+    ensureAgentCapabilities: ensureAgentCapabilitiesFn,
     applyAgentLaunchEnv: applyAgentLaunchEnvFn,
     attachAcpSession: attachAcpSessionFn,
     attachPiRpcSession: attachPiRpcSessionFn,
@@ -3943,6 +3949,11 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
     );
 
     const spawnEnv = applyAgentLaunchEnvFn({ ...resolvedEnv }, launch);
+    // Fill the def's `--help` capability gate before `buildArgs` reads it. Without this, only a
+    // host that happened to call `detectAgents` in THIS process ever had the gate filled, so e.g.
+    // `claude` never got `--include-partial-messages` (no streamed text). Probes once per binary;
+    // never rejects (a failed probe keeps the safe no-optional-flags baseline).
+    await ensureAgentCapabilitiesFn(def, launch.launchPath, spawnEnv);
 
     // Stage a promptViaFile def's (grok-build) prompt to a temp file before buildArgs runs — its
     // buildArgs throws without runtimeContext.promptFilePath. A no-op (returns null) for every

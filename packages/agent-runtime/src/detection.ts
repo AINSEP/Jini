@@ -162,17 +162,65 @@ function unavailableAgent(def: RuntimeAgentDef, diagnostics: AgentDiagnostic[] =
 async function probeCapabilities(def: RuntimeAgentDef, launchPath: string, env: NodeJS.ProcessEnv): Promise<RuntimeCapabilityMap | null> {
   if (!def.helpArgs || !def.capabilityFlags) return null;
   try {
-    const { stdout } = await execAgentFile(launchPath, def.helpArgs, { env, timeout: 5000, maxBuffer: 4 * 1024 * 1024 });
-    const caps: RuntimeCapabilityMap = {};
-    for (const [flag, key] of Object.entries(def.capabilityFlags)) {
-      caps[key] = String(stdout).includes(flag);
-    }
-    return caps;
+    return await readCapabilities(def.helpArgs, def.capabilityFlags, launchPath, env);
   } catch {
     // If --help fails, leave caps empty so buildArgs falls back to the
     // safe baseline (no optional flags).
     return {};
   }
+}
+
+/** Runs the def's `--help` probe and maps each advertised flag to its capability key; throws on a failed probe. */
+async function readCapabilities(
+  helpArgs: readonly string[],
+  capabilityFlags: Readonly<Record<string, string>>,
+  launchPath: string,
+  env: NodeJS.ProcessEnv,
+): Promise<RuntimeCapabilityMap> {
+  const { stdout } = await execAgentFile(launchPath, [...helpArgs], { env, timeout: 5000, maxBuffer: 4 * 1024 * 1024 });
+  const caps: RuntimeCapabilityMap = {};
+  for (const [flag, key] of Object.entries(capabilityFlags)) {
+    caps[key] = String(stdout).includes(flag);
+  }
+  return caps;
+}
+
+/** One in-flight or settled `--help` probe per def id + launch path, so a run never re-spawns it. */
+const capabilityProbes = new Map<string, Promise<void>>();
+
+/**
+ * Makes sure `agentCapabilities` holds this def's `--help`-probed flags before its `buildArgs` runs.
+ *
+ * Why this exists: `agentCapabilities` used to be filled ONLY by {@link detectAgents}. A host whose
+ * run process never calls `detectAgents` (it lists agents with its own lighter probe, or not at
+ * all) left the map empty for every run, so every probe-gated flag stayed off for good — for
+ * `claude` that meant no `--include-partial-messages` (no streamed text) and no `--effort`, even on
+ * a CLI that supports both. The run path calls this with the exact launch path and env it is about
+ * to spawn, so the gate reflects the binary that actually runs.
+ *
+ * A no-op when the def declares no probe or the map already has an entry (a `detectAgents` result
+ * wins). Probes once per def id + launch path for the life of the process. A failed probe records
+ * nothing, which keeps the safe baseline (no optional flags), and is not retried on every run.
+ *
+ * @param def - The def about to be spawned.
+ * @param launchPath - The resolved executable the run will spawn.
+ * @param env - The env the run will spawn with.
+ * @complexity O(1) after the first call per def + path; the first call costs one `--help` spawn (5 s cap).
+ */
+export function ensureAgentCapabilities(def: RuntimeAgentDef, launchPath: string, env: NodeJS.ProcessEnv): Promise<void> {
+  const { helpArgs, capabilityFlags } = def;
+  if (!helpArgs || !capabilityFlags || agentCapabilities.has(def.id)) return Promise.resolve();
+  const key = `${def.id}\u0000${launchPath}`;
+  const existing = capabilityProbes.get(key);
+  if (existing) return existing;
+  const probe = readCapabilities(helpArgs, capabilityFlags, launchPath, env).then(
+    (caps) => {
+      if (!agentCapabilities.has(def.id)) agentCapabilities.set(def.id, caps);
+    },
+    () => undefined,
+  );
+  capabilityProbes.set(key, probe);
+  return probe;
 }
 
 /**
