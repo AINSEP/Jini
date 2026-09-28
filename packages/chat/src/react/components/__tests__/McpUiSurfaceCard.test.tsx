@@ -15,9 +15,9 @@
  */
 import { act, render, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
+import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
 import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_MIME_TYPE, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/ui/mcp-ui';
-import { clearExtEventRenderers, getExtEventRenderer } from '../../ext-event-renderer-registry.js';
+import { clearExtEventRenderers, extEventSlot, getExtEventRenderer } from '../../ext-event-renderer-registry.js';
 
 const SANDBOX_URL = new URL('https://sandbox.example.test/sandbox_proxy.html');
 
@@ -186,6 +186,16 @@ describe('registerMcpUiSurfaceRenderer', () => {
     const renderer = getExtEventRenderer(MCP_UI_EXT_EVENT_NAME)!;
     const { container } = render(<>{renderer({ ...BASE_PROPS, events: [resourceEvent('ui://a/1', '<p>a</p>')] })}</>);
     await waitFor(() => expect(container.querySelector('iframe')).not.toBeNull());
+  });
+
+  // Tovu stuck-chat investigation, 2026-09-27: each MCP-UI resource is its own card, so each gets
+  // its own transcript slot, keyed by URI; a non-resource payload stays in the shared slot.
+  it('keys each MCP-UI resource into its own slot by URI', () => {
+    registerMcpUiSurfaceRenderer({ sandboxProxyUrl: SANDBOX_URL });
+
+    expect(extEventSlot(MCP_UI_EXT_EVENT_NAME, resourceEvent('ui://tovu/ask-choice/1', '<p>a</p>'))).toBe('mcp-ui:ui://tovu/ask-choice/1');
+    expect(extEventSlot(MCP_UI_EXT_EVENT_NAME, { not: 'a resource' })).toBe('mcp-ui');
+    expect(mcpUiSurfaceSlotKey(resourceEvent('ui://x/2', '<p>b</p>'))).toBe('ui://x/2');
   });
 
   it('can claim a different name for a host multiplexing two streams', () => {

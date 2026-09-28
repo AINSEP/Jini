@@ -144,7 +144,13 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       };
       activeAssistantIdRef.current = assistantMessage.id;
       const history = [...messagesRef.current, userMessage];
-      setMessagesState([...history, assistantMessage]);
+      // Functional, never `[...history, assistantMessage]`: `messagesRef` is the last RENDER's
+      // snapshot, and a host that sends from an effect (`useChatPane`'s queued-prompt flush) runs in
+      // the same commit as the reconciliation effect that just marked the previous turn terminal.
+      // Replacing the array with the snapshot threw that pending update away, leaving the finished
+      // turn `running` forever — and never persisted, since hosts persist only terminal turns
+      // (Tovu stuck-chat investigation, 2026-09-27).
+      setMessagesState((prev) => [...prev, userMessage, assistantMessage]);
       setScrollIntent(true);
       await run.start({
         history,
@@ -166,7 +172,11 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       const history = messagesRef.current.slice(0, idx);
       const resetAssistant: ChatMessage = { ...messagesRef.current[idx]!, content: '', events: [], runStatus: 'queued' };
       activeAssistantIdRef.current = resetAssistant.id;
-      setMessagesState([...history, resetAssistant]);
+      // Functional for the same reason as `sendMessage`'s: keep a just-queued terminal update.
+      setMessagesState((prev) => {
+        const at = prev.findIndex((m) => m.id === assistantMessageId);
+        return at < 0 ? [...history, resetAssistant] : [...prev.slice(0, at), resetAssistant];
+      });
       setScrollIntent(true);
       const resolvedAgentId = resetAssistant.agentId ?? agentId;
       // `priorUser`'s attachments go back out with the retry. They were located above and then

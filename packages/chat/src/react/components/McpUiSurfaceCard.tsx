@@ -205,6 +205,17 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
 }
 
 /**
+ * The ext-event slot key for MCP-UI: one slot per `ui://` URI. Each resource is its own card, so a
+ * run's second card renders where it arrived instead of inside the first card's slot, while a
+ * re-emitted resource with the same URI still updates its card in place. Pass it as
+ * `registerExtEventRenderer(MCP_UI_EXT_EVENT_NAME, renderer, { slotKey: mcpUiSurfaceSlotKey })`
+ * when registering a custom MCP-UI renderer; {@link registerMcpUiSurfaceRenderer} already does.
+ */
+export function mcpUiSurfaceSlotKey(data: unknown): string | undefined {
+  return parseUIResource(data)?.resource.uri;
+}
+
+/**
  * Registers {@link McpUiSurfaceCard} against the ext-event registry.
  *
  * @param options.sandboxProxyUrl - See {@link McpUiSurfaceCardProps.sandboxProxyUrl}. Required for
@@ -235,5 +246,5 @@ export function registerMcpUiSurfaceRenderer(options: {
       {...(options.onOpenLink === undefined ? {} : { onOpenLink: options.onOpenLink })}
       {...(options.maxHeight === undefined ? {} : { maxHeight: options.maxHeight })}
     />
-  ));
+  ), { slotKey: mcpUiSurfaceSlotKey });
 }

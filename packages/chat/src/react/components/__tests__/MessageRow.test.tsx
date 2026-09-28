@@ -330,6 +330,45 @@ describe('MessageRow', () => {
       ]);
     });
 
+    // Tovu stuck-chat investigation, 2026-09-27: the second choice card of a run rendered inside
+    // the FIRST surface's slot, far above the spinning tool row, so nobody could answer it.
+    it('renders a keyed surface at its own position and hands each slot only its own events', () => {
+      const seen: unknown[][] = [];
+      registerExtEventRenderer(
+        'mcp-ui',
+        (props) => {
+          seen.push([...props.events]);
+          const uris = props.events.map((e) => (e as { uri: string }).uri).join(',');
+          return <div data-testid={`surface ${uris}`}>{uris}</div>;
+        },
+        { slotKey: (data) => (data as { uri: string }).uri },
+      );
+      const message: ChatMessage = {
+        id: 'e-slots',
+        role: 'assistant',
+        content: 'Connected. Making one.',
+        runId: 'run-9',
+        events: [
+          { kind: 'tool_use', id: 't1', name: 'connect', input: {} },
+          { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://connect' } },
+          { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+          { kind: 'text', text: 'Connected. ' },
+          { kind: 'text', text: 'Making one.' },
+          { kind: 'tool_use', id: 't2', name: 'ask', input: {} },
+          { kind: 'ext', name: 'mcp-ui', data: { uri: 'ui://choice-2' } },
+        ],
+        runStatus: 'running',
+      };
+      render(<MessageRow message={message} runStreaming runSucceeded={false} />);
+
+      const first = screen.getByTestId('surface ui://connect');
+      const second = screen.getByTestId('surface ui://choice-2');
+      const narration = screen.getByText('Connected. Making one.');
+      expect(first.compareDocumentPosition(narration) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(narration.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(seen).toEqual([[{ uri: 'ui://connect' }], [{ uri: 'ui://choice-2' }]]);
+    });
+
     it('renders nothing for an ext event whose name has no registered renderer', () => {
       const message: ChatMessage = {
         id: 'e2',

@@ -60,7 +60,7 @@ import type { AgentEvent } from '../core/index.js';
 export type MessageBlock<Row> =
   | { readonly kind: 'text'; readonly text: string; readonly key: string }
   | { readonly kind: 'tools'; readonly rows: readonly Row[]; readonly key: string }
-  | { readonly kind: 'ext'; readonly name: string; readonly key: string };
+  | { readonly kind: 'ext'; readonly name: string; readonly slot: string; readonly key: string };
 
 /**
  * Rebuilds an assistant message as ordered blocks, or returns `null` if that cannot be done
@@ -70,6 +70,7 @@ export type MessageBlock<Row> =
  * @param content - The message's `content`, expected to equal the concatenated text events.
  * @param rows - The tool timeline rows, already deduped and paired by `useToolTimeline`. Only rows
  *   present here are emitted, so a row the timeline chose to drop stays dropped.
+ * @param slotOf - The render slot an ext event belongs to (default: its `name`).
  * @returns Ordered blocks, or `null` to signal "render the flat layout instead".
  * @complexity O(n + m) in the event and row counts.
  */
@@ -77,6 +78,7 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
   events: readonly AgentEvent[] | undefined,
   content: string,
   rows: readonly Row[],
+  slotOf: (ev: { readonly name: string; readonly data: unknown }) => string = (ev) => ev.name,
 ): MessageBlock<Row>[] | null {
   if (!events || events.length === 0) return null;
   const hasExtEvent = events.some((ev) => ev.kind === 'ext');
@@ -93,7 +95,7 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
   const rowById = new Map(rows.map((row) => [row.id, row]));
   const blocks: MessageBlock<Row>[] = [];
   const emitted = new Set<string>();
-  const emittedExtNames = new Set<string>();
+  const emittedExtSlots = new Set<string>();
   let buffer = '';
 
   const flushText = (): void => {
@@ -108,12 +110,14 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
       continue;
     }
     if (ev.kind === 'ext') {
-      // One block per name, at its FIRST occurrence — later events sharing the name fold into the
-      // SAME render slot (`useExtEventGroups`'s job in `MessageRow.tsx`), not a second block.
-      if (emittedExtNames.has(ev.name)) continue;
-      emittedExtNames.add(ev.name);
+      // One block per SLOT, at its first occurrence — later events in the same slot fold into it
+      // (`useExtEventGroups`'s job in `MessageRow.tsx`), not a second block. A slot is the `name`
+      // unless its renderer keys events into separate surfaces (see `ExtEventSlotKey`).
+      const slot = slotOf(ev);
+      if (emittedExtSlots.has(slot)) continue;
+      emittedExtSlots.add(slot);
       flushText();
-      blocks.push({ kind: 'ext', name: ev.name, key: `ext-${ev.name}` });
+      blocks.push({ kind: 'ext', name: ev.name, slot, key: `ext-${slot}` });
       continue;
     }
     if (ev.kind !== 'tool_use') continue;

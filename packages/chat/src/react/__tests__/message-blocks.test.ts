@@ -167,6 +167,50 @@ describe('interleaveMessageBlocks', () => {
     expect(interleaveMessageBlocks(events, contentOf(events), [])).not.toBeNull();
   });
 
+  // Tovu stuck-chat investigation, 2026-09-27: a run showed a Supabase connect card, answered one
+  // choice card, then asked a second. Every `mcp-ui` event shared ONE slot at the first card's
+  // position, so the second card rendered far above the spinning tool row the human was looking at
+  // and the run waited on a card nobody could see.
+  it('gives each keyed surface its own slot at its own first occurrence, so a later card renders where it arrived', () => {
+    const surface = (uri: string) => ext('mcp-ui', { uri });
+    const events = [
+      toolUse('t1'),
+      surface('ui://connect'),
+      toolResult('t1'),
+      text('Connected. '),
+      toolUse('t2'),
+      surface('ui://choice-1'),
+      toolResult('t2'),
+      surface('ui://connect'),
+      text('Making one.'),
+      toolUse('t3'),
+      surface('ui://choice-2'),
+    ];
+    const rows: Row[] = [{ id: 't1' }, { id: 't2' }, { id: 't3' }];
+    const slotOf = (ev: { name: string; data: unknown }) => `${ev.name}:${(ev.data as { uri: string }).uri}`;
+
+    const blocks = interleaveMessageBlocks(events, contentOf(events), rows, slotOf)!;
+
+    expect(blocks.map((b) => (b.kind === 'ext' ? `ext ${b.slot}` : b.kind))).toEqual([
+      'tools',
+      'ext mcp-ui:ui://connect',
+      'text',
+      'tools',
+      'ext mcp-ui:ui://choice-1',
+      'text',
+      'tools',
+      'ext mcp-ui:ui://choice-2',
+    ]);
+  });
+
+  it('keeps one slot per name when no slot key is given', () => {
+    const events = [ext('mcp-ui', { uri: 'a' }), text('x'), ext('mcp-ui', { uri: 'b' })];
+
+    const blocks = interleaveMessageBlocks(events, contentOf(events), [])!;
+
+    expect(blocks.map((b) => (b.kind === 'ext' ? `ext ${b.slot}` : b.kind))).toEqual(['ext mcp-ui', 'text']);
+  });
+
   it('ignores non-text, non-tool events when reconstructing', () => {
     const events: AgentEvent[] = [
       { kind: 'status', label: 'starting' },

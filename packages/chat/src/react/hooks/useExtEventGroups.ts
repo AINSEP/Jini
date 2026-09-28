@@ -15,23 +15,36 @@ import type { AgentEvent } from '../../core/index.js';
 
 export interface ExtEventGroup {
   name: string;
+  /**
+   * The render slot this group fills — `name`, or `name:key` for a renderer registered with a slot
+   * key (see `ext-event-renderer-registry.ts`'s `ExtEventSlotKey`). One group per slot.
+   */
+  slot: string;
   events: unknown[];
 }
 
-export function useExtEventGroups(events: AgentEvent[] | undefined): ExtEventGroup[] {
+/**
+ * @param slotOf - Which render slot an event belongs to. Defaults to its `name`, the one-slot-per-name
+ *   grouping this hook always had; `MessageRow` passes the registry's `extEventSlot`.
+ */
+export function useExtEventGroups(
+  events: AgentEvent[] | undefined,
+  slotOf: (name: string, data: unknown) => string = (name) => name,
+): ExtEventGroup[] {
   return useMemo(() => {
-    const order: string[] = [];
-    const byName = new Map<string, unknown[]>();
+    const order: ExtEventGroup[] = [];
+    const bySlot = new Map<string, ExtEventGroup>();
     for (const ev of events ?? []) {
       if (ev.kind !== 'ext') continue;
-      let group = byName.get(ev.name);
+      const slot = slotOf(ev.name, ev.data);
+      let group = bySlot.get(slot);
       if (!group) {
-        group = [];
-        byName.set(ev.name, group);
-        order.push(ev.name);
+        group = { name: ev.name, slot, events: [] };
+        bySlot.set(slot, group);
+        order.push(group);
       }
-      group.push(ev.data);
+      group.events.push(ev.data);
     }
-    return order.map((name) => ({ name, events: byName.get(name)! }));
-  }, [events]);
+    return order;
+  }, [events, slotOf]);
 }

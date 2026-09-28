@@ -385,6 +385,55 @@ describe('useChatPane', () => {
     expect(result.current.queuedPrompt).toBeNull();
   });
 
+  // Tovu stuck-chat investigation, 2026-09-27: a queued prompt that flushes in the SAME commit its
+  // run finished in replaced the transcript with the pre-terminal render's snapshot, so the finished
+  // assistant turn kept `runStatus: 'running'` forever. Hosts persist only terminal turns, so its
+  // answer never reached durable storage and the row reloaded as an endless spinner.
+  it('keeps the finished turn succeeded, with its answer, when a queued prompt flushes as the run ends', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useChatPane({ transport, agents, selection: { agentId: 'codex' }, initialDraft: 'first turn' }));
+
+    await act(() => result.current.send());
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    await act(async () => {
+      transport.emit({ kind: 'text', text: 'answer one' });
+    });
+    act(() => result.current.composer.setDraft('second turn'));
+    await act(() => result.current.send());
+    expect(result.current.queuedPrompt).toBe('second turn');
+
+    await act(async () => {
+      transport.finish();
+    });
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+
+    const messages = result.current.conversation.messages;
+    expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    expect(messages[1]?.runStatus).toBe('succeeded');
+    expect(messages[1]?.content).toBe('answer one');
+    expect(messages[1]?.runId).toBe('run-1');
+    expect(messages[3]?.runStatus).toBe('running');
+  });
+
+  it('marks the interrupted turn canceled, not running, when interruptSend flushes the next prompt', async () => {
+    const transport = createFakeChatTransport();
+    const { result } = renderHook(() => useChatPane({ transport, agents, selection: { agentId: 'codex' }, initialDraft: 'first turn' }));
+
+    await act(() => result.current.send());
+    await waitFor(() => expect(transport.calls).toHaveLength(1));
+    await act(async () => {
+      transport.emit({ kind: 'text', text: 'partial' });
+    });
+    act(() => result.current.composer.setDraft('next turn'));
+    act(() => result.current.interruptSend());
+    await waitFor(() => expect(transport.calls).toHaveLength(2));
+
+    const messages = result.current.conversation.messages;
+    expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
+    expect(messages[1]?.runStatus).toBe('canceled');
+    expect(messages[1]?.content).toBe('partial');
+  });
+
   it('interruptSend cancels the in-flight run and queues the draft — held behind any remaining blocker exactly like a plain queued send', async () => {
     let resolveUpload!: (attachments: Array<{ path: string; name: string; kind: 'file' }>) => void;
     const uploadAttachments = vi.fn(() => new Promise<Array<{ path: string; name: string; kind: 'file' }>>((resolve) => {

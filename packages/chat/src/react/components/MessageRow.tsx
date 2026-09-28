@@ -56,7 +56,7 @@ import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroup
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';
 import { useT } from '../hooks/context.js';
-import { getExtEventRenderer } from '../ext-event-renderer-registry.js';
+import { extEventSlot, getExtEventRenderer } from '../ext-event-renderer-registry.js';
 import { ExtEventErrorBoundary } from './ExtEventErrorBoundary.js';
 import { AttachmentPreviewModal } from './AttachmentPreviewModal.js';
 import { Icon } from './Icon.js';
@@ -195,7 +195,7 @@ export function MessageRow({
 }: MessageRowProps) {
   const t = useT();
   const timeline = useToolTimeline(message.events, { runStreaming, runSucceeded });
-  const extGroups = useExtEventGroups(message.events);
+  const extGroups = useExtEventGroups(message.events, extEventSlot);
   // Which attachment chip (if any) this row's preview modal is open for. Row-local, not
   // module-level: two attachments in the same message can never be "open" at once, but two
   // different messages opening their own attachments independently is fine and expected.
@@ -247,7 +247,9 @@ export function MessageRow({
   // reason about partial overlaps, an artifact-bearing message keeps the flat layout — those
   // messages are dominated by the artifact panel anyway, so the ordering matters least there.
   const blocks =
-    visibleContent === message.content ? interleaveMessageBlocks<ToolTimelineRow>(message.events, message.content, timeline.rows) : null;
+    visibleContent === message.content
+      ? interleaveMessageBlocks<ToolTimelineRow>(message.events, message.content, timeline.rows, (ev) => extEventSlot(ev.name, ev.data))
+      : null;
   const pending = isPendingWithNoContent(message, visibleContent, timeline.rows.length);
   const runInProgress = isRunInProgress(message.runStatus);
 
@@ -272,7 +274,7 @@ export function MessageRow({
       // `key` includes the event count so a group that failed on an earlier, shorter event list
       // gets a fresh boundary instance (not the still-tripped one) once a new event actually
       // arrives for it, instead of staying tombstoned for the message's whole lifetime.
-      <ExtEventErrorBoundary key={`${group.name}:${group.events.length}`} name={group.name}>
+      <ExtEventErrorBoundary key={`${group.slot}:${group.events.length}`} name={group.name}>
         <div>{node}</div>
       </ExtEventErrorBoundary>
     );
@@ -319,7 +321,7 @@ export function MessageRow({
                 </div>
               );
             }
-            const group = extGroups.find((g) => g.name === block.name);
+            const group = extGroups.find((g) => g.slot === block.slot);
             if (!group) return null;
             return (
               <div className="jini-message-ext-events" key={block.key}>

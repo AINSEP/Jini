@@ -73,12 +73,15 @@ export type {
 } from './tool-renderer-registry.js';
 export {
   clearExtEventRenderers,
+  extEventSlot,
   getExtEventRenderer,
   registerExtEventRenderer,
 } from './ext-event-renderer-registry.js';
 export type {
   ExtEventRenderProps,
   ExtEventRenderer,
+  ExtEventRendererOptions,
+  ExtEventSlotKey,
 } from './ext-event-renderer-registry.js';
 
 // `features/model-picker/` (REF-001 Step B, 2026-08-05): NOT re-exported here. It was, on the
@@ -308,7 +311,7 @@ export type { A2uiAgentActionOutcome, A2uiSurfaceCardProps } from './components/
  * doc) — the same `kind: 'ext'` extensibility seam as `A2uiSurfaceCard` above, just for MCP-UI
  * resources instead of A2UI surfaces.
  */
-export { McpUiSurfaceCard, registerMcpUiSurfaceRenderer, MCP_UI_EXT_EVENT_NAME } from './components/McpUiSurfaceCard.js';
+export { McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer, MCP_UI_EXT_EVENT_NAME } from './components/McpUiSurfaceCard.js';
 export type { McpUiSurfaceCardProps } from './components/McpUiSurfaceCard.js';
 export { ExtEventErrorBoundary } from './components/ExtEventErrorBoundary.js';
 export type { ExtEventErrorBoundaryProps } from './components/ExtEventErrorBoundary.js';
