@@ -947,7 +947,12 @@ export function createRunLifecycle(input: CreateRunLifecycleInput): RunLifecycle
         );
       }
       record.watchdog?.noteActivity();
-      record.slowRunWatchdog?.noteActivity();
+      // The crash watchdog above counts ANY output (the process is alive). The slow-run notice asks
+      // a different question — "has the person seen anything new?" — so only `agent` events count.
+      // A CLI's raw stdout/stderr (e.g. Claude Code's 30 s `tool_progress` heartbeats during a long
+      // tool call) is not rendered, and letting it reset this window meant the notice could never
+      // fire during exactly the long, silent tool calls it exists for.
+      if (driverInput.event === 'agent') record.slowRunWatchdog?.noteActivity();
       return appendEvent(runId, record, driverInput.event, driverInput.data);
     },
 

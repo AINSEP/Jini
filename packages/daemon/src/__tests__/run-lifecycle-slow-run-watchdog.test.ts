@@ -88,6 +88,28 @@ describe('RunLifecycle — slow-run notice', () => {
     expect(agentEvents).toHaveLength(0);
   });
 
+  it('still fires while the CLI only prints stdout/stderr heartbeats — only agent events count as visible activity', async () => {
+    // A long MCP tool call: Claude Code prints a `tool_progress` heartbeat to stdout every 30 s, and
+    // the owner sees nothing new. Those frames used to reset this window, so the notice never fired.
+    const { lifecycle } = makeLifecycle({ slowRunThresholdMs: 1_000 });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    const delivered: RunProtocolEvent[] = [];
+    await lifecycle.stream(run.id, (event) => delivered.push(event));
+
+    await vi.advanceTimersByTimeAsync(600);
+    await lifecycle.emit(run.id, { event: 'stdout', data: { chunk: '{"type":"tool_progress","elapsed_time_seconds":30}\n' } });
+    await vi.advanceTimersByTimeAsync(300);
+    await lifecycle.emit(run.id, { event: 'stderr', data: { chunk: 'debug line\n' } });
+    await vi.advanceTimersByTimeAsync(200);
+
+    const notices = delivered.filter(
+      (event) => event.kind === 'agent' && (event.payload as { type?: string }).type === 'slow_running',
+    );
+    expect(notices).toHaveLength(1);
+    expect((await lifecycle.get(run.id))?.state).toBe('running');
+  });
+
   it('is disabled entirely when slowRunThresholdMs is explicitly null', async () => {
     const { lifecycle } = makeLifecycle({ slowRunThresholdMs: null });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
