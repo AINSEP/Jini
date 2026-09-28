@@ -1,0 +1,34 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { agentCapabilities } from '../../capabilities.js';
+import { getAgentDef } from '../../registry.js';
+
+/**
+ * A host embedding `claude` as a product assistant must not inherit the operator's personal Claude
+ * Code setup: the operator's ~/.claude SessionStart hooks were injecting a "Code Discovery Protocol"
+ * text into every site-assistant run. `--setting-sources ""` loads no user/project/local settings
+ * (so no hooks, no personal plugins) and, unlike CLAUDE_CONFIG_DIR staging, keeps Keychain login.
+ */
+describe('claude buildArgs — settingSources', () => {
+  afterEach(() => agentCapabilities.delete('claude'));
+
+  it('passes --setting-sources with the joined list (empty = none) when the CLI supports it', () => {
+    agentCapabilities.set('claude', { settingSources: true });
+    const def = getAgentDef('claude')!;
+    const none = def.buildArgs('', [], [], { settingSources: [] }, {});
+    expect(none.slice(none.indexOf('--setting-sources'), none.indexOf('--setting-sources') + 2)).toEqual(['--setting-sources', '']);
+    const some = def.buildArgs('', [], [], { settingSources: ['project', 'local'] }, {});
+    expect(some.slice(some.indexOf('--setting-sources'), some.indexOf('--setting-sources') + 2)).toEqual(['--setting-sources', 'project,local']);
+  });
+
+  it('omits the flag when unset, and when the probe says the CLI lacks it (an unknown option exits 1)', () => {
+    agentCapabilities.set('claude', { settingSources: true });
+    const def = getAgentDef('claude')!;
+    expect(def.buildArgs('', [], [], {}, {})).not.toContain('--setting-sources');
+    agentCapabilities.set('claude', { settingSources: false });
+    expect(def.buildArgs('', [], [], { settingSources: [] }, {})).not.toContain('--setting-sources');
+  });
+
+  it('probes for the flag in `claude -p --help`', () => {
+    expect(getAgentDef('claude')!.capabilityFlags?.['--setting-sources']).toBe('settingSources');
+  });
+});

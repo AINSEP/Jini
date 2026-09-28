@@ -262,6 +262,9 @@ describe('computeRuntimeContext', () => {
 });
 
 describe('buildAgentBuildArgsOptions', () => {
+  it('forwards settingSources, including an empty list (load no settings)', () => {
+    expect(buildAgentBuildArgsOptions({ settingSources: [] }, undefined)).toEqual({ settingSources: [] });
+  });
   it('returns undefined when nothing was selected at all', () => {
     expect(buildAgentBuildArgsOptions({}, undefined)).toBeUndefined();
   });

@@ -112,6 +112,7 @@ export const claudeAgentDef = {
       '--add-dir': 'addDir',
       '--effort': 'effort',
       '--append-system-prompt': 'appendSystemPrompt',
+      '--setting-sources': 'settingSources',
     },
     // `claude` has no list-models subcommand, so the model list is answered from the best source
     // available, in this order:
@@ -242,6 +243,11 @@ export const claudeAgentDef = {
       }
       if (options.allowedTools && options.allowedTools.length > 0) {
         args.push('--allowedTools', ...options.allowedTools);
+      }
+      // See `RuntimeBuildOptions.settingSources`. Probe-gated like `--effort`: an older build
+      // rejects an unknown option with exit 1, which would kill the chat rather than degrade it.
+      if (options.settingSources !== undefined && caps.settingSources) {
+        args.push('--setting-sources', options.settingSources.join(','));
       }
       return args;
     },

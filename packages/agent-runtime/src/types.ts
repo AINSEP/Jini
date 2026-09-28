@@ -120,6 +120,15 @@ export type RuntimeBuildOptions = {
    * `undefined`/empty means no restriction, same as today.
    */
   allowedTools?: readonly string[];
+  /**
+   * Which of the CLI's own settings layers to load — today `claude`'s `--setting-sources`
+   * (`user`, `project`, `local`). An EMPTY list loads none: no settings-file hooks, no plugins the
+   * operator enabled for themselves, no personal model/effort defaults. For a host that embeds the
+   * CLI as a product assistant, so the operator's personal setup (e.g. SessionStart hooks that
+   * inject their own instructions) never reaches the product's runs. Unlike staging a separate
+   * `CLAUDE_CONFIG_DIR`, this keeps the CLI's Keychain login. `undefined` = the CLI's default (all).
+   */
+  settingSources?: readonly string[];
 };
 
 export type RuntimeContext = {

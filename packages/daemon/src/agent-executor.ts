@@ -630,6 +630,8 @@ export interface AgentExecutorRunInput {
   readonly disallowedTools?: readonly string[];
   /** Same mechanism as {@link disallowedTools}, forwarded to `RuntimeBuildOptions.allowedTools`. */
   readonly allowedTools?: readonly string[];
+  /** Forwarded verbatim to `RuntimeBuildOptions.settingSources` (an empty list = load none of the CLI's settings layers). */
+  readonly settingSources?: readonly string[];
 }
 
 export interface AgentExecutor {
@@ -3199,28 +3201,20 @@ function computeSystemPromptOverlay(
 
 /** Phase 9a: the def's `buildArgs` 4th argument — `undefined` when the run selects no model/reasoning/permissionMode/overlay/tool-restriction at all (byte-identical to omitting the argument). Pure. */
 export function buildAgentBuildArgsOptions(
-  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools'>,
+  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools' | 'settingSources'>,
   systemPromptOverlay: string | null | undefined,
 ): RuntimeBuildOptions | undefined {
   const hasOverlay = systemPromptOverlay !== undefined && systemPromptOverlay !== null;
-  if (
-    input.model === undefined
-    && input.reasoning === undefined
-    && input.permissionMode === undefined
-    && input.disallowedTools === undefined
-    && input.allowedTools === undefined
-    && !hasOverlay
-  ) {
-    return undefined;
-  }
-  return {
+  const options: RuntimeBuildOptions = {
     ...(input.model !== undefined ? { model: input.model } : {}),
     ...(input.reasoning !== undefined ? { reasoning: input.reasoning } : {}),
     ...(input.permissionMode !== undefined ? { permissionMode: input.permissionMode } : {}),
     ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
     ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
+    ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
     ...(hasOverlay ? { systemPromptOverlay } : {}),
   };
+  return Object.keys(options).length === 0 ? undefined : options;
 }
 
 /**
