@@ -6314,6 +6314,32 @@ describe('AgentExecutor — SEC-001 deny-by-default subprocess environment', () 
     const env = spawnCalls[0]!.options.env as Record<string, string>;
     expect(env.CUSTOM_UNALLOWLISTED_VAR).toBe('present-because-caller-opted-in');
   });
+
+  it("applies the def's own declared env (e.g. claude's ENABLE_TOOL_SEARCH=false) to the spawned agent", async () => {
+    const def = createFakeDef({ env: { ENABLE_TOOL_SEARCH: 'false' } });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'hi', cwd: '/work' });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.ENABLE_TOOL_SEARCH).toBe('false');
+  });
+
+  it("lets a caller-supplied env value win over the def's declared default", async () => {
+    const def = createFakeDef({ env: { ENABLE_TOOL_SEARCH: 'false' } });
+    const { lifecycle, executor, spawnCalls } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({
+      runId: run.id,
+      agentId: 'fake-agent',
+      prompt: 'hi',
+      cwd: '/work',
+      env: { PATH: '/bin', ENABLE_TOOL_SEARCH: 'auto' },
+    });
+
+    const env = spawnCalls[0]!.options.env as Record<string, string>;
+    expect(env.ENABLE_TOOL_SEARCH).toBe('auto');
+  });
 });
 
 describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {

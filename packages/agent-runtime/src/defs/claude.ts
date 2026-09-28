@@ -258,6 +258,14 @@ export const claudeAgentDef = {
     // so the daemon writes the user's external MCP servers there before
     // launching (server.ts handles the cwd guard).
     externalMcpInjection: 'claude-mcp-json',
+    // Load MCP tools up front instead of deferring them behind the CLI's ToolSearch tool.
+    // Deferral cost every run one extra model round (a `select:` ToolSearch call, ~3 s) before its
+    // first real tool call, while the run's MCP set is only what the daemon stages
+    // (`--strict-mcp-config`; 11 tools for the Tovu host), so loading it eagerly is cheap. Documented at
+    // code.claude.com/docs/en/mcp ("`false` — All MCP tools loaded upfront, no deferral"); verified
+    // in the installed 2.1.283 binary (a defined-falsy value selects the "standard" tool mode).
+    // A default only: a run's own env can still set ENABLE_TOOL_SEARCH (see agent-executor).
+    env: { ENABLE_TOOL_SEARCH: 'false' },
     // Formerly inline in `buildArgs` above (see the comment there) — moved to the declarative
     // shape every def now uses to receive `RuntimeBuildOptions.systemPromptOverlay`. Same flag,
     // same probe gate (`capabilityFlags['--append-system-prompt']` above), same "append, never

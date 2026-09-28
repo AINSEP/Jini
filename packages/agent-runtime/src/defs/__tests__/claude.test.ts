@@ -42,6 +42,14 @@ describe('claudeAgentDef shape', () => {
       'claude-sonnet-4-5',
     ]);
   });
+
+  // Claude Code defers MCP tools behind its ToolSearch tool by default, so every run paid one
+  // extra `select:` model round (~3 s) before its first real tool call. The run's MCP set is only
+  // the daemon's own server (`--strict-mcp-config`), so loading it up front is cheap. Documented
+  // at code.claude.com/docs/en/mcp: `ENABLE_TOOL_SEARCH=false` = "All MCP tools loaded upfront".
+  it('loads MCP tools up front instead of deferring them behind ToolSearch', () => {
+    expect(claudeAgentDef.env).toEqual({ ENABLE_TOOL_SEARCH: 'false' });
+  });
 });
 
 describe('claudeAgentDef.buildArgs', () => {

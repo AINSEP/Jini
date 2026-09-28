@@ -3936,7 +3936,10 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
       resumeSessionId: preStagingRuntimeContext?.resumeSessionId,
     });
 
-    const resolvedEnv = resolveRunEnv(input, process.env);
+    // The def's own declared env (e.g. claude's `ENABLE_TOOL_SEARCH=false`) is a default the run's
+    // env can override. Detection already spawns with it (`detection.ts`); without this the run
+    // spawn silently dropped it. Declared by the def itself, so it never widens SEC-001's allowlist.
+    const resolvedEnv = { ...(def.env ?? {}), ...resolveRunEnv(input, process.env) };
     const launch = await resolveLaunch(
       { runId: input.runId, def, resolvedEnv },
       { resolveAgentLaunch: resolveAgentLaunchFn, failBeforeSpawn },
