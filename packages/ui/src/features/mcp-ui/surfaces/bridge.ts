@@ -72,7 +72,8 @@ export interface BridgeScriptSpec {
  *   rejected with the Host's own error message on a JSON-RPC error response.
  * - `notify(method, params)` → a raw fire-and-forget notification, for the lifecycle messages a
  *   surface may want beyond what the bridge sends itself.
- * - `openLink(url)` → `ui/open-link`, the only way an isolated frame can navigate anything.
+ * - `openLink(url)` → `Promise` of the Host's answer to the `ui/open-link` REQUEST (queued until the
+ *   handshake completes, like `callTool`) — the only way an isolated frame can navigate anything.
  * - `requestTeardown()` → `ui/notifications/request-teardown`, the draft-spec way for a "Done"
  *   button to ask the Host to remove the frame.
  * - `whenReady(fn)` → runs `fn` after the handshake, immediately if it already completed.
@@ -128,12 +129,21 @@ export function renderBridgeScript(spec: BridgeScriptSpec): string {
   // tools/call with a JSON-RPC invalidRequest, so sending early would turn "the user clicked a
   // little too fast" into a refusal the surface would have to explain. A call held when the
   // handshake FAILS is rejected rather than held forever, so the dialog can say so.
-  function callTool(name, args) {
-    var params = { name: name, arguments: args || {} };
-    if (ready) return request("tools/call", params);
+  function requestWhenReady(method, params) {
+    if (ready) return request(method, params);
     return new Promise(function (resolve, reject) {
-      queuedCalls.push({ resolve: resolve, reject: reject, params: params });
+      queuedCalls.push({ resolve: resolve, reject: reject, method: method, params: params });
     });
+  }
+
+  function callTool(name, args) {
+    return requestWhenReady("tools/call", { name: name, arguments: args || {} });
+  }
+
+  // A REQUEST, not a notification: the spec defines ui/open-link as a request, and @mcp-ui/client's
+  // AppBridge registers it with setRequestHandler, so an id-less message is silently dropped.
+  function openLink(url) {
+    return requestWhenReady("ui/open-link", { url: url });
   }
 
   function reportSize() {
@@ -177,7 +187,7 @@ export function renderBridgeScript(spec: BridgeScriptSpec): string {
     var handlers = readyHandlers;
     queuedCalls = [];
     readyHandlers = [];
-    for (var i = 0; i < calls.length; i++) request("tools/call", calls[i].params).then(calls[i].resolve, calls[i].reject);
+    for (var i = 0; i < calls.length; i++) request(calls[i].method, calls[i].params).then(calls[i].resolve, calls[i].reject);
     for (var j = 0; j < handlers.length; j++) handlers[j]();
     if (typeof ResizeObserver === "function") new ResizeObserver(reportSize).observe(document.documentElement);
   }
@@ -203,7 +213,7 @@ export function renderBridgeScript(spec: BridgeScriptSpec): string {
   window.${global} = {
     callTool: callTool,
     notify: notify,
-    openLink: function (url) { notify("ui/open-link", { url: url }); },
+    openLink: openLink,
     requestTeardown: function () { notify("ui/notifications/request-teardown"); },
     whenReady: function (fn) { if (ready) fn(); else if (!settled) readyHandlers.push(fn); },
     hostContext: function () { return hostContext; },

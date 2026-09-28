@@ -24,7 +24,7 @@ interface JsonRpcish {
 interface SurfaceApi {
   callTool(name: string, args?: Record<string, unknown>): Promise<unknown>;
   notify(method: string, params?: Record<string, unknown>): void;
-  openLink(url: string): void;
+  openLink(url: string): Promise<unknown>;
   requestTeardown(): void;
   whenReady(fn: () => void): void;
   hostContext(): unknown;
@@ -242,17 +242,39 @@ describe('renderBridgeScript', () => {
     expect(afterFailure).not.toHaveBeenCalled();
   });
 
-  it('exposes open-link, teardown-request and raw notify as spec-named notifications', async () => {
+  it('exposes teardown-request and raw notify as spec-named notifications', async () => {
     const bridge = runBridge();
     await bridge.handshake();
-    bridge.api.openLink('https://example.test/docs');
     bridge.api.requestTeardown();
     bridge.api.notify('notifications/message', { level: 'info', data: 'hi' });
-    expect(bridge.posted.slice(-3)).toEqual([
-      { jsonrpc: '2.0', method: 'ui/open-link', params: { url: 'https://example.test/docs' } },
+    expect(bridge.posted.slice(-2)).toEqual([
       { jsonrpc: '2.0', method: 'ui/notifications/request-teardown' },
       { jsonrpc: '2.0', method: 'notifications/message', params: { level: 'info', data: 'hi' } },
     ]);
+  });
+
+  // `@mcp-ui/client`'s AppBridge registers `ui/open-link` with setRequestHandler, so a message
+  // without an `id` is a notification nothing handles and is dropped silently — the dead
+  // "Connect →" button. It must be a request, and its promise must settle on the Host's answer.
+  it('sends open-link as a JSON-RPC request (with an id) and resolves with the Host answer', async () => {
+    const bridge = runBridge();
+    await bridge.handshake();
+    const pending = bridge.api.openLink('https://example.test/docs');
+    const open = bridge.posted.find((message) => message.method === 'ui/open-link');
+    expect(open).toEqual({ jsonrpc: '2.0', id: expect.any(String), method: 'ui/open-link', params: { url: 'https://example.test/docs' } });
+    bridge.deliver({ jsonrpc: '2.0', id: open?.id, result: {} });
+    await expect(pending).resolves.toEqual({});
+  });
+
+  it('holds an open-link made before the handshake, then sends it as a request', async () => {
+    const bridge = runBridge();
+    const pending = bridge.api.openLink('https://example.test/early');
+    expect(bridge.posted).toHaveLength(1);
+    await bridge.handshake();
+    const open = bridge.posted.find((message) => message.method === 'ui/open-link');
+    expect(open?.id).toBeTypeOf('string');
+    bridge.deliver({ jsonrpc: '2.0', id: open?.id, result: {} });
+    await expect(pending).resolves.toEqual({});
   });
 
   it('touches no storage API, which would throw SecurityError in an opaque origin', () => {
