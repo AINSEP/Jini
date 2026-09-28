@@ -2488,3 +2488,94 @@ describe('CloudflarePagesDeployTarget.publish — custom domain ready before pag
     expect(result.providerMetadata?.customDomain).toMatchObject({ status: 'ready', domainStatus: 'active' });
   }, 20_000);
 });
+
+describe('CloudflarePagesDeployTarget.publish — _headers/_redirects config files', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('sends root _headers and _redirects as their own deployment form fields, never as public assets', async () => {
+    const headers = '/*\n  X-Frame-Options: DENY\n';
+    const redirects = '/old /new 301\n';
+    const checkedHashes: string[] = [];
+    const upsertedHashes: string[] = [];
+    let deployForm: FormData | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('/pages/projects/') && url.endsWith('jini-demo') && (!init?.method || init.method === 'GET')) {
+          return jsonResponse(200, { success: true, result: { name: 'jini-demo' } });
+        }
+        if (url.endsWith('/upload-token')) return jsonResponse(200, { success: true, result: { jwt: 'jwt' } });
+        if (url.endsWith('/pages/assets/check-missing')) {
+          checkedHashes.push(...JSON.parse(String(init?.body)).hashes);
+          return jsonResponse(200, { success: true, result: [] });
+        }
+        if (url.endsWith('/pages/assets/upsert-hashes')) {
+          upsertedHashes.push(...JSON.parse(String(init?.body)).hashes);
+          return jsonResponse(200, { success: true });
+        }
+        if (url.endsWith('/deployments') && init?.method === 'POST') {
+          deployForm = init.body as FormData;
+          return jsonResponse(200, { success: true, result: { id: 'd1', url: 'jini-demo.pages.dev' } });
+        }
+        if (url.startsWith('https://jini-demo.pages.dev')) return new Response('', { status: 200 });
+        throw new Error(`Unexpected fetch call: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+
+    const index = { file: 'index.html', data: '<html></html>', contentType: 'text/html' };
+    const target = new CloudflarePagesDeployTarget({ token: 'tok', accountId: 'acct' });
+    await target.publish({
+      files: [
+        index,
+        { file: '_headers', data: headers, contentType: 'text/plain' },
+        { file: '_redirects', data: Buffer.from(redirects), contentType: 'text/plain' },
+      ],
+      projectName: 'demo',
+    });
+
+    const indexHash = cloudflarePagesAssetHash(index);
+    expect(checkedHashes).toEqual([indexHash]);
+    expect(upsertedHashes).toEqual([indexHash]);
+    expect(JSON.parse(String(deployForm?.get('manifest')))).toEqual({ '/index.html': indexHash });
+
+    const headersField = deployForm?.get('_headers');
+    expect(headersField).toBeInstanceOf(File);
+    expect((headersField as File).name).toBe('_headers');
+    expect(await (headersField as File).text()).toBe(headers);
+    const redirectsField = deployForm?.get('_redirects');
+    expect(redirectsField).toBeInstanceOf(File);
+    expect(await (redirectsField as File).text()).toBe(redirects);
+  });
+
+  it('leaves a nested _headers file as an ordinary asset, since Cloudflare only reads the root one', async () => {
+    let deployForm: FormData | undefined;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('/pages/projects/') && url.endsWith('jini-demo') && (!init?.method || init.method === 'GET')) {
+          return jsonResponse(200, { success: true, result: { name: 'jini-demo' } });
+        }
+        if (url.endsWith('/upload-token')) return jsonResponse(200, { success: true, result: { jwt: 'jwt' } });
+        if (url.endsWith('/pages/assets/check-missing')) return jsonResponse(200, { success: true, result: [] });
+        if (url.endsWith('/pages/assets/upsert-hashes')) return jsonResponse(200, { success: true });
+        if (url.endsWith('/deployments') && init?.method === 'POST') {
+          deployForm = init.body as FormData;
+          return jsonResponse(200, { success: true, result: { id: 'd1', url: 'jini-demo.pages.dev' } });
+        }
+        if (url.startsWith('https://jini-demo.pages.dev')) return new Response('', { status: 200 });
+        throw new Error(`Unexpected fetch call: ${init?.method ?? 'GET'} ${url}`);
+      }),
+    );
+
+    const nested = { file: 'docs/_headers', data: 'not config', contentType: 'text/plain' };
+    const target = new CloudflarePagesDeployTarget({ token: 'tok', accountId: 'acct' });
+    await target.publish({ files: [nested], projectName: 'demo' });
+
+    expect(JSON.parse(String(deployForm?.get('manifest')))).toEqual({ '/docs/_headers': cloudflarePagesAssetHash(nested) });
+    expect(deployForm?.get('_headers')).toBeNull();
+  });
+});

@@ -524,6 +524,28 @@ async function uploadCloudflarePagesAssets(uploadToken: string, files: DeployFil
   }
 }
 
+/**
+ * Root-level Pages config files that the direct-upload API takes as their own deployment form
+ * fields rather than as assets (wrangler's `pages deploy` does the same and keeps them out of the
+ * manifest). Uploaded as an asset instead, `_headers` would be served as a public file and its
+ * rules never applied. Only the root copy is config; a nested `_headers` stays an ordinary asset.
+ */
+const CLOUDFLARE_PAGES_CONFIG_FILES = new Set(['_headers', '_redirects']);
+
+function splitCloudflarePagesConfigFiles(files: DeployFile[]): {
+  assets: DeployFile[];
+  configFiles: { name: string; data: DeployFile['data'] }[];
+} {
+  const assets: DeployFile[] = [];
+  const configFiles: { name: string; data: DeployFile['data'] }[] = [];
+  for (const file of files) {
+    const name = file.file.replace(/^\.?\//, '');
+    if (CLOUDFLARE_PAGES_CONFIG_FILES.has(name)) configFiles.push({ name, data: file.data });
+    else assets.push(file);
+  }
+  return { assets, configFiles };
+}
+
 // --- Custom domain / DNS record management -------------------------------
 
 function normalizeCloudflarePagesDeploySelection(input: CloudflarePagesCustomDomainSelection | undefined) {
@@ -1017,13 +1039,15 @@ export class CloudflarePagesDeployTarget implements DeployTarget {
 
     await ensureCloudflarePagesProject(config);
     const uploadToken = await getCloudflarePagesUploadToken(config);
-    await uploadCloudflarePagesAssets(uploadToken, input.files);
+    const { assets, configFiles } = splitCloudflarePagesConfigFiles(input.files);
+    await uploadCloudflarePagesAssets(uploadToken, assets);
 
     const form = new FormData();
     const manifest: Record<string, string> = {};
-    for (const file of input.files) manifest[`/${file.file}`] = cloudflarePagesAssetHash(file);
+    for (const file of assets) manifest[`/${file.file}`] = cloudflarePagesAssetHash(file);
     form.append('manifest', JSON.stringify(manifest));
     form.append('branch', 'main');
+    for (const { name, data } of configFiles) form.append(name, new File([Buffer.from(data)], name));
 
     const deployResp = await fetchWithTimeout(
       cloudflarePagesProjectUrl(config, 'deployments'),
