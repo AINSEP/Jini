@@ -32,7 +32,14 @@ export type ToolResultMediaBlock =
  * through the same envelope without this package knowing about them.
  */
 export type AgentEvent =
-  | { kind: 'status'; label: string; detail?: string; code?: string }
+  | {
+      kind: 'status';
+      label: string;
+      detail?: string;
+      code?: string;
+      /** Structured fields for a coded status (e.g. `api_retry`'s attempt numbers). See `run-activity.ts`. */
+      data?: Readonly<Record<string, string | number>>;
+    }
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string }
   | { kind: 'tool_use'; id: string; name: string; input: unknown }

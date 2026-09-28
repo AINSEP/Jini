@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
@@ -60,7 +60,34 @@ describe('MessageRow', () => {
   it('shows a pending indicator for a running message with no content yet', () => {
     const message: ChatMessage = { id: 'a5', role: 'assistant', content: '', runStatus: 'running' };
     render(<MessageRow message={message} runStreaming />);
-    expect(screen.getByText('Thinking…')).toBeInTheDocument();
+    expect(screen.getByText('Thinking… 0 s')).toBeInTheDocument();
+  });
+
+  it('keeps a live activity line after the first tool row appears, and drops it once the run ends', () => {
+    const events: ChatMessage['events'] = [
+      { kind: 'tool_use', id: 't1', name: 'mcp__jini__search_tools', input: {} },
+      { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false },
+      { kind: 'tool_use', id: 't2', name: 'mcp__jini__execute_delegated_tool', input: { toolId: 'content.post_list' } },
+    ];
+    const running: ChatMessage = { id: 'a5b', role: 'assistant', content: '', runStatus: 'running', events };
+    const { rerender } = render(<MessageRow message={running} runStreaming />);
+    expect(screen.getByText('Running Content Post List… 0 s')).toBeInTheDocument();
+    rerender(<MessageRow message={{ ...running, runStatus: 'succeeded' }} />);
+    expect(screen.queryByText(/Running Content Post List/)).not.toBeInTheDocument();
+  });
+
+  it('ticks the activity clock once a second', () => {
+    vi.useFakeTimers();
+    try {
+      const message: ChatMessage = { id: 'a5c', role: 'assistant', content: '', runStatus: 'running' };
+      render(<MessageRow message={message} runStreaming />);
+      act(() => {
+        vi.advanceTimersByTime(3_000);
+      });
+      expect(screen.getByText('Thinking… 3 s')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('tags each message for agent inspection, distinctly per role and message id', () => {

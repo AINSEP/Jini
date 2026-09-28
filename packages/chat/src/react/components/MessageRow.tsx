@@ -54,6 +54,7 @@ import { isTerminalRunStatus, splitOnQuestionForms, stripArtifact } from '../../
 import { useToolTimeline, type ToolTimelineRow } from '../hooks/useToolTimeline.js';
 import { useExtEventGroups, type ExtEventGroup } from '../hooks/useExtEventGroups.js';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
+import { useRunActivity } from '../hooks/useRunActivity.js';
 import { interleaveMessageBlocks } from '../message-blocks.js';
 import { useT } from '../hooks/context.js';
 import { extEventSlot, getExtEventRenderer } from '../ext-event-renderer-registry.js';
@@ -372,11 +373,22 @@ export function MessageRow({
               above until their backends (conversation branching, feedback storage) exist. */}
         </div>
       ) : null}
-      {pending ? (
-        <div className="jini-message-pending" aria-live="polite">
-          {t('Thinking…')}
-        </div>
-      ) : null}
+      <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} />
+    </div>
+  );
+}
+
+/**
+ * The live "what is it doing" line under a running reply (see `core/run-activity.ts`). Replaces the
+ * old "Thinking…" placeholder, which vanished for good as soon as the first tool row appeared.
+ * Kept a separate component so its one-second tick re-renders only this line, not the whole row.
+ */
+function RunActivityLine({ events, active }: { events: AgentEvent[] | undefined; active: boolean }) {
+  const label = useRunActivity(events, active);
+  if (label === null) return null;
+  return (
+    <div className="jini-message-pending jini-run-activity" aria-live="off">
+      {label}
     </div>
   );
 }
