@@ -50,6 +50,20 @@ describe('SqliteDbOpsAdapter', () => {
       expect(restored.prepare('SELECT id FROM notes').all()).toEqual([{ id: 'n1' }]);
     });
 
+    it('awaits an async watermark reader (a PGlite/Postgres host reads it with a query)', async () => {
+      const filePath = join(dir, 'content.db');
+      const adapter = new SqliteDbOpsAdapter({
+        connection: openSqliteConnection({ filePath }),
+        filePath,
+        readWatermark: async () => 42,
+        now: () => 1700000000000,
+      });
+      const point = await adapter.captureRestorePoint({ scopeId: 'store' });
+
+      expect(point.watermarkAtCapture).toBe(42);
+      expect(basename(point.artifactRef)).toContain('42');
+    });
+
     it('stamps the watermark read at capture time into the filename', async () => {
       const filePath = join(dir, 'content.db');
       const adapter = new SqliteDbOpsAdapter({

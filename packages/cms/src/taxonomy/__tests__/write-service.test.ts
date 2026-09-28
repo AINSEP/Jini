@@ -902,3 +902,104 @@ test("deleteTaxonomy: a mid-cascade failure rolls back rather than leaving a par
   assert.equal(recorder.log.at(-1), "tx:rollback");
   assert.ok(!recorder.log.includes("taxonomies.delete"), "the taxonomy delete must never be reached after term-2's delete throws");
 });
+
+// ---------------------------------------------------------------------------
+// Async watermark stamps — a PGlite/Postgres host's stamp is a Promise. The write must not resolve
+// until that stamp has finished, and a failed stamp must fail the write rather than float as an
+// unhandled rejection after the caller already saw success.
+// ---------------------------------------------------------------------------
+
+function slowStamp(): { stampWatermark: () => Promise<void>; readonly finished: number } {
+  let finished = 0;
+  return {
+    stampWatermark: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      finished += 1;
+    },
+    get finished() {
+      return finished;
+    },
+  };
+}
+
+test("async stamp: createTaxonomy does not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), { stampWatermark: stamp.stampWatermark });
+
+  await createTaxonomy({ deps, principalId: "u-1", name: "Category", hierarchical: true });
+
+  assert.equal(stamp.finished, 1);
+});
+
+test("async stamp: createTerm does not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), { stampWatermark: stamp.stampWatermark });
+
+  await createTerm({ deps, principalId: "u-1", taxonomyId: "tax-1", name: "Leaf" });
+
+  assert.equal(stamp.finished, 1);
+});
+
+test("async stamp: renameTerm does not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), {
+    stampWatermark: stamp.stampWatermark,
+    terms: {
+      async findById() {
+        return { id: "term-1", name: "old-name", taxonomyId: "tax-1" };
+      },
+      async update(row: unknown) {
+        return row;
+      },
+    },
+  });
+
+  await renameTerm({ deps, principalId: "u-1", termId: "term-1", newName: "new-name" });
+
+  assert.equal(stamp.finished, 1);
+});
+
+test("async stamp: assignTerms and unassignTerms do not resolve before the watermark stamp finishes", async () => {
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), { stampWatermark: stamp.stampWatermark, entryTerms: removableEntryTermsDeps() });
+
+  await assignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  assert.equal(stamp.finished, 1);
+
+  await unassignTerms({ deps, principalId: "u-1", contentType: "post", contentId: "post-1", termIds: ["term-1"] });
+  assert.equal(stamp.finished, 2);
+});
+
+test("async stamp: deleteTerm finishes its stamp inside the transaction, before commit", async () => {
+  const recorder = transactionRecorder();
+  const terms = deletableTermsDeps([{ id: "term-1", taxonomyId: "tax-1" }], recorder);
+  const stamp = slowStamp();
+  const deps = Object.assign(baseDeps(), {
+    terms,
+    entryTerms: countableEntryTermsDeps({}, recorder),
+    transaction: recorder.transaction,
+    stampWatermark: async () => {
+      await stamp.stampWatermark();
+      recorder.log.push("stamp:done");
+    },
+  });
+
+  await deleteTerm({ deps, principalId: "u-1", termId: "term-1" });
+
+  assert.equal(stamp.finished, 1);
+  assert.deepEqual(recorder.log.slice(-2), ["stamp:done", "tx:commit"]);
+});
+
+test("async stamp: a rejected stamp rejects the write instead of floating", async () => {
+  const deps = Object.assign(baseDeps(), {
+    stampWatermark: async () => {
+      throw new Error("stamp failed");
+    },
+  });
+
+  await assert.rejects(
+    createTaxonomy({ deps, principalId: "u-1", name: "Category", hierarchical: true }),
+    (err: unknown) => err instanceof Error && err.message === "stamp failed"
+  );
+  assert.equal(deps.outboxEvents.length, 0, "no outbox event may be enqueued after a failed stamp");
+});

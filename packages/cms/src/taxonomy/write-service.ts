@@ -146,8 +146,10 @@ export interface WriteServiceDeps {
   terms: TermRepoPort;
   entryTerms: EntryTermRepoPort;
   revisions: TaxonomyRevisionRepoPort;
-  /** `core/gated-mutations.stampWatermark`-shaped, injected — same-transaction stamp per mutation. */
-  stampWatermark: (tx?: unknown) => void;
+  /** `core/gated-mutations.stampWatermark`-shaped, injected — same-transaction stamp per mutation.
+   * May be sync (SQLite) or async (PGlite/Postgres); every call site awaits it, so an async stamp
+   * finishes, and its failure fails the write, before the mutation returns. */
+  stampWatermark: (tx?: unknown) => Promise<void> | void;
   outbox: { enqueue: (event: unknown) => Promise<void> };
   /** The caller's own workspace — `validateContentJoin`'s `callerWorkspaceId` (Finding 1 fix). */
   workspaceId: string;
@@ -244,7 +246,7 @@ export async function createTaxonomy(
     actorId: principalId,
     recordedAt: now,
   });
-  deps.stampWatermark();
+  await deps.stampWatermark();
   await deps.outbox.enqueue({ name: "taxonomy.created", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now });
 
   return taxonomy;
@@ -303,7 +305,7 @@ export async function createTerm(
 
   await deps.terms.insert(term);
   await deps.revisions.insert({ taxonomyId, op: "create", previousState: null, actorId: principalId, recordedAt: now });
-  deps.stampWatermark();
+  await deps.stampWatermark();
   await deps.outbox.enqueue({ name: "taxonomy.term_created", termId: term.id, actorId: principalId, occurredAt: now });
 
   return term;
@@ -389,7 +391,7 @@ export async function importTaxonomy(
     actorId: principalId,
     recordedAt: now,
   });
-  deps.stampWatermark();
+  await deps.stampWatermark();
   await deps.outbox.enqueue({ name: "taxonomy.imported", taxonomyId: taxonomy.id, actorId: principalId, occurredAt: now });
 
   return taxonomy;
@@ -518,7 +520,7 @@ export async function importTerm(
     actorId: principalId,
     recordedAt: now,
   });
-  deps.stampWatermark();
+  await deps.stampWatermark();
   await deps.outbox.enqueue({ name: "taxonomy.term_imported", termId: term.id, actorId: principalId, occurredAt: now });
 
   return term;
@@ -565,7 +567,7 @@ export async function renameTerm(
     actorId: principalId,
     recordedAt: now,
   });
-  deps.stampWatermark();
+  await deps.stampWatermark();
   await deps.outbox.enqueue({ name: "taxonomy.term_renamed", termId, actorId: principalId, occurredAt: now });
 
   return updated;
@@ -660,7 +662,7 @@ export async function assignTerms(
     await deps.entryTerms.upsert({ contentType, contentId, termId, addedAt: now });
   }
 
-  deps.stampWatermark();
+  await deps.stampWatermark();
   await deps.outbox.enqueue({
     name: "taxonomy.terms_assigned",
     contentType,
@@ -708,7 +710,7 @@ export async function unassignTerms(
   }
 
   const now = deps.clock.nowIso();
-  deps.stampWatermark();
+  await deps.stampWatermark();
   await deps.outbox.enqueue({
     name: "taxonomy.terms_unassigned",
     contentType,
@@ -908,7 +910,7 @@ export async function deleteTerm(
       actorId: principalId,
       recordedAt: now,
     });
-    deps.stampWatermark();
+    await deps.stampWatermark();
     await deps.outbox.enqueue({
       name: "taxonomy.term_deleted",
       termId,
@@ -992,7 +994,7 @@ export async function deleteTaxonomy(
       actorId: principalId,
       recordedAt: now,
     });
-    deps.stampWatermark();
+    await deps.stampWatermark();
     await deps.outbox.enqueue({
       name: "taxonomy.deleted",
       taxonomyId,

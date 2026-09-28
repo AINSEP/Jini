@@ -374,3 +374,19 @@ test("importTerm runs the hierarchy chain: a parentId in a non-hierarchical taxo
   );
   assert.equal(terms.rows.has("src-term-1"), false);
 });
+
+test("importTaxonomy does not resolve before an async watermark stamp finishes", async () => {
+  const { deps } = baseDeps();
+  let finished = 0;
+  const slowDeps = {
+    ...deps,
+    stampWatermark: async () => {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      finished += 1;
+    },
+  };
+
+  await importTaxonomy({ deps: slowDeps, principalId: "user-1", id: "src-tax-1", name: "Cuisine", hierarchical: true, expectedVersion: undefined });
+
+  assert.equal(finished, 1);
+});

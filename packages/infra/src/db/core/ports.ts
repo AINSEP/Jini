@@ -50,8 +50,10 @@ export interface RestorePoint {
  * A host-supplied read of the current write watermark. Injected rather than imported so this
  * package never needs to know the host's schema — the watermark lives in a host-owned table
  * whose name this package deliberately does not know, and a driver here only needs its value.
+ * May be sync (a SQLite host reads it in-process) or async (a PGlite/Postgres host queries it);
+ * callers always await it.
  */
-export type WatermarkReader = () => number;
+export type WatermarkReader = () => number | Promise<number>;
 
 /**
  * Database-level operations that sit beneath the ORM: capability discovery, restore-point

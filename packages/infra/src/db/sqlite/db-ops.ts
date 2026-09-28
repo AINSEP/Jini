@@ -61,7 +61,7 @@ export class SqliteDbOpsAdapter implements DbOpsPort {
    * directory rather than failing: the backup itself is still a real, consistent file.
    */
   async captureRestorePoint(required: { scopeId: string }): Promise<RestorePoint> {
-    const watermarkAtCapture = this.readWatermark();
+    const watermarkAtCapture = await this.readWatermark();
     const targetDir = this.filePath === IN_MEMORY ? os.tmpdir() : path.dirname(this.filePath);
     const artifactRef = path.join(
       targetDir,
