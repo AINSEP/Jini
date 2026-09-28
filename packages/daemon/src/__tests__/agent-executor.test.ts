@@ -602,6 +602,22 @@ describe('AgentExecutor — pre-spawn failure paths never bare-throw', () => {
     }
   });
 
+  it('emits the plain reason as an error event before the failed end, so the user sees why', async () => {
+    // Before this, a pre-spawn failure reached only the server log: the stream carried a bare
+    // failed `end`, and the chat showed "Run failed" with no reason.
+    const { lifecycle, executor } = createHarness({ def: null });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+
+    await expect(executor.run({ runId: run.id, agentId: 'nope', prompt: 'x', cwd: '/work' })).rejects.toThrow(AgentExecutorError);
+
+    const events = await collectEvents(lifecycle, run.id);
+    const kinds = events.map((event) => event.kind);
+    expect(kinds.slice(-2)).toEqual(['error', 'end']);
+    expect(events.find((event) => event.kind === 'error')?.payload).toEqual({
+      message: 'The assistant could not start: unknown agentId "nope"',
+    });
+  });
+
   it('rejects with AGENT_RUNTIME_UNSUPPORTED for a def whose streamFormat has no implemented driver', async () => {
     const { lifecycle, executor } = createHarness({ def: createFakeDef({ streamFormat: 'made-up-format' }) });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });

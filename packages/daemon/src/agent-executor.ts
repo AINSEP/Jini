@@ -3863,6 +3863,13 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
    * @overallScore 100/100
    */
   async function failBeforeSpawn(runId: string, code: AgentExecutorErrorCode, message: string): Promise<never> {
+    // The reason goes on the run's own stream before `end`, not only into the thrown error: the
+    // thrown error reaches the server log, while a chat client sees only this stream. Without it
+    // the user got a bare "Run failed". Best-effort: a stream that will not take the event must not
+    // stop the run from finishing.
+    await lifecycle
+      .emit(runId, { event: 'error', data: { message: `The assistant could not start: ${message.replace(/^AgentExecutor:\s*/, '')}` } })
+      .catch(() => undefined);
     await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
     throw new AgentExecutorError(code, message);
   }
