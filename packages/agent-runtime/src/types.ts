@@ -129,6 +129,12 @@ export type RuntimeBuildOptions = {
    * `CLAUDE_CONFIG_DIR`, this keeps the CLI's Keychain login. `undefined` = the CLI's default (all).
    */
   settingSources?: readonly string[];
+  /**
+   * Extra settings for this run — today `claude`'s `--settings <file-or-json>`, which the CLI applies
+   * on top of (and independently of) {@link settingSources}. Lets a host that loads no settings layers
+   * still hand the run the few it wants, e.g. one PreToolUse hook. `undefined`/empty = no flag.
+   */
+  settings?: string;
 };
 
 export type RuntimeContext = {

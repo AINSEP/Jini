@@ -32,3 +32,22 @@ describe('claude buildArgs — settingSources', () => {
     expect(getAgentDef('claude')!.capabilityFlags?.['--setting-sources']).toBe('settingSources');
   });
 });
+
+/**
+ * With every settings layer off, a host can still hand the run the few settings it wants (e.g. one
+ * PreToolUse hook) through `--settings <json-or-path>`, which the CLI applies on top of — and
+ * independently of — `--setting-sources` (verified on Claude Code 2.1.283).
+ */
+describe('claude buildArgs — settings', () => {
+  it('passes --settings with the value verbatim', () => {
+    const json = '{"hooks":{}}';
+    const args = getAgentDef('claude')!.buildArgs('', [], [], { settings: json }, {});
+    expect(args.slice(args.indexOf('--settings'), args.indexOf('--settings') + 2)).toEqual(['--settings', json]);
+  });
+
+  it('omits the flag when unset or empty', () => {
+    const def = getAgentDef('claude')!;
+    expect(def.buildArgs('', [], [], {}, {})).not.toContain('--settings');
+    expect(def.buildArgs('', [], [], { settings: '' }, {})).not.toContain('--settings');
+  });
+});

@@ -632,6 +632,8 @@ export interface AgentExecutorRunInput {
   readonly allowedTools?: readonly string[];
   /** Forwarded verbatim to `RuntimeBuildOptions.settingSources` (an empty list = load none of the CLI's settings layers). */
   readonly settingSources?: readonly string[];
+  /** Forwarded verbatim to `RuntimeBuildOptions.settings` (extra settings JSON or file path for this run). */
+  readonly settings?: string;
 }
 
 export interface AgentExecutor {
@@ -3201,7 +3203,7 @@ function computeSystemPromptOverlay(
 
 /** Phase 9a: the def's `buildArgs` 4th argument — `undefined` when the run selects no model/reasoning/permissionMode/overlay/tool-restriction at all (byte-identical to omitting the argument). Pure. */
 export function buildAgentBuildArgsOptions(
-  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools' | 'settingSources'>,
+  input: Pick<AgentExecutorRunInput, 'model' | 'reasoning' | 'permissionMode' | 'disallowedTools' | 'allowedTools' | 'settingSources' | 'settings'>,
   systemPromptOverlay: string | null | undefined,
 ): RuntimeBuildOptions | undefined {
   const hasOverlay = systemPromptOverlay !== undefined && systemPromptOverlay !== null;
@@ -3212,6 +3214,7 @@ export function buildAgentBuildArgsOptions(
     ...(input.disallowedTools !== undefined ? { disallowedTools: input.disallowedTools } : {}),
     ...(input.allowedTools !== undefined ? { allowedTools: input.allowedTools } : {}),
     ...(input.settingSources !== undefined ? { settingSources: input.settingSources } : {}),
+    ...(input.settings !== undefined ? { settings: input.settings } : {}),
     ...(hasOverlay ? { systemPromptOverlay } : {}),
   };
   return Object.keys(options).length === 0 ? undefined : options;

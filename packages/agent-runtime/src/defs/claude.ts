@@ -249,6 +249,10 @@ export const claudeAgentDef = {
       if (options.settingSources !== undefined && caps.settingSources) {
         args.push('--setting-sources', options.settingSources.join(','));
       }
+      // See `RuntimeBuildOptions.settings`. Not probe-gated: `--settings` long predates `--setting-sources`.
+      if (options.settings) {
+        args.push('--settings', options.settings);
+      }
       return args;
     },
     promptViaStdin: true,

@@ -265,6 +265,9 @@ describe('buildAgentBuildArgsOptions', () => {
   it('forwards settingSources, including an empty list (load no settings)', () => {
     expect(buildAgentBuildArgsOptions({ settingSources: [] }, undefined)).toEqual({ settingSources: [] });
   });
+  it('forwards settings verbatim', () => {
+    expect(buildAgentBuildArgsOptions({ settings: '{"hooks":{}}' }, undefined)).toEqual({ settings: '{"hooks":{}}' });
+  });
   it('returns undefined when nothing was selected at all', () => {
     expect(buildAgentBuildArgsOptions({}, undefined)).toBeUndefined();
   });
