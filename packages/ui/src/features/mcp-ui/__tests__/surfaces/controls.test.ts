@@ -76,10 +76,10 @@ describe('renderTextInput', () => {
     expect(input.hasAttribute('min')).toBe(false);
   });
 
-  it('renders a masked password input when secret is true, with autocomplete off', () => {
+  it('renders a masked password input when secret is true, with autocomplete new-password (Chrome ignores off)', () => {
     const input = parse(renderTextInput({ name: 'secretKey', label: 'Secret Key', secret: true })).querySelector('input')!;
     expect(input.type).toBe('password');
-    expect(input.getAttribute('autocomplete')).toBe('off');
+    expect(input.getAttribute('autocomplete')).toBe('new-password');
   });
 
   it('renders a plain text input when secret is omitted or explicitly false, with no autocomplete override', () => {
@@ -97,6 +97,7 @@ describe('renderTextInput', () => {
       renderTextInput({ name: 'n', label: 'N', inputType: 'number', secret: true }),
     ).querySelector('input')!;
     expect(input.type).toBe('number');
+    expect(input.hasAttribute('autocomplete')).toBe(false);
   });
 
   it('ignores multiline for a secret field — there is no masked textarea', () => {
@@ -217,6 +218,7 @@ describe('renderFieldControl', () => {
   it('forwards secret through a string field to render a masked input', () => {
     const doc = parse(renderFieldControl({ kind: 'string', name: 's', label: 'S', secret: true }));
     expect(doc.querySelector('input')?.type).toBe('password');
+    expect(doc.querySelector('input')?.getAttribute('autocomplete')).toBe('new-password');
   });
 
   it('renders a plain text input for a string field when secret is absent — no regression against the unmasked path', () => {

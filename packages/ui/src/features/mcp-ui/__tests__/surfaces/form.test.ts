@@ -20,6 +20,28 @@ const SPEC: FormSurfaceSpec = {
   cancel: { label: 'Cancel' },
 };
 
+describe('renderFormDocument credential autofill guard', () => {
+  // Chrome ignores autocomplete="off" on password fields and fills a saved website login into them
+  // (the database-transfer destination form's password field, 2026-09-28). Every masked input a
+  // form surface emits must say new-password; this is the HTML-string half of Tovu's
+  // credential-input-autocomplete guard.
+  it('gives every type="password" input autocomplete="new-password", never off', () => {
+    const html = renderFormDocument({
+      ...SPEC,
+      fields: [
+        ...SPEC.fields,
+        { kind: 'string', name: 'password', label: 'Password', secret: true },
+        { kind: 'string', name: 'apiKey', label: 'API key', secret: true, multiline: true, value: 'x' },
+      ],
+    });
+    const { doc } = mountSurface(html);
+    const masked = [...doc.querySelectorAll('input[type="password"]')];
+    expect(masked.map((input) => input.getAttribute('name'))).toEqual(['password', 'apiKey']);
+    for (const input of masked) expect(input.getAttribute('autocomplete')).toBe('new-password');
+    expect(html).not.toMatch(/autocomplete="off"/);
+  });
+});
+
 describe('renderFormDocument', () => {
   it('renders one control per field inside a real form', () => {
     const { doc } = mountSurface(renderFormDocument(SPEC));

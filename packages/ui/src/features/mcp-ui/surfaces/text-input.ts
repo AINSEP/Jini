@@ -79,10 +79,10 @@ export function renderTextInput(props: TextInputProps): string {
     ? `<textarea class="mcpui-textarea"${common}${optionalAttribute('rows', props.rows)}>${props.value === undefined ? '' : escapeHtml(String(props.value))}</textarea>`
     : `<input class="mcpui-input" type="${type}"${common}` +
       optionalAttribute('value', props.value) +
-      // A stored secret (e.g. a cloud provider's access key) must never be offered to a browser's
-      // password manager as a saveable website login — it belongs to this `ui://` surface, not a
-      // credential the browser should remember.
-      (props.secret === true ? optionalAttribute('autocomplete', 'off') : '') +
+      // A stored secret (e.g. a cloud provider's access key or a database password) must never be
+      // autofilled with a saved website login. `new-password`, not `off`: Chrome ignores `off` on
+      // password inputs by design and fills the saved login anyway.
+      (type === 'password' ? optionalAttribute('autocomplete', 'new-password') : '') +
       (isNumber
         ? optionalAttribute('min', props.min) + optionalAttribute('max', props.max) + optionalAttribute('step', props.step)
         : '') +
