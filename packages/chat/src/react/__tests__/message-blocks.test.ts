@@ -35,6 +35,14 @@ describe('interleaveMessageBlocks', () => {
     expect(blocks![2]).toMatchObject({ kind: 'text', text: 'Done — it is English now.' });
   });
 
+  it('accepts content saved with a paragraph break between steps (assistantContentFromEvents), not only the old glued shape', () => {
+    const events = [text('Need project id.'), toolUse('t1'), toolResult('t1'), text('Done.')];
+    const blocks = interleaveMessageBlocks(events, 'Need project id.\n\nDone.', [{ id: 't1' }]);
+    expect(blocks?.map((b) => b.kind)).toEqual(['text', 'tools', 'text']);
+    expect(blocks?.[0]).toMatchObject({ kind: 'text', text: 'Need project id.' });
+    expect(blocks?.[2]).toMatchObject({ kind: 'text', text: 'Done.' });
+  });
+
   it('coalesces consecutive tool calls into ONE group so a run of calls stays one visual block', () => {
     const events = [
       text('Working.'),

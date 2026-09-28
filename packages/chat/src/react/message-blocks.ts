@@ -46,6 +46,7 @@
  * Artifacts are handled by the caller, not here — see `MessageRow.tsx`.
  */
 import type { AgentEvent } from '../core/index.js';
+import { assistantContentFromEvents, legacyAssistantContentFromEvents } from '../core/index.js';
 
 /**
  * One rendered block. Consecutive tool cards are coalesced into a single `tools` block so they keep
@@ -86,11 +87,9 @@ export function interleaveMessageBlocks<Row extends { id: string }>(
 
   // The reconstruction is only trustworthy if the text events are demonstrably the source `content`
   // was built from. Anything else and the offsets below are fiction.
-  let concatenated = '';
-  for (const ev of events) {
-    if (ev.kind === 'text') concatenated += ev.text;
-  }
-  if (concatenated !== content) return null;
+  // Both producers' shapes count: today's (a paragraph break between steps, see
+  // `assistantContentFromEvents`) and the old plain concatenation older saved rows carry.
+  if (content !== assistantContentFromEvents(events) && content !== legacyAssistantContentFromEvents(events)) return null;
 
   const rowById = new Map(rows.map((row) => [row.id, row]));
   const blocks: MessageBlock<Row>[] = [];

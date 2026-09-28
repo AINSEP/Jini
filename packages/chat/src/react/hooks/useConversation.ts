@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
-import { isTerminalRunStatus } from '../../core/index.js';
+import { assistantContentFromEvents, isTerminalRunStatus } from '../../core/index.js';
 import type { ChatTransport, RunContext } from '../../core/index.js';
 import { useRunStream } from './useRunStream.js';
 
@@ -54,14 +54,6 @@ function defaultCreateMessageId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
   fallbackIdCounter += 1;
   return `msg-${Date.now()}-${fallbackIdCounter}`;
-}
-
-function assistantContentFromEvents(events: AgentEvent[]): string {
-  let out = '';
-  for (const ev of events) {
-    if (ev.kind === 'text') out += ev.text;
-  }
-  return out;
 }
 
 export function useConversation(options: UseConversationOptions): UseConversationResult {

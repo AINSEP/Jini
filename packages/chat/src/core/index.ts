@@ -22,6 +22,7 @@ export * from './todos.js';
 export * from './question-form.js';
 export * from './util/index.js';
 export * from './transcript.js';
+export * from './assistant-content.js';
 /**
  * The chat pane's own capability manifest (`CHAT_CAPABILITIES`). The framework-free agent-control
  * vocabulary this used to sit alongside — `CapabilityDef`, `PAGE_CAPABILITIES`, the
