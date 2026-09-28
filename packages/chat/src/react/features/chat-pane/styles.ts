@@ -794,8 +794,11 @@ export const CHAT_PANE_STYLES = `
   border-radius: 6px;
   cursor: pointer;
 }
+/* \`.jini-icon-spin\` is \`<Icon name="spinner">\` (the tool-row "Running" badge). Its keyframes used to
+   live only in reference.css, which no host imports, so the badge sat still. */
 .jini-composer-spinner,
-.jini-runtime-spinner { animation: jini-chat-spin .8s linear infinite; }
+.jini-runtime-spinner,
+.jini-icon-spin { animation: jini-chat-spin .8s linear infinite; }
 @keyframes jini-chat-spin { to { transform: rotate(360deg); } }
 .jini-chat-pane .jini-composer-footer-accessories {
   display: flex;
@@ -1232,7 +1235,9 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .op-status-error { color: var(--danger); }
 .jini-chat-pane .op-status-running { color: var(--jini-chat-accent); }
 .jini-chat-pane .op-title { font-weight: 600; flex-shrink: 0; }
-.jini-chat-pane .shimmer-text { opacity: .6; }
+.jini-chat-pane .shimmer-text { animation: jini-chat-shimmer 1.6s ease-in-out infinite; }
+@keyframes jini-chat-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .jini-chat-pane .shimmer-text { animation: none; opacity: .6; } }
 .jini-chat-pane .op-meta {
   color: var(--jini-chat-muted);
   overflow: hidden;
