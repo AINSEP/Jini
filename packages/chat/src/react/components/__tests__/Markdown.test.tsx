@@ -90,6 +90,22 @@ describe('Markdown', () => {
     expect(screen.getByText('after the list')).toBeInTheDocument();
   });
 
+  it('keeps a loose numbered list (blank lines between items) as one list, numbered 1..n', () => {
+    const { container } = render(<Markdown>{'Intro.\n\n1. **one** – a\n\n2. **two** – b\n\n3. three'}</Markdown>);
+    const lists = container.querySelectorAll('ol');
+    expect(lists).toHaveLength(1);
+    expect(lists[0]!.querySelectorAll('li')).toHaveLength(3);
+    expect(lists[0]).not.toHaveAttribute('start');
+  });
+
+  it('keeps the author number when an ordered list does not start at 1', () => {
+    const { container } = render(<Markdown>{'Para.\n\n4. four\n5. five\n\nafter'}</Markdown>);
+    const list = container.querySelector('ol');
+    expect(list).toHaveAttribute('start', '4');
+    expect(list!.querySelectorAll('li')).toHaveLength(2);
+    expect(screen.getByText('after')).toBeInTheDocument();
+  });
+
   it('ends a paragraph early when a new block starts on the very next line with no blank-line separator', () => {
     render(<Markdown>{'a paragraph line\n# Heading right after'}</Markdown>);
     expect(screen.getByRole('heading', { level: 1, name: 'Heading right after' })).toBeInTheDocument();

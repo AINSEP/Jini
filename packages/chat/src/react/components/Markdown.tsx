@@ -52,7 +52,7 @@ type Block =
   | { kind: 'p'; text: string }
   | { kind: 'h'; level: 1 | 2 | 3; text: string }
   | { kind: 'ul'; items: string[] }
-  | { kind: 'ol'; items: string[] }
+  | { kind: 'ol'; start: number; items: string[] }
   | { kind: 'bq'; text: string }
   | { kind: 'code'; lang: string | null; body: string }
   | { kind: 'table'; aligns: TableAlign[]; headers: string[]; rows: string[][] }
@@ -149,6 +149,8 @@ function collectTableRows(lines: string[], start: number): { rows: string[][]; n
   return { rows, next: i };
 }
 
+const ORDERED_ITEM = /^\s*\d+[.)]\s+/;
+
 function parseBlocks(input: string): Block[] {
   const lines = input.split(/\r?\n/);
   const blocks: Block[] = [];
@@ -222,13 +224,14 @@ function parseBlocks(input: string): Block[] {
       i = next;
       continue;
     }
-    if (/^\s*\d+[.)]\s+/.test(line)) {
+    if (ORDERED_ITEM.test(line)) {
+      const start = Number(/\d+/.exec(line)![0]);
       const items: string[] = [];
-      while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i]!)) {
-        items.push(lines[i]!.replace(/^\s*\d+[.)]\s+/, ''));
-        i += 1;
+      while (i < lines.length && ORDERED_ITEM.test(lines[i]!)) {
+        items.push(lines[i]!.replace(ORDERED_ITEM, ''));
+        i = nextLooseListLine(lines, i + 1);
       }
-      blocks.push({ kind: 'ol', items });
+      blocks.push({ kind: 'ol', start, items });
       continue;
     }
     const paragraph: string[] = [];
@@ -241,6 +244,18 @@ function parseBlocks(input: string): Block[] {
   return blocks;
 }
 
+/**
+ * A "loose" numbered list puts a blank line between items ("1. a\n\n2. b").
+ * Skip those blank lines when the next non-blank line is another numbered
+ * item, so the items stay in ONE `<ol>` (numbered 1..n) instead of n lists
+ * that each show "1.". Otherwise return `i` unchanged and the list ends.
+ */
+function nextLooseListLine(lines: string[], i: number): number {
+  let j = i;
+  while (j < lines.length && lines[j]!.trim() === '') j += 1;
+  return j > i && j < lines.length && ORDERED_ITEM.test(lines[j]!) ? j : i;
+}
+
 function isBlockStart(lines: string[], i: number): boolean {
   const line = lines[i]!;
   return (
@@ -249,7 +264,7 @@ function isBlockStart(lines: string[], i: number): boolean {
     || /^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)
     || /^>\s?/.test(line)
     || /^\s*[-*]\s+/.test(line)
-    || /^\s*\d+[.)]\s+/.test(line)
+    || ORDERED_ITEM.test(line)
     || isTableStartAt(lines, i)
   );
 }
@@ -272,7 +287,7 @@ function renderBlock(block: Block): ReactNode {
       );
     case 'ol':
       return (
-        <ol>
+        <ol start={block.start === 1 ? undefined : block.start}>
           {block.items.map((item, i) => (
             <li key={i}>{renderInline(item)}</li>
           ))}
