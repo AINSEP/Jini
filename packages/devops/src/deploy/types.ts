@@ -47,12 +47,21 @@ export interface DeploymentUrlCheck {
  * options (e.g. Cloudflare custom-domain selection) that do not belong in
  * the shared shape — each target documents the metadata keys it reads and
  * ignores everything else.
+ *
+ * `responseHeaders` is the header set the caller wants every published page
+ * served with (e.g. security headers). Each target renders it into its own
+ * host format (a `_headers` file, a host config file, ...) or ignores it
+ * where the host offers no way to set headers.
  */
 export interface DeployPublishInput {
   files: DeployFile[];
   projectName: string;
   metadata?: JsonObject;
+  responseHeaders?: ResponseHeaderSet;
 }
+
+/** HTTP response headers by name, as a caller asks a target to serve them. */
+export type ResponseHeaderSet = Readonly<Record<string, string>>;
 
 /** Result of a successful (or partially successful) publish call. */
 export interface DeployPublishResult {
