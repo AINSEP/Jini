@@ -5,7 +5,11 @@ name: Publish to npm
 # identity instead. Bump the versions you want released, commit, then push a `release-*` tag (e.g.
 # `git tag release-2026-09-29 && git push origin release-2026-09-29`), or run it by hand from the
 # Actions tab (workflow_dispatch publishes whatever the chosen ref holds; its optional `packages`
-# input, e.g. `agent-runtime,daemon,mcp,ui,chat`, limits the run to those names).
+# input, e.g. `agent-runtime,daemon,mcp,ui,chat`, limits the run to those names). The Actions tab
+# only offers workflows that exist on the default branch (main), so until this file is on main use
+# a tag. A tag can carry the same filter after `.only.`, names separated by dots (package names
+# have none): `release-2026-09-29.only.agent-runtime.daemon.mcp.ui.chat` publishes just those five.
+# An unknown name fails the run before anything is published.
 #
 # One-time setup on npmjs.com, per package: package → Settings → Trusted Publisher → GitHub Actions,
 # organization/user `AINSEP`, repository `Jini`, workflow filename `publish.yml` (no environment).
@@ -62,6 +66,11 @@ jobs:
       - run: find packages/*/dist -name '*.map' -delete
 
       # Passed through env, not interpolated into the script, so the input cannot inject shell.
-      - run: pnpm exec tsx scripts/publish-pending.ts ${PACKAGES:+--only "$PACKAGES"}
+      - run: |
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" == *.only.* ]]; then
+            PACKAGES="${GITHUB_REF_NAME#*.only.}"
+            PACKAGES="${PACKAGES//./,}"
+          fi
+          pnpm exec tsx scripts/publish-pending.ts ${PACKAGES:+--only "$PACKAGES"}
         env:
           PACKAGES: ${{ inputs.packages }}
