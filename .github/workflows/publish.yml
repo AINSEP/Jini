@@ -4,12 +4,14 @@ name: Publish to npm
 # token or one-time code: npm "trusted publishing" authenticates this workflow through GitHub's OIDC
 # identity instead. Bump the versions you want released, commit, then push a `release-*` tag (e.g.
 # `git tag release-2026-09-29 && git push origin release-2026-09-29`), or run it by hand from the
-# Actions tab (workflow_dispatch publishes whatever the chosen ref holds).
+# Actions tab (workflow_dispatch publishes whatever the chosen ref holds; its optional `packages`
+# input, e.g. `agent-runtime,daemon,mcp,ui,chat`, limits the run to those names).
 #
 # One-time setup on npmjs.com, per package: package → Settings → Trusted Publisher → GitHub Actions,
 # organization/user `AINSEP`, repository `Jini`, workflow filename `publish.yml` (no environment).
-# A package that has never been published has no settings page yet: publish it once by hand, then
-# add the trusted publisher.
+# A package that has never been published has no settings page yet, so it cannot have a trusted
+# publisher: the run skips it with a warning instead of failing. The job summary lists what was
+# published, what was already on npm, and what was skipped as never published.
 #
 # Already-published versions are skipped (scripts/publish-pending.ts), so re-running after a partial
 # failure is safe. `pnpm exec tsx scripts/publish-pending.ts --plan` prints, read-only, what a run
@@ -21,6 +23,11 @@ on:
   push:
     tags: ['release-*']
   workflow_dispatch:
+    inputs:
+      packages:
+        description: 'Only these packages, comma-separated short names (e.g. ui,chat). Empty = all pending.'
+        required: false
+        default: ''
 
 concurrency: publish
 
@@ -54,4 +61,7 @@ jobs:
       # refuses any tarball that still has one).
       - run: find packages/*/dist -name '*.map' -delete
 
-      - run: pnpm exec tsx scripts/publish-pending.ts
+      # Passed through env, not interpolated into the script, so the input cannot inject shell.
+      - run: pnpm exec tsx scripts/publish-pending.ts ${PACKAGES:+--only "$PACKAGES"}
+        env:
+          PACKAGES: ${{ inputs.packages }}
