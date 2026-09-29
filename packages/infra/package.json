@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/infra",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Backing-service infrastructure for a Jini-hosted site: a driver-neutral persistence core plus selectively-installable database drivers. Import `./db/core` with no native module installed; add `./db/sqlite` only if you run SQLite.",
   "license": "Apache-2.0",
   "repository": {
