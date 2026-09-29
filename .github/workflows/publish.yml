@@ -1,105 +1,57 @@
-# Publish pipeline (Changesets).
-#
-# This workflow is scaffolding: it is wired up but DORMANT until an `NPM_TOKEN`
-# repo secret is added (Settings -> Secrets and variables -> Actions -> New
-# repository secret, generated from an npm account/org that owns the `@jini-ai`
-# scope). Until that secret exists:
-#   - If there are no pending changesets, this workflow no-ops (nothing to
-#     version, nothing to publish).
-#   - If there ARE pending changesets, the "Version Packages" PR step still
-#     works (it only needs GITHUB_TOKEN, which GitHub provides automatically).
-#     Only the actual `npm publish` step needs NPM_TOKEN, and it will fail
-#     harmlessly at the npm-auth step if the secret is missing -- nothing gets
-#     force-published, nothing else in the repo is affected.
-#
-# Flow (standard Changesets release flow):
-#   1. A PR merges to main carrying one or more `.changeset/*.md` files
-#      (added via `pnpm changeset`).
-#   2. This workflow runs on push to main. `changesets/action` sees the
-#      pending changesets and opens/updates a "Version Packages" PR that
-#      bumps affected package versions and CHANGELOGs (consuming the
-#      changeset files).
-#   3. A human reviews and merges that "Version Packages" PR. That merge is
-#      itself a push to main with no *new* changesets pending, so this
-#      workflow runs again -- this time `changesets/action` publishes the
-#      bumped packages to npm (`pnpm changeset publish`) and, on success,
-#      mirrors the same packages to GitHub Packages.
-#
-# See ADS-memory/reports/jini-port/publishing.md for the full contributor-facing writeup.
+name: Publish to npm
 
-name: Publish
+# Publishes every public @jini-ai/* package whose package.json version is not on npm yet, with no
+# token or one-time code: npm "trusted publishing" authenticates this workflow through GitHub's OIDC
+# identity instead. Bump the versions you want released, commit, then push a `release-*` tag (e.g.
+# `git tag release-2026-09-29 && git push origin release-2026-09-29`), or run it by hand from the
+# Actions tab (workflow_dispatch publishes whatever the chosen ref holds).
+#
+# One-time setup on npmjs.com, per package: package → Settings → Trusted Publisher → GitHub Actions,
+# organization/user `AINSEP`, repository `Jini`, workflow filename `publish.yml` (no environment).
+# A package that has never been published has no settings page yet: publish it once by hand, then
+# add the trusted publisher.
+#
+# Already-published versions are skipped (scripts/publish-pending.ts), so re-running after a partial
+# failure is safe. `pnpm exec tsx scripts/publish-pending.ts --plan` prints, read-only, what a run
+# would publish.
+#
+# Replaces the dormant Changesets + NPM_TOKEN workflow (2026-09-29).
 
 on:
   push:
-    branches: [main]
+    tags: ['release-*']
+  workflow_dispatch:
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency: publish
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
-  version-or-publish:
+  publish:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      packages: write
-      id-token: write # enables npm provenance; pnpm auto-attests in GH Actions when this is granted
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
 
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
+          registry-url: https://registry.npmjs.org
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing needs npm 11.5.1 or newer.
+      - run: npm install -g npm@latest
 
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm -r run build
 
-      - name: Create Release Pull Request or Publish to npm
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          publish: pnpm changeset publish
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # changesets/action writes its own ~/.npmrc using NPM_TOKEN. If
-          # actions/setup-node's registry-url above already wrote one first,
-          # that copy reads NODE_AUTH_TOKEN instead -- set both so publish
-          # authenticates regardless of which .npmrc wins.
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # tsconfig.base.json emits source maps for local debugging; published tarballs carry none.
+      # Several packages' "files" do not exclude them, so drop them here (publish-pending.ts
+      # refuses any tarball that still has one).
+      - run: find packages/*/dist -name '*.map' -delete
 
-      # Mirror to GitHub Packages. Runs only right after a real npm publish
-      # (steps.changesets.outputs.published == 'true'), and only for the
-      # packages that were just published (steps.changesets.outputs.publishedPackages,
-      # a JSON array of {name, version} -- see changesets/action's README).
-      # Uses `pnpm publish` (not `npm publish`) so workspace:* internal
-      # dependency ranges get rewritten to real semver the same way the npm
-      # publish above did; `npm publish` would ship the literal "workspace:*"
-      # string and break consumers. `|| true` per package: a re-run of this
-      # workflow after a partial failure would otherwise hard-fail on a 409
-      # for packages GitHub Packages already has at that version.
-      - name: Mirror newly published packages to GitHub Packages
-        if: steps.changesets.outputs.published == 'true'
-        run: |
-          echo "@jini-ai:registry=https://npm.pkg.github.com" >> ~/.npmrc
-          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> ~/.npmrc
-          echo "$PUBLISHED_PACKAGES" | jq -c '.[]' | while read -r pkg; do
-            name=$(echo "$pkg" | jq -r '.name')
-            dir="packages/${name#@jini-ai/}"
-            echo "Publishing $name from $dir to GitHub Packages"
-            pnpm --dir "$dir" publish --registry https://npm.pkg.github.com --no-git-checks || true
-          done
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Pass the Action output through an env var rather than interpolating
-          # ${{ ... }} directly into the shell script — the interpolated form is
-          # GitHub's own documented script-injection anti-pattern (a value
-          # containing a shell metacharacter or `$()` would execute). No value
-          # in this specific output is attacker-controlled today, but the
-          # pattern is cheap to avoid regardless.
-          PUBLISHED_PACKAGES: ${{ steps.changesets.outputs.publishedPackages }}
+      - run: pnpm exec tsx scripts/publish-pending.ts
