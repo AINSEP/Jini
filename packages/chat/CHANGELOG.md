@@ -1,5 +1,14 @@
 # @jini-ai/chat-core
 
+## @jini-ai/chat 0.3.11
+
+### Patch Changes
+
+- `useChatPaneRuntimeInventory` polls daemon health only while the tab is visible. Hiding the
+  tab clears the interval; showing it checks status once and restarts the interval. A tick is
+  skipped while the previous status call is still in flight. Hosts no longer need their own
+  hidden-tab probe gate for this hook.
+
 ## 0.1.2
 
 ### Patch Changes

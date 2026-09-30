@@ -30,7 +30,17 @@ function runtimeAccess(
   };
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  delete (document as { visibilityState?: DocumentVisibilityState }).visibilityState;
+});
+
+/** Overrides jsdom's `document.visibilityState` (an own property shadowing the prototype getter,
+ *  removed again in `afterEach`); `dispatch` also fires `visibilitychange`. */
+function setVisibility(state: DocumentVisibilityState, dispatch = true): void {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state });
+  if (dispatch) document.dispatchEvent(new Event('visibilitychange'));
+}
 
 describe('useChatPaneRuntimeInventory', () => {
   it('loads inventory, polls health, and exposes explicit rescan state', async () => {
@@ -254,6 +264,58 @@ describe('useChatPaneRuntimeInventory', () => {
       window.dispatchEvent(new Event('focus'));
     });
     expect(listAgents).toHaveBeenCalledTimes(3);
+  });
+
+  it('polls health only while the tab is visible, checking once when it is shown again', async () => {
+    vi.useFakeTimers();
+    const access = runtimeAccess();
+    const { unmount } = renderHook(() => useChatPaneRuntimeInventory({ access, pollIntervalMs: 100 }));
+    await act(async () => {});
+    expect(access.daemonOnline).toHaveBeenCalledTimes(1);
+
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(2);
+
+    await act(async () => setVisibility('hidden'));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(2);
+
+    await act(async () => setVisibility('visible'));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(3);
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(4);
+
+    unmount();
+    await act(async () => setVisibility('visible'));
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(4);
+  });
+
+  it('starts no health interval when mounted in a hidden tab, but still checks once', async () => {
+    vi.useFakeTimers();
+    setVisibility('hidden', false);
+    const access = runtimeAccess();
+    renderHook(() => useChatPaneRuntimeInventory({ access, pollIntervalMs: 100 }));
+    await act(async () => {});
+    await act(async () => vi.advanceTimersByTime(1_000));
+    expect(access.daemonOnline).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips a health tick while the previous status call is still in flight', async () => {
+    vi.useFakeTimers();
+    const pending = deferred<boolean>();
+    const daemonOnline = vi.fn<ChatPaneRuntimeAccess['daemonOnline']>().mockReturnValueOnce(pending.promise).mockResolvedValue(true);
+    const access = runtimeAccess({ daemonOnline });
+    const { result } = renderHook(() => useChatPaneRuntimeInventory({ access, pollIntervalMs: 100 }));
+    await act(async () => {});
+
+    await act(async () => vi.advanceTimersByTime(300));
+    expect(daemonOnline).toHaveBeenCalledTimes(1);
+
+    await act(async () => pending.resolve(true));
+    expect(result.current.daemonOnline).toBe(true);
+    await act(async () => vi.advanceTimersByTime(100));
+    expect(daemonOnline).toHaveBeenCalledTimes(2);
   });
 
   it('treats a resolved empty list as a finished answer, not something to retry', async () => {

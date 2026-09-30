@@ -44,6 +44,9 @@ export interface UseChatPaneRuntimeInventoryResult {
  * the daemon goes from offline to online, the window regains focus, or the tab becomes visible.
  * A RESOLVED list — even an empty one — is a finished answer; hosts reject when theirs is not one.
  *
+ * Health polling runs only while the tab is visible (hidden tabs made no-op status calls every
+ * `pollIntervalMs` forever), and never overlaps a status call still in flight.
+ *
  * @complexity Time: O(n) per inventory response; space: O(n) for the snapshot.
  * @overallScore 100/100
  */
@@ -131,10 +134,39 @@ export function useChatPaneRuntimeInventory({
     if (!access) return;
     retry.reset();
     void loadAgents(false);
-    void refreshStatus();
-    const timer = window.setInterval(() => void refreshStatus(), pollIntervalMs);
-    return () => {
+    // Health polls only while the tab is visible: a hidden tab stops its timer, and showing it
+    // again checks once at once and restarts the interval. A tick is skipped while the previous
+    // status call is still out, so a slow host never piles up requests.
+    let timer: number | undefined;
+    let statusInFlight = false;
+    const pollStatus = (): void => {
+      if (statusInFlight) return;
+      statusInFlight = true;
+      void refreshStatus().finally(() => {
+        statusInFlight = false;
+      });
+    };
+    const startPolling = (): void => {
+      if (timer === undefined) timer = window.setInterval(pollStatus, pollIntervalMs);
+    };
+    const stopPolling = (): void => {
       window.clearInterval(timer);
+      timer = undefined;
+    };
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState !== 'visible') {
+        stopPolling();
+        return;
+      }
+      pollStatus();
+      startPolling();
+    };
+    pollStatus();
+    if (document.visibilityState === 'visible') startPolling();
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      stopPolling();
       retry.cancel();
       inventory.supersede();
       health.supersede();
@@ -143,16 +175,22 @@ export function useChatPaneRuntimeInventory({
 
   useEffect(() => {
     if (!access) return;
-    const onWake = (): void => {
+    // The status check on becoming visible belongs to the polling effect above; this one only
+    // retries an unanswered inventory load (and, on focus, checks status too).
+    const onFocus = (): void => {
       if (document.visibilityState === 'hidden') return;
       void refreshStatus();
       reloadIfUnanswered();
     };
-    window.addEventListener('focus', onWake);
-    document.addEventListener('visibilitychange', onWake);
+    const onVisible = (): void => {
+      if (document.visibilityState === 'hidden') return;
+      reloadIfUnanswered();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
-      window.removeEventListener('focus', onWake);
-      document.removeEventListener('visibilitychange', onWake);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [access, refreshStatus, reloadIfUnanswered]);
 
