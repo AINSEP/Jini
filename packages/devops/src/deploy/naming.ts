@@ -1,6 +1,5 @@
 /**
- * Shared label-sanitizing helpers used by both the Vercel and Cloudflare
- * Pages adapters to turn a caller-supplied `projectName` into a
+ * Shared label-sanitizing helpers deploy targets use to turn a caller-supplied `projectName` into a
  * provider-safe identifier (lowercase, hyphenated, length-capped). Lifted
  * verbatim from `apps/daemon/src/deploy.ts`'s `safeProjectLabel` — pure
  * string logic, no OD dependency to strip.

@@ -5,7 +5,7 @@ import type { DeployLinkStatus, DeploymentUrlCheck } from './types.js';
 
 /**
  * SEC-003: reachability probes fetch a *provider-returned* URL/alias
- * (Vercel/Cloudflare deployment `url`/`alias`/`aliases[]`), so a compromised or
+ * (a deployment's `url`/`alias`/`aliases[]` from the host), so a compromised or
  * malicious provider response is a live SSRF vector — the same trust-boundary
  * shape `@jini-ai/platform`'s asset-cache solves for a caller-supplied media URL.
  * Reused here rather than reinvented (see
@@ -29,11 +29,10 @@ function assertSafeDeploymentUrl(raw: string): URL {
 
 /**
  * Provider-supplied hook for recognizing a deployment URL that responded
- * but is gated behind the provider's own auth wall (Vercel Deployment
- * Protection, for example) rather than genuinely down. Kept pluggable
- * instead of hardcoding Vercel's SSO-nonce/header sniffing here, so a
- * future target (Cloudflare, GitHub Pages, ...) can supply its own
- * detector or omit one entirely.
+ * but is gated behind the provider's own auth wall (a deployment-protection
+ * login page, for example) rather than genuinely down. Kept pluggable
+ * instead of hardcoding one provider's SSO-nonce/header sniffing here, so
+ * each target can supply its own detector or omit one entirely.
  */
 export type ProtectedResponseDetector = (resp: Response, body: string) => boolean;
 
@@ -64,7 +63,7 @@ export interface ReachabilityWaitResult {
 
 /**
  * Normalizes a raw provider-returned URL/hostname into an absolute
- * `https://` URL (bare hostnames like `foo.vercel.app` are assumed https).
+ * `https://` URL (bare hostnames like `foo.example.app` are assumed https).
  *
  * @param url - Raw value from a provider response; may be `undefined`/non-string.
  * @returns The normalized absolute URL, or `''` if `url` was empty/non-string.

@@ -1,14 +1,13 @@
 import { DeployError } from './types.js';
 
 /**
- * Shared redirect guard for `github-pages.ts`/`vercel.ts` — every `fetch()` call in both files
- * carries a live `Authorization: Bearer <token>` header, and neither file previously passed a
- * `redirect` option, so a 3xx response from their hardcoded, trusted API origin
- * (`api.github.com`/`api.vercel.com`) would be followed transparently by `fetch()`, replaying that
- * Authorization header at whatever `Location` the response named. Under normal operation neither
- * origin redirects these endpoints, but a redirect is exactly the mechanism a compromised edge,
+ * Shared redirect guard for deploy targets whose `fetch()` calls carry a live
+ * `Authorization: Bearer <token>` header. Without a `redirect` option, a 3xx response from a
+ * target's hardcoded, trusted API origin would be followed transparently by `fetch()`, replaying
+ * that Authorization header at whatever `Location` the response named. Under normal operation no
+ * such origin redirects these endpoints, but a redirect is exactly the mechanism a compromised edge,
  * misconfigured origin, or MITM would use to exfiltrate the token to an attacker-controlled host —
- * flagged 2026-08-15 (a downstream product's deploy-publishing dispatch) and fixed here, in the adapter itself,
+ * flagged 2026-08-15 (a downstream product's deploy-publishing dispatch) and fixed here, in the shared helper every target uses,
  * rather than only papering over it from a caller.
  *
  * `redirectGuardInit` is the one place every call site adds `redirect: 'manual'`.
@@ -30,10 +29,10 @@ export function redirectGuardInit(init: RequestInit): RequestInit {
  * @throws {DeployError} `resp` is an opaque-redirect filtered response (the server tried to
  *   redirect this authenticated request elsewhere). Call immediately after every guarded
  *   `fetch()`, before reading `resp.status`/`resp.json()` for any other reason — a caller that
- *   checks `resp.status === 404` (a real, expected branch in `getGitHubRefSha`) before this guard
+ *   checks `resp.status === 404` (a real, expected branch in some targets) before this guard
  *   would never see that check misfire, since an opaque-redirect response's `status` is `0`, not
  *   `404` — but call ordering here still matters for every OTHER status-sensitive branch in
- *   `github-pages.ts`/`vercel.ts`.
+ *   a target.
  */
 export function assertNotRedirected(resp: Response, providerLabel: string): void {
   if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)) {

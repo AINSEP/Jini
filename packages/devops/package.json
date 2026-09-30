@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/devops",
-  "version": "0.3.3",
+  "version": "0.4.0",
   "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
   "license": "Apache-2.0",
   "repository": {

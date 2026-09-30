@@ -8,18 +8,18 @@ public subpath and permission boundary.
 
 | subpath | purpose |
 |---|---|
-| `./deploy` | Publish sites to Vercel, Cloudflare Pages, Netlify, or GitHub Pages through `DeployTarget`; includes the guarded `deploy.publish` tool. |
+| `./deploy` | The generic deploy seam: the `DeployTarget` port, the `DeployTargetToken` many-token, the guarded `deploy.publish` tool, and the `DeployTargetModule`/`DeployHostKit` contract. Ships no hosting vendor. |
 | `./source-control` | Reserved for repository, branch, commit, and pull-request operations. |
 | `./ci-cd` | Reserved for pipeline definitions, run status, logs, cancellation, and deployment orchestration. |
 
 ```ts
 import {
   DeployTargetToken,
-  VercelDeployTarget,
+  createDeployPublishToolRegistration,
 } from '@jini-ai/devops/deploy';
 ```
 
-A host can also keep its own target code outside this package: it writes each
+Hosting targets live in the host, not in this package: the host writes each
 target as a `DeployTargetModule` and hands it a `DeployHostKit` (the outbound
 `fetch`, timeouts, and this package's naming, reachability and redirect-guard
 helpers), so the module needs no imports of its own. `create()` returns a plain

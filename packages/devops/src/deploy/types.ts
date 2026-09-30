@@ -1,6 +1,6 @@
 /**
  * Provider-agnostic shapes for publishing a static file set to a hosting
- * target (Vercel, Cloudflare Pages, and future adapters). None of these
+ * target (any host-supplied adapter). None of these
  * types know what a "project" is — the caller (a pack, a tool handler, a
  * CLI command) resolves its own file set and hands over plain
  * `DeployFile[]`. See `packages/devops/source-map.md` for what was dropped
@@ -28,7 +28,7 @@ export interface DeployFile {
  * Coarse status of a deployment's public URL. `link-delayed` means the
  * provider accepted the deploy but the URL is not yet reachable (DNS/CDN
  * propagation); `protected` means the provider is gating the URL behind
- * its own auth wall (e.g. Vercel Deployment Protection).
+ * its own auth wall (e.g. a deployment-protection login page).
  */
 export type DeployLinkStatus = 'ready' | 'protected' | 'failed' | 'link-delayed';
 
@@ -44,7 +44,7 @@ export interface DeploymentUrlCheck {
  * Input to `DeployTarget.publish`. Deliberately narrow: a file set plus a
  * human/DNS-safe label the target may use to derive a provider-side
  * project/deployment name. `metadata` is an escape hatch for target-specific
- * options (e.g. Cloudflare custom-domain selection) that do not belong in
+ * options (e.g. custom-domain selection) that do not belong in
  * the shared shape — each target documents the metadata keys it reads and
  * ignores everything else.
  *
@@ -71,14 +71,14 @@ export interface DeployPublishResult {
   status: DeployLinkStatus;
   statusMessage?: string;
   reachableAt?: number;
-  /** Target-specific extras (e.g. Cloudflare custom-domain/DNS outcome). */
+  /** Target-specific extras (e.g. a custom-domain/DNS outcome). */
   providerMetadata?: JsonObject;
 }
 
 /**
  * The port every deploy provider implements. Bound many-to-one against the
  * `DeployTarget` many-token in `tokens.ts` (`bindMany(DeployTargetToken, ...)`)
- * so Vercel, Cloudflare Pages, and later targets can all register against
+ * so any number of hosting targets can register against
  * the same capability without a central union type.
  */
 export interface DeployTarget {

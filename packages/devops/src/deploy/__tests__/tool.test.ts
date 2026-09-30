@@ -36,7 +36,7 @@ describe('denyAllDeployPublishPolicy', () => {
         principal: withRoles,
         run,
         tool: { id: DEPLOY_PUBLISH_TOOL_ID },
-        input: { targetId: 'vercel', files: [], projectName: 'demo' },
+        input: { targetId: 'target-a', files: [], projectName: 'demo' },
       }),
     ).toBe('deny');
     expect(
@@ -146,28 +146,28 @@ describe('createDeployPublishToolRegistration', () => {
   });
 
   it("handler dispatches to the matching bound DeployTarget's publish via publishDeploy", async () => {
-    const vercel = new FakeDeployTarget('vercel');
-    const cloudflare = new FakeDeployTarget('cloudflare-pages');
-    const registration = createDeployPublishToolRegistration({ targets: [vercel, cloudflare], policy: { authorize: () => 'allow' } });
+    const targetA = new FakeDeployTarget('target-a');
+    const targetB = new FakeDeployTarget('target-b');
+    const registration = createDeployPublishToolRegistration({ targets: [targetA, targetB], policy: { authorize: () => 'allow' } });
 
     const ctx: ToolExecutionContext = {
       executionId: 'exec-1',
       principal: { id: 'user-1' },
       run,
-      input: { targetId: 'cloudflare-pages', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
+      input: { targetId: 'target-b', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
       signal: new AbortController().signal,
     };
     const result = await registration.handler(ctx);
 
-    expect(result).toEqual({ targetId: 'cloudflare-pages', url: 'https://demo.example', status: 'ready' });
-    expect(cloudflare.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
-    expect(vercel.lastInput).toBeUndefined();
+    expect(result).toEqual({ targetId: 'target-b', url: 'https://demo.example', status: 'ready' });
+    expect(targetB.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
+    expect(targetA.lastInput).toBeUndefined();
   });
 });
 
 describe('deploy.publish wired end-to-end through the real ToolExecutor', () => {
   it('denies an unauthorized principal under the default policy: the handler never runs and the audit trail stops at denied', async () => {
-    const target = new FakeDeployTarget('vercel');
+    const target = new FakeDeployTarget('target-a');
     const registry = createToolRegistry();
     registry.register(createDeployPublishToolRegistration({ targets: [target] }));
     const executor = createToolExecutor({ registry });
@@ -176,7 +176,7 @@ describe('deploy.publish wired end-to-end through the real ToolExecutor', () => 
       { id: 'anonymous-caller' },
       run,
       DEPLOY_PUBLISH_TOOL_ID,
-      { targetId: 'vercel', files: [], projectName: 'demo' },
+      { targetId: 'target-a', files: [], projectName: 'demo' },
     );
 
     expect(result.status).toBe('denied');
@@ -186,7 +186,7 @@ describe('deploy.publish wired end-to-end through the real ToolExecutor', () => 
   });
 
   it('still denies a principal with roles when no role matches an explicit allowlist policy', async () => {
-    const target = new FakeDeployTarget('vercel');
+    const target = new FakeDeployTarget('target-a');
     const registry = createToolRegistry();
     registry.register(
       createDeployPublishToolRegistration({ targets: [target], policy: createRoleGatedDeployPublishPolicy() }),
@@ -197,7 +197,7 @@ describe('deploy.publish wired end-to-end through the real ToolExecutor', () => 
       { id: 'user-1', roles: ['unrelated-role'] },
       run,
       DEPLOY_PUBLISH_TOOL_ID,
-      { targetId: 'vercel', files: [], projectName: 'demo' },
+      { targetId: 'target-a', files: [], projectName: 'demo' },
     );
 
     expect(result.status).toBe('denied');
@@ -205,7 +205,7 @@ describe('deploy.publish wired end-to-end through the real ToolExecutor', () => 
   });
 
   it('allows and completes a call from a principal holding the required role, recording a full audit trail', async () => {
-    const target = new FakeDeployTarget('vercel');
+    const target = new FakeDeployTarget('target-a');
     const registry = createToolRegistry();
     registry.register(
       createDeployPublishToolRegistration({ targets: [target], policy: createRoleGatedDeployPublishPolicy() }),
@@ -216,11 +216,11 @@ describe('deploy.publish wired end-to-end through the real ToolExecutor', () => 
       { id: 'operator-1', roles: [DEFAULT_DEPLOY_PUBLISH_ROLE] },
       run,
       DEPLOY_PUBLISH_TOOL_ID,
-      { targetId: 'vercel', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
+      { targetId: 'target-a', files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' },
     );
 
     expect(result.status).toBe('completed');
-    expect(result.output).toEqual({ targetId: 'vercel', url: 'https://demo.example', status: 'ready' });
+    expect(result.output).toEqual({ targetId: 'target-a', url: 'https://demo.example', status: 'ready' });
     expect(target.lastInput).toEqual({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
     const audit = executor.getAuditRecord(result.executionId);
     expect(audit?.events.map((e) => e.phase)).toEqual(['requested', 'authorized', 'started', 'completed']);

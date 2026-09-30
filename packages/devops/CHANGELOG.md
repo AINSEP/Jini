@@ -1,5 +1,29 @@
 # @jini-ai/devops
 
+## 0.4.0
+
+### Breaking
+
+- `./deploy`: the four hosting-vendor targets are removed, with their constants
+  and helpers: `VercelDeployTarget`, `NetlifyDeployTarget`,
+  `CloudflarePagesDeployTarget`, `GitHubPagesDeployTarget`, `*_TARGET_ID`,
+  `CLOUDFLARE_PAGES_ASSET_*`, `isVercelProtectedResponse`,
+  `chunkCloudflarePagesAssetUploads`, `cloudflarePagesAssetHash`,
+  `listCloudflarePagesZones` and their config/metadata types. A host now
+  supplies its own targets as `DeployTargetModule`s built on `DeployHostKit`.
+- `deploy.publish`'s tool description no longer names any provider.
+
+### Unchanged
+
+- `DeployTarget`, `DeployTargetToken`, `publishDeploy`, `deploy.publish`
+  (`createDeployPublishToolRegistration` and its policies), the host-kit types,
+  and the naming, reachability and redirect-guard helpers.
+
+### Added
+
+- A guard test that fails if a hosting-vendor name appears anywhere under
+  `packages/devops/src`.
+
 ## 0.3.3
 
 ### Added

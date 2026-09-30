@@ -7,11 +7,11 @@ function jsonResponse(status: number, headers: Record<string, string> = {}, body
 
 describe('normalizeDeploymentUrl', () => {
   it('prefixes a bare hostname with https://', () => {
-    expect(normalizeDeploymentUrl('my-site.vercel.app')).toBe('https://my-site.vercel.app');
+    expect(normalizeDeploymentUrl('my-site.example.app')).toBe('https://my-site.example.app');
   });
 
   it('leaves an already-absolute URL untouched', () => {
-    expect(normalizeDeploymentUrl('http://my-site.vercel.app')).toBe('http://my-site.vercel.app');
+    expect(normalizeDeploymentUrl('http://my-site.example.app')).toBe('http://my-site.example.app');
   });
 
   it('returns an empty string for non-string or empty input', () => {
@@ -210,9 +210,8 @@ describe('waitForReachableDeploymentUrl', () => {
     // `options.protectedMessage ?? 'default'` in reachability.ts's own protected-response
     // branch only replaces null/undefined, not '' — so a caller-supplied empty string survives
     // all the way to this function's own `result.statusMessage || generic` fallback, which is
-    // what this test actually exercises. No real target in this package passes '' today (Vercel
-    // passes a real constant, others omit protectedMessage entirely), but `protectedMessage` is
-    // public API on an exported function, so a future/external caller doing this is real
+    // what this test actually exercises. This package ships no targets of its own, but
+    // `protectedMessage` is public API on an exported function, so an external caller doing this is real
     // behavior to cover, not a hypothetical.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse(401, {}, 'Authentication Required')));
     const result = await waitForReachableDeploymentUrl(['site.example'], {

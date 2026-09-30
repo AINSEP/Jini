@@ -4,13 +4,13 @@ import { DeployError, type DeployFile, type DeployPublishResult, type DeployTarg
 /**
  * Many-bound composition token for deploy providers, per extraction-plan.md
  * §2.2's own worked example (`DeployTarget = manyToken<DeployProvider>
- * ('jini.deployTarget')`, `bindMany(DeployTarget, netlifyTarget)`). A host
+ * ('jini.deployTarget')`, `bindMany(DeployTarget, someTarget)`, paraphrased). A host
  * composition binds every deploy provider it wants available against this
  * one token:
  *
  * ```ts
- * bindings().bindMany(DeployTargetToken, new VercelDeployTarget(vercelConfig))
- *            .bindMany(DeployTargetToken, new CloudflarePagesDeployTarget(cfConfig))
+ * bindings().bindMany(DeployTargetToken, hostTargetA)
+ *            .bindMany(DeployTargetToken, hostTargetB)
  * ```
  *
  * A pack then resolves `c.getMany(DeployTargetToken)` to get every bound

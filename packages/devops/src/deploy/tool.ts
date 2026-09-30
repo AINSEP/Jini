@@ -44,9 +44,9 @@ export const DEFAULT_DEPLOY_PUBLISH_ROLE = 'deploy:publish';
  * Why deny-by-default specifically (not e.g. "allow same-principal-as-run"
  * or some other partial default): `deploy.publish` is the one tool in this
  * codebase that reaches real external infrastructure under the caller's own
- * cloud account — a successful call spends the operator's Vercel/Cloudflare
- * quota, publishes content to a public, internet-reachable URL, and (for
- * Cloudflare custom domains) can create real DNS records. Unlike most tool
+ * cloud account — a successful call spends the operator's hosting-provider
+ * quota, publishes content to a public, internet-reachable URL, and (for a
+ * target that manages custom domains) can create real DNS records. Unlike most tool
  * calls, a wrongly-allowed `deploy.publish` is not cheaply reversible and
  * has an externally visible blast radius. That is a strictly stronger case
  * for deny-by-default than `@jini-ai/media`'s `DEFAULT_MEDIA_EXECUTION_POLICY`
@@ -127,7 +127,7 @@ export function createDeployPublishToolRegistration(
   return {
     descriptor: {
       id: DEPLOY_PUBLISH_TOOL_ID,
-      description: 'Publishes a file set to a bound deploy target (e.g. Vercel, Cloudflare Pages, Netlify, GitHub Pages).',
+      description: 'Publishes a file set to a bound deploy target (a hosting provider the host registered).',
       ...(requiresConfirmation !== undefined ? { requiresConfirmation } : {}),
       ...(timeoutMs !== undefined ? { timeoutMs } : {}),
     },
