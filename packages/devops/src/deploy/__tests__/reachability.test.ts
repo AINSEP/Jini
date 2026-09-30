@@ -79,6 +79,24 @@ describe('checkDeploymentUrl', () => {
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
+  it('returns the GET fallback\'s own not-reachable result when HEAD and GET both answer 404', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(404)) // HEAD: triggers the GET fallback
+      .mockResolvedValueOnce(jsonResponse(404)); // GET: still not there, not protected
+    vi.stubGlobal('fetch', fetchSpy);
+    const result = await checkDeploymentUrl('https://site.example');
+    expect(result).toEqual({ reachable: false, statusCode: 404, statusMessage: 'Public link returned HTTP 404.' });
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy.mock.calls[1]?.[1]?.method).toBe('GET');
+  });
+
+  it('folds a non-Error rejection into reachable:false with its string form', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue('socket hang up'));
+    const result = await checkDeploymentUrl('https://site.example');
+    expect(result).toEqual({ reachable: false, statusMessage: 'Public link is not reachable yet: socket hang up' });
+  });
+
   it('folds a network error (e.g. connection refused) into reachable:false with a message', async () => {
     vi.stubGlobal(
       'fetch',
@@ -230,6 +248,19 @@ describe('waitForReachableDeploymentUrl', () => {
     expect(result.status).toBe('ready');
     expect(result.url).toBe('https://site.example');
     expect(result.reachableAt).toBeTypeOf('number');
+  });
+
+  it('waits intervalMs and sweeps again when the first sweep finds nothing reachable', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse(404)) // sweep 1 HEAD
+      .mockResolvedValueOnce(jsonResponse(404)) // sweep 1 GET
+      .mockResolvedValueOnce(jsonResponse(200)); // sweep 2 HEAD
+    vi.stubGlobal('fetch', fetchSpy);
+    const result = await waitForReachableDeploymentUrl(['site.example'], { timeoutMs: 60_000, intervalMs: 1 });
+    expect(result.status).toBe('ready');
+    expect(result.url).toBe('https://site.example');
+    expect(fetchSpy).toHaveBeenCalledTimes(3);
   });
 
   it('short-circuits to protected as soon as any candidate reports the auth wall', async () => {
