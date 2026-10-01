@@ -59,6 +59,29 @@ describe('redactSecretLike', () => {
   it('does not redact short identifiers', () => {
     expect(redactSecretLike('field=short-id-here')).toBe('field=short-id-here');
   });
+
+  // 2026-10-01: a delegated tool failure reached the model as
+  // `daemon 500 on .../api/[redacted]: INTERNAL_ERROR: Error [redacted]: ...` — the host's
+  // correlation id and the daemon route both matched the 20+-char opaque-token rule.
+  it('keeps a host error id (ERR-XXXX-XXXX-XXXX-XXXX) and the delegated-tool-calls route', () => {
+    const message =
+      'daemon 500 on http://127.0.0.1:54320/api/delegated-tool-calls: INTERNAL_ERROR: Error ERR-AAAA-1111-BBBB-2222: ToolExecutor: unknown tool "zz_no_such_tool"';
+    expect(redactSecretLike(message)).toBe(message);
+  });
+
+  it('still redacts a secret of the same length and alphabet as an error id that is not exactly one', () => {
+    // 23 chars, like an error id, but lower-case hex and no ERR- prefix.
+    const lookalike = 'abcd-1111-bbbb-2222-eee';
+    // An error id glued to more token characters is one longer run, not an error id.
+    const glued = 'ERR-AAAA-1111-BBBB-2222ffff';
+    const result = redactSecretLike(`a ${lookalike} b ${glued} c`);
+    expect(result).toBe('a [redacted] b [redacted] c');
+  });
+
+  it('still redacts a 20-character token that is not a known route segment', () => {
+    expect(redactSecretLike('/api/delegated-tool-callz')).toBe('/api/[redacted]');
+    expect(redactSecretLike('x delegated-tool-calls-and-more y')).toBe('x [redacted] y');
+  });
 });
 
 describe('sanitizeUntrustedText', () => {

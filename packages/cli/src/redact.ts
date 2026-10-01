@@ -89,11 +89,20 @@ const LABELED_SECRET_RE =
   /\b(authorization|bearer|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|password|secret|cookie)\b\s*[:=]\s*\S+/gi;
 const OPAQUE_TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;
 
+/**
+ * Whole opaque-token runs that are known not to be secrets, kept verbatim. Matched against the
+ * ENTIRE run, so a secret glued onto one of these is still one longer run and still redacted:
+ * - a host's tool-failure correlation id (`ERR-XXXX-XXXX-XXXX-XXXX`, upper-case hex — Tovu's
+ *   `mintToolErrorId`), which exists to be shown to the model and quoted back to an operator;
+ * - `delegated-tool-calls`, the daemon route segment every delegated tool failure names in its URL.
+ */
+const NON_SECRET_TOKEN_RE = /^(?:ERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}|delegated-tool-calls)$/;
+
 /** Redact labeled credentials and long opaque-token-looking substrings from `text`. */
 export function redactSecretLike(text: string): string {
   return text
     .replace(LABELED_SECRET_RE, (match) => match.replace(/\S+$/, '[redacted]'))
-    .replace(OPAQUE_TOKEN_RE, '[redacted]');
+    .replace(OPAQUE_TOKEN_RE, (match) => (NON_SECRET_TOKEN_RE.test(match) ? match : '[redacted]'));
 }
 
 export interface SanitizeTextOptions {
