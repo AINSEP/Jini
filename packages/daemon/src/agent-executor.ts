@@ -973,6 +973,14 @@ export interface McpJsonInjectionOptions {
   readonly command: string;
   /** Extra argv for `command`. @default [] */
   readonly args?: readonly string[];
+  /**
+   * Extra env for the bridge child, for hosts whose `command` is not a plain Node binary. An Electron
+   * host passes `{ ELECTRON_RUN_AS_NODE: '1' }`: its `process.execPath` is the app itself, which boots
+   * as a GUI app without that flag and never speaks MCP. `buildAgentEnv`'s allowlist strips the
+   * host's own copy from the CLI, so it can only reach the bridge through here. `JINI_*` keys are
+   * ignored: the run id, callback URL and token are this driver's to set. @default {}
+   */
+  readonly env?: Readonly<Record<string, string>>;
   /** The daemon's own loopback base URL the spawned `jini-mcp` process calls back into via `JINI_DAEMON_URL` (see `packages/mcp/src/bin/serve.ts`'s `DAEMON_URL_ENV_VAR`). */
   readonly daemonUrl: string;
   /**
@@ -1037,11 +1045,37 @@ export interface McpJsonInjectionOptions {
 
 const JINI_MCP_SERVER_KEY = 'jini';
 
+/** The run-error code a run gets when its CLI reports the injected `jini` bridge as anything but connected. */
+export const MCP_BRIDGE_UNAVAILABLE = 'MCP_BRIDGE_UNAVAILABLE';
+
+/**
+ * Judges a CLI's startup report of the injected bridge. Returns the bridge's status (`'missing'`
+ * when the list omits it) when it is not `'connected'`, and `undefined` when it is connected or
+ * when `rawEvent` is not an init status carrying an MCP server list (nothing to judge).
+ *
+ * `'pending'` counts as a failure on purpose: the CLI decides which MCP tools a session has at
+ * startup, so a bridge that is not connected by then never joins this run.
+ * @param rawEvent - One parsed stream event, as `@jini-ai/agent-runtime`'s parser emits it.
+ * @complexity O(n) in the number of reported servers.
+ */
+export function unavailableJiniBridgeStatus(rawEvent: unknown): string | undefined {
+  if (!isRecord(rawEvent) || rawEvent.type !== 'status' || rawEvent.label !== 'initializing') return undefined;
+  if (!Array.isArray(rawEvent.mcpServers)) return undefined;
+  const bridge = rawEvent.mcpServers.find((server) => isRecord(server) && server.name === JINI_MCP_SERVER_KEY);
+  const status = isRecord(bridge) ? String(bridge.status) : 'missing';
+  return status === 'connected' ? undefined : status;
+}
+
+/** The user-readable reason a run stopped because its bridge did not connect. */
+function bridgeUnavailableMessage(status: string): string {
+  return `The assistant's tools did not load (MCP bridge "${JINI_MCP_SERVER_KEY}" status: ${status}). The run was stopped instead of continuing without them.`;
+}
+
 /** One `.mcp.json` `mcpServers` entry — the shape Claude Code's own config schema expects. */
 interface McpJsonServerEntry {
   readonly command: string;
   readonly args: string[];
-  readonly env: {
+  readonly env: Readonly<Record<string, string>> & {
     readonly JINI_RUN_ID: string;
     readonly JINI_DAEMON_URL: string;
     /** Present only when the host supplied a `credential` resolver — see {@link McpJsonInjectionOptions.credential}. */
@@ -1056,7 +1090,7 @@ interface McpJsonServerEntry {
  * `writeMcpJsonForRun`'s job, which keeps the effect out of this function.
  *
  * @param runId - The run this entry scopes its child to.
- * @param options - `command`/`args`/`daemonUrl` from the host's injection options.
+ * @param options - `command`/`args`/`daemonUrl`/`env` from the host's injection options.
  * @param credential - The already-resolved bearer token, or `undefined` to omit `JINI_DAEMON_TOKEN`
  * entirely. Omitting produces byte-identical output to before this parameter existed.
  * @complexity O(1).
@@ -1064,13 +1098,15 @@ interface McpJsonServerEntry {
  */
 export function buildMcpJsonServerEntry(
   runId: string,
-  options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl'>,
+  options: Pick<McpJsonInjectionOptions, 'command' | 'args' | 'daemonUrl' | 'env'>,
   credential?: string,
 ): McpJsonServerEntry {
+  const hostEnv = Object.entries(options.env ?? {}).filter(([key]) => !key.startsWith('JINI_'));
   return {
     command: options.command,
     args: options.args !== undefined ? [...options.args] : [],
     env: {
+      ...Object.fromEntries(hostEnv),
       JINI_RUN_ID: runId,
       JINI_DAEMON_URL: options.daemonUrl,
       ...(credential !== undefined ? { JINI_DAEMON_TOKEN: credential } : {}),
@@ -1281,6 +1317,11 @@ function tomlString(value: string): string {
   return `"${escapeTomlBasicString(value)}"`;
 }
 
+/** A TOML key: bare when TOML allows it, quoted otherwise — host-supplied bridge env names are not guaranteed bare-safe. */
+function tomlKey(key: string): string {
+  return /^[A-Za-z0-9_-]+$/.test(key) ? key : tomlString(key);
+}
+
 /**
  * Codex's per-tool deadline for the Jini bridge, in seconds: `@jini-ai/mcp`'s
  * `DEFAULT_DELEGATED_TOOL_TIMEOUT_MS` (6 min, mirrored because this package does not depend on
@@ -1313,7 +1354,7 @@ export function buildCodexMcpServerToml(entry: McpJsonServerEntry): string {
     `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n`;
   const envLines = Object.entries(entry.env)
     .filter((pair): pair is [string, string] => typeof pair[1] === 'string')
-    .map(([key, value]) => `${key} = ${tomlString(value)}`);
+    .map(([key, value]) => `${tomlKey(key)} = ${tomlString(value)}`);
   if (envLines.length === 0) return serverTable;
   return `${serverTable}\n[mcp_servers.${JINI_MCP_SERVER_KEY}.env]\n${envLines.join('\n')}\n`;
 }
@@ -1975,6 +2016,12 @@ interface WireChildLifecycleContext extends TerminateChildTreeDeps {
   readonly classifyFailure: ClassifyFailure | undefined;
   /** Ceiling on the `'until-close'` stdout accumulator — see {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES}. Always resolved by `run()`, never left to this function to default. */
   readonly bufferedStdoutMaxBytes: number;
+  /**
+   * True when this run's CLI was handed the `jini` bridge (`'claude-mcp-json'` delivery). The first
+   * init frame's MCP report is then checked, and a bridge that is not connected stops the run with
+   * {@link MCP_BRIDGE_UNAVAILABLE} instead of letting it continue without the host's tools.
+   */
+  readonly expectsJiniBridge: boolean;
 }
 
 /**
@@ -2055,6 +2102,10 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
   // consumed by a turn-end injection decision. See `ContinuationOptions`'s doc for why this is
   // only ever acted on when a host has explicitly allowlisted the tool's name.
   let pendingToolUse: { id: string; name: string; input: unknown } | undefined;
+  // Bridge guard (see `expectsJiniBridge`): checked on the first init frame only. Once the bridge is
+  // found unavailable, the child is being stopped and nothing it still prints is forwarded.
+  let bridgeChecked = !ctx.expectsJiniBridge;
+  let bridgeUnavailable = false;
   // `def.stdoutPolicy` read once, up front, so the per-chunk handler below is a single boolean
   // test rather than a repeated union narrowing. `undefined` (every def but antigravity) means
   // live — see this function's own doc.
@@ -2171,9 +2222,18 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
     streamFormat === 'plain'
       ? null
       : createStreamHandlerForDef(def, streamFormat, (rawEvent) => {
+          if (bridgeUnavailable) return;
           const translation = translateAgentRuntimeEvent(rawEvent);
           if (translation.kind === 'agent') {
             if (translation.sessionId !== undefined) capturedSessionId = translation.sessionId;
+            if (!bridgeChecked && translation.payload.type === 'status' && translation.payload.label === 'initializing') {
+              bridgeChecked = true;
+              const bridgeStatus = unavailableJiniBridgeStatus(rawEvent);
+              if (bridgeStatus !== undefined) {
+                stopForUnavailableBridge(translation.payload, bridgeStatus);
+                return;
+              }
+            }
             if (translation.payload.type === 'tool_use') {
               pendingToolUse = { id: translation.payload.id, name: translation.payload.name, input: translation.payload.input };
               toolCallSeen = true;
@@ -2190,6 +2250,20 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
             handleTurnEnd(translation.stopReason);
           }
         });
+
+  /**
+   * Ends a run whose CLI started without the `jini` bridge: emits the init status and a
+   * {@link MCP_BRIDGE_UNAVAILABLE} error, then stops the child's process tree before the model can
+   * answer with no host tools. The close handler then finishes the run `'failed'` whatever exit code
+   * the child reports.
+   */
+  function stopForUnavailableBridge(initStatus: RunAgentPayload, bridgeStatus: string): void {
+    bridgeUnavailable = true;
+    const message = bridgeUnavailableMessage(bridgeStatus);
+    enqueueEmit(() => lifecycle.emit(runId, { event: 'agent', data: initStatus }));
+    enqueueEmit(() => lifecycle.emit(runId, { event: 'error', data: { message, error: { code: MCP_BRIDGE_UNAVAILABLE, message } } }));
+    void terminateChildTreeBestEffort(ctx, child, runId, 'cancel', ctx.onCleanupFailure);
+  }
 
   /**
    * Emits the accumulated `'until-close'` stdout — sanitized — as exactly one raw `'stdout'` echo
@@ -2291,9 +2365,10 @@ function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHandle {
       // Both of the next two steps are guarded: neither a failed cleanup nor a rejecting host
       // classifier may prevent the terminal transition below — see each helper's own doc.
       await cleanupStagedFilesSafely(ctx);
-      const status = classifyRunCloseStatus({ cancelRequested, code, signal });
+      const status = bridgeUnavailable ? 'failed' : classifyRunCloseStatus({ cancelRequested, code, signal });
+      // A bridge failure is not resumable: resuming would start the same CLI with the same bridge.
       const resumable =
-        status === 'failed' && classifyFailure !== undefined
+        status === 'failed' && !bridgeUnavailable && classifyFailure !== undefined
           ? await classifyFailureSafely(ctx, classifyFailure, {
               runId,
               agentId: def.id,
@@ -4200,6 +4275,7 @@ export function createAgentExecutor(options: CreateAgentExecutorOptions): AgentE
           continuation,
           classifyFailure,
           bufferedStdoutMaxBytes,
+          expectsJiniBridge: writtenMcpJsonPath !== undefined,
         })
       : null;
 

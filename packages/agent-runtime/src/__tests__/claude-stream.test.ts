@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import {
   applyInputJsonDelta,
@@ -1745,6 +1746,42 @@ describe('handleSystemMessage', () => {
     const onEvent = vi.fn();
     handleSystemMessage({ type: 'system', subtype: 'other' }, onEvent);
     expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  // The init frame Claude Code 2.1.286 really sent from the packaged desktop app on 2026-10-01 (run
+  // e52afb36; local paths redacted). The bridge had timed out, and nothing downstream could tell,
+  // because this handler dropped `mcp_servers`.
+  it('reports each MCP server status from a real init frame whose jini bridge failed', () => {
+    const line = readFileSync(new URL('./fixtures/claude-init-jini-bridge-failed.jsonl', import.meta.url), 'utf8');
+    const onEvent = vi.fn();
+    handleSystemMessage(JSON.parse(line) as Record<string, unknown>, onEvent);
+    expect(onEvent).toHaveBeenCalledTimes(1);
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'status',
+      label: 'initializing',
+      model: 'claude-opus-5-5',
+      sessionId: 'ad315341-7b38-42cd-813f-1d9afdf0b287',
+      mcpServers: [{ name: 'jini', status: 'failed' }],
+    });
+  });
+
+  it('reports an empty server list as empty, and skips entries without a string name and status', () => {
+    const onEvent = vi.fn();
+    handleSystemMessage(
+      { type: 'system', subtype: 'init', mcp_servers: [{ name: 'jini' }, 'jini', { name: 'x', status: 'connected' }] },
+      onEvent,
+    );
+    expect(onEvent).toHaveBeenCalledWith({
+      type: 'status',
+      label: 'initializing',
+      model: null,
+      sessionId: null,
+      mcpServers: [{ name: 'x', status: 'connected' }],
+    });
+
+    onEvent.mockClear();
+    handleSystemMessage({ type: 'system', subtype: 'init', mcp_servers: [] }, onEvent);
+    expect(onEvent).toHaveBeenCalledWith({ type: 'status', label: 'initializing', model: null, sessionId: null, mcpServers: [] });
   });
 });
 

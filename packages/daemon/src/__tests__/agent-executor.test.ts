@@ -4402,6 +4402,41 @@ describe('buildMcpJsonServerEntry', () => {
       JSON.stringify(buildMcpJsonServerEntry('run-1', options)),
     );
   });
+
+  // An Electron host's `command` is its own app binary, which only behaves as Node with
+  // ELECTRON_RUN_AS_NODE=1. The CLI's env allowlist strips that variable, so the entry must carry it.
+  it('adds host-supplied env vars to the bridge entry', () => {
+    const entry = buildMcpJsonServerEntry(
+      'run-1',
+      { command: '/Applications/Tovu.app/Contents/MacOS/Tovu', daemonUrl: 'http://127.0.0.1:4242', env: { ELECTRON_RUN_AS_NODE: '1' } },
+      'run-scoped-secret',
+    );
+    expect(entry.env).toEqual({
+      ELECTRON_RUN_AS_NODE: '1',
+      JINI_RUN_ID: 'run-1',
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+      JINI_DAEMON_TOKEN: 'run-scoped-secret',
+    });
+  });
+
+  it('never lets host env override or inject a JINI_* key', () => {
+    const entry = buildMcpJsonServerEntry('run-1', {
+      command: 'jini-mcp',
+      daemonUrl: 'http://127.0.0.1:4242',
+      env: {
+        ELECTRON_RUN_AS_NODE: '1',
+        JINI_RUN_ID: 'evil-run',
+        JINI_DAEMON_URL: 'http://evil.example',
+        JINI_DAEMON_TOKEN: 'forged-token',
+        JINI_OTHER: 'x',
+      },
+    });
+    expect(entry.env).toEqual({
+      ELECTRON_RUN_AS_NODE: '1',
+      JINI_RUN_ID: 'run-1',
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+    });
+  });
 });
 
 describe('mergeMcpJsonContent', () => {
@@ -4528,6 +4563,23 @@ describe('AgentExecutor — gap 3 part 2 spawn-time .mcp.json injection (CreateA
     });
     // The write happens strictly before spawn, not merely before this assertion.
     expect(spawnCalls).toHaveLength(1);
+  });
+
+  it("writes the host's extra bridge env (ELECTRON_RUN_AS_NODE) into the run's .mcp.json entry", async () => {
+    const { mcpJsonInjection, writeCalls } = createMcpFsSpies();
+    const def = createFakeDef({ id: 'claude', externalMcpInjection: 'claude-mcp-json' });
+    const { lifecycle, executor } = createHarness({
+      def,
+      mcpJsonInjection: { ...mcpJsonInjection, env: { ELECTRON_RUN_AS_NODE: '1' } },
+    });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work/proj' });
+
+    expect(JSON.parse(writeCalls[0]!.content).mcpServers.jini.env).toEqual({
+      ELECTRON_RUN_AS_NODE: '1',
+      JINI_RUN_ID: run.id,
+      JINI_DAEMON_URL: 'http://127.0.0.1:4242',
+    });
   });
 
   it('treats a rejecting readFile (e.g. ENOENT — no existing file) as "start fresh", not a failure', async () => {
@@ -4940,6 +4992,15 @@ describe('buildCodexMcpServerToml', () => {
   it('sets tool_timeout_sec past the delegated-call deadline the bridge will use', () => {
     // 400 s = the bridge's 6 min DEFAULT_DELEGATED_TOOL_TIMEOUT_MS + 40 s.
     expect(buildCodexMcpServerToml(entry)).toContain('\ntool_timeout_sec = 400\n');
+  });
+
+  // Host-supplied bridge env (McpJsonInjectionOptions.env) can carry names that are not TOML
+  // bare keys; written unquoted, `A.B` would become a nested table and `A B` a parse error.
+  it('quotes env keys that are not valid TOML bare keys', () => {
+    const toml = buildCodexMcpServerToml({ ...entry, env: { ELECTRON_RUN_AS_NODE: '1', 'A.B': 'x', 'A B': 'y', ...entry.env } });
+    expect(toml).toContain(
+      '\n[mcp_servers.jini.env]\nELECTRON_RUN_AS_NODE = "1"\n"A.B" = "x"\n"A B" = "y"\nJINI_RUN_ID = "run-1"\nJINI_DAEMON_URL = "http://d"\n',
+    );
   });
 
   it('serialises multiple argv tokens as a comma-separated TOML array', () => {
@@ -6825,3 +6886,140 @@ describe('AgentExecutor — system-prompt overlay reaches the bytes each transpo
   });
 });
 
+
+describe('AgentExecutor — a run whose jini MCP bridge did not connect fails loudly (MCP_BRIDGE_UNAVAILABLE)', () => {
+  // The 2026-10-01 desktop incident: the bridge never answered, Claude Code's init frame said
+  // `jini: failed`, and the run carried on with zero host tools and ended `succeeded`.
+  const claudeDef = (): RuntimeAgentDef =>
+    createFakeDef({
+      id: 'claude',
+      streamFormat: 'claude-stream-json',
+      promptInputFormat: 'stream-json',
+      externalMcpInjection: 'claude-mcp-json',
+    });
+  const injection: McpJsonInjectionOptions = {
+    command: '/usr/bin/jini-mcp',
+    daemonUrl: 'http://127.0.0.1:4242',
+    readFile: async () => {
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    },
+    writeFile: async () => {},
+    removeFile: async () => {},
+  };
+  const initFrame = (mcpServers: unknown): string =>
+    `${JSON.stringify({
+      type: 'system',
+      subtype: 'init',
+      session_id: 'sess-1',
+      model: 'claude-opus-5-5',
+      tools: ['Read', 'Grep'],
+      ...(mcpServers !== undefined ? { mcp_servers: mcpServers } : {}),
+    })}\n`;
+  const assistantFrame =
+    '{"type":"assistant","message":{"id":"m1","content":[{"type":"text","text":"I cannot see any Tovu tools."}],"stop_reason":"end_turn"}}\n';
+
+  async function startClaudeRun(options: { mcpJsonInjection?: McpJsonInjectionOptions } = { mcpJsonInjection: injection }) {
+    const harness = createHarness({ def: claudeDef(), ...options });
+    const { run } = await harness.lifecycle.start({ contextRef: 'ctx-1' });
+    await harness.executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+    return { ...harness, runId: run.id };
+  }
+
+  it.each([
+    ['failed', [{ name: 'jini', status: 'failed', source: 'dynamic' }]],
+    ['pending', [{ name: 'jini', status: 'pending' }]],
+    ['missing', [{ name: 'other', status: 'connected' }]],
+  ])('stops the child and ends the run failed when the bridge is %s', async (status, servers) => {
+    const { lifecycle, child, stopProcessesCalls, runId } = await startClaudeRun();
+
+    child.stdout.emit('data', initFrame(servers));
+    await flushAsync();
+    expect(stopProcessesCalls).toEqual([expect.arrayContaining([4242, 4243])]);
+
+    // Whatever the CLI still prints before it dies never reaches the run as model output.
+    child.stdout.emit('data', assistantFrame);
+    await flushAsync();
+    // A CLI that handles SIGTERM gracefully may exit 0; the run must still be failed.
+    child.emit('close', 0, null);
+    const finished = await lifecycle.waitForTerminal(runId);
+
+    expect(finished.state).toBe('failed');
+    const events = await collectEvents(lifecycle, runId);
+    const message = `The assistant's tools did not load (MCP bridge "jini" status: ${status}). The run was stopped instead of continuing without them.`;
+    expect(events.filter((event) => event.kind === 'error').map((event) => event.payload)).toEqual([
+      { message, error: { code: 'MCP_BRIDGE_UNAVAILABLE', message } },
+    ]);
+    expect(agentPayloadTypes(events)).toEqual(['status']);
+  });
+
+  // Resuming would relaunch the same CLI with the same broken bridge, so a host classifier that
+  // would call this exit resumable is not consulted.
+  it('is never resumable, whatever the host failure classifier says', async () => {
+    const classifyFailure = vi.fn(() => true);
+    const harness = createHarness({ def: claudeDef(), mcpJsonInjection: injection, classifyFailure });
+    const { run } = await harness.lifecycle.start({ contextRef: 'ctx-1' });
+    await harness.executor.run({ runId: run.id, agentId: 'claude', prompt: 'hi', cwd: '/work' });
+
+    harness.child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+    await flushAsync();
+    harness.child.emit('close', null, 'SIGTERM');
+    const finished = await harness.lifecycle.waitForTerminal(run.id);
+
+    expect(finished.state).toBe('failed');
+    const events = await collectEvents(harness.lifecycle, run.id);
+    expect(events.find((event) => event.kind === 'end')?.payload).toMatchObject({ status: 'failed', resumable: false });
+    expect(classifyFailure).not.toHaveBeenCalled();
+  });
+
+  it('proceeds normally when the init frame reports the bridge connected', async () => {
+    const { lifecycle, child, stopProcessesCalls, runId } = await startClaudeRun();
+
+    child.stdout.emit('data', initFrame([{ name: 'jini', status: 'connected', source: 'dynamic' }]));
+    child.stdout.emit('data', assistantFrame);
+    await flushAsync();
+    child.emit('close', 0, null);
+    const finished = await lifecycle.waitForTerminal(runId);
+
+    expect(finished.state).toBe('succeeded');
+    expect(stopProcessesCalls).toEqual([]);
+    const events = await collectEvents(lifecycle, runId);
+    expect(events.filter((event) => event.kind === 'error')).toEqual([]);
+    expect(agentPayloadTypes(events)).toContain('text_delta');
+  });
+
+  it('does not judge a run whose host injected no bridge', async () => {
+    const { lifecycle, child, stopProcessesCalls, runId } = await startClaudeRun({});
+
+    child.stdout.emit('data', initFrame([]));
+    child.stdout.emit('data', assistantFrame);
+    await flushAsync();
+    child.emit('close', 0, null);
+
+    expect((await lifecycle.waitForTerminal(runId)).state).toBe('succeeded');
+    expect(stopProcessesCalls).toEqual([]);
+  });
+
+  it('does not judge an init frame that carries no mcp_servers list at all', async () => {
+    const { lifecycle, child, stopProcessesCalls, runId } = await startClaudeRun();
+
+    child.stdout.emit('data', initFrame(undefined));
+    child.stdout.emit('data', assistantFrame);
+    await flushAsync();
+    child.emit('close', 0, null);
+
+    expect((await lifecycle.waitForTerminal(runId)).state).toBe('succeeded');
+    expect(stopProcessesCalls).toEqual([]);
+  });
+
+  it('checks only the first init frame of a run', async () => {
+    const { lifecycle, child, stopProcessesCalls, runId } = await startClaudeRun();
+
+    child.stdout.emit('data', initFrame([{ name: 'jini', status: 'connected' }]));
+    child.stdout.emit('data', initFrame([{ name: 'jini', status: 'failed' }]));
+    await flushAsync();
+    child.emit('close', 0, null);
+
+    expect((await lifecycle.waitForTerminal(runId)).state).toBe('succeeded');
+    expect(stopProcessesCalls).toEqual([]);
+  });
+});

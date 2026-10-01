@@ -54,7 +54,15 @@ import { createRoleMarkerGuard, type RoleMarkerGuard, type RoleMarkerWarningEven
  * enforce.
  */
 export type ClaudeStreamEvent =
-  | { type: 'status'; label: string; model?: unknown; sessionId?: unknown; ttftMs?: number }
+  | {
+      type: 'status';
+      label: string;
+      model?: unknown;
+      sessionId?: unknown;
+      ttftMs?: number;
+      /** Init frames only: each MCP server's connection state as the CLI reported it (see {@link initMcpServers}). */
+      mcpServers?: McpServerStatus[];
+    }
   | { type: 'text_delta' | 'thinking_delta'; delta: string }
   | { type: 'thinking_start' }
   | { type: 'tool_use'; id: unknown; name: unknown; input: unknown }
@@ -347,13 +355,37 @@ export function isUnstreamedThinkingBlock(
   );
 }
 
+/** One MCP server's state from an init frame's `mcp_servers`, e.g. `{ name: 'jini', status: 'failed' }`. */
+export interface McpServerStatus {
+  readonly name: string;
+  readonly status: string;
+}
+
+/**
+ * The init frame's `mcp_servers`, reduced to `{name, status}`, or `undefined` when the frame has no
+ * such list. Kept on the event so a host can tell "its bridge did not connect" from "no bridge was
+ * configured": Claude Code times a dead MCP server out, reports it `failed` here, and carries on
+ * without its tools (the 2026-10-01 desktop incident). Entries without a string name and status are
+ * dropped rather than guessed at.
+ */
+export function initMcpServers(obj: Record<string, unknown>): McpServerStatus[] | undefined {
+  if (!Array.isArray(obj.mcp_servers)) return undefined;
+  return obj.mcp_servers.flatMap((server) =>
+    isRecord(server) && typeof server.name === 'string' && typeof server.status === 'string'
+      ? [{ name: server.name, status: server.status }]
+      : [],
+  );
+}
+
 export function handleSystemMessage(obj: Record<string, unknown>, onEvent: EventSink): void {
   if (obj.subtype === 'init') {
+    const mcpServers = initMcpServers(obj);
     onEvent({
       type: 'status',
       label: 'initializing',
       model: obj.model ?? null,
       sessionId: obj.session_id ?? null,
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
     });
     return;
   }
