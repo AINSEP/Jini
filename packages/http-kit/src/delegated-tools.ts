@@ -70,6 +70,13 @@ export interface DelegatedToolsInternalErrorContext {
   readonly toolId: string;
   readonly correlationId: string;
   readonly error: unknown;
+  /**
+   * The settled status when the failure is a `ToolExecutionResult` this route will not show as-is
+   * (`timed-out`, `cancelled`, or a `failed` the host did not mark model-safe); absent when `error`
+   * is a thrown exception. Lets a host word a timeout differently from a crash without parsing
+   * `error`, which for a settled result is only `result.error ?? result.status`.
+   */
+  readonly status?: 'timed-out' | 'cancelled' | 'failed';
 }
 
 export interface DelegatedToolsHttpDeps {
@@ -102,6 +109,21 @@ export interface DelegatedToolsHttpDeps {
    * redaction of its own on this path.
    */
   readonly isModelSafeToolFailure?: (result: ToolExecutionResult) => boolean;
+  /**
+   * Host opt-in: the model-safe text to send in place of `'an internal error occurred'` for every
+   * failure this route would otherwise answer with the SEC-005-redacted `500 INTERNAL_ERROR` — a
+   * thrown executor (e.g. an unknown tool id), a throwing `resolvePrincipal`, `timed-out`,
+   * `cancelled`, and a `failed` result `isModelSafeToolFailure` did not vouch for. Without it, those
+   * reach the model as a bare "INTERNAL_ERROR" it can neither act on nor report.
+   *
+   * The response keeps `500 INTERNAL_ERROR` and its `requestId`; only `message` changes, and
+   * `onInternalError` still receives the raw failure first. Returning `undefined` or `''` keeps the
+   * generic message for that failure, and so does a describer that throws — a broken describer can
+   * never turn a 500 into a leak or a crash. Omitted (the default), nothing changes. The host owns
+   * redaction here exactly as for `isModelSafeToolFailure`: this route sends the returned text
+   * verbatim.
+   */
+  readonly describeInternalError?: (context: DelegatedToolsInternalErrorContext) => string | undefined;
 }
 
 /**
@@ -286,17 +308,45 @@ function defaultInternalErrorSink(context: DelegatedToolsInternalErrorContext): 
   console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
 }
 
+/**
+ * The host's {@link DelegatedToolsHttpDeps.describeInternalError} text for `context`, or `undefined`
+ * when there is no describer, it declines (`undefined`/`''`), or it throws.
+ *
+ * @complexity O(1) plus the describer's own cost.
+ */
+function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInternalErrorContext): string | undefined {
+  if (deps.describeInternalError === undefined) return undefined;
+  try {
+    const text = deps.describeInternalError(context);
+    return typeof text === 'string' && text.length > 0 ? text : undefined;
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error(`[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})`, error);
+    return undefined;
+  }
+}
+
 function reportInternalError(
   deps: DelegatedToolsHttpDeps,
   source: DelegatedToolsInternalErrorContext['source'],
   error: unknown,
   runId: string,
   toolId: string,
+  status?: DelegatedToolsInternalErrorContext['status'],
 ): ReturnType<typeof createApiError> {
   const correlationId = randomUUID();
+  const context: DelegatedToolsInternalErrorContext = {
+    source,
+    runId,
+    toolId,
+    correlationId,
+    error,
+    ...(status === undefined ? {} : { status }),
+  };
   const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink({ source, runId, toolId, correlationId, error });
-  return createApiError('INTERNAL_ERROR', 'an internal error occurred', { requestId: correlationId });
+  sink(context);
+  const message = describeSafely(deps, context) ?? 'an internal error occurred';
+  return createApiError('INTERNAL_ERROR', message, { requestId: correlationId });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -340,7 +390,8 @@ function parseDelegatedToolExecute(input: RouteInputContext): Result<DelegatedTo
  * union, kept consistent here rather than reinvented: `completed` → `200 {result}`,
  * `denied`/`confirmation-denied` → `403 TOOL_OPERATION_DENIED`, `timed-out`/`cancelled` → a
  * SEC-005-redacted `500 INTERNAL_ERROR` (the real status/error goes to `onInternalError`, never the
- * wire).
+ * wire — unless the host supplies `deps.describeInternalError`, whose text then replaces the generic
+ * message on every redacted 500 below).
  *
  * `failed` splits in two, on `result.errorKind` (`@jini-ai/daemon`'s `ToolExecutor` sets it from
  * whether the handler threw `@jini-ai/core`'s `ToolInputError`): `'validation'` means the CALLER's
@@ -368,7 +419,7 @@ function toolExecutionResultToApiResult(
       return err(createApiError('TOOL_OPERATION_DENIED', 'this operation was denied during confirmation'));
     case 'timed-out':
     case 'cancelled':
-      return err(reportInternalError(deps, 'delegated-tool-execute', result.status, runId, toolId));
+      return err(reportInternalError(deps, 'delegated-tool-execute', result.status, runId, toolId, result.status));
     case 'failed':
       if (result.errorKind === 'validation') {
         return err(createApiError('BAD_REQUEST', result.error ?? 'invalid tool input'));
@@ -376,7 +427,7 @@ function toolExecutionResultToApiResult(
       if (result.error && deps.isModelSafeToolFailure?.(result) === true) {
         return err(createApiError('TOOL_EXECUTION_FAILED', result.error));
       }
-      return err(reportInternalError(deps, 'delegated-tool-execute', result.error ?? result.status, runId, toolId));
+      return err(reportInternalError(deps, 'delegated-tool-execute', result.error ?? result.status, runId, toolId, 'failed'));
   }
 }
 
