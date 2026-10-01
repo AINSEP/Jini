@@ -1,0 +1,109 @@
+{
+  "name": "@jini-ai/db",
+  "version": "0.1.0",
+  "description": "A dialect-neutral Kysely storage kernel with SQLite, PGlite and Postgres drivers and a migration runner. Each part is its own subpath; no driver is ever imported \u2014 the consumer passes its own client, pool or class.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/db"
+  },
+  "jini": {
+    "domain": "server",
+    "kind": "persistence-adapter",
+    "runtime": "node",
+    "neutralEntries": [
+      "src/kernel"
+    ]
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./kernel": {
+      "types": "./dist/kernel/index.d.ts",
+      "import": "./dist/kernel/index.js"
+    },
+    "./sqlite": {
+      "types": "./dist/sqlite/index.d.ts",
+      "import": "./dist/sqlite/index.js"
+    },
+    "./pglite": {
+      "types": "./dist/pglite/index.d.ts",
+      "import": "./dist/pglite/index.js"
+    },
+    "./postgres": {
+      "types": "./dist/postgres/index.d.ts",
+      "import": "./dist/postgres/index.js"
+    },
+    "./migrate": {
+      "types": "./dist/migrate/index.d.ts",
+      "import": "./dist/migrate/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "kernel": [
+        "./dist/kernel/index.d.ts"
+      ],
+      "sqlite": [
+        "./dist/sqlite/index.d.ts"
+      ],
+      "pglite": [
+        "./dist/pglite/index.d.ts"
+      ],
+      "postgres": [
+        "./dist/postgres/index.d.ts"
+      ],
+      "migrate": [
+        "./dist/migrate/index.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.js",
+    "!dist/**/*.test.d.ts",
+    "!dist/**/__tests__/**",
+    "!dist/**/testing/**",
+    "!dist/**/*.map",
+    "NOTICE.md",
+    "LICENSE.pglite-socket"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "peerDependencies": {
+    "kysely": "^0.29.6",
+    "better-sqlite3": "^13.0.0",
+    "@electric-sql/pglite": "0.5.8",
+    "pg": "^8.23.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.8",
+    "@types/better-sqlite3": "7.6.13",
+    "@types/pg": "8.23.1",
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "13.0.3",
+    "kysely": "0.29.6",
+    "pg": "8.23.0"
+  }
+}
