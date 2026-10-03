@@ -188,8 +188,11 @@ async function sendWithPolicy(
   // A followed redirect returns the deeper hop's response, including that hop's finalUrl.
   const cappedResponse: HttpResponse = { ...capResponse(response, effectiveCap), finalUrl: url.href };
 
+  // A refused redirect is a policy decision like a refused address, so it carries the same type.
+  // The text names no Location target, which may be private, so both messages can share it.
   if (redirect === "error" && REDIRECT_STATUSES.has(cappedResponse.status)) {
-    throw new Error("redirect response refused by the request's redirect policy");
+    const message = "redirect response refused by the request's redirect policy";
+    throw new EgressRefusedError({ message }, { callerSafeMessage: message });
   }
 
   // Follow GET only even when the policy allows redirects: 307/308 preserve method and body,

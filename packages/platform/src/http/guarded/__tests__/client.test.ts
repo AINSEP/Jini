@@ -574,6 +574,19 @@ test("a refusal on a REDIRECT hop is typed too — the re-verification arm is no
     assert.ok(error instanceof EgressRefusedError, `expected EgressRefusedError, got ${(error as Error)?.constructor?.name}`);
     assert.match(error.message, /resolved address is link-local/);
 });
+// Owner decision 2026-10-03: a `redirect: "error"` refusal is a policy decision like the others,
+// so callers and the model see one kind of refusal. The Location target is never transported.
+test("a redirect refused by redirect:error is an EgressRefusedError, and the Location target is never contacted", async () => {
+    const transport = new ScriptedTransport([
+        { status: 302, headers: { location: "https://169.254.169.254/steal" }, bodyText: "" },
+    ]);
+    const client = createHttpClient({ ...{ transport, policy: makePolicy() }, dns, clock, userAgent: "Fixture/1.0" });
+    const error = await client.send({ request: makeRequest({ url: "https://example.com/start" }) }, { redirect: "error" }).then(() => null, (e: unknown) => e);
+    assert.ok(error instanceof EgressRefusedError, `expected EgressRefusedError, got ${(error as Error)?.constructor?.name}`);
+    assert.equal(error.message, "redirect response refused by the request's redirect policy");
+    assert.equal(error.callerSafeMessage, "redirect response refused by the request's redirect policy");
+    assert.deepEqual(transport.calls.map((call) => call.req.url), ["https://example.com/start"]);
+});
 test("a DNS failure is NOT an EgressRefusedError — the type must mean 'this process refused', not 'the request did not succeed'", async () => {
     const transport = new ScriptedTransport([{ status: 200, headers: {}, bodyText: "" }]);
     const client = createHttpClient({ ...{ transport, policy: makePolicy() }, dns, clock, userAgent: "Fixture/1.0" });
