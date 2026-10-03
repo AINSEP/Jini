@@ -13,7 +13,7 @@
  * simplify, because a readiness probe that stops probing still answers `200`. Ownership by the base,
  * borrowing by features, is what makes the feature set genuinely independent.
  */
-import Database from 'better-sqlite3';
+import { openSqliteConnection, type SqliteDb, type SqliteSyncOpener } from '@jini-ai/db/sqlite';
 import { join } from 'node:path';
 
 import { createToolRegistry, type ToolRegistry } from '@jini-ai/core';
@@ -30,7 +30,7 @@ import {
   type RunRetrySideEffectState,
   type ToolExecutor,
 } from '@jini-ai/daemon';
-import { createSqliteEventLog } from '@jini-ai/sqlite';
+import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
 
 /** Where a composition's durable state lives. */
 export type JiniKernelStorage =
@@ -39,22 +39,22 @@ export type JiniKernelStorage =
    * (`daemonDb`, `toolCatalog`, `xai`) cannot be activated against it. */
   | { readonly kind: 'memory' }
   /** `<dataDir>/events.db` + `<dataDir>/journal.db`. The directory must already exist. */
-  | { readonly kind: 'sqlite'; readonly dataDir: string };
+  | { readonly kind: 'sqlite'; readonly dataDir: string; readonly open: SqliteSyncOpener };
 
 /** The raw sqlite handle and its path, borrowed by `health`/`daemonDb`/`toolCatalog`. */
 export interface KernelSqliteAccess {
-  readonly connection: Database.Database;
+  readonly connection: SqliteDb;
   readonly eventsDbPath: string;
   readonly dataDir: string;
 }
 
 /**
- * An `EventLog` that may or may not hold an OS resource. `@jini-ai/sqlite`'s `SqliteEventLog` adds
- * `close()`; `@jini-ai/daemon`'s in-memory reference adapter has nothing to release and so declares
+ * An `EventLog` that may or may not hold an OS resource. `@jini-ai/daemon/store/event-log/sqlite`'s `SqliteEventLog` adds
+ * `close({})`; `@jini-ai/daemon`'s in-memory reference adapter has nothing to release and so declares
  * none. Modelling `close` as optional lets the base treat both storage kinds uniformly instead of
  * branching on which one it happens to hold.
  */
-export type ClosableEventLog = EventLog & { close?: () => Promise<void> };
+export type ClosableEventLog = EventLog & { close?: (requiredArgs: Record<string, never>) => Promise<void> };
 
 export interface JiniKernelBase {
   readonly eventLog: ClosableEventLog;
@@ -73,7 +73,7 @@ export interface JiniKernelBase {
 export interface CreateJiniKernelBaseOptions {
   readonly storage: JiniKernelStorage;
   /** Extra `createAgentExecutor` options (e.g. `mcpJsonInjection`). `lifecycle`/`journal`/`classifyFailure` are kernel-owned. */
-  readonly agentExecutor?: Omit<Parameters<typeof createAgentExecutor>[0], 'lifecycle' | 'journal' | 'classifyFailure'>;
+  readonly agentExecutor?: Omit<NonNullable<Parameters<typeof createAgentExecutor>[1]>, 'journal' | 'classifyFailure'>;
 }
 
 /**
@@ -85,7 +85,8 @@ export function classifyRunFailureForRetry(context: {
   signal: string | null;
   sideEffects?: Pick<RunRetrySideEffectState, 'userVisibleOutputSeen' | 'toolCallSeen'>;
 }): boolean {
-  return resumableFromProcessExit(context.code, context.signal, context.sideEffects);
+  return resumableFromProcessExit({ code: context.code, signal: context.signal },
+    context.sideEffects === undefined ? {} : { sideEffects: context.sideEffects });
 }
 
 /**
@@ -96,8 +97,8 @@ export function classifyRunFailureForRetry(context: {
  * handle — the invariant the standalone daemon has always maintained.
  */
 export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions): Promise<JiniKernelBase> {
-  const isSqlite = options.storage.kind === 'sqlite';
-  const dataDir = options.storage.kind === 'sqlite' ? options.storage.dataDir : null;
+  const sqliteStorage = options.storage.kind === 'sqlite' ? options.storage : null;
+  const dataDir = sqliteStorage?.dataDir ?? null;
   const eventsDbPath = dataDir === null ? null : join(dataDir, 'events.db');
 
   // One acquisition block, one cleanup path — and **every** acquisition is inside it. Opening even
@@ -109,12 +110,18 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
   // near-identical cleanup is how one of them eventually drifts and starts leaking.
   const opened: ClosableEventLog[] = [];
   const openEventLog = (path: string | null): ClosableEventLog => {
-    const log = path === null ? createInMemoryEventLog() : createSqliteEventLog(path);
+    let log: ClosableEventLog;
+    if (path === null) log = createInMemoryEventLog({});
+    else {
+      // A non-null path is derived only from sqliteStorage above.
+      log = openSqliteEventLog({ file: path, open: sqliteStorage!.open });
+    }
     opened.push(log);
     return log;
   };
 
   let sqlite: KernelSqliteAccess | null = null;
+  let featureConnection: SqliteDb | undefined;
   let eventLog!: ClosableEventLog;
   let journalEventLog!: ClosableEventLog;
   let lifecycle!: RunLifecycle;
@@ -126,29 +133,33 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     // has no corresponding protocol-event kind.
     journalEventLog = openEventLog(dataDir === null ? null : join(dataDir, 'journal.db'));
 
-    if (isSqlite && eventsDbPath !== null && dataDir !== null) {
+    if (sqliteStorage && eventsDbPath !== null && dataDir !== null) {
       // A *second* connection to the same `events.db` the log above owns — safe: both run in WAL
       // mode, which permits multiple concurrently open handles on one file within a single process.
-      sqlite = { connection: new Database(eventsDbPath), eventsDbPath, dataDir };
+      featureConnection = openSqliteConnection({ filePath: eventsDbPath, open(file, settings) {
+        featureConnection = sqliteStorage.open(file, settings);
+        return featureConnection;
+      } });
+      sqlite = { connection: featureConnection, eventsDbPath, dataDir };
     }
 
-    journal = createRunByteJournal(journalEventLog);
+    journal = createRunByteJournal({ eventLog: journalEventLog });
     lifecycle = createRunLifecycle({ eventLog });
-    await lifecycle.rehydrate();
+    await lifecycle.rehydrate({});
   } catch (error) {
-    sqlite?.connection.close();
-    await Promise.all(opened.map((log) => log.close?.()));
+    // Every acquired handle is attempted even if another closer fails. Preserve the boot error.
+    try { featureConnection?.close(); } catch { /* Keep the boot failure. */ }
+    await Promise.allSettled(opened.map((log) => log.close?.({})));
     throw error;
   }
 
-  const agentExecutor = createAgentExecutor({
+  const agentExecutor = createAgentExecutor({ lifecycle }, {
     ...options.agentExecutor,
-    lifecycle,
     journal,
     classifyFailure: classifyRunFailureForRetry,
   });
 
-  const registry = createToolRegistry();
+  const registry = createToolRegistry({});
   // Created eagerly against the still-empty registry, and that is correct: `ToolExecutor` resolves
   // a registration at execute time, not at construction, so features composed later can contribute
   // tools this executor will find. It is what lets a feature's routes take the executor as a
@@ -166,8 +177,9 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     sqlite,
     close(): Promise<void> {
       closed ??= (async () => {
-        sqlite?.connection.close();
-        await Promise.all([eventLog.close?.(), journalEventLog.close?.()]);
+        try { sqlite?.connection.close(); } finally {
+          await Promise.all([eventLog.close?.({}), journalEventLog.close?.({})]);
+        }
       })();
       return closed;
     },

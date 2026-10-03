@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -39,9 +40,9 @@ async function boot(
   config: Omit<Parameters<typeof composeJiniKernel>[0], 'app' | 'adapter'>,
 ): Promise<Booted> {
   const app = express();
-  installRouteRegistrationGuard(app);
+  installRouteRegistrationGuard({ app });
   const resolvedPortRef = { current: 0 };
-  const adapter: AdapterContext = { resolvedPortRef };
+  const adapter: AdapterContext = { resolvedPortRef, env: config.env ?? {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
   const kernel = await composeJiniKernel({ ...config, app, adapter });
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(0, '127.0.0.1');
@@ -74,8 +75,8 @@ const shutdownOption = { daemonStatus: { requestShutdown: () => undefined } };
 
 describe('health', () => {
   it('reports the composition as ready, checking the kernel-owned sqlite handle', async () => {
-    const { url } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { url } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
     });
@@ -85,7 +86,7 @@ describe('health', () => {
   });
 
   it('omits the db check entirely under memory storage rather than inventing one', async () => {
-    const { url } = await boot({ storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { url } = await boot({ security: { mode: 'host' },  storage: { kind: 'memory' }, profile: 'agent-core-v1' });
 
     const body = (await (await fetch(`${url}/api/ready`)).json()) as { ok: boolean; checks: Record<string, boolean> };
     expect(body).toMatchObject({ ok: true, ready: true });
@@ -95,8 +96,8 @@ describe('health', () => {
   });
 
   it('reports not-ready — rather than throwing — when the shared handle can no longer be probed', async () => {
-    const { url, kernel } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { url, kernel } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
     });
@@ -113,7 +114,7 @@ describe('health', () => {
 
   it('folds a host-supplied shutting-down signal into readiness', async () => {
     let shuttingDown = false;
-    const { url } = await boot({
+    const { url } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { health: { getVersion: () => '9.9.9', isShuttingDown: () => shuttingDown } },
@@ -129,7 +130,7 @@ describe('health', () => {
   });
 
   it('defaults its reported version to this package\'s own', async () => {
-    const { url } = await boot({ storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { url } = await boot({ security: { mode: 'host' },  storage: { kind: 'memory' }, profile: 'agent-core-v1' });
     const body = (await (await fetch(`${url}/api/version`)).json()) as { version: string };
     expect(body.version).toMatch(/^\d+\.\d+\.\d+/);
   });
@@ -144,7 +145,7 @@ describe('agents', () => {
       return [];
     });
 
-    const { url } = await boot({
+    const { url } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { agents: { detector } },
@@ -170,7 +171,7 @@ describe('agents', () => {
       return Promise.resolve([]);
     });
 
-    const { url } = await boot({
+    const { url } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { agents: { detector: detector as never } },
@@ -198,8 +199,8 @@ describe('agents', () => {
 
 describe('toolCatalog', () => {
   it('serves search and describe over the seeded snapshot of the complete registry', async () => {
-    const { url } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { url } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
       toolRegistrations: [
@@ -235,7 +236,7 @@ describe('the families the standalone daemon never wired', () => {
   };
 
   it('memory mounts when its capability is granted and it is named', async () => {
-    const { app, kernel } = await boot({
+    const { app, kernel } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'memory:store': true },
@@ -248,7 +249,7 @@ describe('the families the standalone daemon never wired', () => {
   });
 
   it('routines mounts the same way', async () => {
-    const { kernel } = await boot({
+    const { kernel } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'routines:schedule': true },
@@ -259,7 +260,7 @@ describe('the families the standalone daemon never wired', () => {
   });
 
   it('media mounts the same way', async () => {
-    const { kernel } = await boot({
+    const { kernel } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'media:generate': true },
@@ -270,7 +271,7 @@ describe('the families the standalone daemon never wired', () => {
   });
 
   it('frontendSessions mounts the same way', async () => {
-    const { kernel } = await boot({
+    const { kernel } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'ui:session': true },
@@ -282,11 +283,12 @@ describe('the families the standalone daemon never wired', () => {
 
   it('refuses to mount a family whose host-supplied dependencies are missing, naming the exact option', async () => {
     const app = express();
-    installRouteRegistrationGuard(app);
+    installRouteRegistrationGuard({ app });
     await expect(
       composeJiniKernel({
+        security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 0 } },
+        adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
         storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         capabilities: { 'memory:store': true },
@@ -297,12 +299,13 @@ describe('the families the standalone daemon never wired', () => {
 
   it('refuses daemonStatus without the one option it cannot derive', async () => {
     const app = express();
-    installRouteRegistrationGuard(app);
+    installRouteRegistrationGuard({ app });
     await expect(
       composeJiniKernel({
+        security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 0 } },
-        storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+        adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+        storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
       }),
     ).rejects.toThrow(/"featureOptions\.daemonStatus\.requestShutdown" was not supplied/);
@@ -311,7 +314,7 @@ describe('the families the standalone daemon never wired', () => {
 
 describe('remoteRunEvents', () => {
   it('is mountable as an explicit opt-in, and fails closed until its dedicated token is configured', async () => {
-    const { url, kernel } = await boot({
+    const { url, kernel } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'run:inject': true },
@@ -332,7 +335,7 @@ describe('remoteRunEvents', () => {
 
   it('records a real tool_use into the run\'s own log once the token is present', async () => {
     const env = { JINI_REMOTE_TOOL_BRIDGE_TOKEN: 'secret-token' };
-    const { url, kernel } = await boot({
+    const { url, kernel } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'run:inject': true },
@@ -353,7 +356,7 @@ describe('remoteRunEvents', () => {
 
 describe('agentExecutor options reach the kernel', () => {
   it('threads host-supplied executor options through composition', async () => {
-    const { kernel } = await boot({
+    const { kernel } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       agentExecutor: { mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://127.0.0.1:1' } },
@@ -368,7 +371,7 @@ describe('security defaults', () => {
   // var names were read. A live 401 cannot be the signal here: that middleware short-circuits
   // loopback peers, and this suite necessarily calls over loopback.
   const usesApi = (app: Express) =>
-    getRouteRegistrationInventory(app).filter((r) => r.method === 'USE' && r.path === '/api').length;
+    getRouteRegistrationInventory({ app }).filter((r) => r.method === 'USE' && r.path === '/api').length;
 
   it('falls back to the standard env var names when jini-local security names none', async () => {
     const { app } = await boot({
@@ -420,7 +423,7 @@ describe('sidecar-strict security', () => {
   const noAgents = { agents: { detector: async () => [] } };
 
   const usesApi = (app: Express) =>
-    getRouteRegistrationInventory(app).filter((r) => r.method === 'USE' && r.path === '/api').length;
+    getRouteRegistrationInventory({ app }).filter((r) => r.method === 'USE' && r.path === '/api').length;
 
   it('rejects an unauthenticated loopback caller with 401 — the whole point of the mode', async () => {
     const { url } = await boot({
@@ -560,7 +563,7 @@ describe('kernel base failure cleanup', () => {
     // already open — the one path where a leak would otherwise be invisible.
     writeFileSync(join(dataDir, 'events.db'), 'not a sqlite file at all');
 
-    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', dataDir } })).rejects.toThrow();
+    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow();
   });
 });
 
@@ -575,8 +578,8 @@ describe('catalog options are closed over at construction', () => {
 
 describe('host-supplied option overrides reach their feature', () => {
   it('honors an explicit principal for the gated terminal and daemon-db tools', async () => {
-    const { kernel } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { kernel } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: {
         ...shutdownOption,
@@ -584,15 +587,15 @@ describe('host-supplied option overrides reach their feature', () => {
         daemonDb: { principal: { id: 'custom-db' } },
       },
     });
-    expect(kernel.base.registry.has('terminal.create')).toBe(true);
-    expect(kernel.base.registry.has('daemon.db.vacuum')).toBe(true);
+    expect(kernel.base.registry.has({ toolId: 'terminal.create' })).toBe(true);
+    expect(kernel.base.registry.has({ toolId: 'daemon.db.vacuum' })).toBe(true);
   });
 
   it('honors a caller-owned xAI listener ref, and disposes an in-flight listener on teardown', async () => {
     const stop = vi.fn(async () => undefined);
     const listenerRef = { current: { stop } as never };
-    const { kernel } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { kernel } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { ...shutdownOption, xai: { listenerRef } },
     });
@@ -605,7 +608,7 @@ describe('host-supplied option overrides reach their feature', () => {
   });
 
   it('honors a custom remote-tool-bridge token env var name', async () => {
-    const { url } = await boot({
+    const { url } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'run:inject': true },
@@ -631,8 +634,8 @@ describe('host-supplied option overrides reach their feature', () => {
   });
 
   it('honors every derivable daemon-status field when a host supplies it explicitly', async () => {
-    const { url } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { url } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: {
         daemonStatus: {
@@ -662,8 +665,8 @@ describe('host-supplied option overrides reach their feature', () => {
   });
 
   it('carries a tool descriptor\'s inputSchema into the durable catalog', async () => {
-    const { url } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { url } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
       toolRegistrations: [
@@ -686,13 +689,13 @@ describe('host-supplied option overrides reach their feature', () => {
   });
 
   it('reports not-ready when the integrity probe itself throws, instead of letting it escape the route', async () => {
-    const sqliteModule = await import('@jini-ai/sqlite');
+    const sqliteModule = await import('@jini-ai/db/sqlite');
     const spy = vi.spyOn(sqliteModule, 'verifySqliteIntegrity').mockImplementation(() => {
       throw new Error('pragma read exploded');
     });
     try {
-      const { url } = await boot({
-        storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      const { url } = await boot({ security: { mode: 'host' },
+        storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
         featureOptions: shutdownOption,
       });
@@ -708,8 +711,8 @@ describe('host-supplied option overrides reach their feature', () => {
 
 describe('daemon-status derived defaults', () => {
   it('derives version, port and shutting-down state from the composition when a host supplies only requestShutdown', async () => {
-    const { url } = await boot({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+    const { url } = await boot({ security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: shutdownOption,
     });
@@ -732,7 +735,7 @@ describe('daemon-status derived defaults', () => {
   });
 
   it('reports an empty dataDir under memory storage rather than inventing a path', async () => {
-    const { url } = await boot({
+    const { url } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       capabilities: { 'daemon:control': true },
@@ -756,7 +759,7 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
   });
 
   async function listAgentIds(ids: string[]): Promise<string[]> {
-    const { url } = await boot({
+    const { url } = await boot({ security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       featureOptions: { agents: { detector: async () => ids.map(detected) as never } },
@@ -774,10 +777,10 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
   async function withUnsupportedFakeDef<T>(fakeId: string, run: () => Promise<T>): Promise<T> {
     const agentRuntime = await import('@jini-ai/agent-runtime');
     const actualGetAgentDef = agentRuntime.getAgentDef;
-    const claudeDef = actualGetAgentDef('claude');
+    const claudeDef = actualGetAgentDef({ id: 'claude' });
     if (!claudeDef) throw new Error('test setup: no "claude" def registered');
-    const spy = vi.spyOn(agentRuntime, 'getAgentDef').mockImplementation((id: string) =>
-      id === fakeId ? { ...claudeDef, id: fakeId, streamFormat: 'made-up-format' } : actualGetAgentDef(id),
+    const spy = vi.spyOn(agentRuntime, 'getAgentDef').mockImplementation(({ id }) =>
+      id === fakeId ? { ...claudeDef, id: fakeId, streamFormat: 'made-up-format' } : actualGetAgentDef({ id }),
     );
     try {
       return await run();
@@ -810,7 +813,7 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
 
   it('applies the same filter to an explicit rescan', async () => {
     await withUnsupportedFakeDef('fake-unsupported-agent', async () => {
-      const { url } = await boot({
+      const { url } = await boot({ security: { mode: 'host' },
         storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         featureOptions: {
@@ -824,3 +827,6 @@ describe('agents feature — AgentExecutor compatibility filtering', () => {
     });
   });
 });
+
+/** Every durable fixture uses the external host's installed SQLite driver. */
+function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }

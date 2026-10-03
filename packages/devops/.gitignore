@@ -1,0 +1,3 @@
+# The root ignores generated coverage directories. This is the coverage-check source module.
+!src/checks/coverage/
+!src/checks/coverage/**

@@ -7,7 +7,7 @@
  * and `packages/daemon/src/tool-executor.ts`). This file follows the same
  * `{descriptor, handler, policy}` shape `packages/daemon/src/
  * delegated-tool-bridge.ts` established for wiring an existing capability
- * into that boundary — see `source-map.md`'s "2026-07-21 addition" section
+ * into that boundary — see the archived extraction source map's "2026-07-21 addition" section
  * for the full design rationale, in particular why the default policy below
  * denies every call rather than allowing one.
  *
@@ -78,7 +78,8 @@ export const denyAllDeployPublishPolicy: ToolPolicy = {
  * @overallScore 100/100
  */
 export function createRoleGatedDeployPublishPolicy(
-  allowedRoles: readonly string[] = [DEFAULT_DEPLOY_PUBLISH_ROLE],
+  _requiredArgs: Record<string, never>,
+  { allowedRoles = [DEFAULT_DEPLOY_PUBLISH_ROLE] }: { allowedRoles?: readonly string[] } = {},
 ): ToolPolicy {
   return {
     authorize(ctx: ToolAuthorizationContext) {
@@ -89,9 +90,12 @@ export function createRoleGatedDeployPublishPolicy(
   };
 }
 
-export interface CreateDeployPublishToolRegistrationOptions {
+export interface CreateDeployPublishToolRegistrationArgs {
   /** Every bound `DeployTarget` the resulting tool call may dispatch to — typically `c.getMany(DeployTargetToken)`. */
   readonly targets: readonly DeployTarget[];
+}
+
+export interface CreateDeployPublishToolRegistrationOptions {
   /** Defaults to {@link denyAllDeployPublishPolicy} — see its doc comment for why a permissive default was rejected. */
   readonly policy?: ToolPolicy;
   /** Forwarded to `ToolDescriptor.requiresConfirmation` — an extra transport-level "are you sure" gate `ToolExecutor` applies after authorization. Omitted (not forced `true`) because this file already denies by default; a host layering its own confirmation UI on top opts in explicitly. */
@@ -113,16 +117,16 @@ export interface CreateDeployPublishToolRegistrationOptions {
  * `timeoutMs`/external cancellation still aborts the *call* from the
  * executor's perspective (the audit trail records `timed-out`/`cancelled`),
  * it just cannot interrupt an in-flight HTTP request inside a target's own
- * `publish` implementation — flagged as a follow-up in `source-map.md`
+ * `publish` implementation — flagged as a follow-up in the archived extraction source map
  * rather than silently assumed away.
  *
  * @complexity O(1) to build the registration; the handler's own cost is `publishDeploy`'s (O(targets) dispatch plus the matched target's `publish`).
  * @overallScore 100/100
  */
 export function createDeployPublishToolRegistration(
-  options: CreateDeployPublishToolRegistrationOptions,
+  { targets }: CreateDeployPublishToolRegistrationArgs,
+  { policy = denyAllDeployPublishPolicy, requiresConfirmation, timeoutMs }: CreateDeployPublishToolRegistrationOptions = {},
 ): ToolRegistration {
-  const { targets, policy = denyAllDeployPublishPolicy, requiresConfirmation, timeoutMs } = options;
 
   return {
     descriptor: {
@@ -141,8 +145,8 @@ export function createDeployPublishToolRegistration(
       // is introduced here; `publishDeploy`/the matched `DeployTarget`
       // already reject a malformed `targetId`/`files`/`projectName` on
       // their own terms (e.g. `DeployError` for an unknown target).
-      const input = ctx.input as DeployPublishToolInput;
-      return publishDeploy(input, targets);
+      const { metadata, ...input } = ctx.input as DeployPublishToolInput;
+      return publishDeploy({ ...input, targets }, metadata === undefined ? {} : { metadata });
     },
   };
 }

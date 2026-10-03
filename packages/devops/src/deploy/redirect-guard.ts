@@ -21,7 +21,7 @@ import { DeployError } from './types.js';
  */
 
 /** Adds `redirect: 'manual'` to `init` without mutating the caller's object. */
-export function redirectGuardInit(init: RequestInit): RequestInit {
+export function redirectGuardInit({ init }: { init: RequestInit }): RequestInit {
   return { ...init, redirect: 'manual' };
 }
 
@@ -34,11 +34,11 @@ export function redirectGuardInit(init: RequestInit): RequestInit {
  *   `404` — but call ordering here still matters for every OTHER status-sensitive branch in
  *   a target.
  */
-export function assertNotRedirected(resp: Response, providerLabel: string): void {
+export function assertNotRedirected({ resp, providerLabel }: { resp: Response; providerLabel: string }): void {
   if (resp.type === 'opaqueredirect' || (resp.status >= 300 && resp.status < 400)) {
     throw new DeployError(
-      `${providerLabel} attempted to redirect an authenticated request — refused to follow it (possible credential-leak vector).`,
-      502
+      { message: `${providerLabel} attempted to redirect an authenticated request — refused to follow it (possible credential-leak vector).` },
+      { status: 502 }
     );
   }
 }

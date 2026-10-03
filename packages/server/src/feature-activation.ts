@@ -123,7 +123,7 @@ export function resolveFeatureActivation(input: FeatureActivationInput): Feature
   // denial in the config and is not one — a security switch that fails *open* on a typo. TypeScript
   // catches this at a typed call site; a config parsed from JSON, YAML or env has no such call site.
   for (const capability of Object.keys(input.capabilities ?? {})) {
-    if (!isCapabilityId(capability)) {
+    if (!isCapabilityId({ value: capability })) {
       const known = [...CAPABILITY_IDS].sort().join(', ');
       throw new Error(
         `jini: unknown capability "${capability}" in capabilities config — known capabilities are: ${known}`,

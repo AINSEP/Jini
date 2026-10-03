@@ -1,10 +1,11 @@
+import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
 /**
  * @module create-local-node-daemon
  *
  * The "host preset" (extraction-plan.md §2.4) that lets a brand-new product boot a running daemon
  * process by implementing zero interfaces: assembles `@jini-ai/sqlite`'s durable `EventLog`,
  * `@jini-ai/daemon`'s `RunLifecycle` and `AgentExecutor` (the driver that actually spawns an agent
- * CLI subprocess for 23 of the 24 registered defs — see `@jini-ai/daemon`'s own source-map.md), an HTTP
+ * CLI subprocess for 23 of the 24 registered defs — see `@jini-ai/daemon`'s own archived provenance ledger), an HTTP
  * app wrapped in `@jini-ai/http-kit`'s route-registration guard and security middleware, a caller's own
  * `@jini-ai/core` packs, and the generic daemon-status routes, then listens and returns `{url, server,
  * stop}`.
@@ -28,7 +29,7 @@
  *
  * This preset supported a switchable `transport: 'express' | 'fastify'` HTTP transport from
  * 2026-07-19 through 2026-07-22; it was removed since nothing ever consumed `transport: 'fastify'`
- * in practice — see `source-map.md`'s dated entry and the `future/fastify-transport` branch.
+ * in practice — see `archived provenance ledger`'s dated entry and the `future/fastify-transport` branch.
  */
 import { createRequire } from 'node:module';
 import type { Server } from 'node:http';
@@ -36,19 +37,13 @@ import type { Server } from 'node:http';
 import express, { type Express } from 'express';
 import type { DetectedAgent, OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
-import type { AnyPack, MissingTokenIds } from '@jini-ai/core/internal';
+import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
-import {
-  installRouteRegistrationGuard,
-  mountPackHttp,
-  type AdapterContext,
-  type DelegatedToolExecuteRequest,
-  type RunStartHandler,
-  type WorkspaceRootResolver,
-} from '@jini-ai/http-kit';
+import { installRouteRegistrationGuard, mountPackHttp, type AdapterContext } from '@jini-ai/http-kit';
+import { type DelegatedToolExecuteRequest, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
-import { composeJiniKernel, type KernelBoundIds } from './compose-jini-kernel.js';
+import { composeJiniKernel, type JiniKernelSecurity, type KernelBoundIds } from './compose-jini-kernel.js';
 import type { CapabilityId, JiniProfileId } from './feature.js';
 import { closeHttpServer, normalizeDaemonBindHost } from './host-bootstrap.js';
 
@@ -125,6 +120,8 @@ export interface CreateLocalNodeDaemonConfig<
 > {
   /** Directory the daemon's durable state lives in. The directory itself must already exist. */
   dataDir: string;
+  /** The external host supplies its driver; Jini never autoloads SQLite. */
+  open: SqliteSyncOpener;
   packs: Packs;
   /**
    * Extends the kernel's own pre-bound `EventLog`/`RunLifecycle` bindings with whatever a pack's
@@ -136,8 +133,17 @@ export interface CreateLocalNodeDaemonConfig<
   port?: number;
   /** Host/address to bind to. Defaults to `'127.0.0.1'` (loopback-only). */
   host?: string;
-  /** Env var names for the optional bearer-token gate. Defaults to `JINI_API_TOKEN` / `JINI_DISABLE_API_AUTH`. */
+  /** Env var names for the optional bearer-token gate. Defaults to `JINI_API_TOKEN` / `JINI_DISABLE_API_AUTH`. Ignored when `security` below selects `sidecar-strict`. */
   apiToken?: { tokenEnvVar?: string; disableEnvVar?: string };
+  /**
+   * Raises this preset's default `jini-local` gate to `sidecar-strict` — see
+   * {@link JiniKernelSecurity}'s own doc for what that changes: every `/api` request must carry the
+   * bearer token, including one from `127.0.0.1`, and an unconfigured token fails closed rather than
+   * serving unauthenticated callers. `host` is supplied automatically from this config's own `host`
+   * (there is nowhere else for it to disagree with, so it is not this option's to set again).
+   * Omitted (the default) keeps `jini-local` exactly as every existing caller already has it.
+   */
+  security?: Omit<Extract<JiniKernelSecurity, { readonly mode: 'sidecar-strict' }>, 'host'>;
   /** Invoked once the HTTP listener has fully closed, before the durable `EventLog` is closed. */
   onShutdown?: () => Promise<void> | void;
   /** Defaults to `process.env`. */
@@ -272,7 +278,7 @@ export async function createLocalNodeDaemon(
   const host = normalizeDaemonBindHost(config.host ?? DEFAULT_HOST);
   const requestedPort = config.port ?? 0;
   const registryPath =
-    config.discoveryFile === false ? null : (config.discoveryFile ?? resolveDaemonRegistryPath(config.dataDir));
+    config.discoveryFile === false ? null : (config.discoveryFile ?? resolveDaemonRegistryPath({ dataDir: config.dataDir }));
 
   // `@jini-ai/http-kit`'s origin policy resolves `bindHost` from `JINI_BIND_HOST`. Setting it here,
   // before any request can possibly be served, keeps every same-origin decision in sync with the
@@ -283,8 +289,8 @@ export async function createLocalNodeDaemon(
   // `env`, not `process.env`: when a caller injects its own environment, the line above wrote the
   // bind host into *that* object, and `JINI_ALLOWED_ORIGINS`/`JINI_WEB_PORT` come from it too. The
   // origin-guard middleware is already handed this same `env`; carrying it on the adapter is what
-  // makes the per-route `requireSameOrigin` guard agree with it instead of reading `process.env`.
-  const adapter: AdapterContext = { resolvedPortRef, env };
+  // makes the per-route `requireSameOrigin` guard evaluate the same supplied environment.
+  const adapter: AdapterContext = { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
 
   let shuttingDown = false;
   let stopPromise: Promise<void> | null = null;
@@ -294,26 +300,28 @@ export async function createLocalNodeDaemon(
   const xaiListenerRef: { current: OAuthCallbackListener | null } = { current: null };
 
   const app: Express = express();
-  installRouteRegistrationGuard(app);
+  installRouteRegistrationGuard({ app });
 
   const kernel = await composeJiniKernel({
     app,
     adapter,
-    storage: { kind: 'sqlite', dataDir: config.dataDir },
+    storage: { kind: 'sqlite', dataDir: config.dataDir, open: config.open },
     profile: config.profile ?? 'local-daemon-v1',
     ...(config.capabilities === undefined ? {} : { capabilities: config.capabilities }),
     ...(config.features === undefined ? {} : { features: config.features }),
     packs: config.packs,
     ...(config.bindings === undefined ? {} : { bindings: config.bindings }),
     ...(config.toolRegistrations === undefined ? {} : { toolRegistrations: config.toolRegistrations }),
-    security: {
-      mode: 'jini-local',
-      host,
-      apiToken: {
-        tokenEnvVar: config.apiToken?.tokenEnvVar ?? DEFAULT_TOKEN_ENV_VAR,
-        disableEnvVar: config.apiToken?.disableEnvVar ?? DEFAULT_DISABLE_ENV_VAR,
-      },
-    },
+    security: config.security
+      ? { ...config.security, host }
+      : {
+          mode: 'jini-local',
+          host,
+          apiToken: {
+            tokenEnvVar: config.apiToken?.tokenEnvVar ?? DEFAULT_TOKEN_ENV_VAR,
+            disableEnvVar: config.apiToken?.disableEnvVar ?? DEFAULT_DISABLE_ENV_VAR,
+          },
+        },
     env,
     featureOptions: {
       health: { getVersion: () => packageVersion, isShuttingDown: () => shuttingDown },
@@ -357,7 +365,7 @@ export async function createLocalNodeDaemon(
       for (const registerExtension of config.httpExtensions ?? []) {
         registerExtension(mountedApp, { adapter, lifecycle: base.lifecycle, dataDir: config.dataDir });
       }
-      mountPackHttp(mountedApp, config.packs, daemon);
+      mountPackHttp({ app: mountedApp, packs: config.packs, daemon });
     },
   });
 
@@ -385,7 +393,7 @@ export async function createLocalNodeDaemon(
             // Best-effort: a daemon that already served every request successfully must not fail
             // its own shutdown just because its discovery record couldn't be removed.
             try {
-              await removeDaemonRegistryRecordIfCurrent(registryPath, process.pid);
+              await removeDaemonRegistryRecordIfCurrent({ registryPath, pid: process.pid });
             } catch {
               // Intentionally swallowed — see the try's own comment.
             }
@@ -450,13 +458,13 @@ export async function createLocalNodeDaemon(
         void (async () => {
           if (registryPath !== null) {
             try {
-              await writeDaemonRegistryRecord(registryPath, {
+              await writeDaemonRegistryRecord({ registryPath, record: {
                 url: reportedUrl,
                 host: resolveReportHost(host),
                 port: boundPort,
                 pid: process.pid,
                 startedAt: new Date().toISOString(),
-              });
+              } });
             } catch {
               // Best-effort — a daemon that is otherwise fully up must not fail to boot just
               // because its discovery record couldn't be written.

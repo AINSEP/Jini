@@ -1,3 +1,32 @@
+## Unreleased
+
+- Align pack contributions, bindings, HTTP mounting, retry classification, executor settings and
+  event-log cleanup with the current core/daemon object argument contracts.
+- Compile server tests and fixtures; update their API calls and explicit SQLite opener wiring,
+  and keep packed memory-boot support within the server source root.
+
+- Keep SQLite composition at the server concern entries; the deprecated sqlite barrel no longer forwards these APIs. Relocate backend-config and missing-opener assertions to server storage tests.
+
+
+## 0.5.0 — 2026-10-02
+
+### BREAKING
+
+- Assembly imports follow domain-owned HTTP and core composition surfaces; bundled runtime modules are declared free of import-time side effects.
+- Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
+
+### BREAKING — explicit composition security
+
+- `ComposeJiniKernelConfig.security` is required. Omitted or unknown modes now throw before
+  resources open; supported-mode middleware order is unchanged.
+- Built-in routes consume daemon/http and reconciled route/catalog argument objects.
+
+- Align legacy SQLite integration fixtures with the object arguments of chat, daemon and project stores.
+
+## 0.4.0 (unpublished release candidate)
+
+- Storage composition consumes chat/daemon/registry/db directly. SQLite hosts must supply an opener; implicit driver loading is removed.
+
 # @jini-ai/node-host
 
 ## 0.2.1
@@ -82,3 +111,8 @@
   - @jini-ai/http@0.2.0
   - @jini-ai/agent-runtime@0.2.0
   - @jini-ai/daemon@0.2.0
+
+## Unreleased — C2 injected storage
+- Required a host opener for SQLite composition and standalone daemon boot; memory remains driver-free.
+- Replaced old storage imports with daemon/registry/db concern subpaths, preserving shared health ownership.
+- Added explicit backend-config, legacy bootstrap and local-project storage entries.

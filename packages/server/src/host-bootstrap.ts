@@ -2,7 +2,7 @@
  * @module host-bootstrap
  *
  * Generic host-lifecycle primitives ported from an origin daemon's CLI-startup module — see
- * `source-map.md`. Only the two functions with no CLI-flag-parsing or env-var-reading inside their
+ * `archived provenance ledger`. Only the two functions with no CLI-flag-parsing or env-var-reading inside their
  * own bodies are ported here: `parseDaemonCliStartupArgs` (argv/env parsing for a `od <cmd>`-style
  * CLI) and the higher-level `startDaemonRuntime`/`runDaemonCliStartup` wrappers belong to a future
  * `@jini-ai/cli` task, not this one — this module is deliberately CLI-shape-agnostic.
@@ -17,8 +17,9 @@ export const DEFAULT_DAEMON_BIND_HOST = '127.0.0.1';
  *
  * @param input - A caller-supplied host value of unknown shape (typically `string | undefined`
  * from an options object, hence the deliberately loose `unknown` parameter type).
- * @returns The trimmed string, or {@link DEFAULT_DAEMON_BIND_HOST} when `input` is nullish, not a
- * string, or trims to empty.
+ * @returns The trimmed stringification of `input`, or {@link DEFAULT_DAEMON_BIND_HOST} when
+ * `input` is nullish or its stringification trims to empty. Nonstrings deliberately retain the
+ * historical coercion, so a supplied number is not silently replaced with the loopback host.
  * @complexity O(1).
  * @overallScore 100/100
  */
@@ -42,11 +43,13 @@ export interface CloseHttpServerOptions {
  * @param server - The `node:http` server to close.
  * @param options.closeTimeoutMs - See {@link CloseHttpServerOptions}.
  * @param options.idleCloseMs - See {@link CloseHttpServerOptions}.
- * @returns Resolves once `server.close()`'s callback fires with no error (whether that happened
- * because every connection ended naturally or because the hard timeout force-closed them).
+ * @returns Resolves once `server.close()`'s callback fires with no error, or once the hard timeout
+ * force-closes connections, whichever happens first. The deadline deliberately bounds shutdown
+ * even if the callback never arrives; any later callback is ignored after settlement.
  * @throws Rejects with whatever error `server.close()`'s callback reports (e.g. calling `close()`
  * on a server that was never listening in the first place — guarded against above by the early
- * return, but any other underlying error still propagates).
+ * return). Errors received before settlement propagate; callbacks after the hard deadline do not
+ * replace its already-settled result.
  * @complexity O(1) scheduling; the actual wait is bounded by `closeTimeoutMs`.
  * @overallScore 100/100
  */
@@ -86,6 +89,12 @@ export async function closeHttpServer(server: Server, options: CloseHttpServerOp
 }
 
 export interface GracefulShutdownOptions {
+  /** Host signal/exit adapter. The default preserves Node's process-global signal handling. */
+  process?: ShutdownProcessPort;
+  /** Node timer ABI, injectable so a host controls shutdown scheduling. */
+  timers?: Pick<typeof globalThis, 'setTimeout' | 'clearTimeout'>;
+  /** Node console ABI; timeout and failure messages retain their historical arguments. */
+  logger?: Pick<Console, 'error'>;
   /** OS signals to listen for. Defaults to `['SIGTERM', 'SIGINT']` — the two a container runtime,
    * process manager, or an operator's `kill`/Ctrl-C ordinarily send to stop a long-lived daemon. */
   signals?: readonly NodeJS.Signals[];
@@ -94,9 +103,16 @@ export interface GracefulShutdownOptions {
    * default grace period before it escalates to `SIGKILL`). */
   timeoutMs?: number;
   /** Called exactly once, with `0` if `stop()` resolved or `1` if it rejected or the timeout fired
-   * first. Defaults to `process.exit`. Override to observe or customize the final step (tests always
+   * first. Defaults to the supplied process port's exit (Node process.exit by default). Override to observe or customize the final step (tests always
    * do this — calling the real `process.exit` from a unit test would kill the test runner). */
   onExit?: (code: number) => void;
+}
+
+/** Minimal Node signal ABI; embedders can supply their own process without seizing global listeners. */
+export interface ShutdownProcessPort {
+  on(signal: NodeJS.Signals, listener: (signal: NodeJS.Signals) => void): unknown;
+  off(signal: NodeJS.Signals, listener: (signal: NodeJS.Signals) => void): unknown;
+  exit(code: number): unknown;
 }
 
 export interface GracefulShutdownHandle {
@@ -114,7 +130,7 @@ export interface GracefulShutdownHandle {
  * its own fatal-exception handling and — per `desktop-host`'s own sidecar shutdown path — asks a
  * spawned daemon child to stop over HTTP and falls back to `SIGKILL`, never `SIGTERM`, so it neither
  * needs nor should double up on this). One line at the host's own entrypoint —
- * `installGracefulShutdown(daemon.stop)` — is the whole integration.
+ * `installGracefulShutdown({ stop: daemon.stop })` — is the whole integration.
  *
  * Idempotent and re-entrant: a second signal that arrives while a shutdown from the first is still
  * in flight is ignored outright (not queued, not a second `stop()` call) — the in-flight shutdown
@@ -126,12 +142,15 @@ export interface GracefulShutdownHandle {
  * @complexity O(1) to install; the signal handler itself is O(1) plus whatever `stop` costs.
  */
 export function installGracefulShutdown(
-  stop: () => Promise<void>,
+  { stop }: { stop: () => Promise<void> },
   options: GracefulShutdownOptions = {},
 ): GracefulShutdownHandle {
+  const signalProcess = options.process ?? process;
+  const timers = options.timers ?? globalThis;
+  const logger = options.logger ?? console;
   const signals = options.signals ?? ['SIGTERM', 'SIGINT'];
   const timeoutMs = options.timeoutMs ?? 10_000;
-  const onExit = options.onExit ?? ((code: number) => process.exit(code));
+  const onExit = options.onExit ?? ((code: number) => { signalProcess.exit(code); });
 
   let shuttingDown = false;
 
@@ -143,10 +162,10 @@ export function installGracefulShutdown(
     shuttingDown = true;
 
     let timedOut = false;
-    const timer = setTimeout(() => {
+    const timer = timers.setTimeout(() => {
       timedOut = true;
       // eslint-disable-next-line no-console
-      console.error(
+      logger.error(
         `[@jini-ai/server] graceful shutdown did not complete within ${timeoutMs}ms after ${signal}; forcing exit`,
       );
       onExit(1);
@@ -156,7 +175,7 @@ export function installGracefulShutdown(
     void stop()
       .catch((error: unknown) => {
         // eslint-disable-next-line no-console
-        console.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, error);
+        logger.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, error);
         // Re-thrown so the `.finally` below still distinguishes success from failure via rejection
         // state rather than a second flag.
         throw error;
@@ -164,25 +183,25 @@ export function installGracefulShutdown(
       .then(
         () => {
           if (timedOut) return;
-          clearTimeout(timer);
+          timers.clearTimeout(timer);
           onExit(0);
         },
         () => {
           if (timedOut) return;
-          clearTimeout(timer);
+          timers.clearTimeout(timer);
           onExit(1);
         },
       );
   };
 
   for (const signal of signals) {
-    process.on(signal, handleSignal);
+    signalProcess.on(signal, handleSignal);
   }
 
   return {
     uninstall(): void {
       for (const signal of signals) {
-        process.off(signal, handleSignal);
+        signalProcess.off(signal, handleSignal);
       }
     },
   };

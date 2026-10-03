@@ -14,7 +14,7 @@
 import type { assertNotRedirected, redirectGuardInit } from './redirect-guard.js';
 import type { safeDnsLabel, safeProjectLabel } from './naming.js';
 import type { checkDeploymentUrl, normalizeDeploymentUrl, waitForReachableDeploymentUrl } from './reachability.js';
-import type { DeployError, DeployTarget, JsonObject } from './types.js';
+import type { DeployError, DeployTarget, UnknownRecord } from './types.js';
 
 /**
  * The resolved saved credential a module builds its target from: always a
@@ -49,18 +49,18 @@ export interface SigV4ClientOptions {
  * before sending it, retrying a 5xx/429 with backoff.
  */
 export interface SigV4Client {
-  fetch(input: string, init?: RequestInit): Promise<Response>;
+  fetch(requiredArgs: { input: string }, optionalArgs?: { init?: RequestInit }): Promise<Response>;
   /** Signs a request without sending it, so the caller can send it through `DeployHostKit.fetch`. */
-  sign(input: string, init?: RequestInit): Promise<Request>;
+  sign(requiredArgs: { input: string }, optionalArgs?: { init?: RequestInit }): Promise<Request>;
 }
 
 /** Everything a module may call that is not a runtime builtin. The host builds it and passes it in. */
 export interface DeployHostKit {
-  /** `fetch`, aborted after `options.timeoutMs`. */
-  fetch(url: string, init: RequestInit, options: { readonly timeoutMs: number }): Promise<Response>;
+  /** `fetch`, aborted after `requiredArgs.timeoutMs`. */
+  fetch(requiredArgs: { url: string; timeoutMs: number }, optionalArgs?: { init?: RequestInit }): Promise<Response>;
   readonly timeouts: DeployFetchTimeouts;
   /** Delay between poll attempts. Injected so a test never waits in real time. */
-  sleep(ms: number): Promise<void>;
+  sleep(requiredArgs: { ms: number }): Promise<void>;
   readonly checkDeploymentUrl: typeof checkDeploymentUrl;
   readonly waitForReachableDeploymentUrl: typeof waitForReachableDeploymentUrl;
   readonly normalizeDeploymentUrl: typeof normalizeDeploymentUrl;
@@ -77,7 +77,7 @@ export interface DeployHostKit {
 
 export interface DeployTargetCreateContext {
   readonly credential: DeployTargetCredential;
-  readonly config: JsonObject;
+  readonly config: UnknownRecord;
   readonly kit: DeployHostKit;
 }
 
@@ -105,9 +105,9 @@ export interface DeployCredentialCheckContext {
 export interface DeployTargetModule {
   create(context: DeployTargetCreateContext): DeployTarget;
   /** A human-readable config error, or `null` when `config` is usable. */
-  validateConfig?(config: JsonObject): string | null;
+  validateConfig?(requiredArgs: { config: UnknownRecord }): string | null;
   /** The path prefix the host serves the site from, when it is not the root. */
-  basePath?(config: JsonObject): string | undefined;
+  basePath?(requiredArgs: { config: UnknownRecord }): string | undefined;
   /** One bounded, read-only authenticated request against the host's own API.
    *  May throw: the caller folds any throw into `unreachable`. Never returns
    *  the credential or a response body. */

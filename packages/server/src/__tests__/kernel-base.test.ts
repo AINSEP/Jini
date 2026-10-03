@@ -1,8 +1,9 @@
+import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as SqliteModule from '@jini-ai/sqlite';
+import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
 
 import { createJiniKernelBase } from '../kernel-base.js';
 
@@ -41,12 +42,12 @@ afterEach(() => {
  * expected" case.
  */
 function spyOnEventLogs(failingFile: string | null) {
-  const original = SqliteModule.createSqliteEventLog;
+  const original = SqliteModule.openSqliteEventLog;
   const closes = new Map<string, ReturnType<typeof vi.fn>>();
   const spy = vi
-    .spyOn(SqliteModule, 'createSqliteEventLog')
+    .spyOn(SqliteModule, 'openSqliteEventLog')
     .mockImplementation((...args: Parameters<typeof original>) => {
-      const [dbPath] = args;
+      const [{ file: dbPath }] = args;
       if (failingFile !== null && dbPath.endsWith(failingFile)) {
         throw new Error(`SqliteError: unable to open database file (${dbPath})`);
       }
@@ -63,7 +64,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs('journal.db');
     try {
-      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', dataDir } })).rejects.toThrow(
+      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
         /unable to open database file/,
       );
 
@@ -81,7 +82,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs('events.db');
     try {
-      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', dataDir } })).rejects.toThrow(
+      await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow(
         /unable to open database file/,
       );
       expect(closes.size).toBe(0);
@@ -94,7 +95,7 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     const dataDir = makeTempDataDir();
     const { spy, closes } = spyOnEventLogs(null);
     try {
-      const base = await createJiniKernelBase({ storage: { kind: 'sqlite', dataDir } });
+      const base = await createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } });
       expect(base.sqlite).not.toBeNull();
       expect(base.sqlite!.connection.open).toBe(true);
 
@@ -121,3 +122,6 @@ describe('createJiniKernelBase — one acquisition block, one cleanup path', () 
     }
   });
 });
+
+/** Every durable fixture uses the external host's installed SQLite driver. */
+function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }

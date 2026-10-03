@@ -7,10 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { DetectedAgent } from '@jini-ai/agent-runtime';
 import { definePack } from '@jini-ai/core';
 import { AgentExecutorToken } from '@jini-ai/daemon';
-import type { DaemonStatusResponse, RunStartContext } from '@jini-ai/http-kit';
+import type { DaemonStatusResponse, RunStartContext } from '@jini-ai/daemon/http';
 import { readLiveDaemonRegistryRecord, resolveDaemonRegistryPath } from '@jini-ai/sidecar';
 import * as SidecarModule from '@jini-ai/sidecar';
-import * as SqliteModule from '@jini-ai/sqlite';
+import * as SqliteModule from '@jini-ai/daemon/store/event-log/sqlite';
 import Database from 'better-sqlite3';
 import {
   buildDaemonDbOperations,
@@ -73,12 +73,20 @@ afterEach(async () => {
   }
 });
 
+/** Validate the existing token's literal id so the binding gate can check the real kernel contract. */
+function isKernelExecutorToken(required: { token: typeof AgentExecutorToken }): required is {
+  token: typeof AgentExecutorToken & { readonly id: 'jini.agentExecutor' };
+} {
+  return required.token.id === 'jini.agentExecutor';
+}
+
 function makePingPack() {
   return definePack({
     name: 'ping',
     deps: [],
     services: () => ({}),
-    http: (app: unknown) => {
+  }, {
+    http: ({ app }) => {
       (app as { get: (path: string, handler: (req: unknown, res: { json: (b: unknown) => void }) => void) => void }).get(
         '/api/ping',
         (_req, res) => res.json({ ok: true }),
@@ -199,7 +207,7 @@ describe('buildDaemonDbOperations', () => {
     const { db, file } = makeDb();
     try {
       const operations = buildDaemonDbOperations(db, file);
-      const report = await operations.verify(false);
+      const report = await operations.verify({ quick: false });
       expect(report.ok).toBe(true);
       expect(report.issues).toEqual([]);
     } finally {
@@ -243,7 +251,7 @@ describe('classifyRunFailureForRetry', () => {
 describe('createLocalNodeDaemon', () => {
   it('boots on an ephemeral port and reports a URL reflecting the real bound port', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     expect(daemon.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
@@ -259,7 +267,7 @@ describe('createLocalNodeDaemon', () => {
 
     it('boots with host-contributed tool registrations', async () => {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir,
         packs: [makePingPack()],
         toolRegistrations: [
@@ -275,7 +283,7 @@ describe('createLocalNodeDaemon', () => {
 
     it('rejects when two host registrations share a descriptor id', async () => {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({
+      await expect(createLocalNodeDaemon({ open: openSqlite,
         dataDir,
         packs: [makePingPack()],
         toolRegistrations: [
@@ -290,7 +298,7 @@ describe('createLocalNodeDaemon', () => {
     // same registry rather than in a parallel one.
     it('rejects when a host registration collides with one of the preset\'s own tools', async () => {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({
+      await expect(createLocalNodeDaemon({ open: openSqlite,
         dataDir,
         packs: [makePingPack()],
         toolRegistrations: [
@@ -301,7 +309,7 @@ describe('createLocalNodeDaemon', () => {
 
     it('releases the sqlite handles it had already opened when a registration collides', async () => {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({
+      await expect(createLocalNodeDaemon({ open: openSqlite,
         dataDir,
         packs: [makePingPack()],
         toolRegistrations: [
@@ -311,7 +319,7 @@ describe('createLocalNodeDaemon', () => {
 
       // A leaked handle would keep the file locked; a fresh daemon on the same dataDir proves it
       // was released.
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
       daemonsToStop.push(daemon);
       expect((await fetch(`${daemon.url}/api/ping`)).status).toBe(200);
     });
@@ -347,7 +355,7 @@ describe('createLocalNodeDaemon', () => {
 
     it('executes a host registration through the shared ToolExecutor', async () => {
       const seen: unknown[] = [];
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         toolRegistrations: [{
@@ -374,7 +382,7 @@ describe('createLocalNodeDaemon', () => {
     // Inertness must come from the policy, not from the route being absent — an unreachable route
     // is indistinguishable from a broken build, which is why this preset mounts it regardless.
     it('is reachable but refused when the tool keeps a deny-by-default policy', async () => {
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         toolRegistrations: [{
@@ -396,7 +404,7 @@ describe('createLocalNodeDaemon', () => {
 
     it('runs as the anonymous principal when the host supplies no resolver', async () => {
       const principals: string[] = [];
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         toolRegistrations: [{
@@ -421,7 +429,7 @@ describe('createLocalNodeDaemon', () => {
     it('runs as the host-resolved principal, and passes it the request', async () => {
       const principals: Array<{ id: string; roles?: readonly string[] }> = [];
       const requests: unknown[] = [];
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         resolveDelegatedPrincipal: (request) => {
@@ -459,7 +467,7 @@ describe('createLocalNodeDaemon', () => {
      * no reachable terminal tool.
      */
     it('a disabled feature is unreachable through the delegated-tool route too, not just missing its own routes', async () => {
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
         features: { terminal: false },
@@ -480,7 +488,7 @@ describe('createLocalNodeDaemon', () => {
     });
 
     it('and with the default (enabled) composition the very same call reaches the tool and is refused by POLICY, not by absence', async () => {
-      const daemon = await createLocalNodeDaemon({ dataDir: makeTempDataDir(), packs: [makePingPack()] });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [makePingPack()] });
       daemonsToStop.push(daemon);
       const runId = await startRun(daemon.url);
 
@@ -497,7 +505,7 @@ describe('createLocalNodeDaemon', () => {
     });
 
     it('reports an unknown run rather than executing anything', async () => {
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir: makeTempDataDir(),
         packs: [makePingPack()],
       });
@@ -512,7 +520,7 @@ describe('createLocalNodeDaemon', () => {
   });
 
   it('honors a capability denial from the preset config, removing the feature and its tools together', async () => {
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir: makeTempDataDir(),
       packs: [makePingPack()],
       capabilities: { 'host:exec': false },
@@ -528,7 +536,7 @@ describe('createLocalNodeDaemon', () => {
   });
 
   it('serves the readiness probe with the real kernel-owned sqlite handle and its own version', async () => {
-    const daemon = await createLocalNodeDaemon({ dataDir: makeTempDataDir(), packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const body = (await (await fetch(`${daemon.url}/api/ready`)).json()) as {
@@ -541,7 +549,7 @@ describe('createLocalNodeDaemon', () => {
   });
 
   it('reports every composed feature, so "is X actually on?" is answerable without reading source', async () => {
-    const daemon = await createLocalNodeDaemon({ dataDir: makeTempDataDir(), packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir: makeTempDataDir(), packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     expect(daemon.activeFeatures).toEqual([
@@ -552,7 +560,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('substitutes 127.0.0.1 into the reported URL when bound to 0.0.0.0', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], host: '0.0.0.0' });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], host: '0.0.0.0' });
     daemonsToStop.push(daemon);
 
     expect(daemon.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
@@ -562,7 +570,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves GET /api/daemon/status', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/daemon/status`);
@@ -582,7 +590,7 @@ describe('createLocalNodeDaemon', () => {
   // out here has never meant a regression; it means the machine has more agent CLIs installed.
   it('serves GET /api/agents, projecting the real @jini-ai/agent-runtime registry with zero config', { timeout: 60_000 }, async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/agents`);
@@ -628,7 +636,7 @@ describe('createLocalNodeDaemon', () => {
       versionArgs: ['--version'],
     } as DetectedAgent;
     const agentDetector = vi.fn(async () => [detected]);
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
       agentDetector,
@@ -661,7 +669,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves POST /api/resources/:resourceRef/open-in, denying every call by default (denyAllWorkspaceRoots) with no resolveWorkspaceRoot configured', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/resources/some-resource/open-in`, {
@@ -676,10 +684,10 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves POST /api/resources/:resourceRef/open-in for real once resolveWorkspaceRoot is configured (still 409 CONFLICT when the editor is not installed, proving the resolver actually ran)', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
-      resolveWorkspaceRoot: (req) => (req.resourceRef === 'known-resource' ? dataDir : null),
+      resolveWorkspaceRoot: ({ request }) => (request.resourceRef === 'known-resource' ? dataDir : null),
     });
     daemonsToStop.push(daemon);
 
@@ -704,7 +712,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('mounts product-owned HTTP extensions without making the host depend on their packages', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
       httpExtensions: [
@@ -724,7 +732,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves POST /api/proxy/anthropic/stream zero-config (BYOK — no server-side credentials needed to reach the route)', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     // No apiKey in the body: proves the route is mounted and reachable (a validation error, not a
@@ -739,7 +747,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves GET and POST /api/active zero-config, always resolving an unknown resource (denyAllWorkspaceRoots-shaped honest default)', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const setRes = await fetch(`${daemon.url}/api/active`, {
@@ -758,7 +766,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves POST /api/terminals zero-config, denying every call by default (no resolveWorkspaceRoot configured — the same denyAllWorkspaceRoots default host-tools already uses)', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/terminals`, {
@@ -771,10 +779,10 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves POST /api/terminals with resolveWorkspaceRoot configured, but still denies terminal.create by policy (denyAllTerminalCreatePolicy — a real PTY spawn needs an explicit host opt-in)', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
-      resolveWorkspaceRoot: (req) => (req.resourceRef === 'known-resource' ? dataDir : null),
+      resolveWorkspaceRoot: ({ request }) => (request.resourceRef === 'known-resource' ? dataDir : null),
     });
     daemonsToStop.push(daemon);
 
@@ -790,7 +798,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('serves GET /api/daemon/db zero-config, denying every call by default (denyAllDaemonDbPolicy)', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/daemon/db`);
@@ -801,7 +809,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('leaves incubating memory/media routes to the product composition root', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     expect((await fetch(`${daemon.url}/api/memory`)).status).toBe(404);
@@ -814,17 +822,17 @@ describe('createLocalNodeDaemon', () => {
     const activeRunLifecycles = new Map<string, RunStartContext['lifecycle']>();
     const onRunStarted = async ({ request, run, lifecycle }: RunStartContext) => {
       if (request.agentId === 'complete') {
-        await lifecycle.emit(run.id, { event: 'agent', data: { type: 'text_delta', delta: 'hello from driver' } });
+        await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'text_delta', delta: 'hello from driver' } } });
         await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
         return;
       }
       activeRunLifecycles.set(run.id, lifecycle);
-      lifecycle.onCancelRequested(run.id, () => {
+      lifecycle.onCancelRequested({ runId: run.id, listener: () => {
         void lifecycle.finish({ runId: run.id, status: 'cancelled', code: null, signal: 'SIGTERM', resumable: false });
-      });
+      } });
     };
 
-    const first = await createLocalNodeDaemon({ dataDir, packs: [], onRunStarted });
+    const first = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [], onRunStarted });
     try {
       const createdResponse = await fetch(`${first.url}/api/runs`, {
         method: 'POST',
@@ -866,10 +874,10 @@ describe('createLocalNodeDaemon', () => {
       // a client which was already subscribed receives a live event.
       const liveEventResponse = await fetch(`${first.url}/api/runs/${cancellable.run.id}/events`);
       expect(liveEventResponse.headers.get('content-type')).toContain('text/event-stream');
-      await activeRunLifecycles.get(cancellable.run.id)!.emit(cancellable.run.id, {
+      await activeRunLifecycles.get(cancellable.run.id)!.emit({ runId: cancellable.run.id, input: {
         event: 'agent',
         data: { type: 'status', label: 'waiting for cancellation' },
-      });
+      } });
       const cancelled = await fetch(`${first.url}/api/runs/${cancellable.run.id}/cancel`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -884,7 +892,7 @@ describe('createLocalNodeDaemon', () => {
       await first.stop();
     }
 
-    const restarted = await createLocalNodeDaemon({ dataDir, packs: [] });
+    const restarted = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [] });
     daemonsToStop.push(restarted);
     expect(await (await fetch(`${restarted.url}/api/runs/${completedRunId}`)).json()).toMatchObject({ run: { id: completedRunId, state: 'succeeded' } });
     const replayed = parseSseEvents(await (await fetch(`${restarted.url}/api/runs/${completedRunId}/events`)).text());
@@ -894,7 +902,7 @@ describe('createLocalNodeDaemon', () => {
   it('resolveRunInput, when supplied with no onRunStarted, builds a default RunStartHandler that drives the real zero-config AgentExecutor', async () => {
     const dataDir = makeTempDataDir();
     const resolveRunInputCalls: unknown[] = [];
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [],
       resolveRunInput: (ctx) => {
@@ -927,7 +935,7 @@ describe('createLocalNodeDaemon', () => {
     const onRunStarted = async ({ run, lifecycle }: RunStartContext) => {
       await lifecycle.finish({ runId: run.id, status: 'succeeded', code: 0, signal: null, resumable: false });
     };
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [],
       onRunStarted,
@@ -951,7 +959,7 @@ describe('createLocalNodeDaemon', () => {
 
   it("mounts a caller pack's own route (proves mountPackHttp ordering)", async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/ping`);
@@ -965,23 +973,24 @@ describe('createLocalNodeDaemon', () => {
       greeting: string;
     }
     const { token } = await import('@jini-ai/core');
-    const GreeterToken = token<Greeter>('test.greeter');
+    const GreeterToken = token<Greeter, 'test.greeter'>({ id: 'test.greeter' });
     const greetPack = definePack({
       name: 'greet',
       deps: [GreeterToken],
-      services: (c) => ({ say: () => c.get(GreeterToken).greeting }),
-      http: (app: unknown, services: unknown) => {
+      services: (c) => ({ say: () => c.get({ token: GreeterToken }).greeting }),
+    }, {
+      http: ({ app, services }) => {
         (app as { get: (path: string, handler: (req: unknown, res: { json: (b: unknown) => void }) => void) => void }).get(
           '/api/greet',
-          (_req, res) => res.json({ greeting: (services as { say: () => string }).say() }),
+          (_req, res) => res.json({ greeting: services.say() }),
         );
       },
     });
 
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [greetPack],
-      bindings: (b) => b.bind(GreeterToken, { greeting: 'hi' }),
+      bindings: (b) => b.bind({ token: GreeterToken, impl: { greeting: 'hi' } }),
     });
     daemonsToStop.push(daemon);
 
@@ -991,14 +1000,17 @@ describe('createLocalNodeDaemon', () => {
 
   it('auto-binds AgentExecutorToken alongside EventLogToken/RunLifecycleToken with zero caller config', async () => {
     const dataDir = makeTempDataDir();
+    const kernelToken = { token: AgentExecutorToken };
+    if (!isKernelExecutorToken(kernelToken)) throw new Error('unexpected kernel executor token id');
     const agentExecutorPack = definePack({
       name: 'agent-executor-probe',
-      deps: [AgentExecutorToken],
-      services: (c) => ({ hasRun: () => typeof c.get(AgentExecutorToken).run === 'function' }),
-      http: (app: unknown, services: unknown) => {
+      deps: [kernelToken.token],
+      services: (c) => ({ hasRun: () => typeof c.get({ token: AgentExecutorToken }).run === 'function' }),
+    }, {
+      http: ({ app, services }) => {
         (app as { get: (path: string, handler: (req: unknown, res: { json: (b: unknown) => void }) => void) => void }).get(
           '/api/agent-executor-probe',
-          (_req, res) => res.json({ hasRun: (services as { hasRun: () => boolean }).hasRun() }),
+          (_req, res) => res.json({ hasRun: services.hasRun() }),
         );
       },
     });
@@ -1008,27 +1020,24 @@ describe('createLocalNodeDaemon', () => {
     // same zero-config guarantee EventLogToken/RunLifecycleToken already
     // have (see this module's KernelBoundIds doc).
     //
-    // Called through a narrowed function type rather than
-    // `createLocalNodeDaemon`'s own overloaded signature: `MissingTokenIds`
-    // (see @jini-ai/core/internal) computes a pack's required token ids from
+    // A checked token-id guard replaces the former narrowed function cast:
+    // `createLocalNodeDaemon`'s own overloaded signature uses `MissingTokenIds`
+    // (see @jini-ai/core/composition) to compute a pack's required token ids from
     // `token.id`'s inferred literal type, but every kernel token exported
     // from a *compiled* `@jini-ai/daemon` — not just AgentExecutorToken added
     // by this task, EventLogToken/RunLifecycleToken have the identical
     // shape — round-trips through that package's emitted `.d.ts` as
     // `Token<T, string>` (widened, not the literal `'jini.agentExecutor'`).
-    // A pack depending solely on such a dist-imported token has never been
+    // Before this guard, a pack depending solely on such a dist-imported token had not been
     // exercised through this exact zero-bindings-customizer call shape
-    // before (the existing typecheck.ts proof only uses a token declared
-    // inline in the same compilation unit, which infers the literal
-    // correctly) — a real, pre-existing `@jini-ai/core`/`@jini-ai/daemon`
-    // type-emission gap, out of this task's scope to fix. This call
-    // proves the *runtime* wiring (the actual thing this test is for)
-    // without being blocked by that unrelated compile-time gap.
-    const createLocalNodeDaemonUnsafe = createLocalNodeDaemon as unknown as (config: {
-      dataDir: string;
-      packs: readonly unknown[];
-    }) => Promise<LocalNodeDaemon>;
-    const daemon = await createLocalNodeDaemonUnsafe({ dataDir, packs: [agentExecutorPack] });
+    // (the typecheck.ts proof uses a token declared inline in the same compilation unit;
+    // its explicit literal id type preserves the compile-time binding gate).
+    // This remains a pre-existing `@jini-ai/core`/`@jini-ai/daemon`
+    // type-emission gap, out of this task's scope to fix. The guard validates
+    // the actual exported id and narrows that existing token without replacing it.
+    // This call proves the *runtime* wiring with no bindings customizer and no unsafe cast;
+    // removing the kernel's automatic binding must fail the same HTTP assertion below.
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [agentExecutorPack] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/agent-executor-probe`);
@@ -1037,7 +1046,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('reflects the resolved bind host onto env.JINI_BIND_HOST before serving any request', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], host: '127.0.0.1' });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], host: '127.0.0.1' });
     daemonsToStop.push(daemon);
 
     expect(process.env.JINI_BIND_HOST).toBe('127.0.0.1');
@@ -1045,7 +1054,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('allows an unauthenticated request when no apiToken is configured (default)', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/ping`);
@@ -1055,7 +1064,7 @@ describe('createLocalNodeDaemon', () => {
   it('allows a loopback caller with a correct bearer token when apiToken is configured', async () => {
     process.env.JINI_API_TOKEN = 'integration-secret';
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/ping`, { headers: { Authorization: 'Bearer integration-secret' } });
@@ -1065,7 +1074,7 @@ describe('createLocalNodeDaemon', () => {
   it('honors a custom apiToken env var name', async () => {
     process.env['CUSTOM_TOKEN'] = 'custom-secret';
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
       apiToken: { tokenEnvVar: 'CUSTOM_TOKEN' },
@@ -1091,7 +1100,7 @@ describe('createLocalNodeDaemon', () => {
     async () => {
       process.env.JINI_API_TOKEN = 'integration-secret';
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], host: '0.0.0.0' });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], host: '0.0.0.0' });
       daemonsToStop.push(daemon);
 
       const port = Number(new URL(daemon.url).port);
@@ -1100,9 +1109,47 @@ describe('createLocalNodeDaemon', () => {
     },
   );
 
+  // `security` forwards straight into `composeJiniKernel`'s own `sidecar-strict` mode — see that
+  // module's `security: sidecar-strict` describe block (and builtin-features.test.ts's own) for the
+  // mode's full behavior matrix. These two only prove THIS preset's wiring: that passing `security`
+  // here actually reaches the kernel instead of being silently dropped in favor of the hardcoded
+  // `jini-local` default.
+  it('rejects even a loopback caller with 401 when security selects sidecar-strict — the whole point of the mode', async () => {
+    process.env['STRICT_TOKEN'] = 'strict-secret';
+    const dataDir = makeTempDataDir();
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
+      dataDir,
+      packs: [makePingPack()],
+      security: { mode: 'sidecar-strict', tokenEnvVar: 'STRICT_TOKEN' },
+    });
+    daemonsToStop.push(daemon);
+
+    // `jini-local` (this preset's default) exempts loopback callers from the token check
+    // entirely — a bare loopback fetch getting 401 here is what proves `sidecar-strict`, not
+    // `jini-local`, is actually the mode running.
+    const res = await fetch(`${daemon.url}/api/ping`);
+    expect(res.status).toBe(401);
+    delete process.env['STRICT_TOKEN'];
+  });
+
+  it('allows a loopback caller that presents the sidecar-strict bearer token', async () => {
+    process.env['STRICT_TOKEN'] = 'strict-secret';
+    const dataDir = makeTempDataDir();
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
+      dataDir,
+      packs: [makePingPack()],
+      security: { mode: 'sidecar-strict', tokenEnvVar: 'STRICT_TOKEN' },
+    });
+    daemonsToStop.push(daemon);
+
+    const res = await fetch(`${daemon.url}/api/ping`, { headers: { Authorization: 'Bearer strict-secret' } });
+    expect(res.status).toBe(200);
+    delete process.env['STRICT_TOKEN'];
+  });
+
   it('allows a same-origin-shaped GET request through the origin guard', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/ping`, {
@@ -1113,7 +1160,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('rejects a disallowed cross-origin POST with 403', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     const res = await fetch(`${daemon.url}/api/ping`, {
@@ -1126,7 +1173,7 @@ describe('createLocalNodeDaemon', () => {
   it('honors JINI_ALLOWED_ORIGINS as an extra allow-listed cross-origin source', async () => {
     process.env.JINI_ALLOWED_ORIGINS = 'https://trusted.example.com';
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
     daemonsToStop.push(daemon);
 
     // POST (not GET) so the portless-loopback GET fallback can't coincidentally let this through
@@ -1143,7 +1190,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('stop() closes the listener: a post-stop fetch rejects', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
 
     await daemon.stop();
     await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow();
@@ -1151,26 +1198,26 @@ describe('createLocalNodeDaemon', () => {
 
   it('stop() releases the sqlite file handle: reopening the same path afterward does not throw', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
 
     await daemon.stop();
 
-    const reopened = SqliteModule.createSqliteEventLog(join(dataDir, 'events.db'));
+    const reopened = SqliteModule.openSqliteEventLog({ file: join(dataDir, 'events.db'), open: openSqlite });
     await expect(reopened.append({ runId: 'probe', event: 'probe', data: {} })).resolves.toBeDefined();
-    await reopened.close();
+    await reopened.close({});
   });
 
   it("stop() actually calls the durable EventLog's close(), and is idempotent under concurrent + repeated calls", async () => {
-    const original = SqliteModule.createSqliteEventLog;
+    const original = SqliteModule.openSqliteEventLog;
     const spy = vi
-      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .spyOn(SqliteModule, 'openSqliteEventLog')
       .mockImplementation((...args: Parameters<typeof original>) => {
         const real = original(...args);
         return { ...real, close: vi.fn(real.close) };
       });
     try {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       // Gap 1's byte-journal (`journal.db`) is the second `createSqliteEventLog` call this
       // function makes — `stop()` must close it too, not just the main `events.db` log (a
@@ -1192,7 +1239,7 @@ describe('createLocalNodeDaemon', () => {
   it('runs the onShutdown hook during stop()', async () => {
     const dataDir = makeTempDataDir();
     let called = false;
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
       onShutdown: () => {
@@ -1206,7 +1253,7 @@ describe('createLocalNodeDaemon', () => {
   it('awaits an async onShutdown hook before stop() resolves', async () => {
     const dataDir = makeTempDataDir();
     let resolved = false;
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
       onShutdown: async () => {
@@ -1219,16 +1266,16 @@ describe('createLocalNodeDaemon', () => {
   });
 
   it('still closes the EventLog (and propagates the error) when onShutdown rejects', async () => {
-    const original = SqliteModule.createSqliteEventLog;
+    const original = SqliteModule.openSqliteEventLog;
     const spy = vi
-      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .spyOn(SqliteModule, 'openSqliteEventLog')
       .mockImplementation((...args: Parameters<typeof original>) => {
         const real = original(...args);
         return { ...real, close: vi.fn(real.close) };
       });
     try {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir,
         packs: [makePingPack()],
         onShutdown: () => {
@@ -1248,7 +1295,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('the POST /api/daemon/shutdown route triggers the same graceful stop(), reflected in isShuttingDown', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
 
     const statusBefore = (await (await fetch(`${daemon.url}/api/daemon/status`)).json()) as DaemonStatusResponse;
     expect(statusBefore.shuttingDown).toBe(false);
@@ -1268,9 +1315,9 @@ describe('createLocalNodeDaemon', () => {
   });
 
   it('completes the whole teardown — features, discovery record, onShutdown, sqlite — even when closing the listener rejects', async () => {
-    const originalCreate = SqliteModule.createSqliteEventLog;
+    const originalCreate = SqliteModule.openSqliteEventLog;
     const sqliteSpy = vi
-      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .spyOn(SqliteModule, 'openSqliteEventLog')
       .mockImplementation((...args: Parameters<typeof originalCreate>) => {
         const real = originalCreate(...args);
         return { ...real, close: vi.fn(real.close) };
@@ -1282,11 +1329,11 @@ describe('createLocalNodeDaemon', () => {
     try {
       const dataDir = makeTempDataDir();
       const onShutdown = vi.fn();
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], onShutdown });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], onShutdown });
       openServer = daemon.server;
       const created = sqliteSpy.mock.results[0]?.value as ReturnType<typeof originalCreate>;
       const createdJournal = sqliteSpy.mock.results[1]?.value as ReturnType<typeof originalCreate>;
-      const registryPath = resolveDaemonRegistryPath(dataDir);
+      const registryPath = resolveDaemonRegistryPath({ dataDir: dataDir });
       expect(existsSync(registryPath)).toBe(true);
 
       // The listener failing to close is a reason to report, never a reason to abandon every other
@@ -1311,7 +1358,7 @@ describe('createLocalNodeDaemon', () => {
     process.on('unhandledRejection', unhandled);
     try {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({
+      const daemon = await createLocalNodeDaemon({ open: openSqlite,
         dataDir,
         packs: [makePingPack()],
         onShutdown: () => {
@@ -1346,7 +1393,7 @@ describe('createLocalNodeDaemon', () => {
 
   it('binds an IPv6 loopback host to a URL that actually parses and answers', async () => {
     const dataDir = makeTempDataDir();
-    const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], host: '::1' });
+    const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], host: '::1' });
     daemonsToStop.push(daemon);
 
     expect(daemon.url).toMatch(/^http:\/\/\[::1\]:\d+$/);
@@ -1363,7 +1410,7 @@ describe('createLocalNodeDaemon', () => {
     const injectedEnv: NodeJS.ProcessEnv = { JINI_ALLOWED_ORIGINS: 'https://trusted.example.com' };
     expect(process.env.JINI_ALLOWED_ORIGINS).toBeUndefined();
 
-    const daemon = await createLocalNodeDaemon({
+    const daemon = await createLocalNodeDaemon({ open: openSqlite,
       dataDir,
       packs: [makePingPack()],
       env: injectedEnv,
@@ -1388,13 +1435,13 @@ describe('createLocalNodeDaemon', () => {
 
   it('rejects rather than hanging when a second instance boots on a port already in use (EADDRINUSE)', async () => {
     const dataDirA = makeTempDataDir();
-    const daemonA = await createLocalNodeDaemon({ dataDir: dataDirA, packs: [makePingPack()] });
+    const daemonA = await createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirA, packs: [makePingPack()] });
     daemonsToStop.push(daemonA);
     const fixedPort = Number(new URL(daemonA.url).port);
 
     const dataDirB = makeTempDataDir();
     await expect(
-      createLocalNodeDaemon({ dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
+      createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
     ).rejects.toThrow();
   });
 
@@ -1405,9 +1452,9 @@ describe('createLocalNodeDaemon', () => {
     // exercised by the tests below. `listRunIds()` is rehydrate()'s very
     // first call into the EventLog, so failing it deterministically forces
     // that path without needing an actually-corrupt sqlite file on disk.
-    const original = SqliteModule.createSqliteEventLog;
+    const original = SqliteModule.openSqliteEventLog;
     const spy = vi
-      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .spyOn(SqliteModule, 'openSqliteEventLog')
       .mockImplementation((...args: Parameters<typeof original>) => {
         const real = original(...args);
         return {
@@ -1420,7 +1467,7 @@ describe('createLocalNodeDaemon', () => {
       });
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ dataDir, packs: [makePingPack()] })).rejects.toThrow('corrupt durable history');
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] })).rejects.toThrow('corrupt durable history');
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       // The journal is constructed before `rehydrate()` runs, so it's already open and must be
@@ -1440,21 +1487,21 @@ describe('createLocalNodeDaemon', () => {
     // (as opposed to EADDRINUSE, which this Node/OS combination reports via the async 'error'
     // event instead, per the other rejection test below).
     await expect(
-      createLocalNodeDaemon({ dataDir, packs: [makePingPack()], port: 70_000 }),
+      createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], port: 70_000 }),
     ).rejects.toThrow(/port/i);
   });
 
   it('closes the durable EventLog it already opened when app.listen() throws synchronously', async () => {
-    const original = SqliteModule.createSqliteEventLog;
+    const original = SqliteModule.openSqliteEventLog;
     const spy = vi
-      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .spyOn(SqliteModule, 'openSqliteEventLog')
       .mockImplementation((...args: Parameters<typeof original>) => {
         const real = original(...args);
         return { ...real, close: vi.fn(real.close) };
       });
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ dataDir, packs: [makePingPack()], port: 70_000 })).rejects.toThrow();
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], port: 70_000 })).rejects.toThrow();
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;
@@ -1475,7 +1522,7 @@ describe('createLocalNodeDaemon', () => {
     const addressSpy = vi.spyOn(net.Server.prototype, 'address').mockReturnValue(null);
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ dataDir, packs: [makePingPack()] })).rejects.toThrow(
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] })).rejects.toThrow(
         /failed to resolve listening port/,
       );
     } finally {
@@ -1485,16 +1532,16 @@ describe('createLocalNodeDaemon', () => {
 
   it('closes the durable EventLog it already opened when the resolved address is unusable', async () => {
     const addressSpy = vi.spyOn(net.Server.prototype, 'address').mockReturnValue(null);
-    const original = SqliteModule.createSqliteEventLog;
+    const original = SqliteModule.openSqliteEventLog;
     const spy = vi
-      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .spyOn(SqliteModule, 'openSqliteEventLog')
       .mockImplementation((...args: Parameters<typeof original>) => {
         const real = original(...args);
         return { ...real, close: vi.fn(real.close) };
       });
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ dataDir, packs: [makePingPack()] })).rejects.toThrow();
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] })).rejects.toThrow();
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;
@@ -1508,13 +1555,13 @@ describe('createLocalNodeDaemon', () => {
 
   it('closes the durable EventLog it already opened when the port bind itself fails', async () => {
     const dataDirA = makeTempDataDir();
-    const daemonA = await createLocalNodeDaemon({ dataDir: dataDirA, packs: [makePingPack()] });
+    const daemonA = await createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirA, packs: [makePingPack()] });
     daemonsToStop.push(daemonA);
     const fixedPort = Number(new URL(daemonA.url).port);
 
-    const original = SqliteModule.createSqliteEventLog;
+    const original = SqliteModule.openSqliteEventLog;
     const spy = vi
-      .spyOn(SqliteModule, 'createSqliteEventLog')
+      .spyOn(SqliteModule, 'openSqliteEventLog')
       .mockImplementation((...args: Parameters<typeof original>) => {
         const real = original(...args);
         return { ...real, close: vi.fn(real.close) };
@@ -1522,7 +1569,7 @@ describe('createLocalNodeDaemon', () => {
     try {
       const dataDirB = makeTempDataDir();
       await expect(
-        createLocalNodeDaemon({ dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
+        createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
       ).rejects.toThrow();
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
@@ -1535,13 +1582,26 @@ describe('createLocalNodeDaemon', () => {
   });
 
   describe('local daemon-registry discovery record', () => {
+    it('boots, publishes and removes discovery using the sidecar object contract', async () => {
+      const dataDir = makeTempDataDir();
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
+      daemonsToStop.push(daemon);
+      const registryPath = resolveDaemonRegistryPath({ dataDir });
+      expect(await readLiveDaemonRegistryRecord({ registryPath })).toMatchObject({
+        url: daemon.url, pid: process.pid, port: Number(new URL(daemon.url).port),
+      });
+      await daemon.stop();
+      expect(existsSync(registryPath)).toBe(false);
+      expect(await readLiveDaemonRegistryRecord({ registryPath })).toBeNull();
+    });
+
     it('writes <dataDir>/daemon.json by default once listening, matching the real bound url/host/port/pid', async () => {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
       daemonsToStop.push(daemon);
 
-      const registryPath = resolveDaemonRegistryPath(dataDir);
-      const record = await readLiveDaemonRegistryRecord(registryPath);
+      const registryPath = resolveDaemonRegistryPath({ dataDir: dataDir });
+      const record = await readLiveDaemonRegistryRecord({ registryPath: registryPath });
       expect(record).toEqual({
         url: daemon.url,
         host: '127.0.0.1',
@@ -1553,19 +1613,19 @@ describe('createLocalNodeDaemon', () => {
 
     it('the record is written (and readable) before createLocalNodeDaemon resolves — no race for an immediate CLI discovery read', async () => {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
       daemonsToStop.push(daemon);
 
       // No `await` / retry / `vi.waitFor` here on purpose: the whole point of writing the record
       // before resolving `createLocalNodeDaemon`'s own promise is that it's already there by now.
-      const record = await readLiveDaemonRegistryRecord(resolveDaemonRegistryPath(dataDir));
+      const record = await readLiveDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir: dataDir }) });
       expect(record?.url).toBe(daemon.url);
     });
 
     it("stop() removes the discovery record — a caller that finished shouldn't be discoverable anymore", async () => {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
-      const registryPath = resolveDaemonRegistryPath(dataDir);
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
+      const registryPath = resolveDaemonRegistryPath({ dataDir: dataDir });
       expect(existsSync(registryPath)).toBe(true);
 
       await daemon.stop();
@@ -1577,32 +1637,32 @@ describe('createLocalNodeDaemon', () => {
       const dataDir = makeTempDataDir();
       const customDir = makeTempDataDir();
       const customPath = join(customDir, 'custom-daemon-record.json');
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], discoveryFile: customPath });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], discoveryFile: customPath });
       daemonsToStop.push(daemon);
 
-      expect(existsSync(resolveDaemonRegistryPath(dataDir))).toBe(false);
-      const record = await readLiveDaemonRegistryRecord(customPath);
+      expect(existsSync(resolveDaemonRegistryPath({ dataDir: dataDir }))).toBe(false);
+      const record = await readLiveDaemonRegistryRecord({ registryPath: customPath });
       expect(record?.url).toBe(daemon.url);
     });
 
     it('discoveryFile: false disables writing a discovery record entirely', async () => {
       const dataDir = makeTempDataDir();
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], discoveryFile: false });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], discoveryFile: false });
       daemonsToStop.push(daemon);
 
-      expect(existsSync(resolveDaemonRegistryPath(dataDir))).toBe(false);
+      expect(existsSync(resolveDaemonRegistryPath({ dataDir: dataDir }))).toBe(false);
     });
 
     it('two daemons on one machine (two different dataDirs) each get their own, non-colliding discovery record — the multi-daemon-per-machine case', async () => {
       const dataDirA = makeTempDataDir();
       const dataDirB = makeTempDataDir();
-      const daemonA = await createLocalNodeDaemon({ dataDir: dataDirA, packs: [makePingPack()] });
+      const daemonA = await createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirA, packs: [makePingPack()] });
       daemonsToStop.push(daemonA);
-      const daemonB = await createLocalNodeDaemon({ dataDir: dataDirB, packs: [makePingPack()] });
+      const daemonB = await createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirB, packs: [makePingPack()] });
       daemonsToStop.push(daemonB);
 
-      const recordA = await readLiveDaemonRegistryRecord(resolveDaemonRegistryPath(dataDirA));
-      const recordB = await readLiveDaemonRegistryRecord(resolveDaemonRegistryPath(dataDirB));
+      const recordA = await readLiveDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir: dataDirA }) });
+      const recordB = await readLiveDaemonRegistryRecord({ registryPath: resolveDaemonRegistryPath({ dataDir: dataDirB }) });
       expect(recordA?.url).toBe(daemonA.url);
       expect(recordB?.url).toBe(daemonB.url);
       expect(recordA?.url).not.toBe(recordB?.url);
@@ -1618,7 +1678,7 @@ describe('createLocalNodeDaemon', () => {
       writeFileSync(blockerFile, 'not a directory');
       const discoveryFile = join(blockerFile, 'daemon.json');
 
-      const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()], discoveryFile });
+      const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], discoveryFile });
       daemonsToStop.push(daemon);
 
       expect(existsSync(discoveryFile)).toBe(false);
@@ -1630,13 +1690,16 @@ describe('createLocalNodeDaemon', () => {
       const removeSpy = vi.spyOn(SidecarModule, 'removeDaemonRegistryRecordIfCurrent').mockRejectedValue(new Error('boom'));
       try {
         const dataDir = makeTempDataDir();
-        const daemon = await createLocalNodeDaemon({ dataDir, packs: [makePingPack()] });
+        const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
 
         await expect(daemon.stop()).resolves.toBeUndefined();
-        expect(removeSpy).toHaveBeenCalledWith(resolveDaemonRegistryPath(dataDir), process.pid);
+        expect(removeSpy).toHaveBeenCalledWith({ registryPath: resolveDaemonRegistryPath({ dataDir }), pid: process.pid });
       } finally {
         removeSpy.mockRestore();
       }
     });
   });
 });
+
+/** Every durable fixture uses the external host's installed SQLite driver. */
+function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }

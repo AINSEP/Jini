@@ -7,13 +7,13 @@ import * as deploy from '../index.js';
 /**
  * Guard for the 0.4.0 boundary: `@jini-ai/devops` ships the generic deploy seam
  * (`DeployTarget`, `DeployTargetToken`, `deploy.publish`, the host-kit types) and no
- * hosting vendor. Vendor targets live in the host (Tovu's `deploy` agent plugin) and
+ * hosting vendor. Vendor targets live in host-owned deployment plugins and
  * reach this package only through `DeployTargetModule`/`DeployHostKit`.
  *
  * Scans every file under `packages/devops/src` (code, comments and tests alike) for a
  * hosting-vendor name or host. This file is the one exemption, since it has to spell
  * the names it bans. Source-control names (plain "GitHub") are deliberately not banned:
- * `./source-control` is a planned sibling capability.
+ * `./source-control` is an independent sibling capability.
  */
 const SRC_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SELF = fileURLToPath(import.meta.url);

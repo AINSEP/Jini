@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/devops",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "DevOps capabilities for deployment, source control, and CI/CD, exposed through independent subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -14,7 +14,18 @@
     "runtime": "node",
     "entries": {
       ".": "node",
-      "./deploy": "node"
+      "./source-control": "node",
+      "./static-export": "node",
+      "./static-export/node": "node",
+      "./packaging/electron": "node",
+      "./packaging/electron/typescript": "node",
+      "./agent-jobs": "node",
+      "./deploy": "node",
+      "./checks/published-types": "node",
+      "./checks/coverage": "node",
+      "./checks/node": "node",
+      "./local-dev": "node",
+      "./deploy/node": "node"
     }
   },
   "type": "module",
@@ -22,6 +33,36 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
+    "./source-control": {
+      "types": "./dist/source-control/entry.d.ts",
+      "import": "./dist/source-control/entry.js",
+      "default": "./dist/source-control/entry.js"
+    },
+    "./static-export": {
+      "types": "./dist/static-export/entry.d.ts",
+      "import": "./dist/static-export/entry.js",
+      "default": "./dist/static-export/entry.js"
+    },
+    "./static-export/node": {
+      "types": "./dist/static-export/node-adapters.d.ts",
+      "import": "./dist/static-export/node-adapters.js",
+      "default": "./dist/static-export/node-adapters.js"
+    },
+    "./packaging/electron": {
+      "types": "./dist/packaging/electron/entry.d.ts",
+      "import": "./dist/packaging/electron/entry.js",
+      "default": "./dist/packaging/electron/entry.js"
+    },
+    "./packaging/electron/typescript": {
+      "types": "./dist/packaging/electron/typescript.d.ts",
+      "import": "./dist/packaging/electron/typescript.js",
+      "default": "./dist/packaging/electron/typescript.js"
+    },
+    "./agent-jobs": {
+      "types": "./dist/agent-jobs/entry.d.ts",
+      "import": "./dist/agent-jobs/entry.js",
+      "default": "./dist/agent-jobs/entry.js"
+    },
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
@@ -31,10 +72,38 @@
       "types": "./dist/deploy/index.d.ts",
       "import": "./dist/deploy/index.js",
       "default": "./dist/deploy/index.js"
+    },
+    "./checks/published-types": {
+      "types": "./dist/checks/published-types/index.d.ts",
+      "import": "./dist/checks/published-types/index.js",
+      "default": "./dist/checks/published-types/index.js"
+    },
+    "./checks/coverage": {
+      "types": "./dist/checks/coverage/index.d.ts",
+      "import": "./dist/checks/coverage/index.js",
+      "default": "./dist/checks/coverage/index.js"
+    },
+    "./checks/node": {
+      "types": "./dist/checks/node.d.ts",
+      "import": "./dist/checks/node.js",
+      "default": "./dist/checks/node.js"
+    },
+    "./local-dev": {
+      "types": "./dist/local-dev/index.d.ts",
+      "import": "./dist/local-dev/index.js",
+      "default": "./dist/local-dev/index.js"
+    },
+    "./deploy/node": {
+      "types": "./dist/deploy/node.d.ts",
+      "import": "./dist/deploy/node.js",
+      "default": "./dist/deploy/node.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -60,5 +129,13 @@
   "devDependencies": {
     "@jini-ai/daemon": "workspace:*",
     "@vitest/coverage-v8": "^2.1.9"
+  },
+  "peerDependencies": {
+    "typescript": "^5.6.0"
+  },
+  "peerDependenciesMeta": {
+    "typescript": {
+      "optional": true
+    }
   }
 }

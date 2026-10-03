@@ -1,5 +1,5 @@
 import { manyToken } from '@jini-ai/core';
-import { DeployError, type DeployFile, type DeployPublishResult, type DeployTarget, type JsonObject } from './types.js';
+import { DeployError, type DeployFile, type DeployPublishOptions, type DeployPublishResult, type DeployTarget, type UnknownRecord } from './types.js';
 
 /**
  * Many-bound composition token for deploy providers, per extraction-plan.md
@@ -17,7 +17,7 @@ import { DeployError, type DeployFile, type DeployPublishResult, type DeployTarg
  * target without this package (or `@jini-ai/core`) needing to know how many
  * providers exist or which ones a given host chose.
  */
-export const DeployTargetToken = manyToken<DeployTarget>('jini.deployTarget');
+export const DeployTargetToken = manyToken<DeployTarget>({ id: 'jini.deployTarget' });
 
 /**
  * Input to the `deploy.publish` capability: which bound target to use, plus
@@ -27,44 +27,47 @@ export interface DeployPublishToolInput {
   targetId: string;
   files: DeployFile[];
   projectName: string;
-  metadata?: JsonObject;
+  metadata?: UnknownRecord;
 }
 
 /**
  * `deploy.publish` as a plain async function.
  *
- * This is deliberately **not** wired into a real tool-execution boundary
- * yet — `@jini-ai/core`'s `ToolRegistry`/`ToolExecutor` (extraction-plan.md §8
- * task 6, §2.5) doesn't exist yet. Once it does, the intended shape is:
+ * Tool wiring is implemented by `createDeployPublishToolRegistration` in
+ * `tool.ts`, using `@jini-ai/core`'s `ToolRegistry` and `@jini-ai/daemon`'s
+ * `ToolExecutor` (extraction-plan.md §8 task 6, §2.5). The registration shape is:
  *
  * ```ts
  * toolRegistry.register({
  *   descriptor: { id: 'deploy.publish', ... },
- *   handler: (principal, run, input, signal) => publishDeploy(input, targets),
+ *   handler: (ctx) => publishDeploy({ ...ctx.input, targets }),
  *   policy: { ... }, // e.g. requires confirmation before an external publish
  * });
  * ```
  *
  * so callers only ever reach it through `ToolExecutor.execute(principal,
  * run, 'deploy.publish', input, signal)` — never by holding a direct
- * reference to a handler. Until task 6 lands, this function is the whole
- * surface: a pack's app-service can call it directly.
+ * reference to a handler. This plain function remains available to trusted
+ * composition code; routes and agents use the registration so they cannot
+ * bypass authorization and the audit trail. The registration denies by default.
  *
- * @param input - Which bound target to publish through, plus the file set/project name/metadata.
- * @param targets - The full set of `DeployTarget`s a composition bound (typically `c.getMany(DeployTargetToken)`).
+ * @param requiredArgs - Target id, file set, project name and injected bound targets.
+ * @param options - Optional metadata and response headers forwarded to the selected target.
  * @returns The chosen target's publish result.
  * @throws {DeployError} (status 404) if no bound target matches `input.targetId`.
  * @complexity O(targets) to find the match, then whatever the target's own `publish` costs.
  * @overallScore 100/100
  */
-export async function publishDeploy(input: DeployPublishToolInput, targets: readonly DeployTarget[]): Promise<DeployPublishResult> {
+export async function publishDeploy(
+  { targets, ...input }: Omit<DeployPublishToolInput, 'metadata'> & { targets: readonly DeployTarget[] },
+  options: DeployPublishOptions = {},
+): Promise<DeployPublishResult> {
   const target = targets.find((candidate) => candidate.id === input.targetId);
   if (!target) {
-    throw new DeployError(`Unknown deploy target: ${input.targetId}`, 404, { errorCode: 'deploy_target_not_found' });
+    throw new DeployError({ message: `Unknown deploy target: ${input.targetId}` }, { status: 404, details: { errorCode: 'deploy_target_not_found' } });
   }
   return target.publish({
     files: input.files,
     projectName: input.projectName,
-    ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
-  });
+  }, options);
 }

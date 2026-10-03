@@ -3,12 +3,12 @@
  * target (any host-supplied adapter). None of these
  * types know what a "project" is — the caller (a pack, a tool handler, a
  * CLI command) resolves its own file set and hands over plain
- * `DeployFile[]`. See `packages/devops/source-map.md` for what was dropped
+ * `DeployFile[]`. See the archived extraction source map for what was dropped
  * from the OD origin file to get here.
  */
 
-/** Generic JSON-shaped object; mirrors the loose bag used by provider APIs. */
-export type JsonObject = Record<string, unknown>;
+/** Loose provider option bag; values need not be JSON-serializable. */
+export type UnknownRecord = Record<string, unknown>;
 
 /**
  * One file to publish, keyed by its deploy-relative path.
@@ -43,7 +43,8 @@ export interface DeploymentUrlCheck {
 /**
  * Input to `DeployTarget.publish`. Deliberately narrow: a file set plus a
  * human/DNS-safe label the target may use to derive a provider-side
- * project/deployment name. `metadata` is an escape hatch for target-specific
+ * project/deployment name. In the separate optional-arguments object,
+ * `metadata` is an escape hatch for target-specific
  * options (e.g. custom-domain selection) that do not belong in
  * the shared shape — each target documents the metadata keys it reads and
  * ignores everything else.
@@ -56,7 +57,11 @@ export interface DeploymentUrlCheck {
 export interface DeployPublishInput {
   files: DeployFile[];
   projectName: string;
-  metadata?: JsonObject;
+}
+
+/** Optional publish settings, passed separately from the file set and project name. */
+export interface DeployPublishOptions {
+  metadata?: UnknownRecord;
   responseHeaders?: ResponseHeaderSet;
 }
 
@@ -72,7 +77,7 @@ export interface DeployPublishResult {
   statusMessage?: string;
   reachableAt?: number;
   /** Target-specific extras (e.g. a custom-domain/DNS outcome). */
-  providerMetadata?: JsonObject;
+  providerMetadata?: UnknownRecord;
 }
 
 /**
@@ -83,11 +88,11 @@ export interface DeployPublishResult {
  */
 export interface DeployTarget {
   readonly id: string;
-  publish(input: DeployPublishInput): Promise<DeployPublishResult>;
-  checkReachability(url: string): Promise<DeploymentUrlCheck>;
+  publish(requiredArgs: DeployPublishInput, optionalArgs?: DeployPublishOptions): Promise<DeployPublishResult>;
+  checkReachability(requiredArgs: { url: string }): Promise<DeploymentUrlCheck>;
 }
 
-export type DeployErrorDetails = JsonObject | string | undefined;
+export type DeployErrorDetails = UnknownRecord | string | undefined;
 
 /**
  * Thrown by target implementations for both caller-input problems (bad
@@ -100,7 +105,9 @@ export class DeployError extends Error {
   details: DeployErrorDetails;
   code?: string | undefined;
 
-  constructor(message: string, status = 400, details: DeployErrorDetails = undefined, code?: string) {
+  constructor({ message }: { message: string }, {
+    status = 400, details, code,
+  }: { status?: number; details?: DeployErrorDetails; code?: string } = {}) {
     super(message);
     this.name = 'DeployError';
     this.status = status;

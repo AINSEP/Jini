@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/server",
-  "version": "0.3.0",
+  "version": "0.5.0",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -21,15 +21,34 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./storage": {
+      "types": "./dist/storage/index.d.ts",
+      "import": "./dist/storage/index.js",
+      "default": "./dist/storage/index.js"
+    },
+    "./storage/legacy/sqlite": {
+      "types": "./dist/storage/legacy/sqlite.d.ts",
+      "import": "./dist/storage/legacy/sqlite.js",
+      "default": "./dist/storage/legacy/sqlite.js"
+    },
+    "./store/projects/sqlite": {
+      "types": "./dist/store/projects/sqlite.d.ts",
+      "import": "./dist/store/projects/sqlite.js",
+      "default": "./dist/store/projects/sqlite.js"
     }
   },
   "files": [
     "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.typecheck.*"
   ],
   "publishConfig": {
     "access": "public",
@@ -47,13 +66,24 @@
     "@jini-ai/daemon": "workspace:*",
     "@jini-ai/http-kit": "workspace:*",
     "@jini-ai/sidecar": "workspace:*",
-    "@jini-ai/sqlite": "workspace:*",
-    "better-sqlite3": "^13.0.0",
-    "express": "^4.21.0"
+    "express": "^4.21.0",
+    "@jini-ai/db": "workspace:*",
+    "@jini-ai/chat": "workspace:*",
+    "@jini-ai/registry": "workspace:*"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/express": "^4.17.21",
-    "@vitest/coverage-v8": "^2.1.9"
-  }
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "^13.0.0"
+  },
+  "peerDependencies": {
+    "better-sqlite3": "^13.0.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
+  },
+  "sideEffects": false
 }

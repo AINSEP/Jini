@@ -186,7 +186,7 @@ describe('installGracefulShutdown', () => {
   it('defaults to listening on both SIGTERM and SIGINT', async () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     const onExit = vi.fn();
-    installed.push(installGracefulShutdown(stop, { onExit }));
+    installed.push(installGracefulShutdown({ stop }, { onExit }));
 
     process.emit('SIGTERM');
     await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
@@ -197,7 +197,7 @@ describe('installGracefulShutdown', () => {
   it('reacts to SIGINT too', async () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     const onExit = vi.fn();
-    installed.push(installGracefulShutdown(stop, { onExit }));
+    installed.push(installGracefulShutdown({ stop }, { onExit }));
 
     process.emit('SIGINT');
     await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
@@ -207,7 +207,7 @@ describe('installGracefulShutdown', () => {
   it('only listens on the caller-supplied signal list, not the default pair', async () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     const onExit = vi.fn();
-    installed.push(installGracefulShutdown(stop, { signals: ['SIGTERM'], onExit }));
+    installed.push(installGracefulShutdown({ stop }, { signals: ['SIGTERM'], onExit }));
 
     process.emit('SIGINT');
     // No caller-observable way to "wait for nothing to happen"; a short real-timer tick is enough
@@ -226,7 +226,7 @@ describe('installGracefulShutdown', () => {
         }),
     );
     const onExit = vi.fn();
-    installed.push(installGracefulShutdown(stop, { onExit }));
+    installed.push(installGracefulShutdown({ stop }, { onExit }));
 
     process.emit('SIGTERM');
     await vi.waitFor(() => expect(stop).toHaveBeenCalledTimes(1));
@@ -247,7 +247,7 @@ describe('installGracefulShutdown', () => {
     try {
       const stop = vi.fn().mockRejectedValue(new Error('teardown failed'));
       const onExit = vi.fn();
-      installed.push(installGracefulShutdown(stop, { onExit }));
+      installed.push(installGracefulShutdown({ stop }, { onExit }));
 
       process.emit('SIGTERM');
       await vi.waitFor(() => expect(onExit).toHaveBeenCalledTimes(1));
@@ -270,7 +270,7 @@ describe('installGracefulShutdown', () => {
           }),
       );
       const onExit = vi.fn();
-      installed.push(installGracefulShutdown(stop, { timeoutMs: 1000, onExit }));
+      installed.push(installGracefulShutdown({ stop }, { timeoutMs: 1000, onExit }));
 
       process.emit('SIGTERM');
       await vi.advanceTimersByTimeAsync(1000);
@@ -290,7 +290,7 @@ describe('installGracefulShutdown', () => {
   it('uninstall() removes the listeners so a later signal is a no-op', async () => {
     const stop = vi.fn().mockResolvedValue(undefined);
     const onExit = vi.fn();
-    const handle = installGracefulShutdown(stop, { onExit });
+    const handle = installGracefulShutdown({ stop }, { onExit });
     handle.uninstall();
 
     process.emit('SIGTERM');

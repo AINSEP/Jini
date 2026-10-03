@@ -1,3 +1,4 @@
+import Database from 'better-sqlite3';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { Server } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -28,8 +29,8 @@ function makeTempDataDir(): string {
 const kernels: JiniKernel[] = [];
 async function compose(config: Omit<Parameters<typeof composeJiniKernel>[0], 'app' | 'adapter'> & { app?: Express }) {
   const app = config.app ?? express();
-  installRouteRegistrationGuard(app);
-  const adapter: AdapterContext = { resolvedPortRef: { current: 4000 } };
+  installRouteRegistrationGuard({ app });
+  const adapter: AdapterContext = { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
   const kernel = await composeJiniKernel({ ...config, app, adapter });
   kernels.push(kernel);
   return { app, kernel };
@@ -50,12 +51,13 @@ function makeTool(id: string): ToolRegistration {
   return { descriptor: { id }, handler: async () => 'ok', policy: { authorize: () => 'allow' } };
 }
 
-const paths = (app: Express) => getRouteRegistrationInventory(app).map((r) => `${r.method} ${r.path}`);
+const paths = (app: Express) => getRouteRegistrationInventory({ app }).map((r) => `${r.method} ${r.path}`);
 
 describe('the Route-vs-Tool Gap, closed structurally', () => {
   it("a disabled feature's TOOLS are absent from the registry, not merely its routes unmounted", async () => {
     const { app, kernel } = await compose({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       features: { terminal: false },
@@ -66,45 +68,48 @@ describe('the Route-vs-Tool Gap, closed structurally', () => {
     // …and so is the tool, which a route-level switch would NOT have achieved. Before `Pack.tools`,
     // `jini.terminal.create` was registered in a separate step and stayed reachable through the
     // always-mounted POST /api/delegated-tool-calls.
-    expect(kernel.base.registry.has('terminal.create')).toBe(false);
+    expect(kernel.base.registry.has({ toolId: 'terminal.create' })).toBe(false);
     // The delegated-tool door is still open — that is the point. It just has nothing to open onto.
     expect(paths(app)).toContain('POST /api/delegated-tool-calls');
   });
 
   it('and with the same feature enabled, BOTH the tool and the routes appear', async () => {
     const { app, kernel } = await compose({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
     });
 
-    expect(kernel.base.registry.has('terminal.create')).toBe(true);
+    expect(kernel.base.registry.has({ toolId: 'terminal.create' })).toBe(true);
     expect(paths(app)).toContain('POST /api/terminals');
   });
 
   it('the same holds for daemonDb: disabling it removes all three daemon.db.* tools', async () => {
     const { app, kernel } = await compose({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       features: { daemonDb: false },
     });
 
     for (const id of ['daemon.db.inspect', 'daemon.db.verify', 'daemon.db.vacuum']) {
-      expect(kernel.base.registry.has(id)).toBe(false);
+      expect(kernel.base.registry.has({ toolId: id })).toBe(false);
     }
     expect(paths(app).some((p) => p.includes('/api/daemon/db'))).toBe(false);
   });
 
   it('a tool removed by a capability denial is likewise absent — the coarse switch reaches tools too', async () => {
     const { kernel } = await compose({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       capabilities: { 'host:exec': false },
     });
 
-    expect(kernel.base.registry.has('terminal.create')).toBe(false);
+    expect(kernel.base.registry.has({ toolId: 'terminal.create' })).toBe(false);
     expect(kernel.activation.active.map((r) => r.id)).not.toContain('terminal');
     expect(kernel.activation.active.map((r) => r.id)).not.toContain('hostTools');
   });
@@ -113,7 +118,8 @@ describe('the Route-vs-Tool Gap, closed structurally', () => {
 describe('shared kernel resources', () => {
   it("health's readiness probe still works with daemonDb disabled — the sqlite connection belongs to the kernel, not to either feature", async () => {
     const { kernel } = await compose({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       features: { daemonDb: false, toolCatalog: false },
@@ -130,11 +136,12 @@ describe('shared kernel resources', () => {
   it('closeBase() closes the shared connection exactly once, and is idempotent', async () => {
     const dataDir = makeTempDataDir();
     const app = express();
-    installRouteRegistrationGuard(app);
+    installRouteRegistrationGuard({ app });
     const kernel = await composeJiniKernel({
-      app,
-      adapter: { resolvedPortRef: { current: 4000 } },
-      storage: { kind: 'sqlite', dataDir },
+        security: { mode: 'host' },
+        app,
+      adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
     });
@@ -147,14 +154,17 @@ describe('shared kernel resources', () => {
   });
 
   it('memory storage opens no sqlite handle at all', async () => {
-    const { kernel } = await compose({ storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { kernel } = await compose({
+      security: { mode: 'host' },
+      storage: { kind: 'memory' }, profile: 'agent-core-v1' });
     expect(kernel.base.sqlite).toBeNull();
   });
 
   it('a feature needing a real database file fails loudly under memory storage rather than half-mounting', async () => {
     await expect(
       compose({
-        storage: { kind: 'memory' },
+      security: { mode: 'host' },
+      storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         capabilities: { 'db:admin': true },
         features: { daemonDb: true },
@@ -165,7 +175,7 @@ describe('shared kernel resources', () => {
 
 describe('JINI_ALLOWED_ORIGINS validation', () => {
   // Regression guard: a malformed `JINI_ALLOWED_ORIGINS` used to go undetected at boot under the
-  // default `security: { mode: 'host' }` (the two `configuredAllowedOrigins(env)` calls that used
+  // explicit `security: { mode: 'host' }` (the two `configuredAllowedOrigins({ config, env })` calls that used
   // to be the only validation live inside `security.mode === 'sidecar-strict' | 'jini-local'`
   // branches only), and would instead throw on whichever request happened to be first to reach
   // `isLocalSameOrigin` — see `origin-validation.ts`'s own doc for the full failure history. This
@@ -173,7 +183,8 @@ describe('JINI_ALLOWED_ORIGINS validation', () => {
   it('fails composition (not just a later request) on a malformed JINI_ALLOWED_ORIGINS entry', async () => {
     await expect(
       compose({
-        storage: { kind: 'memory' },
+      security: { mode: 'host' },
+      storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         env: { ...process.env, JINI_ALLOWED_ORIGINS: 'ftp://example.com' },
       }),
@@ -182,6 +193,7 @@ describe('JINI_ALLOWED_ORIGINS validation', () => {
 
   it('composes normally when JINI_ALLOWED_ORIGINS is unset or entirely valid', async () => {
     const { kernel } = await compose({
+      security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       env: { ...process.env, JINI_ALLOWED_ORIGINS: 'https://example.com' },
@@ -192,7 +204,9 @@ describe('JINI_ALLOWED_ORIGINS validation', () => {
 
 describe('profiles', () => {
   it('local-daemon-v1 composes exactly the historical daemon surface', async () => {
-    const { kernel } = await compose({ storage: { kind: 'sqlite', dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
+    const { kernel } = await compose({
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
 
     expect(kernel.activation.active.map((r) => r.id)).toEqual([
       'health',
@@ -213,31 +227,39 @@ describe('profiles', () => {
   });
 
   it('local-daemon-v1 leaves the never-wired families and remote injection off', async () => {
-    const { kernel } = await compose({ storage: { kind: 'sqlite', dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
+    const { kernel } = await compose({
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
     const inactive = kernel.activation.inactive.map((r) => r.id);
     expect(inactive).toEqual(expect.arrayContaining(['remoteRunEvents', 'memory', 'routines', 'media', 'frontendSessions']));
   });
 
   it('agent-core-v1 composes only the run-transport contract', async () => {
-    const { app, kernel } = await compose({ storage: { kind: 'memory' }, profile: 'agent-core-v1' });
+    const { app, kernel } = await compose({
+      security: { mode: 'host' },
+      storage: { kind: 'memory' }, profile: 'agent-core-v1' });
 
     expect(kernel.activation.active.map((r) => r.id)).toEqual(['health', 'runs', 'agents', 'delegatedToolCalls']);
     expect(paths(app)).toContain('POST /api/runs');
     expect(paths(app)).toContain('POST /api/delegated-tool-calls');
     expect(paths(app).some((p) => p.includes('/api/terminals'))).toBe(false);
     expect(paths(app).some((p) => p.includes('/api/proxy'))).toBe(false);
-    expect(kernel.base.registry.list()).toEqual([]);
+    expect(kernel.base.registry.list({})).toEqual([]);
   });
 
   it('defaults to agent-core-v1 when no profile is named', async () => {
-    const { kernel } = await compose({ storage: { kind: 'memory' } });
+    const { kernel } = await compose({
+      security: { mode: 'host' },
+      storage: { kind: 'memory' } });
     expect(kernel.activation.active.map((r) => r.id)).toEqual(['health', 'runs', 'agents', 'delegatedToolCalls']);
   });
 });
 
 describe('mounting order', () => {
   it('mounts probe routes before the body parser and api routes, and status routes last', async () => {
-    const { app } = await compose({ storage: { kind: 'sqlite', dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
+    const { app } = await compose({
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() }, profile: 'local-daemon-v1', featureOptions: { daemonStatus: { requestShutdown: () => undefined } } });
     const mounted = paths(app);
 
     const health = mounted.indexOf('GET /api/health');
@@ -255,11 +277,12 @@ describe('mounting order', () => {
   it('runs onAfterApiRoutes between the api and status phases, with the kernel base already built', async () => {
     const order: string[] = [];
     const app = express();
-    installRouteRegistrationGuard(app);
+    installRouteRegistrationGuard({ app });
     await composeJiniKernel({
-      app,
-      adapter: { resolvedPortRef: { current: 4000 } },
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+        security: { mode: 'host' },
+        app,
+      adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       onAfterApiRoutes: (mountedApp, _daemon, base) => {
@@ -278,7 +301,8 @@ describe('tools', () => {
   it('registers feature tools first, then host tools — so a collision names the host id', async () => {
     await expect(
       compose({
-        storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
         profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
         toolRegistrations: [makeTool('terminal.create')],
@@ -288,7 +312,8 @@ describe('tools', () => {
 
   it('seeds the tool catalog from the COMPLETE registry — feature tools and host tools alike', async () => {
     const { kernel } = await compose({
-      storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
       profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
       toolRegistrations: [makeTool('product.publish')],
@@ -308,16 +333,18 @@ describe('tools', () => {
       name: 'product',
       deps: [],
       services: () => ({}),
+      }, {
       tools: () => [makeTool('product.fromPack')],
     });
 
     const { kernel } = await compose({
+      security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       packs: [productPack],
     });
 
-    expect(kernel.base.registry.has('product.fromPack')).toBe(true);
+    expect(kernel.base.registry.has({ toolId: 'product.fromPack' })).toBe(true);
   });
 });
 
@@ -330,25 +357,28 @@ describe('product features use the same gate', () => {
         name: 'product.reports',
         deps: [],
         services: () => ({}),
+        }, {
         tools: () => [makeTool('product.report')],
-        http: (app) => (app as Express).get('/api/product/reports', (_req, res) => res.json({ ok: true })),
+        http: ({ app }) => (app as Express).get('/api/product/reports', (_req, res) => res.json({ ok: true })),
       }),
     }),
   });
 
   it('is inert until its capability is granted AND it is named', async () => {
     const { app, kernel } = await compose({
+      security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       extraFeatures: [productFeature],
     });
 
-    expect(kernel.base.registry.has('product.report')).toBe(false);
+    expect(kernel.base.registry.has({ toolId: 'product.report' })).toBe(false);
     expect(paths(app)).not.toContain('GET /api/product/reports');
   });
 
   it('mounts atomically once both are satisfied', async () => {
     const { app, kernel } = await compose({
+      security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       extraFeatures: [productFeature],
@@ -356,14 +386,15 @@ describe('product features use the same gate', () => {
       features: { 'product.reports': true },
     });
 
-    expect(kernel.base.registry.has('product.report')).toBe(true);
+    expect(kernel.base.registry.has({ toolId: 'product.report' })).toBe(true);
     expect(paths(app)).toContain('GET /api/product/reports');
   });
 
   it('is refused by the same capability rule as a built-in', async () => {
     await expect(
       compose({
-        storage: { kind: 'memory' },
+      security: { mode: 'host' },
+      storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         extraFeatures: [productFeature],
         features: { 'product.reports': true },
@@ -390,11 +421,11 @@ describe('security: sidecar-strict', () => {
 
   async function bootStrict(env: NodeJS.ProcessEnv, exemptPaths?: readonly string[]) {
     const app = express();
-    installRouteRegistrationGuard(app);
+    installRouteRegistrationGuard({ app });
     const resolvedPortRef = { current: 0 };
     const kernel = await composeJiniKernel({
-      app,
-      adapter: { resolvedPortRef, env },
+        app,
+      adapter: { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       env,
@@ -485,6 +516,7 @@ describe('teardown', () => {
             name: `test.${id}`,
             deps: [],
             services: () => ({}),
+            }, {
             dispose: () => {
               order.push(id);
             },
@@ -493,6 +525,7 @@ describe('teardown', () => {
       });
 
     const { kernel } = await compose({
+      security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       extraFeatures: [makeDisposable('first'), makeDisposable('second')],
@@ -510,10 +543,12 @@ describe('teardown', () => {
       deps: [],
       // Stands in for the socket/timer/db handle a real caller pack opens here.
       services: () => ({ handle: { open: true } }),
+      }, {
       dispose: disposedCaller,
     });
 
     const { kernel } = await compose({
+      security: { mode: 'host' },
       storage: { kind: 'memory' },
       profile: 'agent-core-v1',
       packs: [callerPack],
@@ -530,6 +565,7 @@ describe('teardown', () => {
       name: 'caller.holdsAHandle',
       deps: [],
       services: () => ({ handle: { open: true } }),
+      }, {
       dispose: disposedCaller,
     });
     const exploding = defineJiniFeature({
@@ -540,6 +576,7 @@ describe('teardown', () => {
           name: 'test.explodes',
           deps: [],
           services: () => ({}),
+          }, {
           http: () => {
             throw new Error('route mounting blew up');
           },
@@ -548,11 +585,12 @@ describe('teardown', () => {
     });
 
     const app = express();
-    installRouteRegistrationGuard(app);
+    installRouteRegistrationGuard({ app });
     await expect(
       composeJiniKernel({
+        security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 4000 } },
+        adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
         storage: { kind: 'memory' },
         profile: 'agent-core-v1',
         packs: [callerPack],
@@ -576,6 +614,7 @@ describe('teardown', () => {
           name: 'test.explodes',
           deps: [],
           services: () => ({}),
+          }, {
           http: () => {
             throw new Error('route mounting blew up');
           },
@@ -585,12 +624,13 @@ describe('teardown', () => {
     });
 
     const app = express();
-    installRouteRegistrationGuard(app);
+    installRouteRegistrationGuard({ app });
     await expect(
       composeJiniKernel({
+        security: { mode: 'host' },
         app,
-        adapter: { resolvedPortRef: { current: 4000 } },
-        storage: { kind: 'sqlite', dataDir },
+        adapter: { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+        storage: { kind: 'sqlite', open: openSqlite, dataDir },
         profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
         extraFeatures: [exploding],
@@ -605,11 +645,12 @@ describe('teardown', () => {
   });
 
   it('an invalid selection fails before ANY resource is opened', async () => {
-    const openSpy = vi.spyOn(await import('@jini-ai/sqlite'), 'createSqliteEventLog');
+    const openSpy = vi.spyOn(await import('@jini-ai/daemon/store/event-log/sqlite'), 'openSqliteEventLog');
     try {
       await expect(
         compose({
-          storage: { kind: 'sqlite', dataDir: makeTempDataDir() },
+      security: { mode: 'host' },
+      storage: { kind: 'sqlite', open: openSqlite, dataDir: makeTempDataDir() },
           profile: 'local-daemon-v1',
       featureOptions: { daemonStatus: { requestShutdown: () => undefined } },
           features: { nonexistent: true },
@@ -644,4 +685,43 @@ describe('the built-in catalog', () => {
   it('puts remote run-event injection behind its own capability, granted by no profile', () => {
     expect(createBuiltInFeatures().find((f) => f.id === 'remoteRunEvents')!.provides).toEqual(['run:inject']);
   });
+});
+
+/** Every durable fixture uses the external host's installed SQLite driver. */
+function openSqlite(file: string, settings: Database.Options = {}) { return new Database(file, settings); }
+
+it('health keeps its kernel-owned handle when daemonDb and toolCatalog are independently toggled',async()=>{
+ for(const features of [{daemonDb:false},{toolCatalog:false},{daemonDb:false,toolCatalog:false}]){
+  const {kernel}=await compose({
+      security: { mode: 'host' },
+      storage:{kind:'sqlite',dataDir:makeTempDataDir(),open:openSqlite},profile:'local-daemon-v1',featureOptions:{daemonStatus:{requestShutdown:()=>undefined}},features});
+  expect(kernel.activation.active.map(feature=>feature.id)).toContain('health');
+  expect(kernel.base.sqlite!.connection.open).toBe(true);
+  expect(kernel.base.sqlite!.connection.pragma('quick_check')).toEqual([{quick_check:'ok'}]);
+ }
+});
+
+// REGRESSION: fails if composeJiniKernel restores config.security ?? { mode: 'host' }.
+it('rejects omitted security before any storage resource is read', async () => {
+  const app = express();
+  const config = {
+    app,
+    adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+    get storage(): { kind: 'memory' } { throw new Error('storage was opened'); },
+  };
+  // @ts-expect-error Security is deliberately omitted to exercise untyped callers at runtime.
+  await expect(composeJiniKernel(config)).rejects.toThrow('an explicit supported security mode is required');
+});
+
+// REGRESSION: fails if the supported-mode validation at composition entry is removed.
+it('rejects unknown security modes before any storage resource is read', async () => {
+  const app = express();
+  const config = {
+    app,
+    adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+    security: { mode: 'unknown' },
+    get storage(): { kind: 'memory' } { throw new Error('storage was opened'); },
+  };
+  // @ts-expect-error An unknown wire value is deliberately supplied to exercise runtime validation.
+  await expect(composeJiniKernel(config)).rejects.toThrow('an explicit supported security mode is required');
 });

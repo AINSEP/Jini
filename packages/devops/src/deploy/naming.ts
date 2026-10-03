@@ -4,14 +4,13 @@
  * verbatim from `apps/daemon/src/deploy.ts`'s `safeProjectLabel` — pure
  * string logic, no OD dependency to strip.
  *
- * @param raw - Arbitrary caller input (may be empty, non-ASCII, etc).
- * @param maxLength - Hard cap on the returned label's length.
+ * @param requiredArgs - Arbitrary `raw` input and the required `maxLength` cap.
  * @returns A label containing only `[a-z0-9-]`, with no leading/trailing/
  *   duplicate hyphens, truncated to `maxLength`.
  * @complexity O(n) in the length of `raw`.
  * @overallScore 100/100
  */
-export function safeProjectLabel(raw: unknown, maxLength: number): string {
+export function safeProjectLabel({ raw, maxLength }: { raw: unknown; maxLength: number }): string {
   return String(raw)
     .normalize('NFKD')
     .toLowerCase()
@@ -23,6 +22,6 @@ export function safeProjectLabel(raw: unknown, maxLength: number): string {
 }
 
 /** DNS-label-safe variant (63-char cap, the DNS label limit). */
-export function safeDnsLabel(raw: unknown): string {
-  return safeProjectLabel(raw, 63);
+export function safeDnsLabel({ raw }: { raw: unknown }): string {
+  return safeProjectLabel({ raw, maxLength: 63 });
 }

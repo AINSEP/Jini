@@ -1,28 +1,25 @@
-import type { LookupFunction } from 'node:net';
-import { Agent } from 'undici';
-import { assertSafePublicUrl, AssetCacheError, createValidatingLookup } from '@jini-ai/platform';
 import type { DeployLinkStatus, DeploymentUrlCheck } from './types.js';
 
 /**
  * SEC-003: reachability probes fetch a *provider-returned* URL/alias
  * (a deployment's `url`/`alias`/`aliases[]` from the host), so a compromised or
  * malicious provider response is a live SSRF vector — the same trust-boundary
- * shape `@jini-ai/platform`'s asset-cache solves for a caller-supplied media URL.
- * Reused here rather than reinvented (see
+ * shape the Node default adapter's asset-cache guard solves for a caller-supplied media URL.
+ * Reused by `./node.ts` rather than reinvented (see
  * ADS-memory/reports/security/SEC-backend-coverage-push-2026-07-20.md, SEC-003,
  * which cites asset-cache as "a good model for deploy reachability"):
- * `assertSafePublicUrl` fast-rejects bad schemes/credentials/localhost/literal
+ * The Node adapter pairs these ports: `assertSafePublicUrl` fast-rejects bad schemes/credentials/localhost/literal
  * private IPs before any socket opens, and `createValidatingLookup` is wired
  * as the fetch dispatcher's connection-time `lookup` so the address that is
  * *validated* is the exact address the socket *connects to* — closing the
  * DNS-rebinding/TOCTOU gap a separate pre-validation lookup would leave open.
  */
-function assertSafeDeploymentUrl(raw: string): URL {
-  const url = assertSafePublicUrl(raw);
+function assertSafeDeploymentUrl(raw: string, guard: DeploymentUrlGuard): URL {
+  const url = guard.assertSafeUrl({ raw, label: 'deployment url' });
   if (url.protocol !== 'https:') {
     // Deployment providers always serve over TLS; an http:// candidate is
     // never legitimate and downgrading a probe to plaintext is its own risk.
-    throw new AssetCacheError(400, 'deployment url must use https');
+    throw new Error('deployment url must use https');
   }
   return url;
 }
@@ -34,14 +31,39 @@ function assertSafeDeploymentUrl(raw: string): URL {
  * instead of hardcoding one provider's SSO-nonce/header sniffing here, so
  * each target can supply its own detector or omit one entirely.
  */
-export type ProtectedResponseDetector = (resp: Response, body: string) => boolean;
+export type ProtectedResponseDetector = (requiredArgs: { resp: Response; body: string }) => boolean;
+
+/** Synchronous outbound URL policy, shaped like the OAuth guard without an OAuth dependency.
+ * Connection-time DNS enforcement belongs to the paired transport, never a preflight lookup. */
+export interface DeploymentUrlGuard {
+  assertSafeUrl(requiredArgs: { raw: string; label: string }): URL;
+}
+
+/** HTTP transport port. Hosts must enforce connection-time DNS policy and honor redirects/signals. */
+export type ReachabilityFetchPort = (
+  requiredArgs: { url: string }, optionalArgs?: { init?: RequestInit },
+) => Promise<Response>;
+
+/** The caller supplies the paired URL guard and connection-time policy-enforcing transport. */
+export interface ReachabilityArgs {
+  url: unknown;
+  fetch: ReachabilityFetchPort;
+  guard: DeploymentUrlGuard;
+}
+
+/** Polling uses host-supplied time and delay ports for deterministic scheduling. */
+export interface ReachabilityWaitArgs {
+  urls: unknown[];
+  fetch: ReachabilityFetchPort;
+  guard: DeploymentUrlGuard;
+  now(requiredArgs: Record<string, never>): number;
+  sleep(requiredArgs: { ms: number }): Promise<void>;
+}
 
 export interface ReachabilityOptions {
   timeoutMs?: number;
   detectProtected?: ProtectedResponseDetector;
   protectedMessage?: string;
-  /** Injectable `dns.lookup` for the connection-time SSRF guard (tests only — see `assertSafeDeploymentUrl`). */
-  lookupImpl?: Parameters<typeof createValidatingLookup>[0];
 }
 
 export interface ReachabilityWaitOptions {
@@ -50,8 +72,6 @@ export interface ReachabilityWaitOptions {
   providerLabel?: string;
   detectProtected?: ProtectedResponseDetector;
   protectedMessage?: string;
-  /** Injectable `dns.lookup` for the connection-time SSRF guard (tests only). */
-  lookupImpl?: Parameters<typeof createValidatingLookup>[0];
 }
 
 export interface ReachabilityWaitResult {
@@ -65,12 +85,12 @@ export interface ReachabilityWaitResult {
  * Normalizes a raw provider-returned URL/hostname into an absolute
  * `https://` URL (bare hostnames like `foo.example.app` are assumed https).
  *
- * @param url - Raw value from a provider response; may be `undefined`/non-string.
+ * @param requiredArgs - Raw `url` from a provider response; may be undefined/non-string.
  * @returns The normalized absolute URL, or `''` if `url` was empty/non-string.
  * @complexity O(1).
  * @overallScore 100/100
  */
-export function normalizeDeploymentUrl(url: unknown): string {
+export function normalizeDeploymentUrl({ url }: { url: unknown }): string {
   if (typeof url !== 'string') return '';
   const trimmed = url.trim();
   if (!trimmed) return '';
@@ -90,76 +110,60 @@ export function normalizeDeploymentUrl(url: unknown): string {
  * @complexity O(1) network round-trip.
  * @overallScore 100/100
  */
-// A fresh `Agent` per call would needlessly discard connection pooling; the common
-// (no test override) case shares one lazily-created dispatcher. A caller-supplied
-// `lookupImpl` (tests only) always gets its own dispatcher instead of touching the shared one.
-let defaultDispatcher: Agent | null = null;
-function resolveDispatcher(lookupImpl?: Parameters<typeof createValidatingLookup>[0]): Agent {
-  if (lookupImpl) {
-    return new Agent({ connect: { lookup: createValidatingLookup(lookupImpl) as unknown as LookupFunction } });
-  }
-  defaultDispatcher ??= new Agent({ connect: { lookup: createValidatingLookup() as unknown as LookupFunction } });
-  return defaultDispatcher;
-}
-
 async function requestDeploymentUrl(
   url: string,
   method: 'HEAD' | 'GET',
   timeoutMs: number,
   options: ReachabilityOptions,
+  fetchPort: ReachabilityFetchPort,
+  guard: DeploymentUrlGuard,
 ): Promise<DeploymentUrlCheck> {
   let safeUrl: URL;
   try {
-    safeUrl = assertSafeDeploymentUrl(url);
+    safeUrl = assertSafeDeploymentUrl(url, guard);
   } catch (err) {
-    // `err instanceof Error ? ... : String(err)` — the `String(err)` side is
-    // unreachable through this exact call: `assertSafeDeploymentUrl`'s only
-    // two throw sources are `assertSafePublicUrl` (which itself only ever
-    // throws `AssetCacheError`, per `packages/platform/src/asset-cache.ts` —
-    // every one of its conditionals is an explicit `throw new
-    // AssetCacheError(...)`, including the `new URL(raw)` parse failure
-    // case) and this function's own explicit `throw new AssetCacheError(...)`
-    // for a non-https URL. `AssetCacheError extends Error`, so `err` here can
-    // only ever be a real `Error` instance. Kept (not simplified to
-    // `err.message`) because `err` is typed `unknown`, and a future edit to
-    // this function's own throw sites, or to `assertSafePublicUrl`'s, could
-    // reintroduce a non-Error throw without this file changing at all — see
-    // packages/devops/source-map.md's 2026-07-22 addition for the full
-    // re-derivation.
+    // Keep unknown throw values readable: host guards may throw values other than Error.
+    // The old concrete guard only threw AssetCacheError, but ports cannot assume that contract.
     return {
       reachable: false,
       statusMessage: `Public link is not reachable yet: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timer: ReturnType<typeof setTimeout>;
+  // Race the transport as well as signalling it: an injected fetch/body reader may ignore abort.
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`probe timed out after ${timeoutMs}ms`));
+      controller.abort();
+    }, timeoutMs);
+  });
   // Real refactor, not a padded test: this used to be `try { ... } catch {
   // ... } finally { clearTimeout(timer); }`. A throwaway local repro (see
-  // packages/devops/source-map.md's 2026-07-22 addition) proved that V8's own
+  // the archived extraction source map's 2026-07-22 addition) proved that V8's own
   // coverage instrumentation for a `try/catch/finally` where the `catch`
   // always returns (never rethrows) emits a synthetic branch, at the
   // `finally` keyword's own position, that no test can ever satisfy — a
   // compiler/instrumentation artifact, not a real code path. Restructuring to
-  // `try/catch` with an explicit `clearTimeout(timer)` right after the
-  // `fetch` that could time out resolves (covering every path that can reach
+  // `try/catch` with an explicit `clearTimeout(timer)` after the complete
+  // response (headers and any body read) resolves (covering every path that can reach
   // a return from inside the try) plus one in `catch` (covering the case
   // `fetch` itself rejects, before that clear runs) has 100%-coverable
-  // branches with the exact same runtime behavior — the timer is cleared on
-  // every exit from this function either way.
+  // branches. That historical refactor preserved runtime behavior — the timer
+  // is cleared on every exit from this function either way. The deadline fix
+  // additionally keeps it active until body consumption finishes.
   try {
-    // `dispatcher` carries the connection-time SSRF guard (see `assertSafeDeploymentUrl`'s
-    // doc). Attached at runtime, matching asset-cache's own pattern, to avoid the
-    // undici-types (bundled with @types/node) vs undici@7 Dispatcher version skew a typed
-    // field would trip over.
+    // The injected transport owns DNS pinning (the Node adapter attaches its validating dispatcher).
+    // A separate preflight resolver would leave the validation/connect TOCTOU gap open.
     const init: RequestInit = { method, redirect: 'manual', signal: controller.signal };
-    (init as { dispatcher?: unknown }).dispatcher = resolveDispatcher(options.lookupImpl);
-    const resp = await fetch(safeUrl.toString(), init);
-    clearTimeout(timer);
+    const resp = await Promise.race([fetchPort({ url: safeUrl.toString() }, { init }), timeout]);
     if (resp.status >= 200 && resp.status < 400) {
+      clearTimeout(timer!);
       return { reachable: true, statusCode: resp.status };
     }
-    const body = method === 'GET' || resp.status === 401 ? await resp.text() : '';
-    if (resp.status === 401 && options.detectProtected?.(resp, body)) {
+    const body = method === 'GET' || resp.status === 401 ? await Promise.race([resp.text(), timeout]) : '';
+    if (resp.status === 401 && options.detectProtected?.({ resp, body })) {
+      clearTimeout(timer!);
       return {
         reachable: false,
         status: 'protected',
@@ -167,13 +171,14 @@ async function requestDeploymentUrl(
         statusMessage: options.protectedMessage ?? 'Deployment is protected by the provider.',
       };
     }
+    clearTimeout(timer!);
     return {
       reachable: false,
       statusCode: resp.status,
       statusMessage: `Public link returned HTTP ${resp.status}.`,
     };
   } catch (err) {
-    clearTimeout(timer);
+    clearTimeout(timer!);
     return {
       reachable: false,
       statusMessage: `Public link is not reachable yet: ${err instanceof Error ? err.message : String(err)}`,
@@ -186,26 +191,30 @@ async function requestDeploymentUrl(
  * GET when HEAD is rejected or ambiguous (some hosts don't implement HEAD
  * correctly on generated static routes).
  *
- * @param url - Raw URL/hostname from a provider response (normalized internally).
+ * @param requiredArgs - Raw URL/hostname and paired fetch and outbound-guard ports.
  * @param options - Timeout (default 8s) and optional protected-response detector.
  * @returns A `DeploymentUrlCheck` for the best of the HEAD/GET attempts.
  * @complexity O(1)-O(2) network round-trips.
  * @overallScore 100/100
  */
 export async function checkDeploymentUrl(
-  url: unknown,
+  { url, fetch: fetchPort, guard }: ReachabilityArgs,
   options: ReachabilityOptions = {},
 ): Promise<DeploymentUrlCheck> {
-  const normalized = normalizeDeploymentUrl(url);
+  const normalized = normalizeDeploymentUrl({ url });
   if (!normalized) {
     return { reachable: false, statusMessage: 'Deployment URL is empty.' };
   }
   const timeoutMs = options.timeoutMs ?? 8_000;
-  const head = await requestDeploymentUrl(normalized, 'HEAD', timeoutMs, options);
+  const deadlineAt = Date.now() + timeoutMs;
+  const head = await requestDeploymentUrl(normalized, 'HEAD', timeoutMs, options, fetchPort, guard);
   if (head.reachable) return head;
   if (head.status === 'protected') return head;
+  // HEAD and its fallback share one probe budget; do not restart the clock for GET.
+  const remainingMs = deadlineAt - Date.now();
+  if (remainingMs <= 0) return head;
   if (head.statusCode && (head.statusCode === 405 || head.statusCode === 403 || head.statusCode >= 400)) {
-    const get = await requestDeploymentUrl(normalized, 'GET', timeoutMs, options);
+    const get = await requestDeploymentUrl(normalized, 'GET', remainingMs, options, fetchPort, guard);
     if (get.reachable) return get;
     if (get.status === 'protected') return get;
     // Real refactor, not a padded test: this used to be `get.statusMessage ?
@@ -218,11 +227,11 @@ export async function checkDeploymentUrl(
     // remaining `reachable: false` shape (`status: 'protected'`) is already
     // excluded by the `get.status === 'protected'` check just above. So the
     // `: head` fallback branch could never actually be selected — see
-    // packages/devops/source-map.md's 2026-07-22 addition for the exhaustive
+    // the archived extraction source map's 2026-07-22 addition for the exhaustive
     // case-by-case proof this was re-derived from.
     return get;
   }
-  const get = await requestDeploymentUrl(normalized, 'GET', timeoutMs, options);
+  const get = await requestDeploymentUrl(normalized, 'GET', remainingMs, options, fetchPort, guard);
   // Same reasoning as the `get.statusMessage ? get : head` case just above,
   // plus: when `get.reachable` is true, `get` is returned directly regardless
   // (matching the removed ternary's consequent) — so this whole expression
@@ -237,7 +246,7 @@ export async function checkDeploymentUrl(
  * publish call returns, since providers frequently accept the deploy before
  * the URL is actually resolvable.
  *
- * @param urls - Candidate URLs/hostnames in preference order (duplicates and empties are dropped).
+ * @param requiredArgs - Candidate URLs/hostnames and required fetch, guard, clock and delay ports.
  * @param options - `timeoutMs` (default 60s), `intervalMs` between sweeps (default 2s),
  *   `providerLabel` for messages, and the optional protected-response detector.
  * @returns `{ status, url, statusMessage, reachableAt? }`. `status: 'link-delayed'`
@@ -247,11 +256,11 @@ export async function checkDeploymentUrl(
  * @overallScore 100/100
  */
 export async function waitForReachableDeploymentUrl(
-  urls: unknown[],
+  { urls, fetch: fetchPort, guard, now, sleep }: ReachabilityWaitArgs,
   options: ReachabilityWaitOptions = {},
 ): Promise<ReachabilityWaitResult> {
   const { timeoutMs = 60_000, intervalMs = 2_000, providerLabel = 'Deployment provider' } = options;
-  const candidates = [...new Set((urls || []).map(normalizeDeploymentUrl).filter(Boolean))];
+  const candidates = [...new Set((urls || []).map((url) => normalizeDeploymentUrl({ url })).filter(Boolean))];
   const fallbackUrl = candidates[0] || '';
   if (!fallbackUrl) {
     return {
@@ -261,13 +270,15 @@ export async function waitForReachableDeploymentUrl(
     };
   }
 
-  const startedAt = Date.now();
+  const startedAt = now({});
   let lastMessage = '';
-  while (Date.now() - startedAt <= timeoutMs) {
+  while (now({}) - startedAt < timeoutMs) {
     for (const url of candidates) {
-      const result = await checkDeploymentUrl(url, options);
+      const remainingMs = timeoutMs - (now({}) - startedAt);
+      if (remainingMs <= 0) break;
+      const result = await checkDeploymentUrl({ url, fetch: fetchPort, guard }, { ...options, timeoutMs: Math.min(options.timeoutMs ?? 8_000, remainingMs) });
       if (result.reachable) {
-        return { status: 'ready', url, statusMessage: 'Public link is ready.', reachableAt: Date.now() };
+        return { status: 'ready', url, statusMessage: 'Public link is ready.', reachableAt: now({}) };
       }
       if (result.status === 'protected') {
         return {
@@ -286,15 +297,16 @@ export async function waitForReachableDeploymentUrl(
       // handled by the two `return`s directly above this line, so neither
       // can reach here. `|| lastMessage` (falling back to the *previous*
       // sweep's message) could therefore never actually be selected — see
-      // packages/devops/source-map.md's 2026-07-22 addition for the proof.
+      // the archived extraction source map's 2026-07-22 addition for the proof.
       // Non-null assertion (not `||`/`??`, which would just reintroduce the
       // same dead branch): the type is `string | undefined` because
       // `DeploymentUrlCheck.statusMessage` is optional in general, but this
       // exact call site's result is always defined per the proof above.
       lastMessage = result.statusMessage!;
     }
-    if (Date.now() - startedAt >= timeoutMs) break;
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    const remainingMs = timeoutMs - (now({}) - startedAt);
+    if (remainingMs <= 0) break;
+    if (!await sleepWithinBudget({ sleep, ms: Math.min(intervalMs, remainingMs), timeoutMs: remainingMs })) break;
   }
 
   return {
@@ -302,4 +314,20 @@ export async function waitForReachableDeploymentUrl(
     url: fallbackUrl,
     statusMessage: lastMessage || `${providerLabel} returned a deployment URL, but it is not reachable yet.`,
   };
+}
+
+/** An injected delay can stall too; its completion cannot extend the whole polling deadline.
+ * @complexity O(1) time and space apart from the host's delay implementation. */
+async function sleepWithinBudget({ sleep, ms, timeoutMs }: {
+  sleep: ReachabilityWaitArgs['sleep']; ms: number; timeoutMs: number;
+}): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      sleep({ ms }).then(() => true),
+      new Promise<false>((resolve) => { timer = setTimeout(() => resolve(false), timeoutMs); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
 }

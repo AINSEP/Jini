@@ -33,45 +33,11 @@ import {
 import {
   ensureToolCatalogTables,
   getToolCatalogEntry,
-  inspectSqliteDatabase,
   reseedToolCatalog,
   searchToolCatalog,
-  verifySqliteIntegrity,
-} from '@jini-ai/sqlite';
-import {
-  createDaemonDbToolRegistrations,
-  denyAllWorkspaceRoots,
-  registerActiveContextRoutes,
-  registerAgentRoutes,
-  registerConnectorsRoutes,
-  registerDaemonDbRoutes,
-  registerDaemonStatusRoutes,
-  registerDelegatedToolRoutes,
-  registerFrontendSessionRoutes,
-  registerHealthRoutes,
-  registerHostToolsRoutes,
-  registerMediaRoutes,
-  registerMemoryRoutes,
-  registerModelProxyRoutes,
-  registerRemoteRunEventRoutes,
-  registerResearchRoutes,
-  registerRoutineRoutes,
-  registerRunRoutes,
-  registerTerminalRoutes,
-  registerToolCatalogRoutes,
-  registerXaiRoutes,
-  type AgentSummary,
-  type DaemonDbOperations,
-  type DaemonDbVacuumResult,
-  type DelegatedToolExecuteRequest,
-  type FrontendSessionsHttpDeps,
-  type MediaHttpDeps,
-  type MemoryHttpDeps,
-  type RemoteToolBridgeTokenConfig,
-  type RoutineHttpDeps,
-  type RunStartHandler,
-  type WorkspaceRootResolver,
-} from '@jini-ai/http-kit';
+} from '@jini-ai/registry/tool-catalog/sqlite';
+import { inspectSqliteDatabase, verifySqliteIntegrity, type SqliteDb } from '@jini-ai/db/sqlite';
+import { createDaemonDbToolRegistrations, denyAllWorkspaceRoots, registerActiveContextRoutes, registerAgentRoutes, registerConnectorsRoutes, registerDaemonDbRoutes, registerDaemonStatusRoutes, registerDelegatedToolRoutes, registerFrontendSessionRoutes, registerHealthRoutes, registerHostToolsRoutes, registerMediaRoutes, registerMemoryRoutes, registerModelProxyRoutes, registerRemoteRunEventRoutes, registerResearchRoutes, registerRoutineRoutes, registerRunRoutes, registerTerminalRoutes, registerToolCatalogRoutes, registerXaiRoutes, type AgentSummary, type DaemonDbOperations, type DaemonDbVacuumResult, type DelegatedToolExecuteRequest, type FrontendSessionsHttpDeps, type MediaHttpDeps, type MemoryHttpDeps, type RemoteToolBridgeTokenConfig, type RoutineHttpDeps, type RunStartHandler, type WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import type { Express } from 'express';
 
 import { defineJiniFeature, type FeatureBuildContext, type JiniFeature } from './feature.js';
@@ -208,10 +174,10 @@ function requireSqlite(context: FeatureBuildContext, featureId: string) {
  * size before/after (not the `-wal`/`-shm` sum), since a fresh `VACUUM` checkpoints and shrinks the
  * primary file itself, which is what "reclaimed" means here.
  */
-export function buildDaemonDbOperations(db: import('better-sqlite3').Database, file: string): DaemonDbOperations {
+export function buildDaemonDbOperations(db: SqliteDb, file: string): DaemonDbOperations {
   return {
     inspect: () => inspectSqliteDatabase({ db, file }),
-    verify: (quick: boolean) => verifySqliteIntegrity({ db, quick }),
+    verify: ({ quick }) => verifySqliteIntegrity({ db, quick }),
     vacuum: (): DaemonDbVacuumResult => {
       const startedAt = Date.now();
       const beforeBytes = statSync(file).size;
@@ -251,8 +217,8 @@ export function buildDaemonDbOperations(db: import('better-sqlite3').Database, f
  * @overallScore 100/100
  */
 export function isExecutableDetectedAgent(agent: DetectedAgent): boolean {
-  const def = getAgentDef(agent.id);
-  return def === null || isAgentExecutorSupported(def);
+  const def = getAgentDef({ id: agent.id });
+  return def === null || isAgentExecutorSupported({ def });
 }
 
 /** Projects a real `DetectedAgent` probe onto the HTTP summary shape. */
@@ -291,12 +257,11 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.health',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) => {
+      }, {
+        http: ({ app, services }) => {
           const sqlite = services.context.kernel.sqlite;
           const isShuttingDown = options.health?.isShuttingDown ?? (() => false);
-          registerHealthRoutes(
-            app as Express,
-            {
+          registerHealthRoutes({ app: app as Express, deps: {
               getVersion: options.health?.getVersion ?? (() => packageVersion),
               // Borrows the kernel's connection — see kernel-base.ts on why this is not
               // `daemonDb`'s to own. A readiness check must never itself throw and crash the
@@ -312,9 +277,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
                 }
                 return { ok: dbOk && notShuttingDown, checks: { db: dbOk, notShuttingDown } };
               },
-            },
-            services.context.adapter,
-          );
+            }, adapter: services.context.adapter });
         },
       }),
     }),
@@ -340,15 +303,12 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.runs',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) => {
-            registerRunRoutes(
-              app as Express,
-              {
+        }, {
+          http: ({ app, services }) => {
+            registerRunRoutes({ app: app as Express, deps: {
                 lifecycle: services.context.kernel.lifecycle,
                 ...(onStarted === undefined ? {} : { onStarted }),
-              },
-              services.context.adapter,
-            );
+              }, adapter: services.context.adapter });
           },
         }),
       };
@@ -361,7 +321,7 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     compose: (context) => {
       // Promise-cached so concurrent clients never spawn duplicate probe sets; invalidated by
       // POST /api/agents/rescan.
-      const detector = options.agents?.detector ?? detectAgents;
+      const detector = options.agents?.detector ?? (() => detectAgents({}));
       let scan: Promise<readonly AgentSummary[]> | null = null;
       const scanAgents = (force: boolean): Promise<readonly AgentSummary[]> => {
         if (force) scan = null;
@@ -387,12 +347,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.agents',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) => {
-            registerAgentRoutes(
-              app as Express,
-              { listAgents: () => scanAgents(false), rescanAgents: () => scanAgents(true) },
-              services.context.adapter,
-            );
+        }, {
+          http: ({ app, services }) => {
+            registerAgentRoutes({ app: app as Express, deps: { listAgents: () => scanAgents(false), rescanAgents: () => scanAgents(true) }, adapter: services.context.adapter });
           },
         }),
       };
@@ -408,8 +365,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.hostTools',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) => {
-          registerHostToolsRoutes(app as Express, services.context.adapter, {
+      }, {
+        http: ({ app, services }) => {
+          registerHostToolsRoutes({ app: app as Express, adapter: services.context.adapter }, {
             resolveRoot: options.hostTools?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
           });
         },
@@ -425,7 +383,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.modelProxy',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) => registerModelProxyRoutes(app as Express, {}, services.context.adapter),
+      }, {
+        http: ({ app, services }) => registerModelProxyRoutes({ app: app as Express, deps: {}, adapter: services.context.adapter }),
       }),
     }),
   });
@@ -438,14 +397,11 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.activeContext',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) =>
-          registerActiveContextRoutes(
-            app as Express,
-            // Mandatory but with an honest, harmless answer this package can always give:
+      }, {
+        http: ({ app, services }) =>
+          registerActiveContextRoutes({ app: app as Express, deps: // Mandatory but with an honest, harmless answer this package can always give:
             // "unknown". It has no Project/Workspace noun of its own to resolve a name from.
-            { resolveResource: (): undefined => undefined },
-            services.context.adapter,
-          ),
+            { resolveResource: (): undefined => undefined }, adapter: services.context.adapter }),
       }),
     }),
   });
@@ -454,29 +410,26 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     id: 'terminal',
     provides: ['host:exec'],
     compose: (context) => {
-      const manager: TerminalSessionManager = createTerminalSessionManager();
+      const manager: TerminalSessionManager = createTerminalSessionManager({});
       return {
         pack: definePack({
           name: 'jini.terminal',
           deps: [],
           services: () => ({ context, manager }),
+        }, {
           // THE gap closure: the pty tool and the pty routes are one contribution. A composition
           // without this feature never registers `jini.terminal.create` at all, so a delegated call
           // naming it is an unregistered-tool error — not a shell.
-          tools: (services): readonly ToolRegistration[] => [
+          tools: ({ services }): readonly ToolRegistration[] => [
             createTerminalToolRegistrations({ manager: services.manager }).create,
           ],
-          http: (app, services) =>
-            registerTerminalRoutes(
-              app as Express,
-              {
+          http: ({ app, services }) =>
+            registerTerminalRoutes({ app: app as Express, deps: {
                 manager: services.manager,
                 toolExecutor: services.context.kernel.toolExecutor,
                 principal: options.terminal?.principal ?? LOCAL_DAEMON_PRINCIPAL,
                 resolveRoot: options.terminal?.resolveWorkspaceRoot ?? denyAllWorkspaceRoots,
-              },
-              services.context.adapter,
-            ),
+              }, adapter: services.context.adapter }),
         }),
       };
     },
@@ -496,16 +449,13 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.daemonDb',
           deps: [],
           services: () => ({ context }),
+        }, {
           tools: (): readonly ToolRegistration[] => [registrations.inspect, registrations.verify, registrations.vacuum],
-          http: (app, services) =>
-            registerDaemonDbRoutes(
-              app as Express,
-              {
+          http: ({ app, services }) =>
+            registerDaemonDbRoutes({ app: app as Express, deps: {
                 toolExecutor: services.context.kernel.toolExecutor,
                 principal: options.daemonDb?.principal ?? LOCAL_DAEMON_PRINCIPAL,
-              },
-              services.context.adapter,
-            ),
+              }, adapter: services.context.adapter }),
         }),
       };
     },
@@ -521,37 +471,32 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.toolCatalog',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) =>
-            registerToolCatalogRoutes(
-              app as Express,
-              {
+        }, {
+          http: ({ app, services }) =>
+            registerToolCatalogRoutes({ app: app as Express, deps: {
                 catalog: {
-                  search: (query: string, limit?: number) => searchToolCatalog(sqlite.connection, query, limit),
-                  describe: (id: string) => getToolCatalogEntry(sqlite.connection, id),
+                  search: ({ query }, { limit } = {}) => searchToolCatalog({ db: sqlite.connection, query }, limit === undefined ? {} : { limit }),
+                  describe: ({ id }: { id: string }) => getToolCatalogEntry({ db: sqlite.connection, id }),
                 },
-              },
-              services.context.adapter,
-            ),
+              }, adapter: services.context.adapter }),
         }),
         // Runs once EVERY active feature's tools are registered — the one ordering a Pack cannot
         // express itself. Seeding from inside this pack's own `tools` would snapshot a registry
         // that is still being filled, and the catalog would be silently partial.
         afterTools: () => {
-          ensureToolCatalogTables(sqlite.connection);
-          reseedToolCatalog(
-            sqlite.connection,
-            context.kernel.registry.list().map((descriptor) => ({
+          ensureToolCatalogTables({ db: sqlite.connection });
+          reseedToolCatalog({ db: sqlite.connection, entries: context.kernel.registry.list({}).map((descriptor) => ({
               id: descriptor.id,
               description: descriptor.description ?? descriptor.id,
               source: 'first-party',
               ...(descriptor.inputSchema === undefined ? {} : { inputSchema: descriptor.inputSchema }),
-            })),
-          );
+            })) });
         },
       };
     },
   });
 
+  const resolveDelegatedPrincipal = options.delegatedToolCalls?.resolvePrincipal;
   const delegatedToolCallsFeature = defineJiniFeature({
     id: 'delegatedToolCalls',
     provides: ['tool:delegated'],
@@ -561,10 +506,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.delegatedToolCalls',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) =>
-          registerDelegatedToolRoutes(
-            app as Express,
-            {
+      }, {
+        http: ({ app, services }) =>
+          registerDelegatedToolRoutes({ app: app as Express, deps: {
               lifecycle: services.context.kernel.lifecycle,
               toolExecutor: services.context.kernel.toolExecutor,
               // The same registry `toolExecutor` was built over, so a `requireReadOnly` call (the
@@ -581,10 +525,10 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
               // who its calls run as should learn that from a startup line, not from an audit.
               // See ANONYMOUS_DELEGATED_PRINCIPAL for what does and does not make it inert.
               resolvePrincipal:
-                options.delegatedToolCalls?.resolvePrincipal ?? warnAndUseAnonymousDelegatedPrincipal(),
-            },
-            services.context.adapter,
-          ),
+                resolveDelegatedPrincipal
+                  ? ({ request }) => resolveDelegatedPrincipal(request)
+                  : warnAndUseAnonymousDelegatedPrincipal(),
+            }, adapter: services.context.adapter }),
       }),
     }),
   });
@@ -597,7 +541,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.connectors',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) => registerConnectorsRoutes(app as Express, {}, services.context.adapter),
+      }, {
+        http: ({ app, services }) => registerConnectorsRoutes({ app: app as Express, deps: {}, adapter: services.context.adapter }),
       }),
     }),
   });
@@ -610,7 +555,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.research',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) => registerResearchRoutes(app as Express, {}, services.context.adapter),
+      }, {
+        http: ({ app, services }) => registerResearchRoutes({ app: app as Express, deps: {}, adapter: services.context.adapter }),
       }),
     }),
   });
@@ -629,13 +575,10 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.xai',
           deps: [],
           services: () => ({ context, listenerRef }),
-          http: (app, services) =>
-            registerXaiRoutes(
-              app as Express,
-              { dataDir: sqlite.dataDir, listenerRef: services.listenerRef },
-              services.context.adapter,
-            ),
-          dispose: async (services) => {
+        }, {
+          http: ({ app, services }) =>
+            registerXaiRoutes({ app: app as Express, deps: { dataDir: sqlite.dataDir, listenerRef: services.listenerRef }, adapter: services.context.adapter }),
+          dispose: async ({ services }) => {
             const listener = services.listenerRef.current;
             services.listenerRef.current = null;
             // Best-effort — the listener self-closes on its own timeout anyway.
@@ -657,19 +600,16 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
         name: 'jini.remoteRunEvents',
         deps: [],
         services: () => ({ context }),
-        http: (app, services) =>
-          registerRemoteRunEventRoutes(
-            app as Express,
-            {
+      }, {
+        http: ({ app, services }) =>
+          registerRemoteRunEventRoutes({ app: app as Express, deps: {
               lifecycle: services.context.kernel.lifecycle,
               recorder: createRemoteToolEventRecorder({ lifecycle: services.context.kernel.lifecycle }),
               ...(options.remoteRunEvents?.tokenConfig === undefined
                 ? {}
                 : { tokenConfig: options.remoteRunEvents.tokenConfig }),
               env: services.context.env,
-            },
-            services.context.adapter,
-          ),
+            }, adapter: services.context.adapter }),
       }),
     }),
   });
@@ -684,7 +624,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.memory',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) => registerMemoryRoutes(app as Express, deps, services.context.adapter),
+        }, {
+          http: ({ app, services }) => registerMemoryRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
         }),
       };
     },
@@ -700,7 +641,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.routines',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) => registerRoutineRoutes(app as Express, deps, services.context.adapter),
+        }, {
+          http: ({ app, services }) => registerRoutineRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
         }),
       };
     },
@@ -716,7 +658,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.media',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) => registerMediaRoutes(app as Express, deps, services.context.adapter),
+        }, {
+          http: ({ app, services }) => registerMediaRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
         }),
       };
     },
@@ -732,7 +675,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.frontendSessions',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) => registerFrontendSessionRoutes(app as Express, deps, services.context.adapter),
+        }, {
+          http: ({ app, services }) => registerFrontendSessionRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
         }),
       };
     },
@@ -757,7 +701,8 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
           name: 'jini.daemonStatus',
           deps: [],
           services: () => ({ context }),
-          http: (app, services) => registerDaemonStatusRoutes(app as Express, deps, services.context.adapter),
+        }, {
+          http: ({ app, services }) => registerDaemonStatusRoutes({ app: app as Express, deps, adapter: services.context.adapter }),
         }),
       };
     },
