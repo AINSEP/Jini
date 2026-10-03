@@ -4,6 +4,15 @@ import { test } from "vitest";
 import { LocalBufferSink } from "../repo.memory.js";
 import type { NormalizedHit } from "../types.js";
 
+/**
+ * @file Unit tests for `LocalBufferSink.list()` — the admin "recent hits" read accessor.
+ *
+ * Covers the ordinary case plus the adversarial/bounds cases the resource-bounds pre-check calls
+ * for: an over-cap requested limit, and non-finite (`NaN`, negative, zero) limit input, since this
+ * accessor is what a caller-controlled `?limit=` query param feeds into (see
+ * `routes/admin/analytics/recent-hits.ts`).
+ */
+
 function makeHit(path: string, occurredAt: string): NormalizedHit {
   return {
     workspaceId: "workspace-1",

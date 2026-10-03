@@ -12,7 +12,18 @@ export interface AnalyticsHashPort {
   sha256(required: { parts: readonly (string | Uint8Array)[] }): string;
   deriveDailySalt(required: DailySaltRequired): Buffer;
 }
-/** Re-derive per workspace/day; never persist the result beside analytics data. */
+/**
+ * Re-derive per workspace/day; never persist the result beside analytics data. A copied/backed-up
+ * analytics database alone must not reconstruct the salt, so hosts keep the root key outside it.
+ * HKDF's extract-then-expand step derives independent, context-bound subkeys from one long-lived
+ * secret (RFC 5869); Node provides it natively, avoiding an extra dependency. A plain HMAC digest
+ * could work for a one-off hash but does not express this subkey derivation contract as directly.
+ * The fixed non-secret extraction salt pins reproducible bytes; the root secret and workspace/date
+ * info provide scope uniqueness. Hosts supply both salt and info prefix to preserve existing bytes.
+ * @returns A 32-byte buffer, deterministic for the same root key, scope/date and contexts.
+ * @throws RangeError for empty workspace, date or context, avoiding collapsed scope separation.
+ * @complexity O(1) HKDF-SHA256 extract/expand over bounded inputs.
+ */
 export function deriveDailySalt(required: DailySaltRequired): Buffer {
   const { rootKeySeed, workspaceId, utcDate, saltContext } = required;
   if (!workspaceId) throw new RangeError("deriveDailySalt: workspaceId must not be empty");

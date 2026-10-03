@@ -9,5 +9,7 @@
 
 ## Unreleased
 
+- Restore ingestion, IPv6/UA classification, salt custody and buffer-bound rationale beside the canonical code, plus equivalent test rationale. Runtime behavior and public signatures are unchanged.
+
 - Add the standalone analytics capability, moved from platform with its ingestion, salt, storage and privacy-policy tests. No CMS dependency; behavior and derivation bytes are preserved.
 - BREAKING: consumers of the former platform analytics subpath/root namespace must import `@jini-ai/analytics`.
