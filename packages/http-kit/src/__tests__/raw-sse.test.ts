@@ -109,10 +109,36 @@ describe('createSseResponse', () => {
     expect(res.write).toHaveBeenCalledWith(': ping\n\n');
   });
 
-  it("the client disconnecting (the raw request's 'close' event) closes the connection", () => {
+  it('keeps streaming after the request completes until the response closes', () => {
+    const onClose = vi.fn();
+    const { req, res } = makeReqRes();
+    const connection = createSseResponse({ req: req as any, res: res as any }, { keepAliveMs: 1000, onClose });
+
+    // A completed POST body closes its request while the streaming response is still live.
+    req.emit('close');
+    expect(connection.closed).toBe(false);
+    expect(res.end).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    connection.send({ data: { afterRequest: true } });
+    expect(res.write.mock.calls).toEqual([['data: {"afterRequest":true}\n\n']]);
+    vi.advanceTimersByTime(1000);
+    expect(res.write.mock.calls).toEqual([['data: {"afterRequest":true}\n\n'], [': ping\n\n']]);
+
+    res.emit('close');
+    res.emit('close');
+    expect(connection.closed).toBe(true);
+    expect(res.end).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
+    res.write.mockClear();
+    vi.advanceTimersByTime(1000);
+    connection.send({ data: { afterDisconnect: true } });
+    expect(res.write).not.toHaveBeenCalled();
+  });
+
+  it("the client disconnecting (the raw response's 'close' event) closes the connection", () => {
     const { req, res } = makeReqRes();
     const connection = createSseResponse({ req: req as any, res: res as any });
-    (req as EventEmitter).emit('close');
+    (res as EventEmitter).emit('close');
     expect(connection.closed).toBe(true);
     expect(res.end).toHaveBeenCalledTimes(1);
   });
@@ -122,7 +148,7 @@ describe('createSseResponse', () => {
     const { req, res } = makeReqRes();
     const connection = createSseResponse({ req: req as any, res: res as any }, { onClose });
     connection.close();
-    (req as EventEmitter).emit('close');
+    (res as EventEmitter).emit('close');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
@@ -231,14 +257,10 @@ describe('createSseResponse — backpressure', () => {
 // ---------------------------------------------------------------------------
 
 /**
- * Finding 8 claimed `req.on('close')` fires as soon as a bodyless SSE `GET` is *received* (rather
- * than when the peer actually disconnects), which would tear every stream down immediately. It does
- * not, on any Node this package supports — `IncomingMessage`'s `'close'` fires when the
- * request/response cycle ends or the connection drops, which is precisely the cleanup signal wanted
- * here. A fake `EventEmitter` request cannot tell the difference, so these two drive a real server
- * over a real socket: one proves the stream survives a live idle client, the other proves the
- * disconnect is still detected. Together they are the regression guard that would catch the bug had
- * it been real.
+ * Fake emitters alone cannot establish Node's client-disconnect lifecycle, so these two drive a
+ * real server over a real socket: one proves the stream survives a live idle client, the other
+ * proves disconnect cleanup runs. The unit regression above separately pins request completion
+ * versus response closure, including the POST lifecycle these bodyless GET cases do not exercise.
  */
 describe('createSseResponse — client-disconnect detection over a real socket', () => {
   it('keeps the stream open while a bodyless GET client stays connected', async () => {

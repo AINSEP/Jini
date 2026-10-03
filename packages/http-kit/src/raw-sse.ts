@@ -109,11 +109,10 @@ export function createSseResponse({ req, res }: { readonly req: IncomingMessage;
     pump();
   });
 
-  // `IncomingMessage`'s `'close'` fires when the request/response cycle ends or the connection
-  // drops — not when a bodyless request merely finishes arriving — so this is the client-disconnect
-  // signal it reads as. `raw-sse.test.ts` pins that against a real socket rather than a fake
-  // emitter, because it is the kind of contract a mock will happily agree with either way.
-  req.on('close', close);
+  // A request's `'close'` can fire when a POST body finishes arriving while its response is still
+  // streaming. Observe the response instead so request completion cannot tear down a live stream.
+  // `raw-sse.test.ts` pins both lifecycles; its real-socket cases also verify client disconnects.
+  res.on('close', close);
 
   return {
     send({ data }: { readonly data: unknown }): void {
