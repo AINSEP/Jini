@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat/core';
 import {
@@ -162,7 +163,7 @@ export function AgentLab() {
     // No `currentPage`: the driver reads `data-agent-page` from whichever view is mounted, so a
     // page.navigate actually changes what elements report themselves as belonging to.
     const driver = createDomPageDriver({ root, pages: labPages });
-    const session = createFrontendSessionBridge({
+    const session = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), request: ({ url, init, timeoutMs }) => fetchWithTimeout(url, init, { timeoutMs }) }, {
       pageDriver: driver,
       // The activity trail the design debate flagged as missing: the user can see the agent
       // acting on their own screen instead of inferring it from the transcript.

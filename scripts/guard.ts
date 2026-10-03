@@ -59,10 +59,14 @@ import { checkEngineBoundaries } from './check-engine-boundaries.js';
 import { checkExtensionlessImports } from './check-extensionless-imports.js';
 import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js';
 import { checkProtocolPurity } from './check-protocol-purity.js';
+import { checkSourceNeutrality } from './lib/source-neutrality.js';
+import { checkPackageLayers } from './check-package-layers.js';
+import { runPublishHygieneSelfTest } from './lib/publish-hygiene-self-test.js';
 import { runGuardSelfTest } from './lib/self-test.js';
 
 async function main() {
   const selfTestFailures = await runGuardSelfTest();
+  for (const expectation of runPublishHygieneSelfTest()) selfTestFailures.push({ expectation, detail: 'publish hygiene fixture' });
   if (selfTestFailures.length) {
     console.error('[guard] SELF-TEST FAILED — refusing to trust the checks against the real repo.');
     for (const f of selfTestFailures) {
@@ -79,6 +83,8 @@ async function main() {
 
   const results = [
     await checkEngineBoundaries(),
+    checkSourceNeutrality(),
+    checkPackageLayers(),
     await checkProtocolPurity(),
     // domSubdir override: the DOM-bearing tree moved from src/dom to src/core/dom (see
     // packages/agentic/source-map.md's "The DOM split") when the ./core export subpath was added;

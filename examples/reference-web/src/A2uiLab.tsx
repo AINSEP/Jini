@@ -1,3 +1,4 @@
+import { createSystemClock } from "@jini-ai/core/primitives";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
@@ -27,7 +28,7 @@ import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
  * deliberately omitted here — see `A2uiSurfaceCard`'s own module doc for why an agent-directed
  * action has nowhere real to go yet outside this fixed lab demo's own `/a2ui-action` relay.
  */
-registerExtEventRenderer('a2ui', (props) => <A2uiSurfaceCard {...props} />);
+registerExtEventRenderer({ name: 'a2ui', renderer: (props) => <A2uiSurfaceCard {...props} /> });
 
 const A2UI_DEMO_AGENT_ID = 'a2ui-demo';
 
@@ -148,7 +149,7 @@ function RenderComponent({
       </span>
     );
   }
-  const surface = interpreter.getSurface(surfaceId);
+  const surface = interpreter.getSurface({ surfaceId });
   const component = surface?.components.get(componentId);
   if (!component) {
     return (
@@ -223,9 +224,9 @@ function RenderComponent({
 }
 
 export function A2uiLab() {
-  const catalog = useMemo(() => createLabCatalog(), []);
+  const catalog = useMemo(() => createLabCatalog({}), []);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
-  if (!interpreterRef.current) interpreterRef.current = createA2uiInterpreter(catalog);
+  if (!interpreterRef.current) interpreterRef.current = createA2uiInterpreter({ catalog, clock: createSystemClock(), ids: { next: () => globalThis.crypto.randomUUID() } });
   const interpreter = interpreterRef.current;
 
   const [, forceRender] = useState(0);
@@ -268,7 +269,7 @@ export function A2uiLab() {
           body.run.id,
           {
             onA2uiMessage: (message) => {
-              const result = interpreter.applyAgentMessage(message);
+              const result = interpreter.applyAgentMessage({ raw: message });
               if (result.unattributedViolation) {
                 appendLog(`[refused] ${result.unattributedViolation}`);
               } else {
@@ -315,7 +316,7 @@ export function A2uiLab() {
   async function handleAction(componentId: string) {
     if (!runId) return;
     const surfaceId = `${runId}-surface`;
-    const built = interpreter.buildAction(surfaceId, componentId);
+    const built = interpreter.buildAction({ surfaceId, componentId });
     if (!built.ok) {
       setLastActionError(built.reason);
       appendLog(`[action refused] ${built.reason}`);
@@ -350,7 +351,7 @@ export function A2uiLab() {
   }
 
   const surfaceId = runId ? `${runId}-surface` : null;
-  const root = surfaceId ? interpreter.getRoot(surfaceId) : undefined;
+  const root = surfaceId ? interpreter.getRoot({ surfaceId }) : undefined;
 
   return (
     <main className="a2ui-lab-shell">

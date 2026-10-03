@@ -1,8 +1,8 @@
 /**
  * R12 — driver isolation.
  *
- * A package that ships selectively-installable backends (`@jini-ai/infra`: `./db/core` +
- * `./db/sqlite`) makes a promise its export map alone cannot keep: *importing the neutral entry
+ * A package that ships selectively-installable backends (`@jini-ai/db`: `./core` +
+ * `./sqlite`) makes a promise its export map alone cannot keep: *importing the neutral entry
  * point must not load a driver*. Node does not tree-shake — whatever the static import graph
  * reaches gets resolved and executed — so a single stray import inside the neutral directory
  * turns an optional peer dependency into a hard one, and a host running Postgres starts
@@ -22,7 +22,7 @@
  *     edit here, which is the property that keeps it from rotting.
  *
  * Opt-in per package via `jini.neutralEntries` in package.json — a list of package-relative
- * directories (`["src/db/core"]`). Packages without it are not scanned, so this costs nothing
+ * directories (`["src/core"]`). Packages without it are not scanned, so this costs nothing
  * for the other twenty-odd packages in the repo.
  *
  * Type-only imports are flagged too, deliberately, for two reasons. The narrow one: this repo

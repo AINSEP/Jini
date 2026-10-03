@@ -1,5 +1,6 @@
 packages:
   - packages/*
+  - packages/cms/forms
   - examples/*
 # AI-Dev-Shop is a vendored toolkit (not a workspace package); ADS-memory is project data.
 # No `foundry/**` entry is listed here on purpose — the whole tree is untracked, so any entry
@@ -12,3 +13,7 @@ packages:
 # `foundry/automation/project-runner` (`@jini-automation/project-runner`) was dropped 2026-08-05
 # for the same reason. No tracked package depends on it and it carries its own node_modules, so
 # it still builds and runs in place — it is just no longer a workspace member.
+
+# Resolve plain semver ranges on @jini-ai/* to the local workspace package (pnpm 10 defaults this to false,
+# which sent "^0.5.0" to the registry, where only 0.3.0 is published). Added 2026-10-02 by tovu-jini.
+linkWorkspacePackages: true

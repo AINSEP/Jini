@@ -43,7 +43,7 @@ const MCPUI_INITIAL_MESSAGES: ChatMessage[] = [
  * and `App`'s — see `main.tsx`), so the SAME tool card renders correctly no matter which page's
  * `ChatPane` the run happens to be attached to.
  */
-registerToolRenderer('show_mcpui_widget', (props) => {
+registerToolRenderer({ name: 'show_mcpui_widget', renderer: (props) => {
   if (props.isError) {
     return (
       <div className="mcpui-lab-tool-error" data-agent-role="status" data-agent-label="MCP Apps widget failed to open">
@@ -61,7 +61,7 @@ registerToolRenderer('show_mcpui_widget', (props) => {
   if (typeof parsed.uri !== 'string') return null;
   const title = typeof parsed.title === 'string' ? parsed.title : 'MCP Apps demo widget';
   return <McpUiLabHostFrame mode="normal" sessionKey={parsed.uri} title={title} />;
-});
+} });
 
 export function McpUiLab() {
   const [mode, setMode] = useState<McpUiLabViewMode>('normal');

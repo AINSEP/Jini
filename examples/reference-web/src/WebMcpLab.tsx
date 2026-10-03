@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat/core';
 import { ChatFab, ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat/react';
@@ -239,7 +240,7 @@ export function WebMcpLab() {
   // The daemon-relay half: claims the whole `webmcp.` prefix, so a real agent run (bound to this
   // tab via runContext below) reaches the exact same executeWebMcpLabCapability function above.
   useEffect(() => {
-    const session = createFrontendSessionBridge({
+    const session = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), request: ({ url, init, timeoutMs }) => fetchWithTimeout(url, init, { timeoutMs }) }, {
       executors: { 'webmcp.': executeWebMcpLabCapability },
       onInvocation: (action) => appendLog(`daemon → ${action.capabilityId}`),
       onError: (error) => appendLog(`bridge error: ${String(error)}`),

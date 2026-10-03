@@ -18,6 +18,12 @@ coverage/
 .jini/
 .playwright-mcp/
 
+# Stale local AST cache from a code-graph tool (97MB as of 2026-09-05, ~3 weeks old). Left in
+# place pending a go-ahead on deletion; ignored so it stops showing as untracked in the meantime.
+cache/
+# Bare PID file with no referencing script found in the repo.
+.rebuild.lock
+
 # Written into a run's cwd at spawn by @jini/daemon's mcpJsonInjection (the jini-mcp bridge entry).
 # Per-run generated config, not project source — see packages/daemon/src/agent-executor.ts.
 .mcp.json

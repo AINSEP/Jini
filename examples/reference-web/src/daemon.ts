@@ -13,12 +13,7 @@ import {
 } from '@jini-ai/agentic/a2ui';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import type { ToolRegistration } from '@jini-ai/core';
-import {
-  createDiskAttachmentStore,
-  registerAttachmentRoutes,
-  registerMediaRoutes,
-  registerMemoryRoutes,
-} from '@jini-ai/http-kit';
+import { createDiskAttachmentStore, registerAttachmentRoutes, registerMediaRoutes, registerMemoryRoutes } from '@jini-ai/daemon/http';
 import { createMediaDispatchEngine, createSqliteMediaTaskStore } from '@jini-ai/integrations/media-providers';
 import { createExtractionLog, createNoteStore, createVerifyLog } from '@jini-ai/memory';
 import { createFrontendControl, createLocalNodeDaemon, installGracefulShutdown } from '@jini-ai/server';
@@ -146,9 +141,9 @@ async function runDemo(
   lifecycle: Parameters<NonNullable<Parameters<typeof createLocalNodeDaemon>[0]['onRunStarted']>>[0]['lifecycle'],
 ): Promise<void> {
   let canceled = false;
-  lifecycle.onCancelRequested(runId, () => {
+  lifecycle.onCancelRequested({ runId, listener: () => {
     canceled = true;
-  });
+  } });
 
   const emitAgent = (data: RunAgentPayload) => lifecycle.emit(runId, { event: 'agent', data });
   const stopIfCanceled = async (): Promise<boolean> => {
@@ -283,9 +278,9 @@ async function runA2uiDemo(
   lifecycle: Parameters<NonNullable<Parameters<typeof createLocalNodeDaemon>[0]['onRunStarted']>>[0]['lifecycle'],
 ): Promise<void> {
   let canceled = false;
-  lifecycle.onCancelRequested(runId, () => {
+  lifecycle.onCancelRequested({ runId, listener: () => {
     canceled = true;
-  });
+  } });
   const emitAgent = (data: RunAgentPayload) => lifecycle.emit(runId, { event: 'agent', data });
   /**
    * Validates every outgoing message against `@jini-ai/agentic/a2ui`'s own `parseAgentToRendererMessage`
@@ -447,7 +442,7 @@ async function main(): Promise<void> {
     projects: PROJECTS,
     grantSecret: process.env.JINI_PLAYGROUND_GRANT_SECRET,
   });
-  // Composer file/image uploads, entirely from `@jini-ai/http-kit`: this store plus
+  // Composer file/image uploads from `@jini-ai/daemon/http`: this store plus
   // `registerAttachmentRoutes` below plus the `claim`/`cleanupRun` calls in `onRunStarted` are the
   // whole integration. Every quota here is the package default; they are named rather than omitted
   // only because a playground is where someone reads them.
@@ -545,17 +540,13 @@ async function main(): Promise<void> {
         // `POST`/`DELETE /api/attachments`, replacing ~70 lines of hand-rolled upload plumbing this
         // file used to carry. The same-origin guard is on by default and works here because
         // `JINI_ALLOWED_ORIGINS` above already names the Vite dev origin the browser sends.
-        (app, { adapter }) => registerAttachmentRoutes(app, { store: attachmentStore }, adapter),
-        (app, { adapter }) => registerMemoryRoutes(app, memoryRoutesDeps, adapter),
+        (app, { adapter }) => registerAttachmentRoutes({ app, deps: { store: attachmentStore }, adapter }),
+        (app, { adapter }) => registerMemoryRoutes({ app, deps: memoryRoutesDeps, adapter }),
         (app, { adapter }) =>
-          registerMediaRoutes(
-            app,
-            {
+          registerMediaRoutes({ app, deps: {
               engine: createMediaDispatchEngine({ credentials: {} }),
               taskStore: mediaTaskStore,
-            },
-            adapter,
-          ),
+            }, adapter }),
       ],
       onShutdown: async () => {
         clearInterval(attachmentPruneTimer);
@@ -634,7 +625,7 @@ async function main(): Promise<void> {
                   }
                 : {}),
             });
-            await lifecycle.waitForTerminal(run.id);
+            await lifecycle.waitForTerminal({ runId: run.id });
           } catch (error: unknown) {
             console.error(`[Jini Playground] ${request.agentId} run failed`, error);
             await failPlaygroundRunBeforeExecutor({
@@ -663,10 +654,10 @@ async function main(): Promise<void> {
   // forced-exit fallback (matching Docker's own SIGTERM grace period) if `daemon.stop()` ever
   // wedges — the old flag-guarded `stop` had no such fallback and could hang the process forever
   // on a stuck teardown.
-  installGracefulShutdown(async () => {
+  installGracefulShutdown({ stop: async () => {
     a2uiActionRelay.close();
     await daemon.stop();
-  });
+  } });
 }
 
 void main().catch((error: unknown) => {

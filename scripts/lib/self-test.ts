@@ -150,6 +150,14 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       'universal',
     );
 
+    // REGRESSION: fails if R2 ignores manifest exports added after its old hardcoded list.
+    writePackageWithEntries(root, 'public-concept', {
+      './node': { import: './dist/node.js' }, './assets/*': './assets/*',
+    }, { './node': 'node', './assets/*': 'universal' });
+    write(root, 'packages/http-kit/src/ok-r2-manifest.ts', "import { x } from '@jini-ai/public-concept/node';\n");
+    write(root, 'packages/http-kit/src/ok-r2-wildcard.ts', "import '@jini-ai/public-concept/assets/icon.css';\n");
+    write(root, 'packages/http-kit/src/bad-r2-manifest-private.ts', "import { x } from '@jini-ai/public-concept/src/node';\n");
+
     // R1: relative import escaping into a forbidden top-level dir. `.tsx`, not `.ts` — R7's
     // fixture used to be the thing proving UI-heavy (.tsx) package sources get scanned at all;
     // that coverage moves here rather than disappearing along with R7 itself.
@@ -157,8 +165,54 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // R2: deep cross-package relative reach, and a deep bare @jini-ai/<name>/<subpath> import.
     write(root, 'packages/core/src/bad-r2-relative.ts', `import { x } from '../../daemon/src/foo.js';\nexport { x };\n`);
     write(root, 'packages/http-kit/src/bad-r2-deep.ts', `import { x } from '@jini-ai/daemon/dist/foo.js';\nexport { x };\n`);
+    // Db has no root export: only these explicit public entries may cross package boundaries.
+    const dbPublicEntries = ['core', 'sqlite', 'pglite', 'postgres', 'kernel', 'kernel/sqlite',
+      'kernel/pglite', 'kernel/postgres', 'migrate', 'package.json'];
+    for (const [index, subpath] of dbPublicEntries.entries()) {
+      write(root, `packages/http-kit/src/ok-r2-db-${index}.ts`, `export * from '@jini-ai/db/${subpath}';\n`);
+    }
+    write(root, 'packages/http-kit/src/bad-r2-db-private.ts', `export * from '@jini-ai/db/kernel/private';\n`);
+    write(root, 'packages/http-kit/src/bad-r2-db-source.ts', `export * from '@jini-ai/db/src/core/index.js';\n`);
+    // REGRESSION: fails if the exact public CMS trash R2 exemption is removed.
+    write(root, 'packages/server/src/ok-r2-cms-trash.ts', `export * from '@jini-ai/cms/trash';\n`);
+    // PARITY: the trash entry never authorizes private nested implementation paths.
+    write(root, 'packages/server/src/bad-r2-cms-trash-private.ts', `export * from '@jini-ai/cms/trash/private';\n`);
+    // REGRESSION: fails if the exact public core/primitives or core/text R2 exemption is removed.
+    for (const subpath of ['primitives', 'text']) {
+      write(root, `packages/http-kit/src/ok-r2-core-${subpath}.ts`, `export * from '@jini-ai/core/${subpath}';\n`);
+    }
+    // REGRESSION: fails if either exact optional Node adapter exemption is removed.
+    for (const [index, spec] of ['@jini-ai/devops/deploy/node', '@jini-ai/sidecar/supervisor/node'].entries()) {
+      write(root, `packages/server/src/ok-r2-node-adapter-${index}.ts`, `export * from '${spec}';\n`);
+      // PARITY: an adapter entry does not authorize its private implementation paths.
+      write(root, `packages/server/src/bad-r2-node-adapter-${index}.ts`, `export * from '${spec}/private';\n`);
+    }
+    // REGRESSION: fails if any exact public platform/net, platform/fs or platform/fs/file-lock exemption is removed.
+    for (const [index, subpath] of ['net', 'fs', 'fs/file-lock'].entries()) {
+      write(root, `packages/http-kit/src/ok-r2-platform-${index}.ts`, `export * from '@jini-ai/platform/${subpath}';\n`);
+    }
+    // PARITY: the public entries do not authorize nested private source paths.
+    for (const [index, subpath] of ['net/private', 'fs/private', 'fs/file-lock/private'].entries()) {
+      write(root, `packages/http-kit/src/bad-r2-platform-${index}.ts`, `export * from '@jini-ai/platform/${subpath}';\n`);
+    }
+    // PARITY: approved entries do not permit private nested paths or arbitrary core subpaths.
+    for (const [index, subpath] of ['primitives/private', 'text/private', 'composition/private', 'other'].entries()) {
+      write(root, `packages/http-kit/src/bad-r2-core-${index}.ts`, `export * from '@jini-ai/core/${subpath}';\n`);
+    }
+    // REGRESSION: fails if the exact daemon public entry exemptions are removed.
+    const daemonPublicEntries = ['http', 'read-only-tools', 'scheduler', 'tool-audit', 'surface-exchanges', 'session-coordination', 'run-credentials'];
+    for (const [index, subpath] of daemonPublicEntries.entries()) {
+      write(root, `packages/server/src/ok-r2-daemon-${index}.ts`, `export * from '@jini-ai/daemon/${subpath}';\n`);
+      // PARITY: a public entry never authorizes its private implementation paths.
+      write(root, `packages/server/src/bad-r2-daemon-${index}.ts`, `export * from '@jini-ai/daemon/${subpath}/private';\n`);
+    }
+    // REGRESSION: fails if the exact cms/http/settings R2 exemption is removed.
+    write(root, 'packages/http-kit/src/ok-r2-cms-settings.ts', `export * from '@jini-ai/cms/http/settings';\n`);
+    // PARITY: the public entry never permits private implementation paths or adjacent entries.
+    write(root, 'packages/http-kit/src/bad-r2-cms-settings-private.ts', `export * from '@jini-ai/cms/http/settings/private';\n`);
+    write(root, 'packages/http-kit/src/bad-r2-cms-http-other.ts', `export * from '@jini-ai/cms/http/other';\n`);
     // R2 exemption: @jini-ai/agentic/dom and @jini-ai/agentic/a2ui are the other named-literal
-    // exceptions, alongside @jini-ai/core/internal — must NOT be flagged. A *different* subpath of
+    // exceptions, alongside @jini-ai/core/composition — must NOT be flagged. A *different* subpath of
     // the same package (bad-r2-agentic-other-subpath.ts) proves the exemption is the exact literal,
     // not a pattern that swallows every @jini-ai/agentic/* import.
     write(root, 'packages/http-kit/src/ok-r2-agentic-dom.ts', `import { x } from '@jini-ai/agentic/dom';\nexport { x };\n`);
@@ -202,23 +256,24 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
     // R5: product-identity string + OD_ prefix.
     write(root, 'packages/core/src/bad-r5-string.ts', `export const NAME = 'Open Design';\n`);
     write(root, 'packages/core/src/bad-r5-prefix.ts', `export const OD_STAMP = 'x';\n`);
+    // REGRESSION: fails if R6 checks any specifier other than @jini-ai/core/composition.
     // R6: value import of authorizeToolInvocation from a non-daemon package.
     write(
       root,
       'packages/http-kit/src/bad-r6.ts',
-      `import { authorizeToolInvocation } from '@jini-ai/core/internal';\nexport { authorizeToolInvocation };\n`,
+      `import { authorizeToolInvocation } from '@jini-ai/core/composition';\nexport { authorizeToolInvocation };\n`,
     );
     // R6 exemption: same import, but type-only, from a non-daemon package — must NOT be flagged.
     write(
       root,
       'packages/server/src/ok-r6-type-only.ts',
-      `import type { AnyPack } from '@jini-ai/core/internal';\nexport type { AnyPack };\n`,
+      `import type { AnyPack } from '@jini-ai/core/composition';\nexport type { AnyPack };\n`,
     );
     // R6 exemption: value import, but from daemon itself — must NOT be flagged.
     write(
       root,
       'packages/daemon/src/ok-r6-daemon.ts',
-      `import { authorizeToolInvocation } from '@jini-ai/core/internal';\nexport { authorizeToolInvocation };\n`,
+      `import { authorizeToolInvocation } from '@jini-ai/core/composition';\nexport { authorizeToolInvocation };\n`,
     );
     // Known-good: ordinary same-package relative import and bare package import — must NOT be flagged.
     write(root, 'packages/core/src/ok-relative.ts', `export const x = 1;\n`);
@@ -623,7 +678,42 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       ],
       [has(engineViolations, 'R1-boundary', 'bad-r1.tsx'), 'R1 should catch a relative import escaping into foundry/ (also proves .tsx sources are scanned)'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-relative.ts'), 'R2 should catch a relative import reaching into another package'],
+      ...daemonPublicEntries.flatMap((_subpath, index): [boolean, string][] => [
+        [!has(engineViolations, 'R2-deep-path', `ok-r2-daemon-${index}.ts`), 'R2 must allow each public daemon concept entry'],
+        [has(engineViolations, 'R2-deep-path', `bad-r2-daemon-${index}.ts`), 'R2 must reject private paths beneath public daemon entries'],
+      ]),
+      [!has(engineViolations, 'R2-deep-path', 'ok-r2-cms-settings.ts'), 'R2 must allow the exact CMS settings HTTP entry'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-cms-settings-private.ts'), 'R2 must reject private CMS settings paths'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-cms-http-other.ts'), 'R2 must reject unlisted CMS HTTP entries'],
+      [!has(engineViolations, 'R2-deep-path', 'ok-r2-manifest.ts'), 'R2 must accept public entries from the manifest'],
+      [!has(engineViolations, 'R2-deep-path', 'ok-r2-wildcard.ts'), 'R2 must accept published wildcard assets'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-manifest-private.ts'), 'R2 must reject private paths below a published package'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-deep.ts'), 'R2 should catch a deep bare @jini-ai/<name>/<subpath> import'],
+      ...dbPublicEntries.map((subpath, index): [boolean, string] => [
+        !has(engineViolations, 'R2-deep-path', `ok-r2-db-${index}.ts`),
+        `R2 must NOT flag the approved @jini-ai/db/${subpath} entry`,
+      ]),
+      ...[0, 1].flatMap((index): [boolean, string][] => [
+        [!has(engineViolations, 'R2-deep-path', `ok-r2-node-adapter-${index}.ts`), 'R2 must allow each exact optional Node adapter'],
+        [has(engineViolations, 'R2-deep-path', `bad-r2-node-adapter-${index}.ts`), 'R2 must reject private nested Node adapter paths'],
+      ]),
+      ...[0, 1, 2].map((index): [boolean, string] => [!has(engineViolations, 'R2-deep-path', `ok-r2-platform-${index}.ts`), 'R2 must allow each approved platform public entry']),
+      ...[0, 1, 2].map((index): [boolean, string] => [has(engineViolations, 'R2-deep-path', `bad-r2-platform-${index}.ts`), 'R2 must reject private paths nested under platform public entries']),
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-db-private.ts'), 'R2 must reject an unlisted @jini-ai/db/kernel subpath'],
+      [has(engineViolations, 'R2-deep-path', 'bad-r2-db-source.ts'), 'R2 must reject a reach into @jini-ai/db source'],
+      ...['primitives', 'text'].map((subpath): [boolean, string] => [
+        !has(engineViolations, 'R2-deep-path', `ok-r2-core-${subpath}.ts`),
+        `R2 must NOT flag the approved @jini-ai/core/${subpath} entry`,
+      ]),
+      ...['primitives/private', 'text/private', 'composition/private', 'other'].map((subpath, index): [boolean, string] => [
+        has(engineViolations, 'R2-deep-path', `bad-r2-core-${index}.ts`),
+        `R2 must reject the unlisted @jini-ai/core/${subpath} entry`,
+      ]),
+      // REGRESSION: fails if the composition R2 branch reverts to checking the old specifier.
+      ...['bad-r6.ts', 'ok-r6-type-only.ts', 'ok-r6-daemon.ts'].map((file): [boolean, string] => [
+        !has(engineViolations, 'R2-deep-path', file),
+        `R2 must NOT flag the approved composition entry in ${file}; R6 handles authorization`,
+      ]),
       [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-dom.ts'), 'R2 must NOT flag the gated @jini-ai/agentic/dom import'],
       [!has(engineViolations, 'R2-deep-path', 'ok-r2-agentic-a2ui.ts'), 'R2 must NOT flag the gated @jini-ai/agentic/a2ui import'],
       [has(engineViolations, 'R2-deep-path', 'bad-r2-agentic-other-subpath.ts'), 'R2 should still catch a DIFFERENT @jini-ai/agentic/<subpath> — the exemption is the exact literal, not a pattern'],
@@ -644,7 +734,7 @@ export async function runGuardSelfTest(): Promise<SelfTestFailure[]> {
       [has(engineViolations, 'R5-neutrality', 'bad-r5-string.ts'), 'R5 should catch a product-identity string'],
       [has(engineViolations, 'R5-neutrality', 'bad-r5-prefix.ts'), 'R5 should catch an OD_ prefixed identifier'],
       [has(engineViolations, 'R6-internal-leak', 'bad-r6.ts'), 'R6 should catch a value import of authorizeToolInvocation outside daemon'],
-      [!has(engineViolations, 'R6-internal-leak', 'ok-r6-type-only.ts'), 'R6 must NOT flag a type-only import of @jini-ai/core/internal'],
+      [!has(engineViolations, 'R6-internal-leak', 'ok-r6-type-only.ts'), 'R6 must NOT flag a type-only import of @jini-ai/core/composition'],
       [!has(engineViolations, 'R6-internal-leak', 'ok-r6-daemon.ts'), 'R6 must NOT flag a value import from inside @jini-ai/daemon itself'],
       [has(engineViolations, 'R8-package-metadata', 'packages/missing-metadata/package.json'), 'R8 should catch missing package classification metadata'],
       [

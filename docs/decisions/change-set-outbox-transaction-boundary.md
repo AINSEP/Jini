@@ -39,7 +39,7 @@ already owns a synchronous transaction boundary needed no such abstraction.
 ## Source
 
 This engine's originating host product resolved this as a dedicated design decision (its own
-production-readiness architecture record, BR-04 resolution) after a prior fold-in flagged the
+production-readiness architecture record; see [the mutation audit decision](../../packages/cms/docs/decisions/DR-006-mutation-audit-atomicity.md)) after a prior fold-in flagged the
 outbox-transaction question as needing its own resolved design rather than routine coding. The
 citation to that record has been dropped from the code — this document is where the rationale now
 lives, per this repository's decision-record convention (see `README.md` in this directory).

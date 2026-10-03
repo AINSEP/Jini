@@ -2,12 +2,11 @@
  * R1: packages/@jini-ai/** must not import foundry/**, examples/**, or AI-Dev-Shop/**.
  * R2: engine packages import each other only by package name (no deep paths) — a relative
  *     import must not escape its own package's `src/`, and a bare `@jini-ai/<name>/<subpath>`
- *     import is forbidden except two specifically-gated subpaths: `@jini-ai/core/internal` and
- *     `@jini-ai/agentic/dom` (the browser half of `@jini-ai/agentic`'s deliberate two-entry-point
- *     split — see `packages/agentic/source-map.md`). Both are exact-literal exceptions, not a
- *     pattern; a third package wanting a second entry point needs its own named exception here.
+ *     import is forbidden except the explicitly gated public entries below. These are exact
+ *     literals, never package-wide wildcard exemptions. Db has no root barrel so optional peers
+ *     remain confined to their entry points; its approved public imports are DB_PUBLIC_IMPORTS.
  * R5: no product-identity strings in packages/@jini-ai/**.
- * R6: any runtime *value* (not `import type`) from `@jini-ai/core/internal` may only be imported
+ * R6: any runtime *value* (not `import type`) from `@jini-ai/core/composition` may only be imported
  *     inside `packages/daemon/**` — a second, independent layer on top of the 2026-07-29
  *     structural fix that made the subpath's value export (`authorizeToolInvocation`, formerly
  *     `getToolRegistration`) require passing authorization before ever returning a handler.
@@ -41,11 +40,32 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
+import { sourcePackages } from './lib/package-sources.js';
 import { extractImports, listSourceFiles, REPO_ROOT, stripComments } from './lib/walk-imports.js';
 
 export type Violation = { rule: string; file: string; reason: string };
 
 const FORBIDDEN_TOP_LEVEL_DIRS = ['foundry', 'examples', 'AI-Dev-Shop'];
+
+/** Approved db entry points only: private implementation paths remain forbidden by R2. */
+const DB_PUBLIC_IMPORTS = new Set([
+  '@jini-ai/db/core', '@jini-ai/db/sqlite', '@jini-ai/db/pglite', '@jini-ai/db/postgres',
+  '@jini-ai/db/kernel', '@jini-ai/db/kernel/sqlite', '@jini-ai/db/kernel/pglite',
+  '@jini-ai/db/kernel/postgres', '@jini-ai/db/migrate', '@jini-ai/db/package.json',
+]);
+
+/** Accepted concern-owned storage entries. Exact exports only, never private implementation paths. */
+const STORAGE_PUBLIC_IMPORTS = new Set([
+  '@jini-ai/chat/core', '@jini-ai/chat/store', '@jini-ai/chat/store/sqlite',
+  '@jini-ai/chat/store/pglite', '@jini-ai/chat/store/postgres',
+  '@jini-ai/chat/store/legacy', '@jini-ai/chat/store/legacy/sqlite',
+  '@jini-ai/daemon/store/event-log/sqlite', '@jini-ai/daemon/store/agent-sessions',
+  '@jini-ai/daemon/store/agent-sessions/sqlite', '@jini-ai/daemon/store/agent-sessions/pglite',
+  '@jini-ai/daemon/store/agent-sessions/postgres',
+  '@jini-ai/registry/tool-catalog', '@jini-ai/registry/tool-catalog/sqlite',
+  '@jini-ai/server/storage', '@jini-ai/server/storage/legacy/sqlite',
+  '@jini-ai/server/store/projects/sqlite',
+]);
 
 const PRODUCT_IDENTITY_STRINGS = [
   'Open Design',
@@ -54,20 +74,6 @@ const PRODUCT_IDENTITY_STRINGS = [
   'opendesign.app',
   'od://',
 ];
-/**
- * Checked against **raw** file text, comments included — unlike `PRODUCT_IDENTITY_STRINGS`, which
- * is deliberately comment-stripped so historical provenance citations stay legal.
- *
- * That exemption is right for Open Design (a predecessor this engine was extracted from, worth
- * citing in a module doc) and wrong for Tovu (a live product built *on* this engine, which must not
- * appear in it at all — 2026-08-02, user directive). Every leak this was added for was in a doc
- * comment, so a comment-stripped check would have reported clean while 33 files still named it.
- *
- * Substring match; 'Tovu' also covers 'Tovu-Runner'. Note this reaches only `.ts`/`.tsx` files —
- * `listSourceFiles` skips Markdown, so CHANGELOGs and provenance docs need a separate sweep and a
- * clean `guard` run is necessary but not sufficient.
- */
-const PRODUCT_IDENTITY_STRINGS_IN_COMMENTS_TOO = ['Tovu'];
 /** Matched separately (word-boundary) to avoid false positives on identifiers like `MOD_FOO`. */
 const OD_PREFIX_RE = /\bOD_[A-Z0-9_]*/;
 
@@ -339,6 +345,16 @@ export async function checkEngineBoundaries(
   const packagesDir = options.packagesDir ?? join(root, 'packages');
   const files = listSourceFiles(packagesDir);
   const packageRecords = loadPackageRecords(root, packagesDir, violations);
+  const publicEntries = new Map(sourcePackages({ packagesDir }).map(pkg => [pkg.manifest.name,
+    Object.keys(pkg.manifest.exports ?? {}).filter(key => key.startsWith('./'))]));
+  function isPublishedEntry(packageName: string, subpath: string): boolean {
+    const key = `./${subpath}`;
+    return (publicEntries.get(packageName) ?? []).some(entry => {
+      const star = entry.indexOf('*');
+      return star === -1 ? entry === key
+        : key.startsWith(entry.slice(0, star)) && key.endsWith(entry.slice(star + 1));
+    });
+  }
 
   for (const absFile of files) {
     const file = relative(root, absFile).split('\\').join('/');
@@ -347,13 +363,6 @@ export async function checkEngineBoundaries(
     // ... was removed") don't get flagged as a live violation — see stripComments's doc.
     const rawContent = readFileSync(absFile, 'utf8');
     const content = stripComments(rawContent);
-
-    // R5: product-identity strings that must not appear even in comments.
-    for (const needle of PRODUCT_IDENTITY_STRINGS_IN_COMMENTS_TOO) {
-      if (rawContent.includes(needle)) {
-        violations.push({ rule: 'R5-neutrality', file, reason: `product-identity string "${needle}" (comments included)` });
-      }
-    }
 
     // R5: product-identity strings.
     for (const needle of PRODUCT_IDENTITY_STRINGS) {
@@ -417,7 +426,9 @@ export async function checkEngineBoundaries(
         const subpath = slashIdx === -1 ? null : withoutScope.slice(slashIdx + 1);
 
         if (subpath !== null) {
-          if (spec === '@jini-ai/core/internal') {
+          if (spec === '@jini-ai/core/composition') {
+            // R2 exception: the public assembly entry isolates authorization values from the root.
+            // R6 below still restricts its runtime imports; type-only DI contracts remain public.
             // R6: only a VALUE import (currently authorizeToolInvocation) from outside
             // @jini-ai/daemon is a leak. Type-only imports (server's AnyPack/MissingTokenIds) are
             // unrestricted.
@@ -425,9 +436,24 @@ export async function checkEngineBoundaries(
               violations.push({
                 rule: 'R6-internal-leak',
                 file,
-                reason: 'value import of @jini-ai/core/internal outside packages/daemon — bypasses the ToolExecutor authz gate',
+                reason: 'value import of @jini-ai/core/composition outside packages/daemon — bypasses the ToolExecutor authz gate',
               });
             }
+          } else if (isPublishedEntry(targetPackageName, subpath)) {
+            // Public exports are the package's contract. Private source/dist paths are still
+            // rejected, and the authorization value boundary above remains independently enforced.
+          } else if (spec === '@jini-ai/core/primitives') {
+            // R2 exception: canonical host ports and JSON/time/ID types have a public kernel entry.
+            // Exact literal only; private nested implementation paths remain forbidden.
+          } else if (spec === '@jini-ai/daemon/http' || spec === '@jini-ai/daemon/read-only-tools' || spec === '@jini-ai/daemon/scheduler' || spec === '@jini-ai/daemon/tool-audit' || spec === '@jini-ai/daemon/surface-exchanges' || spec === '@jini-ai/daemon/session-coordination' || spec === '@jini-ai/daemon/run-credentials') {
+            // Public daemon concepts and its optional HTTP integration; nested paths remain private.
+          } else if (spec === '@jini-ai/cms/trash') {
+            // Public CMS soft-delete capability; only this exact entry is public.
+          } else if (spec === '@jini-ai/cms/http/settings') {
+            // Public domain HTTP entry; private nested paths remain forbidden by exact matching.
+          } else if (spec === '@jini-ai/core/text') {
+            // R2 exception: the shared untrusted-text sanitizer is a public kernel entry,
+            // independent of the CLI shell that previously owned it.
           } else if (spec === '@jini-ai/agentic/dom') {
             // R2 exception #2 (2026-07-26 extraction): @jini-ai/agentic ships two entry points on
             // purpose — a DOM-free root and a browser-only "./dom" half, split across two
@@ -456,6 +482,11 @@ export async function checkEngineBoundaries(
             // create-mcp-ui-tool-caller.ts) to the bare "@jini-ai/ui" specifier would not compile.
             // Gated to this exact literal, same as the other three — no other @jini-ai/ui subpath is
             // exempted by this branch.
+          } else if (spec === '@jini-ai/devops/deploy/node' || spec === '@jini-ai/sidecar/supervisor/node') {
+            // Optional Node defaults have isolated public entries; never allow private nested paths.
+          } else if (spec === '@jini-ai/platform/net' || spec === '@jini-ai/platform/fs' || spec === '@jini-ai/platform/fs/file-lock') {
+            // Canonical SSRF address policies, atomic filesystem writes and filesystem locks are public Node platform entries.
+            // Exact literals only: neither nested implementation paths nor arbitrary subpaths qualify.
           } else if (spec === '@jini-ai/platform/fetch-with-timeout') {
             // R2 exception #5 (2026-08-17): unlike the four exceptions above, the bare
             // "@jini-ai/platform" barrel DOES already re-export fetchWithTimeout/FETCH_TIMEOUT_MS
@@ -472,13 +503,16 @@ export async function checkEngineBoundaries(
             // server that never bundles. The five real browser consumers (packages/chat's
             // frontend-session-bridge.ts and create-daemon-attachment-uploader.ts, packages/ui's
             // memory/dependencies.ts, ExportDiagnosticsButton.tsx, useBrandFonts.ts) all need the dev
-            // server to work, so they import the subpath directly and skip the barrel entirely. Gated
+            // server to work, so they originally imported this subpath; they now inject browser fetch. Gated
             // to this exact literal — no other @jini-ai/platform subpath is exempted by this branch.
+          } else if (DB_PUBLIC_IMPORTS.has(spec) || STORAGE_PUBLIC_IMPORTS.has(spec)) {
+            // Public subpath imports preserve optional-peer isolation and concern ownership.
+            // The self-test rejects unlisted nested paths and direct source reaches.
           } else {
             violations.push({
               rule: 'R2-deep-path',
               file,
-              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/internal / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout) is allowed`,
+              reason: `deep-path import "${spec}" — only bare "@jini-ai/${targetPackage}" (or the gated @jini-ai/core/composition / @jini-ai/core/primitives / @jini-ai/core/text / @jini-ai/agentic/dom / @jini-ai/agentic/a2ui / @jini-ai/ui/mcp-ui / @jini-ai/platform/fetch-with-timeout / @jini-ai/platform/net / @jini-ai/platform/fs / @jini-ai/platform/fs/file-lock / @jini-ai/devops/deploy/node / @jini-ai/sidecar/supervisor/node / approved @jini-ai/db public entries) is allowed`,
             });
           }
         }
