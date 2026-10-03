@@ -10,34 +10,34 @@ import { safeRelativeOutputFile } from './transforms.js';
 /** Require regular directories at every ancestor. Hosts must use canonical absolute storage paths.
  * The storage hierarchy must be caller-owned; cross-process hostile ancestor swaps require host isolation.
  */
-async function ensureDirectory(directory: string, create: boolean): Promise<void> {
-  if (!path.isAbsolute(directory)) throw new ExportPathError('Artifact and theme directories must be absolute.');
+async function ensureDirectory({ directory, label }: { directory: string; label: 'Output' | 'Artifact' | 'Theme' }, optional: { create?: boolean } = {}): Promise<void> {
+  if (!path.isAbsolute(directory)) throw new ExportPathError(`${label} path must be absolute.`);
   const resolved = path.resolve(directory);
   const segments = resolved.slice(path.parse(resolved).root.length).split(path.sep).filter(Boolean);
   let current = path.parse(resolved).root;
   for (const segment of segments) {
     current = path.join(current, segment);
-    if (create) {
+    if (optional.create) {
       try { await mkdir(current); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
     }
     const info = await lstat(current);
-    if (!info.isDirectory() || info.isSymbolicLink()) throw new ExportPathError('Artifact and theme paths must be regular directories.');
+    if (!info.isDirectory() || info.isSymbolicLink()) throw new ExportPathError(`${label} path must be a regular directory.`);
   }
 }
 /** Caller-owned output directory, explicit clean, and no-follow regular-file writes. */
 export function createNodeArtifactWriter(_required: Record<string, never>): ArtifactWriterPort {
   return {
     async prepare({ outputDir }, optional = {}) {
-      await ensureDirectory(outputDir, true);
+      await ensureDirectory({ directory: outputDir, label: 'Output' }, { create: true });
       const entries = await readdir(outputDir);
       if (entries.length && !optional.clean) throw new ExportOutputNotEmptyError(`export output directory '${outputDir}' is not empty (${entries.length} existing ${entries.length === 1 ? 'entry' : 'entries'}) — pass clean: true to remove its contents first, or select an empty/new directory`);
       if (optional.clean) for (const entry of entries) await rm(path.join(outputDir, entry), { recursive: true, force: true });
     },
     async write({ outputDir, outputFile, data }) {
       safeRelativeOutputFile({ value: outputFile });
-      await ensureDirectory(outputDir, true);
+      await ensureDirectory({ directory: outputDir, label: 'Output' }, { create: true });
       const destination = path.join(outputDir, outputFile);
-      await ensureDirectory(path.dirname(destination), true);
+      await ensureDirectory({ directory: path.dirname(destination), label: 'Artifact' }, { create: true });
       try {
         const info = await lstat(destination);
         if (!info.isFile() || info.isSymbolicLink()) throw new ExportPathError('Artifact output must be a regular file.');
@@ -81,5 +81,5 @@ export function createNodeAssetSource(_required: Record<string, never>): AssetSo
     }
     return files;
   }
-  return { async listThemeFiles({ theme }) { await ensureDirectory(theme.dir, false); return (await list(theme.dir, '')).sort(); } };
+  return { async listThemeFiles({ theme }) { await ensureDirectory({ directory: theme.dir, label: 'Theme' }); return (await list(theme.dir, '')).sort(); } };
 }
