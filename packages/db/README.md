@@ -23,6 +23,10 @@ There is no `.` export. Each part loads only its own files and its explicitly sh
 The connection subpaths load no optional peer. Kernels need Kysely at load time, but all drivers
 are injected when a connection is opened. Transfer and database tools have their own isolated subpaths.
 
+Each JavaScript subpath declares `types`, `import` and `default` export conditions.
+The `default` condition points to the same ESM file as `import`, so loaders such as
+the tsx CommonJS bootstrap can resolve the subpaths without an active `import` condition.
+
 ## Import and driver isolation
 
 `kysely` is an optional peer (`^0.29.6`), imported as a value or type only under `src/kernel/`

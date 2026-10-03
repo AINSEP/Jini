@@ -21,52 +21,64 @@
   "exports": {
     "./core": {
       "types": "./dist/core/index.d.ts",
-      "import": "./dist/core/index.js"
+      "import": "./dist/core/index.js",
+      "default": "./dist/core/index.js"
     },
     "./sqlite": {
       "types": "./dist/sqlite/index.d.ts",
-      "import": "./dist/sqlite/index.js"
+      "import": "./dist/sqlite/index.js",
+      "default": "./dist/sqlite/index.js"
     },
     "./pglite": {
       "types": "./dist/pglite/index.d.ts",
-      "import": "./dist/pglite/index.js"
+      "import": "./dist/pglite/index.js",
+      "default": "./dist/pglite/index.js"
     },
     "./postgres": {
       "types": "./dist/postgres/index.d.ts",
-      "import": "./dist/postgres/index.js"
+      "import": "./dist/postgres/index.js",
+      "default": "./dist/postgres/index.js"
     },
     "./kernel": {
       "types": "./dist/kernel/index.d.ts",
-      "import": "./dist/kernel/index.js"
+      "import": "./dist/kernel/index.js",
+      "default": "./dist/kernel/index.js"
     },
     "./kernel/sqlite": {
       "types": "./dist/kernel/sqlite/index.d.ts",
-      "import": "./dist/kernel/sqlite/index.js"
+      "import": "./dist/kernel/sqlite/index.js",
+      "default": "./dist/kernel/sqlite/index.js"
     },
     "./kernel/pglite": {
       "types": "./dist/kernel/pglite/index.d.ts",
-      "import": "./dist/kernel/pglite/index.js"
+      "import": "./dist/kernel/pglite/index.js",
+      "default": "./dist/kernel/pglite/index.js"
     },
     "./kernel/postgres": {
       "types": "./dist/kernel/postgres/index.d.ts",
-      "import": "./dist/kernel/postgres/index.js"
+      "import": "./dist/kernel/postgres/index.js",
+      "default": "./dist/kernel/postgres/index.js"
     },
     "./migrate": {
       "types": "./dist/migrate/index.d.ts",
-      "import": "./dist/migrate/index.js"
+      "import": "./dist/migrate/index.js",
+      "default": "./dist/migrate/index.js"
     },
     "./package.json": "./package.json",
     "./transfer": {
       "types": "./dist/transfer/index.d.ts",
-      "import": "./dist/transfer/index.js"
+      "import": "./dist/transfer/index.js",
+      "default": "./dist/transfer/index.js"
     },
     "./tools": {
       "types": "./dist/tools/index.d.ts",
-      "import": "./dist/tools/index.js"
+      "import": "./dist/tools/index.js",
+      "default": "./dist/tools/index.js"
     },
     "./kernel/store-copy": {
       "types": "./dist/kernel/store-copy.d.ts",
-      "import": "./dist/kernel/store-copy.js"
+      "import": "./dist/kernel/store-copy.js",
+      "default": "./dist/kernel/store-copy.js"
     }
   },
   "typesVersions": {

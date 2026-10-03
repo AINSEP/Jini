@@ -6,6 +6,8 @@
 
 ### Fixed
 
+- Add a `default` condition to every JavaScript subpath, pointing to its existing ESM entry, so tsx CommonJS bootstraps can resolve the package without `ERR_PACKAGE_PATH_NOT_EXPORTED`.
+
 - `databaseFile<DB>` accepts `StorageKernel<DB>` so hosts can pass typed kernels without casting or erasing their schema. Query and null behavior are unchanged.
 
 - Align transfer handlers with core's second-argument `ToolExecutionOptions.emitSurface` and canonical `SurfaceEmitter`; preserve fail-closed confirmation behavior. Forward resolved catalog messages and adapt native SQLite snapshot fixtures with explicit raw-row result types.
